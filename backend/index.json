@@ -1,0 +1,145 @@
+{
+  "component": "backend",
+  "type": "fastapi-service",
+  "version": "1.0.0",
+  "description": "FastAPI backend service for local file operations and LaunchBox integration",
+  "owner": "Pythia",
+  "port_configuration": {
+    "direct_execution": {
+      "command": "python backend/app.py",
+      "port": 8888,
+      "location": "backend/app.py:137"
+    },
+    "npm_script": {
+      "command": "npm run dev:backend",
+      "port": 8000,
+      "location": "package.json:10"
+    },
+    "note": "Port varies by launch method - update FASTAPI_URL in .env accordingly"
+  },
+  "cors_configuration": {
+    "enabled": true,
+    "allowed_origins": [
+      "http://localhost:8787",
+      "https://localhost:8787"
+    ],
+    "location": "backend/app.py:105-111",
+    "allow_credentials": true,
+    "allow_methods": ["GET", "POST", "PUT", "DELETE"],
+    "allow_headers": ["*"]
+  },
+  "route_registration": {
+    "health": {
+      "router": "backend/routers/health.py",
+      "prefix": "/health",
+      "endpoints": ["GET /health"],
+      "registered_at": "backend/app.py:114"
+    },
+    "launchbox": {
+      "router": "backend/routers/launchbox.py",
+      "prefix": "/api/launchbox",
+      "endpoints": [
+        "GET /api/launchbox/games",
+        "GET /api/launchbox/games/{id}",
+        "GET /api/launchbox/platforms",
+        "GET /api/launchbox/genres",
+        "GET /api/launchbox/random",
+        "POST /api/launchbox/launch/{id}",
+        "GET /api/launchbox/stats",
+        "GET /api/launchbox/image/{id}",
+        "GET /api/launchbox/plugin-status",
+        "GET /api/launchbox/images/stats",
+        "POST /api/launchbox/images/refresh"
+      ],
+      "registered_at": "backend/app.py:121",
+      "activation_date": "2025-10-06"
+    },
+    "config_ops": {
+      "router": "backend/routers/config_ops.py",
+      "prefix": "/config",
+      "registered_at": "backend/app.py:115"
+    },
+    "session_log": {
+      "router": "backend/routers/session_log.py",
+      "prefix": "/docs/session_log",
+      "registered_at": "backend/app.py:116"
+    },
+    "emulator_mame": {
+      "router": "backend/routers/emulator_mame.py",
+      "prefix": "/mame",
+      "registered_at": "backend/app.py:117"
+    },
+    "emulator_retroarch": {
+      "router": "backend/routers/emulator_retroarch.py",
+      "prefix": "/retroarch",
+      "registered_at": "backend/app.py:118"
+    },
+    "screen_capture": {
+      "router": "backend/routers/screen_capture.py",
+      "prefix": "/screen",
+      "registered_at": "backend/app.py:119"
+    },
+    "claude_api": {
+      "router": "backend/routers/claude_api.py",
+      "prefix": "/claude",
+      "registered_at": "backend/app.py:120"
+    }
+  },
+  "startup_sequence": {
+    "1_load_env": "backend/app.py:14-25",
+    "2_validate_environment": "backend/app.py:38, backend/startup_manager.py:32-68",
+    "3_initialize_app_state": "backend/app.py:42, backend/startup_manager.py:70-110",
+    "4_initialize_launchbox_cache": "backend/app.py:46-48",
+    "5_optional_preload": "backend/app.py:50-62"
+  },
+  "a_drive_detection": {
+    "detection_method": "backend/constants/a_drive_paths.py:43-46",
+    "checks_for": ["A:", "/MNT/A"],
+    "behavior_when_detected": {
+      "skips_manifest_validation": "backend/startup_manager.py:46-49",
+      "uses_empty_manifest": "backend/startup_manager.py:78",
+      "parses_real_xml": "Platform XMLs from A:\\LaunchBox\\Data\\Platforms"
+    },
+    "behavior_when_not_detected": {
+      "loads_mock_data": "backend/services/launchbox_parser.py:517-540",
+      "mock_games_count": 15,
+      "mock_platforms": ["Arcade", "NES", "SNES", "Sega Genesis"]
+    }
+  },
+  "launchbox_integration": {
+    "parser_service": "backend/services/launchbox_parser.py",
+    "launcher_service": "backend/services/launcher.py",
+    "paths_constants": "backend/constants/a_drive_paths.py",
+    "xml_source": "A:\\LaunchBox\\Data\\Platforms\\*.xml",
+    "cache_strategy": {
+      "in_memory": true,
+      "disk_cache": "backend/cache/launchbox_parser_cache.json",
+      "lazy_loading": true,
+      "cache_max_age_days": 7
+    },
+    "fallback_launch_chain": [
+      "C# Plugin Bridge",
+      "LaunchBox.exe",
+      "Direct MAME execution"
+    ]
+  },
+  "semantic_tags": [
+    "fastapi",
+    "backend",
+    "file-operations",
+    "launchbox",
+    "game-library",
+    "xml-parser",
+    "a-drive",
+    "mock-data",
+    "cors",
+    "health-check"
+  ],
+  "dependencies": {
+    "fastapi": "web framework",
+    "uvicorn": "ASGI server",
+    "pydantic": "data validation",
+    "python-dotenv": "environment variables",
+    "xml.etree.ElementTree": "XML parsing"
+  }
+}

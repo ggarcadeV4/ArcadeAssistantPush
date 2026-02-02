@@ -1,0 +1,17 @@
+{
+  "PluginId": "gg-arcade-assistant-bridge",
+  "UserId": 0,
+  "Name": "G&G Arcade - Arcade Assistant Bridge",
+  "Developer": "Greg Ferguson (G&G Arcade)",
+  "Brief": "HTTP bridge for Arcade Assistant integration with LaunchBox.",
+  "Description": "Provides an HTTP API bridge on port 9999 that allows the Arcade Assistant system to communicate with LaunchBox. Enables game launching, search, and platform queries from external applications. Includes a Tools menu item for testing the bridge connection.",
+  "Requirements": null,
+  "Credits": "Built with ChatGPT, Claude Sonnet 4.5 (Sinntra), Codex, and Kiro",
+  "OperatingSystemFamily": "Windows",
+  "InstalledVersion": "1.0.0",
+  "SourceCodeUrl": null,
+  "SupportUrl": null,
+  "HomePageUrl": null,
+  "TipJarUrl": null,
+  "Tags": []
+}

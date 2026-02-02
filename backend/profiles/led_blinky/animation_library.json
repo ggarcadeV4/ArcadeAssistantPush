@@ -1,0 +1,94 @@
+{
+  "description": "LED animation library specification for Arcade Assistant",
+  
+  "core_animations": {
+    "solid": {
+      "name": "Solid",
+      "description": "A single, static color",
+      "use_cases": ["Base button state", "Indicators"],
+      "parameters": {
+        "color": {"type": "RGB Tuple", "description": "The color to display"}
+      }
+    },
+    "blink": {
+      "name": "Blink",
+      "description": "Flashes a color on and off",
+      "use_cases": ["Credit indicators", "Active player"],
+      "parameters": {
+        "color": {"type": "RGB Tuple", "description": "The color to blink"},
+        "speed": {"type": "float", "description": "Duration of one full on/off cycle in seconds", "default": 0.5}
+      }
+    },
+    "pulse": {
+      "name": "Pulse",
+      "description": "Smoothly fades a color in and out (breathing effect)",
+      "use_cases": ["Standby/attract mode", "Ambient effects"],
+      "parameters": {
+        "color": {"type": "RGB Tuple", "description": "The color to pulse"},
+        "speed": {"type": "float", "description": "Duration of one full fade cycle in seconds", "default": 3.0}
+      },
+      "implementation": "Use cosine function for smooth, natural breathing effect"
+    },
+    "chase": {
+      "name": "Chase",
+      "description": "Theatre-marquee-style chase effect",
+      "use_cases": ["Marquee effects", "Attract mode"],
+      "parameters": {
+        "color": {"type": "RGB Tuple", "description": "Color of moving block"},
+        "speed": {"type": "float", "description": "Speed in seconds per step"},
+        "size": {"type": "int", "description": "Number of lit LEDs in block", "default": 3},
+        "spacing": {"type": "int", "description": "Dark LEDs between blocks", "default": 3},
+        "reverse": {"type": "bool", "description": "Reverse direction", "default": false}
+      }
+    },
+    "comet": {
+      "name": "Comet",
+      "description": "Pixel moves along strip with fading tail",
+      "use_cases": ["Dynamic feedback", "Attract mode"],
+      "parameters": {
+        "color": {"type": "RGB Tuple", "description": "Color of comet head"},
+        "speed": {"type": "float", "description": "Speed in seconds per step"},
+        "tail_length": {"type": "int", "description": "Length of fading tail in pixels", "default": 10},
+        "bounce": {"type": "bool", "description": "Reverse at strip ends", "default": false}
+      },
+      "implementation": "Tail created by progressively dimming pixels behind head"
+    },
+    "rainbow": {
+      "name": "Rainbow",
+      "description": "Moving wave of rainbow colors",
+      "use_cases": ["Attract mode", "Special game events"],
+      "parameters": {
+        "speed": {"type": "float", "description": "Speed of rainbow movement in seconds"},
+        "period": {"type": "float", "description": "Distance in pixels for pattern repeat", "default": "strip_length"}
+      },
+      "implementation": "Use HSV-to-RGB, increment Hue over time"
+    },
+    "sparkle": {
+      "name": "Sparkle",
+      "description": "Random pixels flash and fade out",
+      "use_cases": ["Attract mode", "Visual accents"],
+      "parameters": {
+        "color": {"type": "RGB Tuple", "description": "Color of sparkles"},
+        "speed": {"type": "float", "description": "Average time between sparkles in seconds"},
+        "num_sparkles": {"type": "int", "description": "Average simultaneous sparkles"}
+      }
+    }
+  },
+
+  "attract_mode": {
+    "default_sequence": [
+      {"animation": "rainbow", "duration_seconds": 15},
+      {"animation": "chase", "duration_seconds": 10, "color": "#00FFFF", "size": 4, "spacing": 4},
+      {"animation": "pulse", "duration_seconds": 10, "color": "#0000FF", "speed": 5},
+      {"animation": "sparkle", "duration_seconds": 10, "color": "#FFFFFF", "num_sparkles": 5}
+    ],
+    "configurable": true,
+    "storage_path": "configs/ledblinky/attract_sequence.json"
+  },
+
+  "implementation_notes": [
+    "Each animation should be a class with animate() method called on frame update",
+    "Support animation groups for multi-zone control",
+    "Hardware animations (PacLED64 fade, LED-Wiz pulse modes) should offload to device when possible"
+  ]
+}

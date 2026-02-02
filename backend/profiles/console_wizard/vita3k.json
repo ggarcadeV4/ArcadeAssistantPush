@@ -1,0 +1,31 @@
+{
+  "emulator_type": "vita3k",
+  "display_name": "Vita3K",
+  "supported_players": 1,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6",
+    "p1.start", "p1.coin"
+  ],
+  "config_files": [
+    "config.yml"
+  ],
+  "config_format": "yaml",
+  "button_mapping": {
+    "button1": "cross",
+    "button2": "circle",
+    "button3": "square",
+    "button4": "triangle",
+    "button5": "l",
+    "button6": "r"
+  },
+  "special_controls": {
+    "start": "start",
+    "coin": "select",
+    "up": "up",
+    "down": "down",
+    "left": "left",
+    "right": "right"
+  }
+}

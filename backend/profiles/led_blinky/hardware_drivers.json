@@ -1,0 +1,94 @@
+{
+  "description": "LED controller hardware driver specifications for Arcade Assistant",
+  
+  "pacled64": {
+    "name": "Ultimarc PacLED64",
+    "vendor": "Ultimarc",
+    "vid": "0xD209",
+    "pid": "0x1500",
+    "channels": 64,
+    "brightness_levels": 256,
+    "rgb_leds_max": 21,
+    "features": {
+      "constant_current_outputs": true,
+      "hardware_fades": true,
+      "hardware_flashing": true,
+      "flash_storage": 128,
+      "multi_board_support": true
+    },
+    "flash_rates": [
+      {"id": 0, "name": "On (no flash)"},
+      {"id": 1, "name": "2 seconds"},
+      {"id": 2, "name": "1 second"},
+      {"id": 3, "name": "0.5 seconds"}
+    ],
+    "sdk": "PacDriveSDK",
+    "api_functions": {
+      "PacGetDeviceType": "Returns device type (5 for PacLED64)",
+      "Pac64SetLEDIntensity": "Sets single LED intensity (0-255)",
+      "Pac64SetLEDIntensities": "Sets all 64 LED intensities in one call",
+      "Pac64SetLEDFadeTime": "Sets on-board fade time for smooth transitions",
+      "Pac64SetLEDFlashSpeed": "Sets LED flash speed (0-3)",
+      "Pac64SetScriptStepDelay": "Sets delay for stored attract-mode scripts"
+    },
+    "implementation_notes": [
+      "Create Python wrapper for PacDrive.dll",
+      "Use Pac64SetLEDIntensities for batch updates (animations)",
+      "Leverage on-board fade for breathing effects",
+      "Can store 128-step attract mode sequence in flash"
+    ]
+  },
+
+  "ledwiz": {
+    "name": "GroovyGameGear LED-Wiz",
+    "vendor": "GroovyGameGear",
+    "vid": "0xFAFA",
+    "pid": "0x00F0",
+    "channels": 32,
+    "brightness_levels": 49,
+    "rgb_leds_max": 10,
+    "features": {
+      "hardware_pulse_modes": 4,
+      "multi_board_support": true,
+      "max_boards": 16,
+      "usb_powered": true
+    },
+    "pulse_modes": [
+      {"id": 129, "name": "Sawtooth"},
+      {"id": 130, "name": "Square Wave"},
+      {"id": 131, "name": "Fade In"},
+      {"id": 132, "name": "Fade Out"}
+    ],
+    "pulse_speeds": "1-7 (global setting)",
+    "sdk": "LEDWiz SDK",
+    "api_functions": {
+      "LWZ_Initialize": "Detects and initializes all connected LED-Wiz devices",
+      "LWZ_SBA": "Sets on/off state of all 32 outputs + global pulse speed",
+      "LWZ_PBA": "Sets brightness profile (1-49) or pulse mode (129-132) for all outputs",
+      "LWZ_SetCallbacks": "Registers callbacks for hot-plug support"
+    },
+    "implementation_notes": [
+      "Create Python wrapper for LEDWiz.dll",
+      "CRITICAL: Use LWZ_PBA on startup/profile change, LWZ_SBA for real-time control",
+      "Do NOT call LWZ_PBA for on/off control - inefficient",
+      "Brightness mapping: ledwiz_brightness = int((value_0_255 / 255) * 48) + 1"
+    ],
+    "brightness_conversion": "int((value_0_255 / 255) * 48) + 1"
+  },
+
+  "comparison": {
+    "recommendation": "PacLED64 for new builds with RGB LEDs",
+    "ledwiz_use_case": "Legacy hardware, simpler setups",
+    "pacled64_advantages": ["More channels", "8-bit brightness", "Hardware fades", "Flash storage"]
+  },
+
+  "device_specs_update": {
+    "note": "Update DEVICE_SPECS in led_hardware.py with these VID/PIDs",
+    "entries": {
+      "(0xFAFA, 0x00F0)": {"name": "LED-Wiz", "ports": 32},
+      "(0xD209, 0x1500)": {"name": "PacLED64", "ports": 64},
+      "(0xFAFA, 0x00F7)": {"name": "GroovyGameGear", "ports": 96},
+      "(0xD209, 0x1401)": {"name": "Ultimarc", "ports": 48}
+    }
+  }
+}

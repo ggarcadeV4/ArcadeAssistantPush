@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Blinky Color Picker Demo</title>
+    <style>
+        body {
+            background: #000;
+            color: #fff;
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            background: linear-gradient(135deg, #c084fc, #9333ea, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+        .demo-container {
+            background: #0f0f0f;
+            border: 1px solid #9333ea;
+            border-radius: 16px;
+            padding: 24px;
+            margin: 20px 0;
+        }
+        .color-section {
+            background: #0a0a0a;
+            border: 1px solid #7c3aed;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .player-section {
+            margin-bottom: 16px;
+        }
+        .player-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .player1 { color: #9333ea; }
+        .player2 { color: #a855f7; }
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .color-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .color-label {
+            font-size: 12px;
+            color: #d1d5db;
+            min-width: 60px;
+        }
+        input[type="color"] {
+            width: 40px;
+            height: 32px;
+            cursor: pointer;
+            border: 1px solid #7c3aed;
+            border-radius: 4px;
+            background: #000;
+            padding: 2px;
+        }
+        .color-hex {
+            font-size: 11px;
+            color: #9ca3af;
+            font-family: monospace;
+        }
+        details {
+            margin-top: 20px;
+        }
+        summary {
+            font-size: 13px;
+            font-weight: 600;
+            color: #d1d5db;
+            cursor: pointer;
+            padding: 8px;
+            background: #0a0a0a;
+            border-radius: 6px;
+            border: 1px solid #4b5563;
+            user-select: none;
+        }
+        textarea {
+            width: 100%;
+            min-height: 160px;
+            padding: 12px;
+            background: #0a0a0a;
+            border: 1px solid #4b5563;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 12px;
+            font-family: monospace;
+            margin-top: 8px;
+        }
+        .feature-list {
+            background: #0a0a0a;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .feature-list h3 {
+            color: #9333ea;
+            margin-bottom: 12px;
+        }
+        .feature-list li {
+            color: #d1d5db;
+            margin: 8px 0;
+        }
+        .success { color: #10b981; }
+        .code-block {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 LED Blinky Color Picker Demo</h1>
+
+    <div class="demo-container">
+        <h2 style="color: #9333ea; margin-bottom: 20px;">✨ New Color Picker Interface</h2>
+
+        <div class="color-section">
+            <h3 style="font-size: 14px; font-weight: 600; color: #d1d5db; margin-bottom: 16px;">
+                Button Colors
+            </h3>
+
+            <!-- Player 1 -->
+            <div class="player-section">
+                <div class="player-title player1">Player 1</div>
+                <div class="color-grid">
+                    <div class="color-control">
+                        <label class="color-label">Button 1:</label>
+                        <input type="color" value="#FF0000" id="p1_b1">
+                        <span class="color-hex" id="p1_b1_hex">#FF0000</span>
+                    </div>
+                    <div class="color-control">
+                        <label class="color-label">Button 2:</label>
+                        <input type="color" value="#00FF00" id="p1_b2">
+                        <span class="color-hex" id="p1_b2_hex">#00FF00</span>
+                    </div>
+                    <div class="color-control">
+                        <label class="color-label">Button 3:</label>
+                        <input type="color" value="#0000FF" id="p1_b3">
+                        <span class="color-hex" id="p1_b3_hex">#0000FF</span>
+                    </div>
+                    <div class="color-control">
+                        <label class="color-label">Button 4:</label>
+                        <input type="color" value="#FFFF00" id="p1_b4">
+                        <span class="color-hex" id="p1_b4_hex">#FFFF00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player 2 -->
+            <div class="player-section">
+                <div class="player-title player2">Player 2</div>
+                <div class="color-grid">
+                    <div class="color-control">
+                        <label class="color-label">Button 1:</label>
+                        <input type="color" value="#FF00FF" id="p2_b1">
+                        <span class="color-hex" id="p2_b1_hex">#FF00FF</span>
+                    </div>
+                    <div class="color-control">
+                        <label class="color-label">Button 2:</label>
+                        <input type="color" value="#00FFFF" id="p2_b2">
+                        <span class="color-hex" id="p2_b2_hex">#00FFFF</span>
+                    </div>
+                    <div class="color-control">
+                        <label class="color-label">Button 3:</label>
+                        <input type="color" value="#FF8800" id="p2_b3">
+                        <span class="color-hex" id="p2_b3_hex">#FF8800</span>
+                    </div>
+                    <div class="color-control">
+                        <label class="color-label">Button 4:</label>
+                        <input type="color" value="#8800FF" id="p2_b4">
+                        <span class="color-hex" id="p2_b4_hex">#8800FF</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <details>
+            <summary>⚙️ Advanced: JSON Editor</summary>
+            <textarea id="jsonEditor" readonly>{
+  "player1": {
+    "button1": "#FF0000",
+    "button2": "#00FF00",
+    "button3": "#0000FF",
+    "button4": "#FFFF00"
+  },
+  "player2": {
+    "button1": "#FF00FF",
+    "button2": "#00FFFF",
+    "button3": "#FF8800",
+    "button4": "#8800FF"
+  }
+}</textarea>
+        </details>
+
+        <div class="feature-list">
+            <h3>✅ Implementation Features</h3>
+            <ul>
+                <li class="success">✓ Native HTML color pickers for best UX</li>
+                <li class="success">✓ Individual controls for P1/P2 buttons 1-4</li>
+                <li class="success">✓ Hex color values displayed next to pickers</li>
+                <li class="success">✓ Bidirectional sync between pickers and JSON</li>
+                <li class="success">✓ JSON editor collapsed by default (Advanced mode)</li>
+                <li class="success">✓ Responsive 2-column layout for each player</li>
+                <li class="success">✓ Clean, accessible markup with proper labels</li>
+                <li class="success">✓ Maintains existing Preview → Apply workflow</li>
+            </ul>
+        </div>
+
+        <div class="feature-list">
+            <h3>📝 Key Implementation Details</h3>
+            <div class="code-block">
+// State management
+const [mappingForm, setMappingForm] = useState({
+  p1_button1: '#FF0000',
+  p1_button2: '#00FF00',
+  p1_button3: '#0000FF',
+  p1_button4: '#FFFF00',
+  p2_button1: '#FF00FF',
+  p2_button2: '#00FFFF',
+  p2_button3: '#FF8800',
+  p2_button4: '#8800FF'
+})
+
+// Helper function
+const setButtonColor = useCallback((key, value) => {
+  setMappingForm(prev => ({ ...prev, [key]: value }))
+}, [])
+
+// Bidirectional sync
+useEffect(() => {
+  // Sync form to JSON string
+  const formattedMapping = {
+    player1: { button1: mappingForm.p1_button1, ... },
+    player2: { button1: mappingForm.p2_button1, ... }
+  }
+  setMappingData(JSON.stringify(formattedMapping, null, 2))
+}, [mappingForm])
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Demo interactivity
+        document.querySelectorAll('input[type="color"]').forEach(input => {
+            input.addEventListener('input', (e) => {
+                const hexSpan = document.getElementById(e.target.id + '_hex');
+                hexSpan.textContent = e.target.value.toUpperCase();
+                updateJSON();
+            });
+        });
+
+        function updateJSON() {
+            const mapping = {
+                player1: {
+                    button1: document.getElementById('p1_b1').value.toUpperCase(),
+                    button2: document.getElementById('p1_b2').value.toUpperCase(),
+                    button3: document.getElementById('p1_b3').value.toUpperCase(),
+                    button4: document.getElementById('p1_b4').value.toUpperCase()
+                },
+                player2: {
+                    button1: document.getElementById('p2_b1').value.toUpperCase(),
+                    button2: document.getElementById('p2_b2').value.toUpperCase(),
+                    button3: document.getElementById('p2_b3').value.toUpperCase(),
+                    button4: document.getElementById('p2_b4').value.toUpperCase()
+                }
+            };
+            document.getElementById('jsonEditor').value = JSON.stringify(mapping, null, 2);
+        }
+    </script>
+</body>
+</html>

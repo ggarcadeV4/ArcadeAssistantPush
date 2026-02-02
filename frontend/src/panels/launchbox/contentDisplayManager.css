@@ -1,0 +1,706 @@
+/* Content Display Manager - Styles */
+/* Arcade Assistant themed panel for content path management */
+
+/* Container */
+.cdm-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+    color: #e0e6ed;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 40px 20px;
+    position: relative;
+}
+
+/* Toast notification */
+.cdm-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 212, 255, 0.95);
+    color: #0a0e27;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
+    animation: cdm-toast-slide-in 0.3s ease;
+}
+
+@keyframes cdm-toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Header */
+.cdm-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.cdm-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, #00d4ff 0%, #0099ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+    text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+.cdm-subtitle {
+    font-size: 1rem;
+    color: #8b92a8;
+    font-weight: 400;
+}
+
+/* Main Grid */
+.cdm-main-grid {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+@media (max-width: 1000px) {
+    .cdm-main-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Section Card */
+.cdm-section-card {
+    background: rgba(26, 31, 58, 0.6);
+    border: 2px solid rgba(0, 212, 255, 0.3);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0 40px rgba(0, 212, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.cdm-section-card:hover {
+    border-color: rgba(0, 212, 255, 0.5);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), inset 0 0 60px rgba(0, 212, 255, 0.08);
+}
+
+/* Section Headers */
+.cdm-section-header {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #00d4ff;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.cdm-subsection-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #4db8ff;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(77, 184, 255, 0.2);
+}
+
+/* Input Groups */
+.cdm-input-group {
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.cdm-label {
+    display: block;
+    font-size: 0.9rem;
+    color: #b0b8cc;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.cdm-label-small {
+    display: block;
+    font-size: 0.8rem;
+    color: #b0b8cc;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+/* Inputs */
+.cdm-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(10, 14, 39, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    color: #e0e6ed;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    box-sizing: border-box;
+}
+
+.cdm-input:focus {
+    border-color: rgba(0, 212, 255, 0.7);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+.cdm-input::placeholder {
+    color: #5a6380;
+}
+
+.cdm-input-with-badge {
+    width: calc(100% - 90px);
+}
+
+.cdm-input-readonly {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.cdm-input-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.cdm-input-small {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(10, 14, 39, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 6px;
+    color: #e0e6ed;
+    font-size: 0.85rem;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.cdm-input-small:focus {
+    border-color: rgba(0, 212, 255, 0.7);
+}
+
+/* Select */
+.cdm-select {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(10, 14, 39, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    color: #e0e6ed;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+    cursor: pointer;
+}
+
+.cdm-select:focus {
+    border-color: rgba(0, 212, 255, 0.7);
+}
+
+.cdm-select option {
+    background: #1a1f3a;
+    color: #e0e6ed;
+}
+
+/* Status Badge - base styles */
+.cdm-status-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+/* Status Badge - positioned (in input groups only) */
+.cdm-input-group .cdm-status-badge {
+    position: absolute;
+    right: 0;
+    top: 32px;
+}
+
+.cdm-status-unknown {
+    background: rgba(139, 146, 168, 0.2);
+    border: 1px solid rgba(139, 146, 168, 0.3);
+    color: #8b92a8;
+}
+
+.cdm-status-valid {
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+}
+
+.cdm-status-invalid {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+/* System Path Row */
+.cdm-system-path-row {
+    display: grid;
+    grid-template-columns: 180px 1fr 40px;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+/* Buttons */
+.cdm-btn-primary {
+    padding: 10px 24px;
+    background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+    border: none;
+    border-radius: 8px;
+    color: #0a0e27;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    margin-right: 10px;
+}
+
+.cdm-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
+}
+
+.cdm-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.cdm-btn-secondary {
+    padding: 10px 24px;
+    background: transparent;
+    border: 2px solid rgba(0, 212, 255, 0.4);
+    border-radius: 8px;
+    color: #00d4ff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: 10px;
+}
+
+.cdm-btn-secondary:hover {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: rgba(0, 212, 255, 0.6);
+}
+
+.cdm-btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cdm-btn-small {
+    padding: 6px 14px;
+    background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+    border: none;
+    border-radius: 6px;
+    color: #0a0e27;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: 8px;
+    margin-top: 5px;
+}
+
+.cdm-btn-small:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+}
+
+.cdm-btn-small.cdm-btn-outline {
+    background: transparent;
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    color: #00d4ff;
+}
+
+.cdm-btn-small.cdm-btn-outline:hover {
+    background: rgba(0, 212, 255, 0.1);
+}
+
+.cdm-btn-add {
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px dashed rgba(0, 212, 255, 0.4);
+    border-radius: 6px;
+    color: #00d4ff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 15px;
+}
+
+.cdm-btn-add:hover {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: rgba(0, 212, 255, 0.6);
+}
+
+.cdm-btn-remove {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    color: #ef4444;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.cdm-btn-remove:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Button Row */
+.cdm-button-row {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Action Bar */
+.cdm-action-bar {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+/* Table */
+.cdm-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.cdm-table-header {
+    background: rgba(0, 212, 255, 0.1);
+    border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+}
+
+.cdm-th {
+    padding: 12px 10px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #00d4ff;
+}
+
+.cdm-td {
+    padding: 12px 10px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+    font-size: 0.9rem;
+    color: #e0e6ed;
+}
+
+/* Checkbox */
+.cdm-checkbox-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.cdm-checkbox {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+    cursor: pointer;
+    accent-color: #00d4ff;
+}
+
+.cdm-checkbox-label {
+    font-size: 0.9rem;
+    color: #b0b8cc;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Safe Area Grid */
+.cdm-safe-area-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* Test Buttons Row */
+.cdm-test-buttons-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+/* Loading Overlay */
+.cdm-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(10, 14, 39, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.cdm-loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(0, 212, 255, 0.2);
+    border-top-color: #00d4ff;
+    border-radius: 50%;
+    animation: cdm-spin 1s linear infinite;
+}
+
+@keyframes cdm-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.cdm-loading-text {
+    margin-top: 20px;
+    font-size: 1.2rem;
+    color: #00d4ff;
+    font-weight: 500;
+}
+
+/* Modal */
+.cdm-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(10, 14, 39, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1500;
+    animation: cdm-fade-in 0.2s ease;
+}
+
+@keyframes cdm-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.cdm-modal {
+    background: rgba(26, 31, 58, 0.95);
+    border: 2px solid rgba(0, 212, 255, 0.4);
+    border-radius: 16px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 212, 255, 0.1);
+    animation: cdm-slide-up 0.3s ease;
+}
+
+@keyframes cdm-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.cdm-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.cdm-modal-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #00d4ff;
+    font-weight: 600;
+}
+
+.cdm-modal-close {
+    background: transparent;
+    border: none;
+    font-size: 2rem;
+    color: #8b92a8;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 8px;
+    transition: color 0.2s;
+}
+
+.cdm-modal-close:hover {
+    color: #ef4444;
+}
+
+.cdm-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.cdm-code-preview {
+    background: rgba(10, 14, 39, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: #e0e6ed;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    line-height: 1.6;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.cdm-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 24px;
+    border-top: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+/* Hint text for sections */
+.cdm-hint-text {
+    font-size: 0.85rem;
+    color: rgba(224, 230, 237, 0.6);
+    margin: 8px 0 16px 0;
+    line-height: 1.5;
+}
+
+/* ================================================
+   Pegasus Platform Status Section
+   ================================================ */
+
+.cdm-pegasus-summary {
+    background: rgba(0, 212, 255, 0.05);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.cdm-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cdm-stat-row:last-child {
+    border-bottom: none;
+}
+
+.cdm-stat-label {
+    color: rgba(224, 230, 237, 0.7);
+    font-size: 0.9rem;
+}
+
+.cdm-stat-value {
+    color: #00d4ff;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+/* Scrollable table container */
+.cdm-table-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.cdm-table-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.cdm-table-scroll::-webkit-scrollbar-track {
+    background: rgba(10, 14, 39, 0.5);
+}
+
+.cdm-table-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.3);
+    border-radius: 4px;
+}
+
+.cdm-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.5);
+}
+
+/* Platform-specific table cells */
+.cdm-td-platform {
+    min-width: 180px;
+}
+
+.cdm-platform-name {
+    font-weight: 500;
+}
+
+.cdm-td-games {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.cdm-game-count {
+    color: #00d4ff;
+    font-weight: 600;
+}
+
+.cdm-lb-count {
+    color: rgba(224, 230, 237, 0.5);
+    font-size: 0.85rem;
+}
+
+/* Status badge variations */
+.cdm-status-warning {
+    color: #ffc107;
+    background: rgba(255, 193, 7, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}

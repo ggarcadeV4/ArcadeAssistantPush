@@ -1,0 +1,570 @@
+{
+    "version": "1.0",
+    "description": "Genre-based controller profiles for auto-apply on game launch. Configure once, play everywhere!",
+    "last_modified": "2025-12-22T23:15:00Z",
+    "profiles": {
+        "fighting": {
+            "name": "Fighting Games",
+            "description": "6-button fighting game layout (Street Fighter, Tekken, MvC, KOF, etc.)",
+            "icon": "🥊",
+            "applies_to_genres": [
+                "Fighting",
+                "Beat-'Em-Up",
+                "2D Fighting",
+                "3D Fighting",
+                "Versus Fighting"
+            ],
+            "button_layout": {
+                "p1.button1": {
+                    "role": "LP",
+                    "label": "Light Punch",
+                    "color": "#FF4444"
+                },
+                "p1.button2": {
+                    "role": "MP",
+                    "label": "Medium Punch",
+                    "color": "#FF6666"
+                },
+                "p1.button3": {
+                    "role": "HP",
+                    "label": "Heavy Punch",
+                    "color": "#FF8888"
+                },
+                "p1.button4": {
+                    "role": "LK",
+                    "label": "Light Kick",
+                    "color": "#4444FF"
+                },
+                "p1.button5": {
+                    "role": "MK",
+                    "label": "Medium Kick",
+                    "color": "#6666FF"
+                },
+                "p1.button6": {
+                    "role": "HK",
+                    "label": "Heavy Kick",
+                    "color": "#8888FF"
+                },
+                "p1.button7": {
+                    "role": "3P",
+                    "label": "3x Punch (optional)",
+                    "color": "#FFAA00"
+                },
+                "p1.button8": {
+                    "role": "3K",
+                    "label": "3x Kick (optional)",
+                    "color": "#00AAFF"
+                },
+                "p2.button1": {
+                    "role": "LP",
+                    "label": "Light Punch",
+                    "color": "#FF4444"
+                },
+                "p2.button2": {
+                    "role": "MP",
+                    "label": "Medium Punch",
+                    "color": "#FF6666"
+                },
+                "p2.button3": {
+                    "role": "HP",
+                    "label": "Heavy Punch",
+                    "color": "#FF8888"
+                },
+                "p2.button4": {
+                    "role": "LK",
+                    "label": "Light Kick",
+                    "color": "#4444FF"
+                },
+                "p2.button5": {
+                    "role": "MK",
+                    "label": "Medium Kick",
+                    "color": "#6666FF"
+                },
+                "p2.button6": {
+                    "role": "HK",
+                    "label": "Heavy Kick",
+                    "color": "#8888FF"
+                }
+            },
+            "emulator_mappings": {
+                "mame": {
+                    "map_template": "fighting_6button",
+                    "ctrlr_file": "arcade_fighting.cfg"
+                },
+                "teknoparrot": {
+                    "category": "fighting",
+                    "button_map": {
+                        "InputButton1": "p1.button1",
+                        "InputButton2": "p1.button2",
+                        "InputButton3": "p1.button3",
+                        "InputButton4": "p1.button4",
+                        "InputButton5": "p1.button5",
+                        "InputButton6": "p1.button6"
+                    }
+                },
+                "pcsx2": {
+                    "profile": "fighting_games",
+                    "button_map": {
+                        "Square": "p1.button1",
+                        "Triangle": "p1.button2",
+                        "R1": "p1.button3",
+                        "X": "p1.button4",
+                        "Circle": "p1.button5",
+                        "R2": "p1.button6"
+                    }
+                },
+                "retroarch": {
+                    "core_override": "fighting_games.cfg",
+                    "button_map": {
+                        "input_b_btn": "p1.button1",
+                        "input_a_btn": "p1.button2",
+                        "input_r_btn": "p1.button3",
+                        "input_y_btn": "p1.button4",
+                        "input_x_btn": "p1.button5",
+                        "input_r2_btn": "p1.button6"
+                    }
+                }
+            },
+            "led_profile": {
+                "p1.button1": {
+                    "color": "#00FFFF",
+                    "label": "LP - Cyan (Light)"
+                },
+                "p1.button2": {
+                    "color": "#FFFF00",
+                    "label": "MP - Yellow (Medium)"
+                },
+                "p1.button3": {
+                    "color": "#FF0000",
+                    "label": "HP - Red (Fierce)"
+                },
+                "p1.button4": {
+                    "color": "#00FFFF",
+                    "label": "LK - Cyan (Light)"
+                },
+                "p1.button5": {
+                    "color": "#FFFF00",
+                    "label": "MK - Yellow (Medium)"
+                },
+                "p1.button6": {
+                    "color": "#FF0000",
+                    "label": "HK - Red (Fierce)"
+                },
+                "p1.button7": {
+                    "color": "#FF00FF",
+                    "label": "3P - Magenta (All Punches Macro)"
+                },
+                "p1.button8": {
+                    "color": "#00FF88",
+                    "label": "3K - Teal (All Kicks Macro)"
+                },
+                "p1.start": {
+                    "color": "#00FF00",
+                    "label": "Start - Green"
+                },
+                "p1.coin": {
+                    "color": "#FFFF00",
+                    "label": "Coin - Yellow"
+                },
+                "p2.button1": {
+                    "color": "#00FFFF"
+                },
+                "p2.button2": {
+                    "color": "#FFFF00"
+                },
+                "p2.button3": {
+                    "color": "#FF0000"
+                },
+                "p2.button4": {
+                    "color": "#00FFFF"
+                },
+                "p2.button5": {
+                    "color": "#FFFF00"
+                },
+                "p2.button6": {
+                    "color": "#FF0000"
+                },
+                "p2.button7": {
+                    "color": "#FF00FF",
+                    "label": "3P - Magenta (All Punches Macro)"
+                },
+                "p2.button8": {
+                    "color": "#00FF88",
+                    "label": "3K - Teal (All Kicks Macro)"
+                },
+                "p2.start": {
+                    "color": "#00FF00"
+                },
+                "p2.coin": {
+                    "color": "#FFFF00"
+                }
+            }
+        },
+        "racing": {
+            "name": "Racing Games",
+            "description": "Wheel/pedal racing and driving games",
+            "icon": "🏎️",
+            "applies_to_genres": [
+                "Racing",
+                "Driving",
+                "Vehicular Combat"
+            ],
+            "button_layout": {
+                "p1.button1": {
+                    "role": "nitro",
+                    "label": "Nitro/Boost",
+                    "color": "#FF00FF"
+                },
+                "p1.button2": {
+                    "role": "gas",
+                    "label": "Gas Pedal",
+                    "color": "#00FF00"
+                },
+                "p1.button3": {
+                    "role": "brake",
+                    "label": "Brake Pedal",
+                    "color": "#FF0000"
+                },
+                "p1.button4": {
+                    "role": "view",
+                    "label": "Change View",
+                    "color": "#00FFFF"
+                },
+                "p1.button5": {
+                    "role": "gear_up",
+                    "label": "Gear Up",
+                    "color": "#FFFFFF"
+                },
+                "p1.button6": {
+                    "role": "gear_down",
+                    "label": "Gear Down",
+                    "color": "#888888"
+                }
+            },
+            "emulator_mappings": {
+                "mame": {
+                    "map_template": "racing"
+                },
+                "teknoparrot": {
+                    "category": "racing",
+                    "button_map": {
+                        "InputNitro": "p1.button1",
+                        "InputGas": "p1.button2",
+                        "InputBrake": "p1.button3",
+                        "InputChangeView": "p1.button4",
+                        "InputGearUp": "p1.button5",
+                        "InputGearDown": "p1.button6"
+                    }
+                }
+            },
+            "led_profile": {
+                "p1.button1": {
+                    "color": "#FF00FF",
+                    "label": "Nitro - Magenta"
+                },
+                "p1.button2": {
+                    "color": "#00FF00",
+                    "label": "Gas - Green"
+                },
+                "p1.button3": {
+                    "color": "#FF0000",
+                    "label": "Brake - Red"
+                },
+                "p1.button4": {
+                    "color": "#00FFFF",
+                    "label": "View - Cyan"
+                },
+                "p1.button5": {
+                    "color": "#FFFFFF",
+                    "label": "Gear Up - White"
+                },
+                "p1.button6": {
+                    "color": "#888888",
+                    "label": "Gear Down - Gray"
+                },
+                "p1.start": {
+                    "color": "#00FF00"
+                },
+                "p1.coin": {
+                    "color": "#FFFF00"
+                }
+            }
+        },
+        "shmup": {
+            "name": "Shoot 'Em Ups",
+            "description": "Vertical/horizontal scrolling shooters (shmups)",
+            "icon": "🚀",
+            "applies_to_genres": [
+                "Shooter",
+                "Shoot-'Em-Up",
+                "Shmup",
+                "Scrolling Shooter",
+                "Vertical Shooter",
+                "Horizontal Shooter"
+            ],
+            "button_layout": {
+                "p1.button1": {
+                    "role": "fire",
+                    "label": "Fire",
+                    "color": "#FF0000"
+                },
+                "p1.button2": {
+                    "role": "bomb",
+                    "label": "Bomb/Special",
+                    "color": "#FFAA00"
+                },
+                "p1.button3": {
+                    "role": "rapid",
+                    "label": "Rapid Fire",
+                    "color": "#FF4400"
+                },
+                "p1.button4": {
+                    "role": "focus",
+                    "label": "Focus/Slow",
+                    "color": "#00FFFF"
+                }
+            },
+            "emulator_mappings": {
+                "mame": {
+                    "map_template": "shmup"
+                },
+                "retroarch": {
+                    "core_override": "shmup.cfg"
+                }
+            },
+            "led_profile": {
+                "p1.button1": {
+                    "color": "#FF0000",
+                    "label": "Fire - Red"
+                },
+                "p1.button2": {
+                    "color": "#FFAA00",
+                    "label": "Bomb - Orange"
+                },
+                "p1.button3": {
+                    "color": "#FF4400",
+                    "label": "Rapid - Orange-Red"
+                },
+                "p1.button4": {
+                    "color": "#00FFFF",
+                    "label": "Focus - Cyan"
+                },
+                "p1.start": {
+                    "color": "#00FF00"
+                },
+                "p1.coin": {
+                    "color": "#FFFF00"
+                }
+            }
+        },
+        "lightgun": {
+            "name": "Light Gun Games",
+            "description": "Light gun shooters (House of Dead, Time Crisis, etc.)",
+            "icon": "🔫",
+            "applies_to_genres": [
+                "Light Gun",
+                "Light-Gun Shooter",
+                "Rail Shooter",
+                "On-Rails Shooter"
+            ],
+            "button_layout": {
+                "p1.button1": {
+                    "role": "trigger",
+                    "label": "Trigger/Fire",
+                    "color": "#FF0000"
+                },
+                "p1.button2": {
+                    "role": "reload",
+                    "label": "Reload",
+                    "color": "#FFAA00"
+                },
+                "p1.button3": {
+                    "role": "grenade",
+                    "label": "Grenade/Special",
+                    "color": "#00FF00"
+                },
+                "p1.button4": {
+                    "role": "cover",
+                    "label": "Take Cover",
+                    "color": "#0088FF"
+                }
+            },
+            "emulator_mappings": {
+                "mame": {
+                    "map_template": "lightgun"
+                },
+                "teknoparrot": {
+                    "category": "lightgun",
+                    "button_map": {
+                        "InputTrigger": "p1.button1",
+                        "InputReload": "p1.button2",
+                        "InputGrenade": "p1.button3",
+                        "InputCover": "p1.button4"
+                    }
+                }
+            },
+            "led_profile": {
+                "p1.button1": {
+                    "color": "#FF0000",
+                    "label": "Trigger - Red"
+                },
+                "p1.button2": {
+                    "color": "#FFAA00",
+                    "label": "Reload - Orange"
+                },
+                "p1.button3": {
+                    "color": "#00FF00",
+                    "label": "Grenade - Green"
+                },
+                "p1.button4": {
+                    "color": "#0088FF",
+                    "label": "Cover - Blue"
+                },
+                "p1.start": {
+                    "color": "#00FF00"
+                },
+                "p1.coin": {
+                    "color": "#FFFF00"
+                }
+            }
+        },
+        "platformer": {
+            "name": "Platformers",
+            "description": "Platformer and action games (2-3 button)",
+            "icon": "🍄",
+            "applies_to_genres": [
+                "Platformer",
+                "Platform",
+                "Action",
+                "Action-Adventure"
+            ],
+            "button_layout": {
+                "p1.button1": {
+                    "role": "jump",
+                    "label": "Jump",
+                    "color": "#00FF00"
+                },
+                "p1.button2": {
+                    "role": "attack",
+                    "label": "Attack",
+                    "color": "#FF0000"
+                },
+                "p1.button3": {
+                    "role": "special",
+                    "label": "Special/Run",
+                    "color": "#0088FF"
+                }
+            },
+            "emulator_mappings": {
+                "mame": {
+                    "map_template": "platformer"
+                },
+                "retroarch": {
+                    "core_override": "platformer.cfg"
+                }
+            },
+            "led_profile": {
+                "p1.button1": {
+                    "color": "#00FF00",
+                    "label": "Jump - Green"
+                },
+                "p1.button2": {
+                    "color": "#FF0000",
+                    "label": "Attack - Red"
+                },
+                "p1.button3": {
+                    "color": "#0088FF",
+                    "label": "Special - Blue"
+                },
+                "p1.start": {
+                    "color": "#00FF00"
+                },
+                "p1.coin": {
+                    "color": "#FFFF00"
+                }
+            }
+        },
+        "default": {
+            "name": "Default",
+            "description": "Standard arcade layout for unclassified games",
+            "icon": "🕹️",
+            "applies_to_genres": [
+                "*"
+            ],
+            "button_layout": {
+                "p1.button1": {
+                    "role": "button1",
+                    "label": "Button 1",
+                    "color": "#FF0000"
+                },
+                "p1.button2": {
+                    "role": "button2",
+                    "label": "Button 2",
+                    "color": "#FFFF00"
+                },
+                "p1.button3": {
+                    "role": "button3",
+                    "label": "Button 3",
+                    "color": "#00FF00"
+                },
+                "p1.button4": {
+                    "role": "button4",
+                    "label": "Button 4",
+                    "color": "#0088FF"
+                },
+                "p1.button5": {
+                    "role": "button5",
+                    "label": "Button 5",
+                    "color": "#FF00FF"
+                },
+                "p1.button6": {
+                    "role": "button6",
+                    "label": "Button 6",
+                    "color": "#00FFFF"
+                }
+            },
+            "emulator_mappings": {},
+            "led_profile": {
+                "p1.button1": {
+                    "color": "#FF0000"
+                },
+                "p1.button2": {
+                    "color": "#FFFF00"
+                },
+                "p1.button3": {
+                    "color": "#00FF00"
+                },
+                "p1.button4": {
+                    "color": "#0088FF"
+                },
+                "p1.button5": {
+                    "color": "#FF00FF"
+                },
+                "p1.button6": {
+                    "color": "#00FFFF"
+                },
+                "p1.start": {
+                    "color": "#00FF00"
+                },
+                "p1.coin": {
+                    "color": "#FFFF00"
+                }
+            }
+        }
+    },
+    "genre_aliases": {
+        "Beat 'Em Up": "fighting",
+        "Brawler": "fighting",
+        "Vs. Fighting": "fighting",
+        "Arcade Racing": "racing",
+        "Kart Racing": "racing",
+        "STG": "shmup",
+        "Bullet Hell": "shmup",
+        "Danmaku": "shmup",
+        "Run and Gun": "shmup",
+        "Gun Game": "lightgun",
+        "Arcade Shooter": "lightgun",
+        "Side-Scroller": "platformer",
+        "Run & Jump": "platformer"
+    }
+}

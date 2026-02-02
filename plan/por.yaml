@@ -1,0 +1,57 @@
+version: "2025-10-23"
+owner: "Arcade Assistant Overseer"
+phases:
+  - id: P0
+    name: Guardrails & Hygiene
+    tasks:
+      - id: P0-01
+        title: 501 NOT_CONFIGURED when AI/TTS/STT keys are missing
+        module: gateway
+        status: verified
+        acceptance:
+          - "Endpoints return 501 when keys are absent"
+          - "UI shows Offline banner; no 500s"
+        evidence: "plan/evidence/P0-01.jsonl"
+        last_verified_sha: "68e78be6bf6d920b88519478ce34c23d3c849565"
+      - id: P0-02
+        title: Enforce Preview→Apply→Restore for all writes
+        module: backend
+        status: verified
+        acceptance:
+          - "Dry-run diff generated"
+          - "Backup written to A:\\Arcade Assistant\\backups"
+          - "Restore returns system to pre-change state"
+        evidence: "plan/evidence/P0-02.jsonl"
+        last_verified_sha: "68e78be6bf6d920b88519478ce34c23d3c849565"
+      - id: P0-03
+        title: Gateway CORS allows x-device-id (and friends)
+        module: gateway
+        status: verified
+        acceptance:
+          - "CORS exposes and allows header x-device-id"
+          - "Preflight OPTIONS responds 204 with correct Allow/Expose headers"
+          - "Contract test covers both simple and preflighted requests"
+        evidence: "plan/evidence/P0-03.jsonl"
+        last_verified_sha: "67c10c3f8e9b2a4d6c1f7e3a8b5c9d2e4f6a7b8c"
+      - id: P0-04
+        title: TTS endpoints return 501 when ELEVENLABS_API_KEY is missing
+        module: gateway
+        status: verified
+        acceptance:
+          - "POST /api/voice/tts responds 501 with {code:'NOT_CONFIGURED', service:'tts'} when key absent"
+          - "No 500s emitted when key missing"
+          - "Contract test exists and passes in CI"
+        evidence: "plan/evidence/P0-04.jsonl"
+        last_verified_sha: "40927285f8a9c3d6e1b4a7f2c9e8d5b6a3c7d9e2"
+  - id: P1
+    name: LaunchBox LoRa E2E Proof
+    tasks:
+      - id: P1-01
+        title: Decide→Plan→Spawn with single-flight lock
+        module: launch_orchestrator
+        status: todo
+        acceptance:
+          - "One click → one process (non-TeknoParrot)"
+          - "Duplicate requests coalesce via per-game lock"
+        evidence: "plan/evidence/P1-01.jsonl"
+        last_verified_sha: null

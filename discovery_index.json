@@ -1,0 +1,173 @@
+{
+  "version": "1.0.0",
+  "updated": "2025-10-06",
+  "description": "Search index for code discovery in Arcade Assistant",
+  "search_terms": {
+    "usb": {
+      "description": "USB device handling and monitoring",
+      "locations": [
+        "services/+usb-monitoring/watcher.py (presumed)",
+        "frontend/src/panels/controller/ (HID devices)",
+        "frontend/src/panels/lightguns/ (USB light guns)"
+      ],
+      "related": ["HID", "hardware", "Argus"]
+    },
+    "websocket": {
+      "description": "Real-time bidirectional communication",
+      "locations": [
+        "gateway/ws/audio.js",
+        "gateway/ws/led.js (presumed)",
+        "frontend/src/panels/led-blinky/LEDBlinkyPanel.jsx",
+        "frontend/src/panels/voice/VoicePanel.jsx"
+      ],
+      "endpoints": [
+        "ws://localhost:8787/ws/audio",
+        "ws://localhost:8787/ws/led"
+      ]
+    },
+    "xml": {
+      "description": "XML parsing for LaunchBox game data",
+      "locations": [
+        "backend/routers/launchbox.py#parse_launchbox_xml()",
+        "A:\\LaunchBox\\Data\\Platforms\\*.xml (53 files)"
+      ],
+      "related": ["LaunchBox", "game library", "metadata"]
+    },
+    "voice": {
+      "description": "Voice recording and text-to-speech",
+      "locations": [
+        "frontend/src/panels/voice/",
+        "gateway/routes/tts.js",
+        "gateway/ws/audio.js"
+      ],
+      "related": ["Vicky", "ElevenLabs", "microphone", "TTS", "STT"]
+    },
+    "launch": {
+      "description": "Game launching functionality",
+      "locations": [
+        "backend/routers/launchbox.py#launch_game()",
+        "frontend/src/panels/launchbox/LaunchBoxPanel.jsx"
+      ],
+      "related": ["CLI_Launcher", "emulator", "games"]
+    },
+    "config": {
+      "description": "Configuration management",
+      "locations": [
+        "backend/routers/config_ops.py",
+        "backend/services/backup.py",
+        "backend/services/diffs.py",
+        "gateway/routes/config.js",
+        "frontend/src/panels/_kit/DiffPreview.jsx"
+      ],
+      "workflow": "preview → approve → apply → backup"
+    },
+    "ai": {
+      "description": "AI integration and chat",
+      "locations": [
+        "gateway/routes/ai.js",
+        "gateway/adapters/anthropic.js",
+        "gateway/adapters/openai.js",
+        "frontend/src/services/aiClient.js",
+        "frontend/src/panels/_kit/useAIAction.js"
+      ],
+      "related": ["Claude", "GPT", "chat", "assistant"]
+    },
+    "tournament": {
+      "description": "Tournament bracket management",
+      "locations": [
+        "frontend/src/panels/scorekeeper/ScoreKeeperPanel.jsx"
+      ],
+      "related": ["Sam", "brackets", "competition", "scoring"]
+    },
+    "led": {
+      "description": "LED lighting control",
+      "locations": [
+        "frontend/src/panels/led-blinky/",
+        "WebSocket integration (ws://localhost:8787/ws/led)"
+      ],
+      "related": ["LED Blinky", "lighting", "effects", "RGB"]
+    },
+    "emulator": {
+      "description": "Emulator integration",
+      "locations": [
+        "backend/routers/emulator_mame.py",
+        "backend/routers/emulator_retroarch.py",
+        "backend/routers/launchbox.py"
+      ],
+      "related": ["MAME", "RetroArch", "games", "ROMs"]
+    },
+    "backup": {
+      "description": "Automatic backup system",
+      "locations": [
+        "backend/services/backup.py",
+        "/backups/YYYYMMDD/",
+        "/logs/changes.jsonl"
+      ],
+      "related": ["config", "rollback", "safety"]
+    },
+    "health": {
+      "description": "System health monitoring",
+      "locations": [
+        "backend/routers/health.py",
+        "frontend/src/panels/system-health/",
+        "gateway/routes/health.js"
+      ],
+      "related": ["Doc", "monitoring", "diagnostics"]
+    },
+    "controller": {
+      "description": "Game controller configuration",
+      "locations": [
+        "frontend/src/panels/controller/"
+      ],
+      "related": ["Wiz", "input", "mapping", "joystick"]
+    },
+    "lightgun": {
+      "description": "Light gun calibration",
+      "locations": [
+        "frontend/src/panels/lightguns/"
+      ],
+      "related": ["Gunner", "calibration", "aiming"]
+    }
+  },
+  "file_extensions": {
+    ".jsx": "React components (frontend/src/)",
+    ".css": "Stylesheets (paired with components)",
+    ".py": "Python backend (backend/)",
+    ".js": "JavaScript (gateway/, services/)",
+    ".json": "Configuration and metadata",
+    ".md": "Documentation",
+    ".xml": "LaunchBox game data (A: drive only)"
+  },
+  "common_patterns": {
+    "find_api_endpoint": [
+      "Check backend/routers/{feature}.py",
+      "Look for @router.get() or @router.post()",
+      "Trace to gateway/routes/{feature}.js"
+    ],
+    "find_ui_component": [
+      "Check frontend/src/panels/{feature}/",
+      "Look for {Feature}Panel.jsx",
+      "Check routing in Assistants.jsx"
+    ],
+    "find_websocket": [
+      "Check gateway/ws/{feature}.js",
+      "Search for 'new WebSocket' in frontend",
+      "Look for ws://localhost:8787/ws/"
+    ],
+    "find_config": [
+      "Check .env for environment variables",
+      "Check configs/ directory",
+      "Check .aa/manifest.json for policies"
+    ]
+  },
+  "agent_specialties": {
+    "LoRa": ["launchbox", "games", "library"],
+    "Vicky": ["voice", "audio", "tts"],
+    "Argus": ["hardware", "usb", "devices"],
+    "Aether": ["react", "performance", "frontend"],
+    "Pythia": ["python", "backend", "optimization"],
+    "Lexicon": ["navigation", "discovery", "metadata"],
+    "Hermes": ["cloud", "api", "integration"],
+    "Oracle": ["testing", "validation", "audit"]
+  }
+}

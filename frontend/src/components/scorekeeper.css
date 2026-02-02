@@ -1,0 +1,357 @@
+/* ScoreKeeper Sam Panel Styles */
+.scorekeeper-panel {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Status Bar */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: linear-gradient(90deg, rgba(200, 255, 0, 0.1), rgba(0, 229, 255, 0.1));
+  border: 1px solid rgba(200, 255, 0, 0.3);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.round-status {
+  font-size: 18px;
+  font-weight: bold;
+  color: #c8ff00;
+}
+
+.connection-status {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.connection-status.connected {
+  color: #00ff00;
+}
+
+.connection-status.disconnected {
+  color: #ff4444;
+}
+
+/* Flash Messages */
+.flash-message {
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 500;
+  animation: slideIn 0.3s ease;
+}
+
+.flash-message.error {
+  background: rgba(255, 0, 0, 0.2);
+  border: 1px solid rgba(255, 0, 0, 0.5);
+  color: #ff6666;
+}
+
+.flash-message.success {
+  background: rgba(0, 255, 0, 0.2);
+  border: 1px solid rgba(0, 255, 0, 0.5);
+  color: #00ff00;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Score Entry Section */
+.score-entry-section {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(200, 255, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.score-entry-section h3 {
+  color: #c8ff00;
+  margin-bottom: 15px;
+}
+
+.score-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.score-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(200, 255, 0, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.score-input:focus {
+  outline: none;
+  border-color: #c8ff00;
+  box-shadow: 0 0 10px rgba(200, 255, 0, 0.3);
+}
+
+.submit-button, .start-button {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #c8ff00, #00e5ff);
+  border: none;
+  border-radius: 6px;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.submit-button:hover, .start-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(200, 255, 0, 0.4);
+}
+
+.voice-button {
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(200, 255, 0, 0.5);
+  border-radius: 6px;
+  color: #c8ff00;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.voice-button:hover {
+  background: rgba(200, 255, 0, 0.2);
+}
+
+/* Tournament Section */
+.tournament-section {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(0, 229, 255, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.tournament-section h3 {
+  color: #00e5ff;
+  margin-bottom: 15px;
+}
+
+.tournament-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.players-input {
+  flex: 2;
+  min-width: 250px;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.game-select {
+  flex: 1;
+  min-width: 150px;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+/* Bracket Visualization */
+.bracket-visualization {
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(200, 255, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.bracket-visualization h3 {
+  color: #c8ff00;
+  margin-bottom: 20px;
+}
+
+.bracket-rounds {
+  display: flex;
+  gap: 40px;
+  overflow-x: auto;
+  padding: 20px 0;
+}
+
+.bracket-round {
+  min-width: 200px;
+}
+
+.bracket-round h4 {
+  color: #00e5ff;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.bracket-match {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(200, 255, 0, 0.2);
+  border-radius: 8px;
+  margin-bottom: 15px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.bracket-match.active {
+  border-color: #c8ff00;
+  box-shadow: 0 0 15px rgba(200, 255, 0, 0.3);
+}
+
+.bracket-player {
+  padding: 10px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.bracket-player:last-child {
+  border-bottom: none;
+}
+
+.bracket-match.active .bracket-player:hover {
+  background: rgba(200, 255, 0, 0.1);
+}
+
+.bracket-player.winner {
+  background: rgba(200, 255, 0, 0.2);
+  font-weight: bold;
+}
+
+.player-name {
+  color: #ffffff;
+}
+
+.player-score {
+  color: #00e5ff;
+  font-weight: bold;
+}
+
+/* Leaderboard Section */
+.leaderboard-section {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(0, 229, 255, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.leaderboard-section h3 {
+  color: #00e5ff;
+  margin-bottom: 15px;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.leaderboard-table thead {
+  background: rgba(200, 255, 0, 0.1);
+}
+
+.leaderboard-table th {
+  padding: 12px;
+  text-align: left;
+  color: #c8ff00;
+  font-weight: bold;
+  border-bottom: 2px solid rgba(200, 255, 0, 0.3);
+}
+
+.leaderboard-table td {
+  padding: 10px 12px;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-table tr:hover {
+  background: rgba(200, 255, 0, 0.05);
+}
+
+.leaderboard-table .rank {
+  font-weight: bold;
+  color: #c8ff00;
+  width: 60px;
+}
+
+.leaderboard-table .player {
+  color: #ffffff;
+}
+
+.leaderboard-table .score {
+  color: #00e5ff;
+  font-weight: bold;
+}
+
+.leaderboard-table .date {
+  color: #888;
+  font-size: 14px;
+}
+
+.leaderboard-table .empty {
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  padding: 30px;
+}
+
+/* Panel Avatar */
+.panel-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(200, 255, 0, 0.4);
+  box-shadow: 0 0 12px rgba(200, 255, 0, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .score-form,
+  .tournament-form {
+    flex-direction: column;
+  }
+
+  .score-input,
+  .players-input,
+  .game-select {
+    width: 100%;
+  }
+
+  .bracket-rounds {
+    flex-direction: column;
+  }
+
+  .bracket-round {
+    width: 100%;
+  }
+}

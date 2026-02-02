@@ -1,0 +1,122 @@
+{
+  "version": "1.0.0",
+  "updated": "2025-10-06",
+  "description": "Component relationship map for Arcade Assistant",
+  "relationships": {
+    "launchbox_integration": {
+      "frontend": {
+        "panel": "frontend/src/panels/launchbox/LaunchBoxPanel.jsx",
+        "styles": "frontend/src/panels/launchbox/launchbox.css",
+        "routing": "frontend/src/components/Assistants.jsx#L104-106"
+      },
+      "backend": {
+        "router": "backend/routers/launchbox.py",
+        "endpoints": [
+          "GET /api/launchbox/games",
+          "GET /api/launchbox/games/{id}",
+          "POST /api/launchbox/launch/{id}",
+          "GET /api/launchbox/platforms",
+          "GET /api/launchbox/genres",
+          "GET /api/launchbox/stats",
+          "POST /api/launchbox/random"
+        ],
+        "registration": "backend/app.py#L445-446 (TODO: activate)"
+      },
+      "data_flow": "Panel → Gateway → Backend → LaunchBox XML",
+      "dependencies": {
+        "a_drive": "A:\\LaunchBox\\Data\\Platforms\\*.xml",
+        "cli_launcher": "A:\\LaunchBox\\ThirdParty\\CLI_Launcher\\CLI_Launcher.exe (NOT FOUND)"
+      }
+    },
+    "voice_integration": {
+      "frontend": {
+        "panel": "frontend/src/panels/voice/VoicePanel.jsx",
+        "routing": "frontend/src/components/Assistants.jsx#L87-89"
+      },
+      "gateway": {
+        "tts": "gateway/routes/tts.js",
+        "websocket": "gateway/ws/audio.js"
+      },
+      "data_flow": "Panel → WebSocket → Gateway → ElevenLabs API"
+    },
+    "led_blinky_integration": {
+      "frontend": {
+        "panel": "frontend/src/panels/led-blinky/LEDBlinkyPanel.jsx",
+        "routing": "frontend/src/components/Assistants.jsx#L116-118"
+      },
+      "gateway": {
+        "websocket": "gateway/ws/led.js (presumed)"
+      },
+      "data_flow": "Panel → WebSocket → Hardware Device"
+    },
+    "config_management": {
+      "frontend": {
+        "kit": "frontend/src/panels/_kit/",
+        "components": ["DiffPreview", "ApplyBar"]
+      },
+      "gateway": {
+        "router": "gateway/routes/config.js"
+      },
+      "backend": {
+        "router": "backend/routers/config_ops.py",
+        "services": [
+          "backend/services/backup.py",
+          "backend/services/diffs.py",
+          "backend/services/policies.py"
+        ]
+      },
+      "data_flow": "Panel → Gateway → Backend → File System"
+    },
+    "ai_integration": {
+      "frontend": {
+        "service": "frontend/src/services/aiClient.js",
+        "hook": "frontend/src/panels/_kit/useAIAction.js"
+      },
+      "gateway": {
+        "router": "gateway/routes/ai.js",
+        "adapters": [
+          "gateway/adapters/anthropic.js",
+          "gateway/adapters/openai.js"
+        ]
+      },
+      "backend": {
+        "router": "backend/routers/claude_api.py"
+      },
+      "data_flow": "Panel → AI Hook → Gateway → External API"
+    }
+  },
+  "character_ownership": {
+    "Vicky": ["voice"],
+    "LoRa": ["launchbox"],
+    "Dewey": ["dewey"],
+    "Sam": ["scorekeeper"],
+    "Wiz": ["controller"],
+    "Chuck": ["controller-profiles"],
+    "LED_Blinky": ["led-blinky"],
+    "Gunner": ["lightguns"],
+    "Doc": ["system-health"]
+  },
+  "navigation_paths": {
+    "home_to_panel": [
+      "/",
+      "/assistants?agent={character}",
+      "frontend/src/panels/{panel}/",
+      "{Panel}Panel.jsx"
+    ],
+    "panel_to_backend": [
+      "{Panel}Panel.jsx",
+      "aiClient.js or fetch()",
+      "gateway/routes/{feature}.js",
+      "backend/routers/{feature}.py"
+    ],
+    "config_workflow": [
+      "Panel action",
+      "POST /api/local/config/preview",
+      "backend/services/diffs.py",
+      "Show DiffPreview",
+      "POST /api/local/config/apply",
+      "backend/services/backup.py",
+      "Update state"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+name: Launch Verify (Local Smoke)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-smoke:
+    name: Windows Smoke (self-hosted)
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Windows smoke bundle
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          ./scripts/smoke_win.ps1
+
+  bash-smoke:
+    name: Bash Smoke (self-hosted)
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq (optional)
+        shell: bash
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              sudo apt-get update && sudo apt-get install -y jq || true
+            fi
+          fi
+
+      - name: Run Bash smoke bundle
+        shell: bash
+        run: |
+          bash ./scripts/smoke_bash.sh
+

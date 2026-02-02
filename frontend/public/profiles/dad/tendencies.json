@@ -1,0 +1,31 @@
+{
+  "favorite_game": "Street Fighter II",
+  "favorite_genre": "Fighting Games",
+  "total_sessions": 247,
+  "peak_play_time": "Evening (8-10 PM)",
+  "most_used_platform": "Arcade / MAME",
+  "average_session_duration": "45 minutes",
+  "preferred_difficulty": "Hard",
+  "top_3_games": [
+    "Street Fighter II",
+    "Galaga",
+    "Ms. Pac-Man"
+  ],
+  "top_10_games": [
+    "Street Fighter II",
+    "Galaga",
+    "Ms. Pac-Man",
+    "Donkey Kong",
+    "Pac-Man",
+    "Mortal Kombat",
+    "NBA Jam",
+    "Teenage Mutant Ninja Turtles",
+    "The Simpsons",
+    "X-Men",
+    "Super Mario Bros",
+    "Tetris",
+    "Contra",
+    "Mega Man 2",
+    "Castlevania"
+  ]
+}

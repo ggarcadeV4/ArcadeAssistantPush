@@ -1,0 +1,41 @@
+name: Task (POR-aligned)
+description: Track a single task from plan/por.yaml
+title: "[TASK] <id> <short title>"
+labels: ["task"]
+body:
+  - type: input
+    id: id
+    attributes:
+      label: Task ID (por.yaml)
+      placeholder: "P1-01"
+    validations:
+      required: true
+  - type: input
+    id: module
+    attributes:
+      label: Module
+      placeholder: "backend"
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance (copy from por.yaml)
+      description: "Copy acceptance criteria from plan/por.yaml"
+  - type: input
+    id: evidence
+    attributes:
+      label: Evidence file path
+      placeholder: "plan/evidence/P1-01.jsonl"
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: "Additional context or implementation notes"
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 (Critical)
+        - P1 (High)
+        - P2 (Medium)
+        - P3 (Low)

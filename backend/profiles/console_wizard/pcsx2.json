@@ -1,0 +1,89 @@
+{
+  "emulator_type": "pcsx2",
+  "display_name": "PCSX2",
+  "supported_players": 2,
+  "multitap_players": 4,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6", "p1.button7", "p1.button8",
+    "p1.start", "p1.coin",
+    "p1.lstick_up", "p1.lstick_down", "p1.lstick_left", "p1.lstick_right",
+    "p1.rstick_up", "p1.rstick_down", "p1.rstick_left", "p1.rstick_right",
+    "p1.l3", "p1.r3",
+    "p2.up", "p2.down", "p2.left", "p2.right",
+    "p2.button1", "p2.button2", "p2.button3", "p2.button4",
+    "p2.button5", "p2.button6", "p2.button7", "p2.button8",
+    "p2.start", "p2.coin",
+    "p2.lstick_up", "p2.lstick_down", "p2.lstick_left", "p2.lstick_right",
+    "p2.rstick_up", "p2.rstick_down", "p2.rstick_left", "p2.rstick_right",
+    "p2.l3", "p2.r3"
+  ],
+  "config_files": [
+    "inis/PCSX2.ini",
+    "inis/PCSX2_ui.ini",
+    "inis/PCSX2_vm.ini",
+    "inis/PAD.ini"
+  ],
+  "config_locations": {
+    "windows_installer": "Documents\\PCSX2\\inis\\",
+    "windows_portable": "PCSX2\\inis\\",
+    "linux": "$HOME/.config/PCSX2/inis/",
+    "mac": "$HOME/.config/PCSX2/inis/"
+  },
+  "config_format": "ini",
+  "input_system": "SDL",
+  "input_priority": ["SDL", "XInput", "DInput"],
+  "notes": "Uses SDL controller database for automatic mapping. Supports DualShock 4/DualSense enhanced mode. Per-game profiles via Game Properties.",
+  "special_features": {
+    "multitap": "Enables 4 controllers per port (1-A through 1-D)",
+    "pressure_sensitivity": "Pressure Modifier for games that support it",
+    "vibration": "Large Motor / Small Motor support",
+    "per_game_profiles": "Right-click game > Properties > Input Profile"
+  },
+  "button_mapping": {
+    "button1": "Cross",
+    "button2": "Circle",
+    "button3": "Square",
+    "button4": "Triangle",
+    "button5": "L1",
+    "button6": "R1",
+    "button7": "L2",
+    "button8": "R2"
+  },
+  "special_controls": {
+    "start": "Start",
+    "coin": "Select",
+    "up": "Up",
+    "down": "Down",
+    "left": "Left",
+    "right": "Right",
+    "l3": "L3",
+    "r3": "R3"
+  },
+  "analog_mapping": {
+    "lstick_up": "LUp",
+    "lstick_down": "LDown",
+    "lstick_left": "LLeft",
+    "lstick_right": "LRight",
+    "rstick_up": "RUp",
+    "rstick_down": "RDown",
+    "rstick_left": "RLeft",
+    "rstick_right": "RRight"
+  },
+  "legacy_onepad_format": {
+    "description": "SDL2 mapping format for OnePAD2.ini",
+    "button_syntax": "b# = Button number (b0, b1, b2...)",
+    "axis_syntax": "a# = Axis number (a0, a1...)",
+    "example": "SDL2 = <GUID>,<NAME>,Joystick,platform:Linux,x:b3,a:b2,b:b1,y:b0,leftx:a0,lefty:a1"
+  },
+  "common_issues": {
+    "scrambled_inputs": "Enable SDL Raw Input and manually map",
+    "not_recognized": "Check PCSX2 console for controller name and GUID",
+    "analog_issues": "Ensure proper axis mapping (leftx:a0, lefty:a1), check for inverted axes"
+  },
+  "references": {
+    "sdl_db": "https://github.com/gabomdq/SDL_GameControllerDB",
+    "internal_db": "resources/game_controller_db.txt"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "input": {
+    "input_player1_select_btn": "1",
+    "input_player1_start_btn": "2",
+    "input_player1_b_btn": "8",
+    "input_player1_a_btn": "5",
+    "input_player1_y_btn": "6",
+    "input_player1_x_btn": "7",
+    "input_player1_l_btn": "14",
+    "input_player1_r_btn": "15",
+    "input_player1_l2_btn": "16",
+    "input_player1_r2_btn": "17",
+    "input_player1_up_btn": "10",
+    "input_player1_down_btn": "11",
+    "input_player1_left_btn": "12",
+    "input_player1_right_btn": "13",
+    "input_player2_select_btn": "18",
+    "input_player2_start_btn": "19",
+    "input_player2_b_btn": "20",
+    "input_player2_a_btn": "21",
+    "input_player2_y_btn": "22",
+    "input_player2_x_btn": "23",
+    "input_player2_l_btn": "24",
+    "input_player2_r_btn": "25",
+    "input_player2_l2_btn": "26",
+    "input_player2_r2_btn": "27",
+    "input_player2_up_btn": "28",
+    "input_player2_down_btn": "29",
+    "input_player2_left_btn": "30",
+    "input_player2_right_btn": "31"
+  }
+}

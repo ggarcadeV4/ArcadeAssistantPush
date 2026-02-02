@@ -1,0 +1,2565 @@
+{
+  "questions": [
+    {
+      "id": "arcade_easy_001",
+      "category": ["arcade"],
+      "difficulty": "easy",
+      "question": "What year was Pac-Man released?",
+      "choices": ["1978", "1980", "1982", "1984"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1980,
+        "creator": "Namco",
+        "game": "Pac-Man"
+      }
+    },
+    {
+      "id": "arcade_easy_002",
+      "category": ["arcade"],
+      "difficulty": "easy",
+      "question": "Which game features a gorilla throwing barrels?",
+      "choices": ["Donkey Kong", "King Kong", "Rampage", "Jungle Hunt"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1981,
+        "creator": "Nintendo",
+        "game": "Donkey Kong"
+      }
+    },
+    {
+      "id": "arcade_easy_003",
+      "category": ["arcade"],
+      "difficulty": "easy",
+      "question": "What color is Pac-Man?",
+      "choices": ["Red", "Blue", "Yellow", "Green"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Pac-Man"
+      }
+    },
+    {
+      "id": "arcade_medium_001",
+      "category": ["arcade"],
+      "difficulty": "medium",
+      "question": "Which arcade game was the first to use vector graphics?",
+      "choices": ["Space Invaders", "Asteroids", "Tempest", "Battlezone"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1979,
+        "creator": "Atari",
+        "game": "Asteroids"
+      }
+    },
+    {
+      "id": "arcade_medium_002",
+      "category": ["arcade"],
+      "difficulty": "medium",
+      "question": "What was the first fighting game to use digitized actors?",
+      "choices": ["Street Fighter II", "Mortal Kombat", "Pit-Fighter", "Virtua Fighter"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1992,
+        "creator": "Midway",
+        "game": "Mortal Kombat"
+      }
+    },
+    {
+      "id": "arcade_medium_003",
+      "category": ["arcade"],
+      "difficulty": "medium",
+      "question": "Which game cabinet famously caused the 1982 'arcade crash'?",
+      "choices": ["Pac-Man", "E.T.", "Dragon's Lair", "None - it was home consoles"],
+      "correct_index": 3,
+      "metadata": {
+        "year": 1982
+      }
+    },
+    {
+      "id": "arcade_hard_001",
+      "category": ["arcade"],
+      "difficulty": "hard",
+      "question": "What was the maximum possible score in the original Donkey Kong?",
+      "choices": ["999,999", "1,000,000", "1,047,200", "Infinite"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Donkey Kong"
+      }
+    },
+    {
+      "id": "arcade_hard_002",
+      "category": ["arcade"],
+      "difficulty": "hard",
+      "question": "Which company created the Neo Geo MVS arcade system?",
+      "choices": ["Capcom", "SNK", "Sega", "Konami"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1990,
+        "creator": "SNK"
+      }
+    },
+    {
+      "id": "console_easy_001",
+      "category": ["console"],
+      "difficulty": "easy",
+      "question": "What was Nintendo's first home console?",
+      "choices": ["NES", "SNES", "Famicom", "Game Boy"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1983,
+        "creator": "Nintendo"
+      }
+    },
+    {
+      "id": "console_easy_002",
+      "category": ["console"],
+      "difficulty": "easy",
+      "question": "Which mascot represented Sega in the 1990s?",
+      "choices": ["Mario", "Sonic", "Crash", "Spyro"],
+      "correct_index": 1,
+      "metadata": {
+        "creator": "Sega",
+        "game": "Sonic the Hedgehog"
+      }
+    },
+    {
+      "id": "console_easy_003",
+      "category": ["console"],
+      "difficulty": "easy",
+      "question": "What console introduced trophy/achievement systems?",
+      "choices": ["PlayStation 3", "Xbox 360", "Nintendo Wii", "Dreamcast"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2005,
+        "creator": "Microsoft"
+      }
+    },
+    {
+      "id": "console_medium_001",
+      "category": ["console"],
+      "difficulty": "medium",
+      "question": "How many bits was the Sega Genesis marketed as?",
+      "choices": ["8-bit", "16-bit", "32-bit", "64-bit"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1988,
+        "creator": "Sega"
+      }
+    },
+    {
+      "id": "console_medium_002",
+      "category": ["console"],
+      "difficulty": "medium",
+      "question": "What was Sony's first home console?",
+      "choices": ["PlayStation", "PS2", "PSX", "PSOne"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1994,
+        "creator": "Sony"
+      }
+    },
+    {
+      "id": "console_medium_003",
+      "category": ["console"],
+      "difficulty": "medium",
+      "question": "Which console featured the controversial 'Red Ring of Death'?",
+      "choices": ["Xbox", "Xbox 360", "PlayStation 3", "Wii"],
+      "correct_index": 1,
+      "metadata": {
+        "creator": "Microsoft"
+      }
+    },
+    {
+      "id": "console_hard_001",
+      "category": ["console"],
+      "difficulty": "hard",
+      "question": "What was the original codename for the Nintendo GameCube?",
+      "choices": ["Revolution", "Dolphin", "Project Reality", "Ultra 64"],
+      "correct_index": 1,
+      "metadata": {
+        "creator": "Nintendo"
+      }
+    },
+    {
+      "id": "console_hard_002",
+      "category": ["console"],
+      "difficulty": "hard",
+      "question": "How many launch titles did the Sega Dreamcast have in North America?",
+      "choices": ["9", "19", "29", "39"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1999,
+        "creator": "Sega"
+      }
+    },
+    {
+      "id": "genre_easy_001",
+      "category": ["genre"],
+      "difficulty": "easy",
+      "question": "What genre is Street Fighter II?",
+      "choices": ["RPG", "Fighting", "Platformer", "Shooter"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Street Fighter II"
+      }
+    },
+    {
+      "id": "genre_easy_002",
+      "category": ["genre"],
+      "difficulty": "easy",
+      "question": "What does 'shmup' stand for?",
+      "choices": ["Shoot 'em up", "Ship multiplayer", "Short music piece", "Shiny makeup"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "genre_easy_003",
+      "category": ["genre"],
+      "difficulty": "easy",
+      "question": "Which genre focuses on exploring and solving environmental puzzles?",
+      "choices": ["Fighting", "Adventure", "Racing", "Rhythm"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "genre_medium_001",
+      "category": ["genre"],
+      "difficulty": "medium",
+      "question": "What subgenre is 'bullet hell' associated with?",
+      "choices": ["Fighting games", "Shmups", "Platformers", "RPGs"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "genre_medium_002",
+      "category": ["genre"],
+      "difficulty": "medium",
+      "question": "Which game popularized the 'Metroidvania' genre?",
+      "choices": ["Metroid", "Castlevania: Symphony of the Night", "Super Metroid", "Both A and B"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "genre_medium_003",
+      "category": ["genre"],
+      "difficulty": "medium",
+      "question": "What does 'roguelike' refer to in gaming?",
+      "choices": ["Military shooters", "Procedural death + permanent death", "Open-world exploration", "Turn-based strategy"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "genre_hard_001",
+      "category": ["genre"],
+      "difficulty": "hard",
+      "question": "Which genre coined the term 'Danmaku' (bullet curtain)?",
+      "choices": ["Fighting games", "Shmups", "RPGs", "Rhythm games"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "genre_hard_002",
+      "category": ["genre"],
+      "difficulty": "hard",
+      "question": "What is the 'FGC'?",
+      "choices": ["Fast Gaming Community", "Fighting Game Community", "Free Game Collective", "First Gen Consoles"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "decade_easy_001",
+      "category": ["decade"],
+      "difficulty": "easy",
+      "question": "In which decade was the original Nintendo Entertainment System released in North America?",
+      "choices": ["1970s", "1980s", "1990s", "2000s"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1985
+      }
+    },
+    {
+      "id": "decade_easy_002",
+      "category": ["decade"],
+      "difficulty": "easy",
+      "question": "The original PlayStation was released in which decade?",
+      "choices": ["1980s", "1990s", "2000s", "2010s"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1994
+      }
+    },
+    {
+      "id": "decade_easy_003",
+      "category": ["decade"],
+      "difficulty": "easy",
+      "question": "Which decade saw the 'console wars' between Nintendo and Sega?",
+      "choices": ["1980s", "1990s", "2000s", "2010s"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "decade_medium_001",
+      "category": ["decade"],
+      "difficulty": "medium",
+      "question": "What gaming trend dominated the 2000s?",
+      "choices": ["Motion controls", "Online multiplayer", "3D graphics", "Mobile gaming"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "decade_medium_002",
+      "category": ["decade"],
+      "difficulty": "medium",
+      "question": "Which console generation brought HD gaming to the mainstream?",
+      "choices": ["5th (PS1, N64)", "6th (PS2, Xbox)", "7th (PS3, X360)", "8th (PS4, XOne)"],
+      "correct_index": 2,
+      "metadata": {}
+    },
+    {
+      "id": "decade_medium_003",
+      "category": ["decade"],
+      "difficulty": "medium",
+      "question": "The 'golden age of arcade games' is typically considered to be:",
+      "choices": ["1975-1980", "1978-1986", "1985-1992", "1990-1995"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "decade_hard_001",
+      "category": ["decade"],
+      "difficulty": "hard",
+      "question": "What year did the video game crash occur in North America?",
+      "choices": ["1981", "1983", "1985", "1987"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1983
+      }
+    },
+    {
+      "id": "decade_hard_002",
+      "category": ["decade"],
+      "difficulty": "hard",
+      "question": "Which year saw the release of both Halo and Grand Theft Auto III?",
+      "choices": ["2000", "2001", "2002", "2003"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2001
+      }
+    },
+    {
+      "id": "mixed_easy_001",
+      "category": ["mixed"],
+      "difficulty": "easy",
+      "question": "What do the letters 'FPS' stand for in gaming?",
+      "choices": ["Fast Player Speed", "First Person Shooter", "Fun Play Style", "Frame Per Second"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_easy_002",
+      "category": ["mixed"],
+      "difficulty": "easy",
+      "question": "Which company makes the Xbox console?",
+      "choices": ["Sony", "Nintendo", "Microsoft", "Sega"],
+      "correct_index": 2,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_easy_003",
+      "category": ["mixed"],
+      "difficulty": "easy",
+      "question": "What is Mario's profession?",
+      "choices": ["Plumber", "Carpenter", "Doctor", "Race car driver"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_medium_001",
+      "category": ["mixed"],
+      "difficulty": "medium",
+      "question": "What does 'NPC' stand for?",
+      "choices": ["New Player Character", "Non-Player Character", "Next Possible Choice", "National Play Committee"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_medium_002",
+      "category": ["mixed"],
+      "difficulty": "medium",
+      "question": "Which game popularized the battle royale genre?",
+      "choices": ["Fortnite", "PUBG", "Apex Legends", "H1Z1"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_medium_003",
+      "category": ["mixed"],
+      "difficulty": "medium",
+      "question": "What is the best-selling video game of all time?",
+      "choices": ["Tetris", "Minecraft", "GTA V", "Wii Sports"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_hard_001",
+      "category": ["mixed"],
+      "difficulty": "hard",
+      "question": "Who is credited with creating the first video game, 'Tennis for Two'?",
+      "choices": ["Ralph Baer", "William Higinbotham", "Nolan Bushnell", "Steve Russell"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1958
+      }
+    },
+    {
+      "id": "mixed_hard_002",
+      "category": ["mixed"],
+      "difficulty": "hard",
+      "question": "What is the Konami Code?",
+      "choices": ["Up, Down, Left, Right, A, B", "Up, Up, Down, Down, Left, Right, Left, Right, B, A", "Down, Down, Up, Up, A, A, B, B", "Left, Left, Right, Right, Up, Down, Start"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "arcade_easy_004",
+      "category": ["arcade"],
+      "difficulty": "easy",
+      "question": "Which arcade game features four colored ghosts?",
+      "choices": ["Dig Dug", "Pac-Man", "Galaga", "Q*bert"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Pac-Man"
+      }
+    },
+    {
+      "id": "arcade_easy_005",
+      "category": ["arcade"],
+      "difficulty": "easy",
+      "question": "What is the name of the plumber in Donkey Kong?",
+      "choices": ["Luigi", "Jumpman", "Mario", "Both B and C"],
+      "correct_index": 3,
+      "metadata": {
+        "game": "Donkey Kong"
+      }
+    },
+    {
+      "id": "arcade_medium_004",
+      "category": ["arcade"],
+      "difficulty": "medium",
+      "question": "Which arcade cabinet was the first to use a laserdisc?",
+      "choices": ["Space Ace", "Dragon's Lair", "Cliff Hanger", "Time Traveler"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1983,
+        "creator": "Cinematronics"
+      }
+    },
+    {
+      "id": "arcade_medium_005",
+      "category": ["arcade"],
+      "difficulty": "medium",
+      "question": "What company created Galaga?",
+      "choices": ["Atari", "Namco", "Taito", "Konami"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1981,
+        "creator": "Namco"
+      }
+    },
+    {
+      "id": "arcade_hard_003",
+      "category": ["arcade"],
+      "difficulty": "hard",
+      "question": "What was the first arcade game to feature true 3D polygon graphics?",
+      "choices": ["Virtua Fighter", "Star Wars Arcade", "I, Robot", "Battlezone"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1983,
+        "creator": "Atari"
+      }
+    },
+    {
+      "id": "arcade_hard_004",
+      "category": ["arcade"],
+      "difficulty": "hard",
+      "question": "Which fighting game introduced the 'guard crush' mechanic?",
+      "choices": ["Street Fighter Alpha", "Fatal Fury", "Samurai Shodown", "Art of Fighting"],
+      "correct_index": 3,
+      "metadata": {
+        "year": 1992,
+        "creator": "SNK"
+      }
+    },
+    {
+      "id": "console_easy_004",
+      "category": ["console"],
+      "difficulty": "easy",
+      "question": "What color is the original PlayStation logo?",
+      "choices": ["Red and white", "Blue and white", "Green and white", "Multi-colored"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "console_medium_004",
+      "category": ["console"],
+      "difficulty": "medium",
+      "question": "What was the first console to use optical discs?",
+      "choices": ["Sega CD", "PlayStation", "Sega Saturn", "TurboGrafx-CD"],
+      "correct_index": 3,
+      "metadata": {
+        "year": 1988
+      }
+    },
+    {
+      "id": "console_hard_003",
+      "category": ["console"],
+      "difficulty": "hard",
+      "question": "How many polygons per second could the PlayStation 1 render?",
+      "choices": ["90,000", "180,000", "360,000", "720,000"],
+      "correct_index": 2,
+      "metadata": {}
+    },
+    {
+      "id": "genre_easy_004",
+      "category": ["genre"],
+      "difficulty": "easy",
+      "question": "What genre is Tetris?",
+      "choices": ["Puzzle", "Strategy", "Rhythm", "Platformer"],
+      "correct_index": 0,
+      "metadata": {
+        "game": "Tetris"
+      }
+    },
+    {
+      "id": "genre_medium_004",
+      "category": ["genre"],
+      "difficulty": "medium",
+      "question": "What does 'JRPG' stand for?",
+      "choices": ["Jump RPG", "Japanese RPG", "Just RPG", "Joyful RPG"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "genre_hard_003",
+      "category": ["genre"],
+      "difficulty": "hard",
+      "question": "Which game is credited with creating the 'survival horror' genre?",
+      "choices": ["Resident Evil", "Silent Hill", "Alone in the Dark", "Sweet Home"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1992
+      }
+    },
+    {
+      "id": "decade_easy_004",
+      "category": ["decade"],
+      "difficulty": "easy",
+      "question": "When was the first iPhone released, changing mobile gaming forever?",
+      "choices": ["2005", "2007", "2009", "2011"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2007
+      }
+    },
+    {
+      "id": "decade_medium_004",
+      "category": ["decade"],
+      "difficulty": "medium",
+      "question": "Which year did Minecraft officially release?",
+      "choices": ["2009", "2011", "2013", "2015"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2011
+      }
+    },
+    {
+      "id": "decade_hard_003",
+      "category": ["decade"],
+      "difficulty": "hard",
+      "question": "What year was the Atari 2600 released?",
+      "choices": ["1975", "1977", "1979", "1981"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1977
+      }
+    },
+    {
+      "id": "mixed_easy_004",
+      "category": ["mixed"],
+      "difficulty": "easy",
+      "question": "What fruit appears in Pac-Man as a bonus item?",
+      "choices": ["Apple", "Cherry", "Orange", "All of the above"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "mixed_medium_004",
+      "category": ["mixed"],
+      "difficulty": "medium",
+      "question": "What was Nintendo's original business before video games?",
+      "choices": ["Toys", "Playing cards", "Electronics", "Restaurants"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1889
+      }
+    },
+    {
+      "id": "mixed_hard_003",
+      "category": ["mixed"],
+      "difficulty": "hard",
+      "question": "Which game holds the record for most expensive video game ever made (as of 2023)?",
+      "choices": ["GTA V", "Cyberpunk 2077", "Call of Duty: Modern Warfare 2", "Star Citizen"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "arcade_easy_006",
+      "category": ["arcade"],
+      "difficulty": "easy",
+      "question": "What is the goal in Space Invaders?",
+      "choices": ["Rescue astronauts", "Shoot descending aliens", "Dodge asteroids", "Build bases"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1978,
+        "game": "Space Invaders"
+      }
+    },
+    {
+      "id": "arcade_medium_006",
+      "category": ["arcade"],
+      "difficulty": "medium",
+      "question": "Which arcade game required players to 'feed' a character called Q*bert?",
+      "choices": ["Q*bert", "Dig Dug", "Mr. Do!", "Pengo"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1982
+      }
+    },
+    {
+      "id": "console_easy_005",
+      "category": ["console"],
+      "difficulty": "easy",
+      "question": "The Nintendo 64 controller had how many handles?",
+      "choices": ["1", "2", "3", "4"],
+      "correct_index": 2,
+      "metadata": {}
+    },
+    {
+      "id": "genre_easy_005",
+      "category": ["genre"],
+      "difficulty": "easy",
+      "question": "What genre is Gran Turismo?",
+      "choices": ["Platformer", "Racing", "Fighting", "Shooter"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "popculture_easy_001",
+      "category": ["popculture"],
+      "difficulty": "easy",
+      "question": "What year was the first Super Mario Bros. movie released?",
+      "choices": ["1989", "1993", "1998", "2001"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1993
+      }
+    },
+    {
+      "id": "popculture_easy_002",
+      "category": ["popculture"],
+      "difficulty": "easy",
+      "question": "Which actor played Sonic the Hedgehog in the 2020 live-action movie?",
+      "choices": ["Jim Carrey", "Ben Schwartz (voice)", "James Marsden", "Tika Sumpter"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2020
+      }
+    },
+    {
+      "id": "popculture_easy_003",
+      "category": ["popculture"],
+      "difficulty": "easy",
+      "question": "What 1982 movie featured a video game called 'Space Paranoids'?",
+      "choices": ["WarGames", "Tron", "The Last Starfighter", "Blade Runner"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1982
+      }
+    },
+    {
+      "id": "popculture_easy_004",
+      "category": ["popculture"],
+      "difficulty": "easy",
+      "question": "Which actor voices Detective Pikachu in the 2019 movie?",
+      "choices": ["Ryan Reynolds", "Danny DeVito", "Jack Black", "Chris Pratt"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 2019
+      }
+    },
+    {
+      "id": "popculture_easy_005",
+      "category": ["popculture"],
+      "difficulty": "easy",
+      "question": "What arcade game is featured prominently in the TV show 'Stranger Things'?",
+      "choices": ["Pac-Man", "Dragon's Lair", "Dig Dug", "Galaga"],
+      "correct_index": 2,
+      "metadata": {}
+    },
+    {
+      "id": "popculture_medium_001",
+      "category": ["popculture"],
+      "difficulty": "medium",
+      "question": "What was the name of the arcade in the movie 'The Last Starfighter'?",
+      "choices": ["Starcade", "Flynn's Arcade", "The Starlight Starbright Arcade", "Galaxy Games"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1984
+      }
+    },
+    {
+      "id": "popculture_medium_002",
+      "category": ["popculture"],
+      "difficulty": "medium",
+      "question": "Which video game movie holds the record for highest-grossing video game adaptation?",
+      "choices": ["Detective Pikachu", "Sonic the Hedgehog", "The Super Mario Bros. Movie (2023)", "Warcraft"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 2023
+      }
+    },
+    {
+      "id": "popculture_medium_003",
+      "category": ["popculture"],
+      "difficulty": "medium",
+      "question": "What game does Kevin Flynn create in the movie 'Tron'?",
+      "choices": ["Light Cycles", "Space Paranoids", "Tron", "MCP"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "popculture_medium_004",
+      "category": ["popculture"],
+      "difficulty": "medium",
+      "question": "Which band performed the song 'Mortal Kombat' for the 1995 movie?",
+      "choices": ["The Prodigy", "Orbital", "The Immortals", "Chemical Brothers"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1995
+      }
+    },
+    {
+      "id": "popculture_medium_005",
+      "category": ["popculture"],
+      "difficulty": "medium",
+      "question": "In 'Ready Player One', what game does Wade Watts have to beat to get the first key?",
+      "choices": ["Joust", "Adventure", "A racing game backwards", "Pac-Man"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 2018
+      }
+    },
+    {
+      "id": "popculture_hard_001",
+      "category": ["popculture"],
+      "difficulty": "hard",
+      "question": "What was the budget of the original Super Mario Bros. movie (1993)?",
+      "choices": ["$20 million", "$38 million", "$48 million", "$60 million"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1993
+      }
+    },
+    {
+      "id": "popculture_hard_002",
+      "category": ["popculture"],
+      "difficulty": "hard",
+      "question": "Which game designer has a cameo in the Sonic the Hedgehog 2 movie?",
+      "choices": ["Yuji Naka", "Shigeru Miyamoto", "Hideo Kojima", "No game designer appeared"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "popculture_hard_003",
+      "category": ["popculture"],
+      "difficulty": "hard",
+      "question": "What year did the Atari game 'E.T.' get excavated from a New Mexico landfill?",
+      "choices": ["2010", "2012", "2014", "2016"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 2014
+      }
+    },
+    {
+      "id": "popculture_mixed_001",
+      "category": ["popculture", "mixed"],
+      "difficulty": "easy",
+      "question": "What arcade game appears in the opening scene of 'Terminator 2: Judgment Day'?",
+      "choices": ["Missile Command", "Afterburner", "Galaga", "Space Invaders"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "popculture_mixed_002",
+      "category": ["popculture", "mixed"],
+      "difficulty": "medium",
+      "question": "Which gaming icon appeared in the movie 'Wreck-It Ralph'?",
+      "choices": ["All of these", "Bowser", "Zangief", "Sonic"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 2012
+      }
+    },
+    {
+      "id": "popculture_mixed_003",
+      "category": ["popculture", "mixed"],
+      "difficulty": "medium",
+      "question": "What Netflix series featured a character named after the game 'The Legend of Zelda'?",
+      "choices": ["The Witcher", "Stranger Things", "Cobra Kai", "Black Mirror"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "popculture_mixed_004",
+      "category": ["popculture", "mixed"],
+      "difficulty": "hard",
+      "question": "Which classic film featured a Pong-style game in a bar scene?",
+      "choices": ["Jaws", "Star Wars", "Close Encounters of the Third Kind", "American Graffiti"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1975
+      }
+    },
+    {
+      "id": "70s_popculture_001",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What fad item did Gary Dahl sell as 'pets' in the 70s?",
+      "choices": ["Pet Plants", "Pet Rocks", "Pet Sticks", "Pet Sand"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1975,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_002",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Who was the US President for most of the 70s?",
+      "choices": ["Richard Nixon", "Gerald Ford", "Jimmy Carter", "Lyndon Johnson"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_003",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1977 film made disco fever explode?",
+      "choices": ["Grease", "Saturday Night Fever", "Flashdance", "Stayin' Alive"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1977,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_004",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which band released the album 'Hotel California' in 1976?",
+      "choices": ["The Beatles", "The Eagles", "Led Zeppelin", "Pink Floyd"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1976,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_005",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What TV show featured a family with eight kids?",
+      "choices": ["The Brady Bunch", "The Waltons", "The Partridge Family", "Eight Is Enough"],
+      "correct_index": 3,
+      "metadata": {
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_006",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which rock icon died in September 1970?",
+      "choices": ["Janis Joplin", "Jim Morrison", "Jimi Hendrix", "Brian Jones"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 1970,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_007",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was the name of the first Star Wars film in 1977?",
+      "choices": ["The Empire Strikes Back", "A New Hope", "Return of the Jedi", "The Phantom Menace"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1977,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_008",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which product was banned from TV ads in the US starting 1971?",
+      "choices": ["Alcohol", "Cigarettes", "Fast Food", "Soda"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1971,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_009",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What does HBO stand for?",
+      "choices": ["Home Box Office", "High Broadcast Output", "Hollywood Broadcast Online", "Home Broadcasting Organization"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_010",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Who founded Microsoft in 1975?",
+      "choices": ["Steve Jobs", "Bill Gates & Paul Allen", "Larry Page & Sergey Brin", "Mark Zuckerberg"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1975,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_011",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1975 thriller featured a killer shark?",
+      "choices": ["The Deep", "Jaws", "Orca", "Piranha"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1975,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_012",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which language was made the second official language of Canada in 1969?",
+      "choices": ["Spanish", "French", "German", "Italian"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1969,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_013",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the top-grossing film of 1973?",
+      "choices": ["The Sting", "The Exorcist", "American Graffiti", "The Way We Were"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1973,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_014",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which band had the hit 'Stairway to Heaven' in 1971?",
+      "choices": ["Led Zeppelin", "The Rolling Stones", "Queen", "The Who"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1971,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_015",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What event ended the Vietnam War in 1975?",
+      "choices": ["Fall of Saigon", "Tet Offensive", "Paris Peace Accords", "Gulf of Tonkin"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1975,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_016",
+      "category": ["popculture", "decade"],
+      "difficulty": "hard",
+      "question": "Which TV undercover cop had a cockatoo named Fred?",
+      "choices": ["Starsky & Hutch", "Miami Vice", "Kojak", "Baretta"],
+      "correct_index": 3,
+      "metadata": {
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_017",
+      "category": ["popculture", "decade", "console"],
+      "difficulty": "medium",
+      "question": "What was the first video game console released in 1972?",
+      "choices": ["Atari 2600", "Magnavox Odyssey", "ColecoVision", "Intellivision"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1972,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_018",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which 1978 film featured John Travolta and Olivia Newton-John?",
+      "choices": ["Grease", "Urban Cowboy", "Xanadu", "Saturday Night Fever"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1978,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_019",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What scandal forced Nixon to resign in 1974?",
+      "choices": ["Watergate", "Iran-Contra", "Teapot Dome", "Whitewater"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1974,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "70s_popculture_020",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "Which toy line debuted in 1977 with action figures?",
+      "choices": ["G.I. Joe", "Star Wars", "He-Man", "Transformers"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1977,
+        "decade": "70s"
+      }
+    },
+    {
+      "id": "80s_popculture_021",
+      "category": ["popculture", "decade"],
+      "difficulty": "hard",
+      "question": "What day did the Challenger space shuttle explode?",
+      "choices": ["January 28, 1985", "January 28, 1986", "February 1, 1986", "March 15, 1986"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1986,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_022",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What year was the Apple Macintosh first sold?",
+      "choices": ["1983", "1984", "1985", "1986"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1984,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_023",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "In what city did The Golden Girls take place?",
+      "choices": ["Miami", "Los Angeles", "New York", "San Francisco"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_024",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which soda caused an uproar with its new formula?",
+      "choices": ["Pepsi", "Coca-Cola", "Dr Pepper", "Sprite"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_025",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Who was known as the 'Queen of Pop' in the 80s?",
+      "choices": ["Whitney Houston", "Madonna", "Cyndi Lauper", "Janet Jackson"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_026",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the first rap song to hit the Top 40?",
+      "choices": ["Rapper's Delight", "The Message", "Walk This Way", "Parents Just Don't Understand"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1979,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_027",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which Swiss watchmaker was founded in 1983?",
+      "choices": ["Rolex", "Swatch", "Omega", "Tag Heuer"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1983,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_028",
+      "category": ["popculture", "decade"],
+      "difficulty": "hard",
+      "question": "What top was Freddie Mercury wearing at Live Aid?",
+      "choices": ["Yellow Jacket", "White Tank", "Leather Vest", "Red Shirt"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1985,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_029",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1982 film featured a kid and an alien?",
+      "choices": ["Poltergeist", "E.T. the Extra-Terrestrial", "Gremlins", "The Thing"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1982,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_030",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Who directed Back to the Future in 1985?",
+      "choices": ["Steven Spielberg", "Robert Zemeckis", "George Lucas", "James Cameron"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1985,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_031",
+      "category": ["popculture", "decade", "arcade"],
+      "difficulty": "medium",
+      "question": "What arcade game inspired the 1982 film Tron?",
+      "choices": ["Space Paranoids (fictional)", "Pong", "Pac-Man", "Asteroids"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1982,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_032",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which artist had the hit 'Thriller' in 1982?",
+      "choices": ["Prince", "Michael Jackson", "Madonna", "Duran Duran"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1982,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_033",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the name of the Rubik's Cube inventor?",
+      "choices": ["Erno Rubik", "Larry Page", "Alan Turing", "Steve Wozniak"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_034",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which TV show featured Magnum, P.I.?",
+      "choices": ["Miami Vice", "Magnum, P.I.", "Knight Rider", "The A-Team"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_035",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1984 film starred Arnold as a cyborg?",
+      "choices": ["Predator", "The Terminator", "Commando", "Total Recall"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1984,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_036",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Who won the most MTV VMAs in the 80s?",
+      "choices": ["Madonna", "Michael Jackson", "Peter Gabriel", "Duran Duran"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_037",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was the catchphrase from Wendy's ads?",
+      "choices": ["Where's the beef?", "Have it your way", "I'm lovin' it", "Eat fresh"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_038",
+      "category": ["popculture", "decade", "console"],
+      "difficulty": "medium",
+      "question": "Which console wars started in the late 80s?",
+      "choices": ["Atari vs. NES", "NES vs. Sega Genesis", "PlayStation vs. N64", "Xbox vs. PS2"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_039",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What 1989 film had Kevin Costner building a field?",
+      "choices": ["Dances with Wolves", "Field of Dreams", "Bull Durham", "The Untouchables"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1989,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_040",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which artist had 'Like a Virgin' in 1984?",
+      "choices": ["Cyndi Lauper", "Madonna", "Whitney Houston", "Tina Turner"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1984,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_041",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the Berlin Wall event in 1989?",
+      "choices": ["Built", "Fell", "Painted", "Reinforced"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1989,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_042",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which toy was a must-have in 1983?",
+      "choices": ["Cabbage Patch Kids", "Teddy Ruxpin", "My Little Pony", "Care Bears"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1983,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_043",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What 1986 film starred Tom Cruise as a pilot?",
+      "choices": ["Days of Thunder", "Top Gun", "Cocktail", "Risky Business"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1986,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_044",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Who was the host of The Tonight Show in the 80s?",
+      "choices": ["Johnny Carson", "Jay Leno", "David Letterman", "Conan O'Brien"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_045",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was MTV's launch year?",
+      "choices": ["1980", "1981", "1982", "1983"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1981,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_046",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which band sang 'Every Breath You Take' in 1983?",
+      "choices": ["U2", "The Police", "The Cure", "Depeche Mode"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1983,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_047",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1988 film featured Tom Hanks as a kid in adult body?",
+      "choices": ["Splash", "Big", "Turner & Hooch", "Joe Versus the Volcano"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1988,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_048",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "Which video game movie featured Nintendo in 1989?",
+      "choices": ["The Wizard", "Super Mario Bros.", "Street Fighter", "Double Dragon"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1989,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_049",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the famous 1984 Apple Super Bowl ad?",
+      "choices": ["1984", "Think Different", "Mac vs. PC", "iPod Silhouettes"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1984,
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "80s_popculture_050",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which sitcom starred a bar in Boston?",
+      "choices": ["Cheers", "Alf", "Family Ties", "The Cosby Show"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "80s"
+      }
+    },
+    {
+      "id": "90s_popculture_051",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which artist had the first #1 rap single?",
+      "choices": ["MC Hammer", "Vanilla Ice", "Sir Mix-a-Lot", "Tupac"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_052",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What tragedy was turned into a 1997 movie?",
+      "choices": ["The Titanic", "Chernobyl", "Oklahoma City Bombing", "Gulf War"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1997,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_053",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Before Facebook, what was the top social media?",
+      "choices": ["AOL", "MySpace", "Friendster", "ICQ"],
+      "correct_index": 2,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_054",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which two actors did Gwyneth Paltrow date?",
+      "choices": ["Brad Pitt & Ben Affleck", "Johnny Depp & Matt Damon", "Leonardo DiCaprio & Tobey Maguire", "Tom Cruise & Val Kilmer"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_055",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "On what TV show did Fran Drescher star?",
+      "choices": ["The Nanny", "Seinfeld", "Friends", "Frasier"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_056",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was the title of Nirvana's 1991 hit?",
+      "choices": ["Come As You Are", "Smells Like Teen Spirit", "Lithium", "In Bloom"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1991,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_057",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was Whitney Houston's best-selling single?",
+      "choices": ["I Wanna Dance with Somebody", "I Will Always Love You", "Greatest Love of All", "How Will I Know"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_058",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which sitcom was 'about nothing'?",
+      "choices": ["Friends", "Seinfeld", "Frasier", "The Simpsons"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_059",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1990 film starred Macaulay Culkin?",
+      "choices": ["Uncle Buck", "Home Alone", "My Girl", "The Good Son"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1990,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_060",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which Nickelodeon show had Tommy, Chuckie, Angelica?",
+      "choices": ["Rugrats", "Doug", "Ren & Stimpy", "Rocko's Modern Life"],
+      "correct_index": 0,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_061",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "What 1993 film adapted a video game poorly?",
+      "choices": ["Mortal Kombat", "Super Mario Bros.", "Street Fighter", "Double Dragon"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1993,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_062",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which artist released 'Baby One More Time' in 1998?",
+      "choices": ["Spice Girls", "Britney Spears", "Christina Aguilera", "Backstreet Boys"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1998,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_063",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the name of the Clinton scandal?",
+      "choices": ["Whitewater", "Lewinsky Affair", "Travelgate", "Filegate"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_064",
+      "category": ["popculture", "decade", "console"],
+      "difficulty": "medium",
+      "question": "Which console launched Pokémon in 1996?",
+      "choices": ["PlayStation", "Game Boy", "N64", "Sega Saturn"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1996,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_065",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1994 film starred Jim Carrey as a detective?",
+      "choices": ["The Mask", "Ace Ventura", "Dumb and Dumber", "Liar Liar"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1994,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_066",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Who was the 'King of Pop' in the 90s?",
+      "choices": ["Prince", "Michael Jackson", "Usher", "R. Kelly"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_067",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the Y2K bug fear?",
+      "choices": ["Planes falling", "Computers crashing", "Stock market collapse", "Power outages"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_068",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which TV show had Ross and Rachel?",
+      "choices": ["Seinfeld", "Friends", "ER", "Dawson's Creek"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_069",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "What 1999 film revealed 'there is no spoon'?",
+      "choices": ["The Blair Witch Project", "The Matrix", "Fight Club", "American Beauty"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1999,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_070",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which boy band sang 'Bye Bye Bye'?",
+      "choices": ["Backstreet Boys", "NSYNC", "98 Degrees", "New Kids on the Block"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_071",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was the first Harry Potter book in 1997?",
+      "choices": ["Chamber of Secrets", "Philosopher's Stone", "Prisoner of Azkaban", "Goblet of Fire"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1997,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_072",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which rapper released 'The Slim Shady LP' in 1999?",
+      "choices": ["Dr. Dre", "Eminem", "Snoop Dogg", "Jay-Z"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1999,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_073",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 1995 film featured a pig?",
+      "choices": ["Toy Story", "Babe", "Pocahontas", "Casper"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1995,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_074",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "Which game movie hit in 1995 with Jumanji?",
+      "choices": ["Board game adventure", "Video game", "Card game", "Puzzle"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 1995,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_075",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What was the Euro currency launch year?",
+      "choices": ["1998", "1999", "2000", "2001"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1999,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_076",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which sitcom had a coffee shop Central Perk?",
+      "choices": ["Seinfeld", "Friends", "Will & Grace", "Mad About You"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_077",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What 1991 film starred Arnold and a clone?",
+      "choices": ["Kindergarten Cop", "Terminator 2", "True Lies", "Junior"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1991,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_078",
+      "category": ["popculture", "decade", "console"],
+      "difficulty": "medium",
+      "question": "Which console war defined the mid-90s?",
+      "choices": ["NES vs. Genesis", "PlayStation vs. N64", "Xbox vs. PS2", "Wii vs. PS3"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_079",
+      "category": ["popculture", "decade"],
+      "difficulty": "hard",
+      "question": "What was the O.J. Simpson trial outcome in 1995?",
+      "choices": ["Guilty", "Not Guilty", "Mistrial", "Plea Deal"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1995,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "90s_popculture_080",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which girl group sang 'Wannabe' in 1996?",
+      "choices": ["TLC", "Spice Girls", "Destiny's Child", "En Vogue"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1996,
+        "decade": "90s"
+      }
+    },
+    {
+      "id": "2000s_movies_081",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "Which 2000s franchise dominated fantasy?",
+      "choices": ["Harry Potter", "The Lord of the Rings", "Chronicles of Narnia", "Twilight"],
+      "correct_index": 1,
+      "metadata": {
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_082",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "In Mean Girls (2004), what team does Cady join?",
+      "choices": ["Plastics", "Mathletes", "Burn Book Club", "Art Club"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2004,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_083",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What was Elle Woods' major in Legally Blonde (2001)?",
+      "choices": ["Fashion", "Political Science", "Law", "History"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2001,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_084",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "Which 2001 film was based on a video game?",
+      "choices": ["Final Fantasy: The Spirits Within", "Lara Croft: Tomb Raider", "Resident Evil", "Silent Hill"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2001,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_085",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 2000 film featured Russell Crowe as a fighter?",
+      "choices": ["Cinderella Man", "Gladiator", "A Beautiful Mind", "Master and Commander"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2000,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_086",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "In The Dark Knight (2008), who played the Joker?",
+      "choices": ["Jack Nicholson", "Heath Ledger", "Joaquin Phoenix", "Jared Leto"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2008,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_087",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What 2004 film had eternal sunshine?",
+      "choices": ["Garden State", "Eternal Sunshine of the Spotless Mind", "Lost in Translation", "Sideways"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2004,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_088",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "easy",
+      "question": "Which 2002 film launched Spider-Man reboots?",
+      "choices": ["Daredevil", "Spider-Man", "X-Men", "Fantastic Four"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2002,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_089",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "In Pirates of the Caribbean (2003), who's the captain?",
+      "choices": ["Will Turner", "Jack Sparrow", "Elizabeth Swann", "Barbossa"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2003,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_090",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What 2009 film was the highest-grossing ever?",
+      "choices": ["The Dark Knight", "Avatar", "Transformers", "Iron Man"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2009,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_091",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which 2005 film rebooted Batman?",
+      "choices": ["Batman & Robin", "Batman Begins", "The Dark Knight", "Batman Forever"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2005,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_092",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "In Shrek (2001), who voiced the ogre?",
+      "choices": ["Eddie Murphy", "Mike Myers", "Cameron Diaz", "John Lithgow"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2001,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_093",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "What 2004 zombie film had humor?",
+      "choices": ["28 Days Later", "Dawn of the Dead", "Shaun of the Dead", "Resident Evil"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 2004,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_094",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "easy",
+      "question": "Which 2007 film had Shia LaBeouf and robots?",
+      "choices": ["Eagle Eye", "Transformers", "Disturbia", "Indiana Jones 4"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2007,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_095",
+      "category": ["popculture", "decade"],
+      "difficulty": "medium",
+      "question": "In The Departed (2006), who directed?",
+      "choices": ["Quentin Tarantino", "Martin Scorsese", "Christopher Nolan", "Steven Spielberg"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2006,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_096",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "What 2003 film featured Will Smith as a cop?",
+      "choices": ["Bad Boys II", "I, Robot", "Hitch", "Men in Black II"],
+      "correct_index": 0,
+      "metadata": {
+        "year": 2003,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_097",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "easy",
+      "question": "Which 2008 film kicked off the MCU?",
+      "choices": ["The Incredible Hulk", "Iron Man", "Thor", "Captain America"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2008,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_098",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "In Finding Nemo (2003), what's the fish's name?",
+      "choices": ["Marlin", "Nemo", "Dory", "Gill"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2003,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_099",
+      "category": ["popculture", "decade", "mixed"],
+      "difficulty": "medium",
+      "question": "What 2002 film adapted a survival horror game?",
+      "choices": ["Silent Hill", "Resident Evil", "Doom", "Alone in the Dark"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2002,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "2000s_movies_100",
+      "category": ["popculture", "decade"],
+      "difficulty": "easy",
+      "question": "Which 2004 superhero film had a family?",
+      "choices": ["Spider-Man 2", "The Incredibles", "Fantastic Four", "X-Men 2"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2004,
+        "decade": "2000s"
+      }
+    },
+    {
+      "id": "lightgun_easy_001",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "easy",
+      "question": "In Time Crisis, what do you do to take cover?",
+      "choices": ["Press a button", "Release the pedal", "Duck physically", "Shake the gun"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Time Crisis",
+        "year": 1995
+      }
+    },
+    {
+      "id": "lightgun_easy_002",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "easy",
+      "question": "What zombie franchise started in arcades in 1996?",
+      "choices": ["Resident Evil", "House of the Dead", "CarnEvil", "Area 51"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "House of the Dead",
+        "year": 1996
+      }
+    },
+    {
+      "id": "lightgun_easy_003",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "easy",
+      "question": "What color is the classic NES Zapper?",
+      "choices": ["Red", "Orange", "Gray", "Blue"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Duck Hunt"
+      }
+    },
+    {
+      "id": "lightgun_medium_001",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "medium",
+      "question": "Which company made the Point Blank series?",
+      "choices": ["Sega", "Namco", "Konami", "Taito"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Point Blank",
+        "year": 1994
+      }
+    },
+    {
+      "id": "lightgun_medium_002",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "medium",
+      "question": "What was Sega's answer to Time Crisis?",
+      "choices": ["Virtua Cop", "House of the Dead", "Ghost Squad", "Confidential Mission"],
+      "correct_index": 0,
+      "metadata": {
+        "game": "Virtua Cop",
+        "year": 1994
+      }
+    },
+    {
+      "id": "lightgun_medium_003",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "medium",
+      "question": "In House of the Dead 2, what are the bosses named after?",
+      "choices": ["Greek gods", "Tarot cards", "Deadly sins", "Planets"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "House of the Dead 2"
+      }
+    },
+    {
+      "id": "lightgun_medium_004",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "medium",
+      "question": "Which light gun game features a talking brain boss named 'The Magician'?",
+      "choices": ["Time Crisis", "House of the Dead", "CarnEvil", "Area 51"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "House of the Dead"
+      }
+    },
+    {
+      "id": "lightgun_hard_001",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "hard",
+      "question": "How many installments are in the main Time Crisis arcade series?",
+      "choices": ["3", "4", "5", "6"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Time Crisis"
+      }
+    },
+    {
+      "id": "lightgun_hard_002",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "hard",
+      "question": "What year did Sinden Lightgun launch its Kickstarter?",
+      "choices": ["2018", "2019", "2020", "2021"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2019
+      }
+    },
+    {
+      "id": "lightgun_hard_003",
+      "category": ["lightgun", "arcade"],
+      "difficulty": "hard",
+      "question": "Which light gun game featured a clown-themed horror carnival?",
+      "choices": ["CarnEvil", "House of the Dead", "Crypt Killer", "Ghoul Panic"],
+      "correct_index": 0,
+      "metadata": {
+        "game": "CarnEvil",
+        "year": 1998
+      }
+    },
+    {
+      "id": "fgc_easy_001",
+      "category": ["fighting", "arcade"],
+      "difficulty": "easy",
+      "question": "What does 'FGC' stand for?",
+      "choices": ["Fast Gaming Community", "Fighting Game Community", "First Gen Consoles", "Free Game Collective"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "fgc_easy_002",
+      "category": ["fighting", "arcade"],
+      "difficulty": "easy",
+      "question": "Which fighting game introduced 'Hadouken'?",
+      "choices": ["Mortal Kombat", "Street Fighter", "Tekken", "King of Fighters"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Street Fighter"
+      }
+    },
+    {
+      "id": "fgc_easy_003",
+      "category": ["fighting", "arcade"],
+      "difficulty": "easy",
+      "question": "What's the name of the annual fighting game championship?",
+      "choices": ["EVO", "CEO", "Combo Breaker", "All of these"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "fgc_easy_004",
+      "category": ["fighting", "arcade"],
+      "difficulty": "easy",
+      "question": "In Mortal Kombat, what command triggers a Fatality?",
+      "choices": ["Random buttons", "A specific input sequence", "Holding block", "Mashing punch"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Mortal Kombat"
+      }
+    },
+    {
+      "id": "fgc_medium_001",
+      "category": ["fighting", "arcade"],
+      "difficulty": "medium",
+      "question": "What legendary EVO moment involved Daigo vs. Justin Wong?",
+      "choices": ["Perfect round", "Full parry comeback", "Ring out", "Double KO"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2004,
+        "game": "Street Fighter III: 3rd Strike"
+      }
+    },
+    {
+      "id": "fgc_medium_002",
+      "category": ["fighting", "arcade"],
+      "difficulty": "medium",
+      "question": "What does 'OTG' mean in fighting games?",
+      "choices": ["On The Ground", "Over The Game", "Original Tournament Guide", "Option To Guard"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "fgc_medium_003",
+      "category": ["fighting", "arcade"],
+      "difficulty": "medium",
+      "question": "Which company developed the Guilty Gear series?",
+      "choices": ["Capcom", "SNK", "Arc System Works", "Bandai Namco"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Guilty Gear"
+      }
+    },
+    {
+      "id": "fgc_medium_004",
+      "category": ["fighting", "arcade"],
+      "difficulty": "medium",
+      "question": "What does 'frame data' refer to?",
+      "choices": ["Graphics quality", "Move startup/recovery timing", "Network latency", "Character hitbox size"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "fgc_medium_005",
+      "category": ["fighting", "arcade"],
+      "difficulty": "medium",
+      "question": "Which Tekken character is famous for the 'Electric Wind God Fist'?",
+      "choices": ["Paul", "Kazuya", "Law", "King"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Tekken"
+      }
+    },
+    {
+      "id": "fgc_hard_001",
+      "category": ["fighting", "arcade"],
+      "difficulty": "hard",
+      "question": "What year was the first EVO (Evolution Championship Series)?",
+      "choices": ["1996", "2000", "2002", "2004"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 2002
+      }
+    },
+    {
+      "id": "fgc_hard_002",
+      "category": ["fighting", "arcade"],
+      "difficulty": "hard",
+      "question": "What's a 'touch of death' (TOD) combo?",
+      "choices": ["A grab move", "A 100% damage combo", "An unblockable attack", "A counter hit"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "fgc_hard_003",
+      "category": ["fighting", "arcade"],
+      "difficulty": "hard",
+      "question": "Which Marvel vs. Capcom game featured the infamous 'infinite' combos?",
+      "choices": ["MvC1", "MvC2", "MvC3", "All of them"],
+      "correct_index": 3,
+      "metadata": {
+        "game": "Marvel vs. Capcom"
+      }
+    },
+    {
+      "id": "fgc_hard_004",
+      "category": ["fighting", "arcade"],
+      "difficulty": "hard",
+      "question": "What is 'rollback netcode'?",
+      "choices": ["Rewinding match replays", "Predictive online play sync", "Tournament bracket resets", "Character moveset patches"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_easy_001",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "easy",
+      "question": "What does 'GDQ' stand for?",
+      "choices": ["Games Done Quick", "Greatest Display of Quality", "Game Developer Quest", "Global Digital Qualifiers"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_easy_002",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "easy",
+      "question": "What does 'any%' mean in speedrunning?",
+      "choices": ["Any character allowed", "Complete game by any means", "Random percentage challenge", "Any difficulty setting"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_easy_003",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "easy",
+      "question": "Which charity does Games Done Quick primarily support?",
+      "choices": ["Red Cross", "Doctors Without Borders", "Prevent Cancer Foundation", "Both B and C"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_medium_001",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "medium",
+      "question": "What is a 'glitchless' speedrun?",
+      "choices": ["No bugs allowed", "Using only intended mechanics", "Perfect execution run", "No deaths allowed"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_medium_002",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "medium",
+      "question": "Which game has one of the most competitive speedrun scenes?",
+      "choices": ["Super Mario 64", "Minecraft", "The Legend of Zelda: OoT", "All of these"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_medium_003",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "medium",
+      "question": "What is 'RNG' in speedrunning?",
+      "choices": ["Run 'N Gun", "Random Number Generation", "Real Nice Game", "Rapid Navigation Guide"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_medium_004",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "medium",
+      "question": "What does '100%' mean in speedrunning?",
+      "choices": ["Perfect score", "All collectibles/objectives", "No damage taken", "Maximum difficulty"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_hard_001",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "hard",
+      "question": "What is 'TAS' in speedrunning?",
+      "choices": ["Totally Awesome Speed", "Tool-Assisted Speedrun", "Timed Achievement Score", "Technical Accuracy System"],
+      "correct_index": 1,
+      "metadata": {}
+    },
+    {
+      "id": "speedrun_hard_002",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "hard",
+      "question": "The famous 'Barrier Skip' glitch is from which Zelda game?",
+      "choices": ["Ocarina of Time", "Wind Waker", "Breath of the Wild", "Twilight Princess"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Breath of the Wild"
+      }
+    },
+    {
+      "id": "speedrun_hard_003",
+      "category": ["speedrun", "mixed"],
+      "difficulty": "hard",
+      "question": "What website is the main hub for speedrun leaderboards?",
+      "choices": ["speedrun.com", "speedruns.org", "gdq.com", "twitchspeedrun.tv"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "localmp_easy_001",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "easy",
+      "question": "How many players can play in Mario Kart 64 split-screen?",
+      "choices": ["2", "3", "4", "8"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Mario Kart 64"
+      }
+    },
+    {
+      "id": "localmp_easy_002",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "easy",
+      "question": "Which party game series features mini-games with Mario characters?",
+      "choices": ["Mario Party", "Mario Kart", "Super Smash Bros", "Mario Sports"],
+      "correct_index": 0,
+      "metadata": {
+        "game": "Mario Party"
+      }
+    },
+    {
+      "id": "localmp_easy_003",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "easy",
+      "question": "What's the maximum players in Super Smash Bros. Ultimate?",
+      "choices": ["4", "6", "8", "12"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Super Smash Bros. Ultimate"
+      }
+    },
+    {
+      "id": "localmp_medium_001",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "medium",
+      "question": "Which classic N64 game popularized 4-player split-screen shooters?",
+      "choices": ["Perfect Dark", "GoldenEye 007", "Turok", "Duke Nukem 64"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "GoldenEye 007",
+        "year": 1997
+      }
+    },
+    {
+      "id": "localmp_medium_002",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "medium",
+      "question": "Which indie game has chefs cooking together chaotically?",
+      "choices": ["Overcooked", "Cooking Mama", "Cook, Serve, Delicious", "Diner Dash"],
+      "correct_index": 0,
+      "metadata": {
+        "game": "Overcooked"
+      }
+    },
+    {
+      "id": "localmp_medium_003",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "medium",
+      "question": "What drawing/guessing party game became hugely popular on PC?",
+      "choices": ["Pictionary", "Jackbox Games", "Gartic Phone", "Drawful"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Jackbox Party Pack"
+      }
+    },
+    {
+      "id": "localmp_medium_004",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "medium",
+      "question": "Which beat-em-up series is famous for 4-player arcade co-op?",
+      "choices": ["Streets of Rage", "Final Fight", "Teenage Mutant Ninja Turtles", "Double Dragon"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "TMNT"
+      }
+    },
+    {
+      "id": "localmp_hard_001",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "hard",
+      "question": "What was the first console to support 4 controllers without an adapter?",
+      "choices": ["Sega Saturn", "Nintendo 64", "PlayStation", "Dreamcast"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 1996
+      }
+    },
+    {
+      "id": "localmp_hard_002",
+      "category": ["multiplayer", "mixed"],
+      "difficulty": "hard",
+      "question": "Which game coined the term 'couch co-op'?",
+      "choices": ["No specific game - it's a genre term", "Halo", "Left 4 Dead", "Castle Crashers"],
+      "correct_index": 0,
+      "metadata": {}
+    },
+    {
+      "id": "modern_easy_001",
+      "category": ["modern", "mixed"],
+      "difficulty": "easy",
+      "question": "Which battle royale game features building mechanics?",
+      "choices": ["PUBG", "Fortnite", "Apex Legends", "Warzone"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Fortnite"
+      }
+    },
+    {
+      "id": "modern_easy_002",
+      "category": ["modern", "mixed"],
+      "difficulty": "easy",
+      "question": "What 2017 Nintendo game features shrines and a massive open world?",
+      "choices": ["Super Mario Odyssey", "Breath of the Wild", "Splatoon 2", "Xenoblade Chronicles 2"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Breath of the Wild",
+        "year": 2017
+      }
+    },
+    {
+      "id": "modern_easy_003",
+      "category": ["modern", "mixed"],
+      "difficulty": "easy",
+      "question": "Which game lets you build and survive in a blocky world?",
+      "choices": ["Terraria", "Minecraft", "Roblox", "All of these"],
+      "correct_index": 3,
+      "metadata": {}
+    },
+    {
+      "id": "modern_easy_004",
+      "category": ["modern", "mixed"],
+      "difficulty": "easy",
+      "question": "What social deduction game has players finding an 'impostor'?",
+      "choices": ["Among Us", "Town of Salem", "Werewolf", "Mafia"],
+      "correct_index": 0,
+      "metadata": {
+        "game": "Among Us"
+      }
+    },
+    {
+      "id": "modern_medium_001",
+      "category": ["modern", "mixed"],
+      "difficulty": "medium",
+      "question": "Which 2020 game is known for extreme difficulty and the phrase 'You Died'?",
+      "choices": ["Sekiro", "Dark Souls", "Elden Ring", "Demon's Souls"],
+      "correct_index": 2,
+      "metadata": {
+        "game": "Elden Ring",
+        "year": 2022
+      }
+    },
+    {
+      "id": "modern_medium_002",
+      "category": ["modern", "mixed"],
+      "difficulty": "medium",
+      "question": "What indie game features a strawberry-collecting mountain climber?",
+      "choices": ["Hollow Knight", "Celeste", "Cuphead", "Shovel Knight"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Celeste",
+        "year": 2018
+      }
+    },
+    {
+      "id": "modern_medium_003",
+      "category": ["modern", "mixed"],
+      "difficulty": "medium",
+      "question": "Which roguelike has you escaping the Greek underworld?",
+      "choices": ["Dead Cells", "Hades", "Slay the Spire", "Enter the Gungeon"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Hades",
+        "year": 2020
+      }
+    },
+    {
+      "id": "modern_medium_004",
+      "category": ["modern", "mixed"],
+      "difficulty": "medium",
+      "question": "What game popularized the 'Souls-like' genre?",
+      "choices": ["Demon's Souls", "Dark Souls", "Bloodborne", "Elden Ring"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Dark Souls",
+        "year": 2011
+      }
+    },
+    {
+      "id": "modern_hard_001",
+      "category": ["modern", "mixed"],
+      "difficulty": "hard",
+      "question": "Which indie studio created Hollow Knight?",
+      "choices": ["Supergiant Games", "Team Cherry", "Matt Makes Games", "Motion Twin"],
+      "correct_index": 1,
+      "metadata": {
+        "game": "Hollow Knight"
+      }
+    },
+    {
+      "id": "modern_hard_002",
+      "category": ["modern", "mixed"],
+      "difficulty": "hard",
+      "question": "What year did the Nintendo Switch launch?",
+      "choices": ["2015", "2016", "2017", "2018"],
+      "correct_index": 2,
+      "metadata": {
+        "year": 2017
+      }
+    },
+    {
+      "id": "modern_hard_003",
+      "category": ["modern", "mixed"],
+      "difficulty": "hard",
+      "question": "Which game won the most Game of the Year awards in 2020?",
+      "choices": ["Ghost of Tsushima", "The Last of Us Part II", "Hades", "Animal Crossing: New Horizons"],
+      "correct_index": 1,
+      "metadata": {
+        "year": 2020
+      }
+    }
+  ]
+}

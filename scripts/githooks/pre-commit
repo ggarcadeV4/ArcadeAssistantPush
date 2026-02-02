@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Blocks commit if verify-cache is RED when backend/scripts changed.
+set -euo pipefail
+
+# Only run if staged changes touch backend/** or scripts/**
+CHANGED="$(git diff --cached --name-only | tr -d '\r')"
+echo "$CHANGED" | grep -E '^(backend/|scripts/)' >/dev/null 2>&1 || exit 0
+
+echo "[pre-commit] Running verify-cache (no-start)"
+if command -v bash >/dev/null 2>&1; then
+  NOSTART=1 bash scripts/verify-cache.sh | tee logs/smoke.precommit.out
+  echo "----"
+  if ! grep -q -- "- GREEN" logs/smoke.precommit.out; then
+    echo "[pre-commit]  Smoke check RED. See logs/smoke.precommit.out"
+    exit 1
+  fi
+else
+  # Fallback to PowerShell if no bash (Windows)
+  pwsh -NoProfile -Command "scripts/verify-cache.ps1 -NoStart" | tee logs/smoke.precommit.out
+  echo "----"
+  findstr /C:"- GREEN" logs\smoke.precommit.out >nul 2>&1 || (echo "[pre-commit]  Smoke check RED. See logs/smoke.precommit.out" & exit 1)
+fi
+
+echo "[pre-commit]  Smoke GREEN. Proceeding."
+

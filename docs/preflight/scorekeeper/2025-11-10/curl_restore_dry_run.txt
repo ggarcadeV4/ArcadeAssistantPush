@@ -1,0 +1,1 @@
+{"restored":false,"dry_run":true,"backup_path":"/mnt/a/backups/scorekeeper/20251110_112128/snapshot.json","diff":"","files_changed":0,"removed_files":[],"pre_restore_backup":null,"message":"Dry-run preview generated"}

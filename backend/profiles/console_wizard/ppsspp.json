@@ -1,0 +1,32 @@
+{
+  "emulator_type": "ppsspp",
+  "display_name": "PPSSPP",
+  "supported_players": 1,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6",
+    "p1.start", "p1.coin"
+  ],
+  "config_files": [
+    "memstick/PSP/SYSTEM/controls.ini",
+    "ppsspp.ini"
+  ],
+  "config_format": "ini",
+  "button_mapping": {
+    "button1": "Cross",
+    "button2": "Circle",
+    "button3": "Square",
+    "button4": "Triangle",
+    "button5": "L",
+    "button6": "R"
+  },
+  "special_controls": {
+    "start": "Start",
+    "coin": "Select",
+    "up": "Up",
+    "down": "Down",
+    "left": "Left",
+    "right": "Right"
+  }
+}

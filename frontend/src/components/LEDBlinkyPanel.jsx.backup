@@ -1,0 +1,1637 @@
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+const LEDBlinkyPanel = () => {
+  const navigate = useNavigate()
+  const [currentActiveButtons, setCurrentActiveButtons] = useState(new Set())
+  const [customButtonColors, setCustomButtonColors] = useState(new Map())
+  const [websocket, setWebsocket] = useState(null)
+  const [connectionStatus, setConnectionStatus] = useState('disconnected')
+  const [activeAnimationInterval, setActiveAnimationInterval] = useState(null)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState([
+    {
+      type: 'ai',
+      message: "Hello! I'm your LED panel assistant. I can help you configure LED layouts, create animations, troubleshoot hardware connections, and answer questions about your arcade setup. What would you like to work on today?"
+    }
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [activeMode, setActiveMode] = useState('profiles')
+  const [selectedGame, setSelectedGame] = useState('')
+  const [websocketUrl, setWebsocketUrl] = useState('ws://localhost:8080/ws')
+  const [connectionLog, setConnectionLog] = useState([])
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false)
+  const [ledBrightness, setLedBrightness] = useState(85)
+
+  const wsManagerRef = useRef(null)
+
+  // WebSocket Manager Class
+  class LEDWebSocketManager {
+    constructor() {
+      this.ws = null
+      this.url = ''
+      this.reconnectAttempts = 0
+      this.maxReconnectAttempts = 5
+      this.reconnectDelay = 2000
+      this.isConnecting = false
+      this.connectionLog = []
+      this.autoReconnectEnabled = false
+    }
+
+    connect(url) {
+      if (this.isConnecting) {
+        this.log('Connection already in progress...', 'warning')
+        return
+      }
+
+      this.url = url
+      this.isConnecting = true
+      this.log(`Attempting to connect to ${url}...`, 'info')
+      setConnectionStatus('connecting')
+
+      try {
+        this.ws = new WebSocket(url)
+
+        this.ws.onopen = () => {
+          this.isConnecting = false
+          this.reconnectAttempts = 0
+          this.log('WebSocket connected successfully!', 'success')
+          setConnectionStatus('connected')
+          showToast('Hardware connected via WebSocket', 'websocket')
+
+          this.send({
+            type: 'handshake',
+            client: 'led-blinky-panel',
+            version: '2.0.0'
+          })
+        }
+
+        this.ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
+            this.handleMessage(data)
+          } catch (error) {
+            this.log(`Invalid message received: ${event.data}`, 'error')
+          }
+        }
+
+        this.ws.onclose = (event) => {
+          this.isConnecting = false
+          this.log(`Connection closed (Code: ${event.code})`, 'error')
+          setConnectionStatus('disconnected')
+
+          // Only auto-reconnect if enabled and not a manual disconnect
+          if (this.autoReconnectEnabled && event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.scheduleReconnect()
+          }
+        }
+
+        this.ws.onerror = (error) => {
+          this.isConnecting = false
+          this.log('WebSocket error occurred', 'error')
+          setConnectionStatus('error')
+        }
+
+        setTimeout(() => {
+          if (this.isConnecting) {
+            this.ws.close()
+            this.log('Connection timeout', 'error')
+            setConnectionStatus('disconnected')
+          }
+        }, 10000)
+
+      } catch (error) {
+        this.isConnecting = false
+        this.log(`Failed to create WebSocket: ${error.message}`, 'error')
+        setConnectionStatus('error')
+      }
+    }
+
+    disconnect() {
+      if (this.ws) {
+        this.ws.close(1000, 'User disconnected')
+        this.ws = null
+      }
+      this.log('Disconnected by user', 'info')
+      setConnectionStatus('disconnected')
+    }
+
+    send(data) {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(data))
+        return true
+      } else {
+        this.log('Cannot send data: WebSocket not connected', 'warning')
+        return false
+      }
+    }
+
+    handleMessage(data) {
+      this.log(`Received: ${data.type}`, 'info')
+
+      switch (data.type) {
+        case 'handshake_response':
+          this.log(`Server: ${data.server} v${data.version}`, 'success')
+          break
+        case 'led_state':
+          updateLEDFromServer(data)
+          break
+        case 'pattern_complete':
+          this.log(`Pattern '${data.pattern}' completed`, 'info')
+          break
+        case 'error':
+          this.log(`Server error: ${data.message}`, 'error')
+          showToast(`Hardware error: ${data.message}`, 'error')
+          break
+        default:
+          this.log(`Unknown message type: ${data.type}`, 'warning')
+      }
+    }
+
+    log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString()
+      const logEntry = { timestamp, message, type }
+      setConnectionLog(prev => [...prev.slice(-49), logEntry])
+    }
+
+    sendLEDCommand(player, button, state, color = null) {
+      const command = {
+        type: 'led_command',
+        player: parseInt(player),
+        button: button,
+        state: state,
+        timestamp: Date.now()
+      }
+
+      if (color) {
+        command.color = color
+      }
+
+      if (this.send(command)) {
+        this.log(`LED P${player}-${button}: ${state ? 'ON' : 'OFF'}`, 'info')
+      }
+    }
+
+    sendPattern(patternName, params = {}) {
+      const command = {
+        type: 'pattern',
+        pattern: patternName,
+        params: params,
+        timestamp: Date.now()
+      }
+
+      if (this.send(command)) {
+        this.log(`Pattern sent: ${patternName}`, 'info')
+      }
+    }
+
+    scheduleReconnect() {
+      this.reconnectAttempts++
+      const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000) // Exponential backoff, max 30s
+      this.log(`Auto-reconnecting in ${delay/1000}s (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`, 'warning')
+
+      setTimeout(() => {
+        if (this.reconnectAttempts <= this.maxReconnectAttempts) {
+          this.log('Auto-reconnect attempt...', 'info')
+          this.connect(this.url)
+        } else {
+          this.log('Auto-reconnect failed: Maximum attempts reached', 'error')
+          showToast('Connection failed: Auto-reconnect exhausted', 'error')
+        }
+      }, delay)
+    }
+
+    enableAutoReconnect() {
+      this.autoReconnectEnabled = true
+      this.log('Auto-reconnect enabled', 'info')
+    }
+
+    disableAutoReconnect() {
+      this.autoReconnectEnabled = false
+      this.reconnectAttempts = 0
+      this.log('Auto-reconnect disabled', 'info')
+    }
+  }
+
+  // Initialize WebSocket manager
+  useEffect(() => {
+    wsManagerRef.current = new LEDWebSocketManager()
+    wsManagerRef.current.autoReconnectEnabled = true // Enable auto-reconnect by default
+    return () => {
+      if (wsManagerRef.current?.ws) {
+        wsManagerRef.current.disableAutoReconnect()
+        wsManagerRef.current.disconnect()
+      }
+    }
+  }, [])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Only trigger if user isn't typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        return
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 't':
+            e.preventDefault()
+            testAllLEDs()
+            showToast('Keyboard shortcut: Test All LEDs', 'success')
+            break
+          case 'c':
+            e.preventDefault()
+            clearAllLEDs()
+            showToast('Keyboard shortcut: Clear All LEDs', 'success')
+            break
+          case 'r':
+            e.preventDefault()
+            randomPattern()
+            showToast('Keyboard shortcut: Random Pattern', 'success')
+            break
+        }
+      } else {
+        switch (e.key) {
+          case 'Escape':
+            if (chatOpen) {
+              setChatOpen(false)
+              showToast('Chat closed', 'success')
+            }
+            break
+          case ' ':
+            e.preventDefault()
+            // Toggle first player's first button as demo
+            toggleLED('1', '1')
+            showToast('Space: Toggled P1-B1', 'success')
+            break
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [chatOpen, currentActiveButtons, testAllLEDs, clearAllLEDs, randomPattern, toggleLED])
+
+  const showToast = (message, type = 'success') => {
+    // Simple toast implementation - could be enhanced with a proper toast library
+    console.log(`Toast [${type}]: ${message}`)
+  }
+
+  const updateLEDFromServer = (data) => {
+    // Update LED state from server
+    const key = `${data.player}-${data.button}`
+    setCurrentActiveButtons(prev => {
+      const newSet = new Set(prev)
+      if (data.state) {
+        newSet.add(key)
+      } else {
+        newSet.delete(key)
+      }
+      return newSet
+    })
+  }
+
+  const toggleLED = (player, button) => {
+    const key = `${player}-${button}`
+    const isActive = currentActiveButtons.has(key)
+    const newState = !isActive
+
+    setCurrentActiveButtons(prev => {
+      const newSet = new Set(prev)
+      if (newState) {
+        newSet.add(key)
+      } else {
+        newSet.delete(key)
+      }
+      return newSet
+    })
+
+    wsManagerRef.current?.sendLEDCommand(player, button, newState)
+  }
+
+  const clearAllLEDs = () => {
+    if (activeAnimationInterval) {
+      clearInterval(activeAnimationInterval)
+      setActiveAnimationInterval(null)
+    }
+
+    currentActiveButtons.forEach(key => {
+      const [player, button] = key.split('-')
+      wsManagerRef.current?.sendLEDCommand(player, button, false)
+    })
+
+    setCurrentActiveButtons(new Set())
+    showToast('All LEDs cleared', 'success')
+  }
+
+  const testAllLEDs = () => {
+    if (activeAnimationInterval) clearInterval(activeAnimationInterval)
+
+    const buttons = [
+      {player: '1', button: '1'}, {player: '1', button: '2'}, {player: '1', button: '3'}, {player: '1', button: '4'},
+      {player: '1', button: '5'}, {player: '1', button: '6'}, {player: '1', button: '7'}, {player: '1', button: '8'},
+      {player: '2', button: '1'}, {player: '2', button: '2'}, {player: '2', button: '3'}, {player: '2', button: '4'},
+      {player: '2', button: '5'}, {player: '2', button: '6'}, {player: '2', button: '7'}, {player: '2', button: '8'},
+      {player: '3', button: '1'}, {player: '3', button: '2'}, {player: '3', button: '3'}, {player: '3', button: '4'},
+      {player: '4', button: '1'}, {player: '4', button: '2'}, {player: '4', button: '3'}, {player: '4', button: '4'}
+    ]
+
+    buttons.forEach(({player, button}, index) => {
+      setTimeout(() => {
+        toggleLED(player, button)
+        setTimeout(() => {
+          toggleLED(player, button)
+        }, 500)
+      }, index * 50)
+    })
+
+    showToast('Testing all LEDs...', 'success')
+  }
+
+  const randomPattern = () => {
+    clearAllLEDs()
+    const allButtons = [
+      {player: '1', button: '1'}, {player: '1', button: '2'}, {player: '1', button: '3'}, {player: '1', button: '4'},
+      {player: '1', button: '5'}, {player: '1', button: '6'}, {player: '1', button: '7'}, {player: '1', button: '8'},
+      {player: '2', button: '1'}, {player: '2', button: '2'}, {player: '2', button: '3'}, {player: '2', button: '4'},
+      {player: '2', button: '5'}, {player: '2', button: '6'}, {player: '2', button: '7'}, {player: '2', button: '8'},
+      {player: '3', button: '1'}, {player: '3', button: '2'}, {player: '3', button: '3'}, {player: '3', button: '4'},
+      {player: '4', button: '1'}, {player: '4', button: '2'}, {player: '4', button: '3'}, {player: '4', button: '4'}
+    ]
+
+    const randomCount = Math.floor(Math.random() * allButtons.length * 0.7) + 3
+    const shuffled = [...allButtons].sort(() => Math.random() - 0.5)
+
+    shuffled.slice(0, randomCount).forEach(({player, button}) => {
+      toggleLED(player, button)
+    })
+
+    wsManagerRef.current?.sendPattern('random', { count: randomCount })
+    showToast(`Random pattern with ${randomCount} LEDs`, 'success')
+  }
+
+  const savePattern = () => {
+    const pattern = {
+      name: `Pattern_${new Date().toLocaleTimeString().replace(/:/g, '-')}`,
+      activeButtons: Array.from(currentActiveButtons),
+      brightness: ledBrightness,
+      timestamp: new Date().toISOString()
+    }
+
+    const savedPatterns = JSON.parse(localStorage.getItem('led-patterns') || '[]')
+    savedPatterns.push(pattern)
+    localStorage.setItem('led-patterns', JSON.stringify(savedPatterns))
+
+    showToast(`Pattern saved: ${pattern.name}`, 'success')
+  }
+
+  const loadPattern = () => {
+    const savedPatterns = JSON.parse(localStorage.getItem('led-patterns') || '[]')
+
+    if (savedPatterns.length === 0) {
+      showToast('No saved patterns found', 'error')
+      return
+    }
+
+    // Load the most recent pattern
+    const latestPattern = savedPatterns[savedPatterns.length - 1]
+
+    // Clear current LEDs
+    clearAllLEDs()
+
+    // Apply saved pattern
+    setTimeout(() => {
+      latestPattern.activeButtons.forEach(key => {
+        const [player, button] = key.split('-')
+        toggleLED(player, button)
+      })
+
+      // Apply saved brightness
+      setLedBrightness(latestPattern.brightness || 85)
+
+      showToast(`Pattern loaded: ${latestPattern.name}`, 'success')
+    }, 100)
+  }
+
+  const applyGameProfile = (game) => {
+    clearAllLEDs()
+    const profiles = {
+      sf2: { buttons: [1, 2, 3, 4, 5, 6], type: 'Fighting', players: 2, description: 'Classic 6-button fighter with special move combinations. Each button is mapped to specific attacks with optimal color coding for muscle memory.' },
+      mk: { buttons: [1, 2, 3, 4, 5], type: 'Fighting', players: 2, description: '5-button fighting game with block button. High/Low punch and kick combinations with dedicated block.' },
+      tmnt: { buttons: [1, 2], type: 'Beat \'em Up', players: 4, description: 'Simple 2-button brawler. Jump and attack with combination moves for special abilities.' },
+      nba: { buttons: [1, 2, 3], type: 'Sports', players: 2, description: '3-button basketball game. Shoot, pass, and turbo for fast-paced arcade action.' },
+      tekken: { buttons: [1, 2, 3, 4], type: 'Fighting', players: 2, description: '4-button 3D fighter. Each button controls a different limb for realistic martial arts combat.' },
+      kof: { buttons: [1, 2, 3, 4], type: 'Fighting', players: 2, description: 'Team-based fighting with 4 attack buttons. Light and heavy punches and kicks.' },
+      mvc: { buttons: [1, 2, 3, 4, 5, 6], type: 'Fighting', players: 2, description: 'Fast-paced tag-team fighter with assist buttons. 6-button layout for complex combos.' }
+    }
+
+    if (profiles[game]) {
+      const profile = profiles[game]
+      wsManagerRef.current?.sendPattern('game_profile', { game: game, buttons: profile.buttons })
+
+      profile.buttons.forEach(btnNum => {
+        [1, 2].forEach(player => {
+          toggleLED(player.toString(), btnNum.toString())
+        })
+      })
+
+      showToast(`Applied profile: ${game.toUpperCase()}`, 'success')
+    }
+  }
+
+  const toggleWebSocketConnection = () => {
+    if (connectionStatus === 'connected') {
+      wsManagerRef.current?.disconnect()
+    } else {
+      if (websocketUrl) {
+        wsManagerRef.current?.connect(websocketUrl)
+      } else {
+        showToast('Please enter a valid WebSocket URL', 'error')
+      }
+    }
+  }
+
+  const toggleVoiceInput = () => {
+    setIsVoiceRecording(!isVoiceRecording)
+
+    if (!isVoiceRecording) {
+      // Start voice recording
+      showToast('Voice input activated - speak now!', 'success')
+      // TODO: Implement voice recognition here
+      // This is where you'll integrate with Web Speech API or your voice system
+    } else {
+      // Stop voice recording
+      showToast('Voice input stopped', 'success')
+      // TODO: Process voice input and convert to text
+    }
+  }
+
+  const sendChatMessage = () => {
+    if (!chatInput.trim()) return
+
+    setChatMessages(prev => [...prev, { type: 'user', message: chatInput }])
+
+    // Simple AI response
+    setTimeout(() => {
+      const response = getAIResponse(chatInput)
+      setChatMessages(prev => [...prev, { type: 'ai', message: response }])
+    }, 500)
+
+    setChatInput('')
+  }
+
+  const getAIResponse = (message) => {
+    const lowerMessage = message.toLowerCase()
+
+    if (lowerMessage.includes('websocket') || lowerMessage.includes('connect') || lowerMessage.includes('hardware')) {
+      return "To connect to your LED hardware, go to the Hardware tab and enter your WebSocket URL (usually ws://localhost:8080/ws). Make sure your LED controller software is running and configured to accept WebSocket connections."
+    } else if (lowerMessage.includes('test') || lowerMessage.includes('led')) {
+      return "I can help you test your LED setup! Use the Test All button for a full system check, or try the Hardware tab for specific test patterns. What specific testing do you need help with?"
+    } else if (lowerMessage.includes('game') || lowerMessage.includes('profile')) {
+      return "Game profiles automatically configure your LEDs for specific games. Try selecting Street Fighter II or Mortal Kombat from the Game Profiles tab to see how it optimizes button layouts!"
+    } else {
+      return "I'm here to help with your LED panel configuration! I can assist with WebSocket connections, testing LEDs, setting up game profiles, creating animations, or troubleshooting hardware issues. What would you like to work on?"
+    }
+  }
+
+  return (
+    <>
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+          }
+        `}
+      </style>
+      <div style={{
+        background: '#000000',
+        color: '#ffffff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        minHeight: '100vh',
+        padding: '20px 0'
+      }}>
+      {/* Chat Toggle Button */}
+      <button
+        onClick={() => setChatOpen(!chatOpen)}
+        style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          background: '#1a1a1a',
+          border: '3px solid #9333ea',
+          color: '#9333ea',
+          width: '50px',
+          height: '50px',
+          borderRadius: '25px',
+          cursor: 'pointer',
+          fontSize: '20px',
+          fontWeight: 'bold',
+          zIndex: 1001,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        💬
+      </button>
+
+      {/* Chat Sidebar */}
+      {chatOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          width: '400px',
+          height: '100vh',
+          background: '#1a1a1a',
+          borderLeft: '2px solid #9333ea',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            background: '#111111',
+            borderBottom: '2px solid #9333ea',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <img
+                src="/led-avatar.jpeg"
+                alt="LED Assistant Avatar"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  border: '2px solid #9333ea',
+                  boxShadow: '0 0 8px rgba(147, 51, 234, 0.4)',
+                  objectFit: 'cover'
+                }}
+              />
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: '#9333ea' }}>LED Assistant</div>
+                <div style={{ fontSize: '12px', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
+                  <span>Connected</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setChatOpen(false)}
+              style={{
+                background: '#111111',
+                border: '2px solid #9333ea',
+                color: '#9333ea',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: 'bold'
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            {chatMessages.map((msg, index) => (
+              <div
+                key={index}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: msg.type === 'ai' ? '8px' : '0',
+                  alignSelf: msg.type === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '80%',
+                  flexDirection: msg.type === 'user' ? 'row-reverse' : 'row'
+                }}
+              >
+                {msg.type === 'ai' && (
+                  <img
+                    src="/led-avatar.jpeg"
+                    alt="LED Assistant"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      border: '1px solid #9333ea',
+                      boxShadow: '0 0 6px rgba(147, 51, 234, 0.3)',
+                      objectFit: 'cover',
+                      flexShrink: 0,
+                      marginTop: '2px'
+                    }}
+                  />
+                )}
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '16px',
+                    background: '#1a1a1a',
+                    border: `2px solid ${msg.type === 'user' ? '#7c3aed' : '#9333ea'}`,
+                    flex: 1
+                  }}
+                >
+                  {msg.message}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            background: '#000000',
+            borderTop: '2px solid #9333ea',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                placeholder={isVoiceRecording ? "Listening..." : "Type your message or use voice input..."}
+                style={{
+                  flex: 1,
+                  background: '#1a1a1a',
+                  border: '2px solid #7c3aed',
+                  borderRadius: '20px',
+                  padding: '12px 16px',
+                  color: '#ffffff',
+                  fontSize: '14px'
+                }}
+              />
+              <button
+                onClick={toggleVoiceInput}
+                title={isVoiceRecording ? "Stop voice input" : "Start voice input"}
+                style={{
+                  background: isVoiceRecording ? '#9333ea' : '#1a1a1a',
+                  border: '2px solid #9333ea',
+                  color: isVoiceRecording ? '#ffffff' : '#9333ea',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '20px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.3s ease',
+                  boxShadow: isVoiceRecording ? '0 0 15px rgba(147, 51, 234, 0.6)' : 'none',
+                  animation: isVoiceRecording ? 'pulse 1.5s ease-in-out infinite' : 'none'
+                }}
+              >
+                🎤
+              </button>
+              <button
+                onClick={sendChatMessage}
+                style={{
+                  background: '#1a1a1a',
+                  border: '2px solid #9333ea',
+                  color: '#9333ea',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '20px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ↵
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Panel Container */}
+      <div style={{
+        background: '#0a0a0a',
+        border: '3px solid #9333ea',
+        borderRadius: '20px',
+        width: 'min(95vw, 1400px)',
+        minHeight: 'min(90vh, 900px)',
+        display: 'grid',
+        gridTemplateRows: 'auto auto auto 1fr auto',
+        margin: '20px auto',
+        boxShadow: '0 0 16px #9333ea, 0 20px 60px rgba(0, 0, 0, 0.8)'
+      }}>
+        {/* Header */}
+        <div style={{
+          background: '#1a1a1a',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderRadius: '17px 17px 0 0',
+          borderBottom: '2px solid #9333ea'
+        }}>
+          <div style={{
+            fontSize: '20px',
+            fontWeight: '700',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            color: '#9333ea'
+          }}>
+            🎮 LED Blinky Configuration Center
+          </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: '#111111',
+                border: '2px solid #ef4444',
+                color: '#ef4444',
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Status Bar */}
+        <div style={{
+          background: '#000000',
+          padding: '12px 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '13px',
+          borderBottom: '1px solid #9333ea'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d1d5db' }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: connectionStatus === 'connected' ? '#10b981' : '#ef4444'
+            }}></div>
+            <span>Hardware {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}</span>
+          </div>
+          <div style={{ color: '#d1d5db' }}>
+            <span>Active Profile: Street Fighter II</span>
+          </div>
+          <div style={{ color: '#d1d5db' }}>
+            <span>{currentActiveButtons.size} LEDs • 4 Players</span>
+          </div>
+        </div>
+
+        {/* Title Section */}
+        <div style={{
+          padding: '28px 32px 20px',
+          textAlign: 'center',
+          background: '#000000',
+          borderBottom: '1px solid #9333ea'
+        }}>
+          <div style={{
+            fontSize: '32px',
+            fontWeight: '800',
+            background: 'linear-gradient(135deg, #c084fc, #9333ea, #7c3aed)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            marginBottom: '10px'
+          }}>
+            🎨 LED Control Center
+          </div>
+          <div style={{
+            color: '#d1d5db',
+            fontSize: '15px',
+            maxWidth: '600px',
+            margin: '0 auto',
+            lineHeight: '1.5'
+          }}>
+            Complete LED management with real-time control, game profiles, and custom animations
+          </div>
+        </div>
+
+        {/* Mode Switcher */}
+        <div style={{
+          background: '#000000',
+          padding: '16px 24px',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '4px',
+          borderBottom: '1px solid #9333ea'
+        }}>
+          {[
+            { key: 'profiles', icon: '🎮', label: 'Game Profiles' },
+            { key: 'animation', icon: '✨', label: 'Animation Designer' },
+            { key: 'realtime', icon: '⚡', label: 'Real-time Control' },
+            { key: 'hardware', icon: '🔧', label: 'Hardware' }
+          ].map(mode => (
+            <button
+              key={mode.key}
+              onClick={() => setActiveMode(mode.key)}
+              style={{
+                background: activeMode === mode.key ? 'linear-gradient(135deg, #111111, #0a0a0a)' : 'transparent',
+                border: activeMode === mode.key ? '1px solid #9333ea' : '1px solid transparent',
+                color: activeMode === mode.key ? '#9333ea' : '#9ca3af',
+                padding: '12px 28px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}
+            >
+              <span>{mode.icon}</span>
+              <span>{mode.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Main Content Area */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(450px, 1fr) minmax(500px, 2fr)',
+          gap: '28px',
+          padding: '28px',
+          background: '#000000',
+          minHeight: '400px'
+        }}>
+          {/* Left: LED Panel */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{
+              background: '#0f0f0f',
+              border: '1px solid #9333ea',
+              borderRadius: '16px',
+              padding: '24px'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px'
+              }}>
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  color: '#9333ea'
+                }}>
+                  Arcade Panel Layout
+                </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  color: '#10b981'
+                }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
+                  <span>Live Preview</span>
+                </div>
+              </div>
+
+              {/* LED Panel */}
+              <div style={{
+                background: '#000000',
+                borderRadius: '12px',
+                padding: '36px',
+                minHeight: '380px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid #7c3aed'
+              }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                  gridTemplateRows: 'auto auto auto',
+                  gap: '20px',
+                  width: '100%',
+                  maxWidth: '640px'
+                }}>
+                  {/* Player 3 (Top-Left) */}
+                  <div style={{ gridColumn: 1, gridRow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontWeight: '800', fontSize: '13px', color: '#c084fc', textTransform: 'uppercase' }}>P3</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: '8px' }}>
+                        {[1, 2, 3, 4].map(btn => (
+                          <button
+                            key={`3-${btn}`}
+                            onClick={() => toggleLED('3', btn.toString())}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              border: '2px solid #111111',
+                              background: currentActiveButtons.has(`3-${btn}`)
+                                ? 'radial-gradient(circle, #c084fc, #a855f7)'
+                                : '#000000',
+                              cursor: 'pointer',
+                              color: currentActiveButtons.has(`3-${btn}`) ? '#000000' : '#6b7280',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: currentActiveButtons.has(`3-${btn}`) ? '0 0 10px #c084fc' : 'none'
+                            }}
+                          >
+                            {btn}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {['start', 'select'].map(btn => (
+                          <button
+                            key={`3-${btn}`}
+                            onClick={() => toggleLED('3', btn)}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              border: '2px solid #111111',
+                              background: currentActiveButtons.has(`3-${btn}`)
+                                ? 'radial-gradient(circle, #c084fc, #a855f7)'
+                                : '#000000',
+                              cursor: 'pointer',
+                              color: currentActiveButtons.has(`3-${btn}`) ? '#000000' : '#6b7280',
+                              fontSize: '10px',
+                              fontWeight: 'bold',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: currentActiveButtons.has(`3-${btn}`) ? '0 0 8px #c084fc' : 'none'
+                            }}
+                          >
+                            {btn === 'start' ? 'ST' : 'SE'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Player 4 (Top-Right) */}
+                  <div style={{ gridColumn: 4, gridRow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontWeight: '800', fontSize: '13px', color: '#7c3aed', textTransform: 'uppercase' }}>P4</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {['start', 'select'].map(btn => (
+                          <button
+                            key={`4-${btn}`}
+                            onClick={() => toggleLED('4', btn)}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              border: '2px solid #111111',
+                              background: currentActiveButtons.has(`4-${btn}`)
+                                ? 'radial-gradient(circle, #7c3aed, #6b21a8)'
+                                : '#000000',
+                              cursor: 'pointer',
+                              color: currentActiveButtons.has(`4-${btn}`) ? '#ffffff' : '#6b7280',
+                              fontSize: '10px',
+                              fontWeight: 'bold',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: currentActiveButtons.has(`4-${btn}`) ? '0 0 8px #7c3aed' : 'none'
+                            }}
+                          >
+                            {btn === 'start' ? 'ST' : 'SE'}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: '8px' }}>
+                        {[1, 2, 3, 4].map(btn => (
+                          <button
+                            key={`4-${btn}`}
+                            onClick={() => toggleLED('4', btn.toString())}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              border: '2px solid #111111',
+                              background: currentActiveButtons.has(`4-${btn}`)
+                                ? 'radial-gradient(circle, #7c3aed, #6b21a8)'
+                                : '#000000',
+                              cursor: 'pointer',
+                              color: currentActiveButtons.has(`4-${btn}`) ? '#ffffff' : '#6b7280',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: currentActiveButtons.has(`4-${btn}`) ? '0 0 10px #7c3aed' : 'none'
+                            }}
+                          >
+                            {btn}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Center Trackball */}
+                  <div style={{ gridColumn: '2 / 4', gridRow: '1 / 3', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{
+                      width: '80px',
+                      height: '80px',
+                      minWidth: '80px',
+                      minHeight: '80px',
+                      maxWidth: '80px',
+                      maxHeight: '80px',
+                      aspectRatio: '1 / 1',
+                      background: 'radial-gradient(circle at 30% 30%, #a855f7, #9333ea, #7c3aed)',
+                      borderRadius: '50%',
+                      border: '3px solid #c084fc',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      color: '#ffffff',
+                      boxShadow: '0 0 12px #9333ea, inset -6px -6px 12px rgba(0, 0, 0, 0.4), inset 6px 6px 12px rgba(168, 85, 247, 0.15)',
+                      flexShrink: 0,
+                      flexGrow: 0
+                    }}>
+                      TRACK
+                    </div>
+                  </div>
+
+                  {/* Player 1 (Bottom-Left) */}
+                  <div style={{ gridColumn: 1, gridRow: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      {['start', 'select'].map(btn => (
+                        <button
+                          key={`1-${btn}`}
+                          onClick={() => toggleLED('1', btn)}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            border: '2px solid #111111',
+                            background: currentActiveButtons.has(`1-${btn}`)
+                              ? 'radial-gradient(circle, #9333ea, #7c3aed)'
+                              : '#000000',
+                            cursor: 'pointer',
+                            color: currentActiveButtons.has(`1-${btn}`) ? '#ffffff' : '#6b7280',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: currentActiveButtons.has(`1-${btn}`) ? '0 0 8px #9333ea' : 'none'
+                          }}
+                        >
+                          {btn === 'start' ? 'ST' : 'SE'}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: '8px' }}>
+                      {[1, 2, 3, 7, 4, 5, 6, 8].map(btn => (
+                        <button
+                          key={`1-${btn}`}
+                          onClick={() => toggleLED('1', btn.toString())}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            border: '2px solid #111111',
+                            background: currentActiveButtons.has(`1-${btn}`)
+                              ? 'radial-gradient(circle, #9333ea, #7c3aed)'
+                              : '#000000',
+                            cursor: 'pointer',
+                            color: currentActiveButtons.has(`1-${btn}`) ? '#ffffff' : '#6b7280',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: currentActiveButtons.has(`1-${btn}`) ? '0 0 8px #9333ea' : 'none'
+                          }}
+                        >
+                          {btn}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontWeight: '800', fontSize: '13px', color: '#9333ea', textTransform: 'uppercase' }}>P1</div>
+                  </div>
+
+                  {/* Player 2 (Bottom-Right) */}
+                  <div style={{ gridColumn: 4, gridRow: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      {['start', 'select'].map(btn => (
+                        <button
+                          key={`2-${btn}`}
+                          onClick={() => toggleLED('2', btn)}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            border: '2px solid #111111',
+                            background: currentActiveButtons.has(`2-${btn}`)
+                              ? 'radial-gradient(circle, #a855f7, #9333ea)'
+                              : '#000000',
+                            cursor: 'pointer',
+                            color: currentActiveButtons.has(`2-${btn}`) ? '#ffffff' : '#6b7280',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: currentActiveButtons.has(`2-${btn}`) ? '0 0 8px #a855f7' : 'none'
+                          }}
+                        >
+                          {btn === 'start' ? 'ST' : 'SE'}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: '8px' }}>
+                      {[1, 2, 3, 7, 4, 5, 6, 8].map(btn => (
+                        <button
+                          key={`2-${btn}`}
+                          onClick={() => toggleLED('2', btn.toString())}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            border: '2px solid #111111',
+                            background: currentActiveButtons.has(`2-${btn}`)
+                              ? 'radial-gradient(circle, #a855f7, #9333ea)'
+                              : '#000000',
+                            cursor: 'pointer',
+                            color: currentActiveButtons.has(`2-${btn}`) ? '#ffffff' : '#6b7280',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: currentActiveButtons.has(`2-${btn}`) ? '0 0 10px #a855f7' : 'none'
+                          }}
+                        >
+                          {btn}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontWeight: '800', fontSize: '13px', color: '#a855f7', textTransform: 'uppercase' }}>P2</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Controls */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '12px',
+              padding: '20px',
+              background: '#0f0f0f',
+              borderRadius: '12px',
+              border: '1px solid #9333ea'
+            }}>
+              <button onClick={testAllLEDs} style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                <span>🔥</span> Test All
+              </button>
+              <button onClick={clearAllLEDs} style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                <span>🧹</span> Clear
+              </button>
+              <button onClick={randomPattern} style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                <span>🎲</span> Random
+              </button>
+              <button style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                <span>🌊</span> Wave
+              </button>
+            </div>
+
+            {/* LED Brightness Control */}
+            <div style={{
+              padding: '16px 20px',
+              background: '#0f0f0f',
+              borderRadius: '12px',
+              border: '1px solid #9333ea'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px'
+              }}>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#9333ea' }}>
+                  💡 LED Brightness
+                </span>
+                <span style={{ fontSize: '13px', color: '#d1d5db' }}>
+                  {ledBrightness}%
+                </span>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={ledBrightness}
+                  onChange={(e) => {
+                    const newBrightness = parseInt(e.target.value)
+                    setLedBrightness(newBrightness)
+                    wsManagerRef.current?.sendPattern('brightness', { level: newBrightness })
+                    showToast(`Brightness set to ${newBrightness}%`, 'success')
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '6px',
+                    borderRadius: '3px',
+                    background: `linear-gradient(to right, #7c3aed 0%, #9333ea ${ledBrightness}%, #333333 ${ledBrightness}%, #333333 100%)`,
+                    outline: 'none',
+                    appearance: 'none',
+                    WebkitAppearance: 'none'
+                  }}
+                />
+                <style>
+                  {`
+                    input[type="range"]::-webkit-slider-thumb {
+                      appearance: none;
+                      width: 18px;
+                      height: 18px;
+                      border-radius: 50%;
+                      background: #9333ea;
+                      border: 2px solid #ffffff;
+                      cursor: pointer;
+                      box-shadow: 0 0 8px rgba(147, 51, 234, 0.4);
+                    }
+                    input[type="range"]::-moz-range-thumb {
+                      width: 18px;
+                      height: 18px;
+                      border-radius: 50%;
+                      background: #9333ea;
+                      border: 2px solid #ffffff;
+                      cursor: pointer;
+                      box-shadow: 0 0 8px rgba(147, 51, 234, 0.4);
+                    }
+                  `}
+                </style>
+              </div>
+            </div>
+
+            {/* LED Stats */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-around',
+              padding: '16px',
+              background: '#0f0f0f',
+              borderRadius: '8px',
+              fontSize: '12px',
+              border: '1px solid #9333ea'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '16px', fontWeight: '700', color: '#9333ea' }}>{currentActiveButtons.size}</span>
+                <span style={{ color: '#d1d5db' }}>Active LEDs</span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '16px', fontWeight: '700', color: '#9333ea' }}>96</span>
+                <span style={{ color: '#d1d5db' }}>Total LEDs</span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '16px', fontWeight: '700', color: '#9333ea' }}>12ms</span>
+                <span style={{ color: '#d1d5db' }}>Response</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Mode Content */}
+          <div style={{
+            background: '#0f0f0f',
+            border: '1px solid #9333ea',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '70vh'
+          }}>
+            {/* Game Profiles Mode */}
+            {activeMode === 'profiles' && (
+              <div style={{ padding: '24px', overflowY: 'auto' }}>
+                <div style={{
+                  padding: '24px',
+                  background: '#000000',
+                  borderRadius: '12px',
+                  marginBottom: '20px',
+                  border: '1px solid #7c3aed'
+                }}>
+                  <div style={{
+                    fontSize: '18px',
+                    fontWeight: '700',
+                    color: '#9333ea',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span>🎮</span>
+                    <span>Game Selection</span>
+                  </div>
+                  <select
+                    value={selectedGame}
+                    onChange={(e) => {
+                      setSelectedGame(e.target.value)
+                      if (e.target.value) applyGameProfile(e.target.value)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: '#000000',
+                      border: '1px solid #9333ea',
+                      borderRadius: '10px',
+                      color: '#ffffff',
+                      fontSize: '15px',
+                      marginBottom: '20px'
+                    }}
+                  >
+                    <option value="">-- Select a Game --</option>
+                    <option value="sf2">Street Fighter II (6-button)</option>
+                    <option value="mk">Mortal Kombat (5-button)</option>
+                    <option value="tmnt">TMNT: Turtles in Time (2-button)</option>
+                    <option value="nba">NBA Jam (3-button)</option>
+                    <option value="tekken">Tekken 3 (4-button)</option>
+                    <option value="kof">King of Fighters '98 (4-button)</option>
+                    <option value="mvc">Marvel vs. Capcom (6-button)</option>
+                  </select>
+                  {selectedGame && (
+                    <div style={{
+                      padding: '16px',
+                      background: '#0a0a0a',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      border: '1px solid #7c3aed'
+                    }}>
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong>Type:</strong> Fighting
+                      </div>
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong>Players:</strong> 2
+                      </div>
+                      <div>
+                        Classic 6-button fighter with special move combinations. Each button is mapped to specific attacks with optimal color coding for muscle memory.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Hardware Mode */}
+            {activeMode === 'hardware' && (
+              <div style={{ padding: '24px', overflowY: 'auto' }}>
+                <div style={{
+                  padding: '24px',
+                  background: '#000000',
+                  borderRadius: '12px',
+                  marginBottom: '20px',
+                  border: '1px solid #7c3aed'
+                }}>
+                  <div style={{
+                    fontSize: '18px',
+                    fontWeight: '700',
+                    color: '#9333ea',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span>🔧</span>
+                    <span>Hardware Connection</span>
+                  </div>
+
+                  <div style={{
+                    background: '#000000',
+                    border: '1px solid #9333ea',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '16px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: connectionStatus === 'connected' ? '#9333ea' : '#ef4444'
+                        }}></div>
+                        <span>{connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}</span>
+                      </div>
+                      <button
+                        onClick={toggleWebSocketConnection}
+                        style={{
+                          background: connectionStatus === 'connected' ? '#ef4444' : '#10b981',
+                          border: 'none',
+                          color: '#000000',
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        {connectionStatus === 'connected' ? 'Disconnect' : 'Connect'}
+                      </button>
+                    </div>
+
+                    <div style={{ marginBottom: '10px' }}>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: '#d1d5db' }}>WebSocket URL:</label>
+                      <input
+                        type="text"
+                        value={websocketUrl}
+                        onChange={(e) => setWebsocketUrl(e.target.value)}
+                        placeholder="ws://localhost:8080/ws"
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          background: '#0a0a0a',
+                          border: '1px solid #7c3aed',
+                          borderRadius: '6px',
+                          color: '#ffffff',
+                          fontSize: '13px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '10px' }}>
+                      Connect to your LED hardware via WebSocket for real-time control. Default port is 8080.
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: '#000000',
+                    border: '1px solid #7c3aed',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    marginBottom: '20px'
+                  }}>
+                    {connectionLog.length > 0 ? (
+                      connectionLog.map((entry, index) => (
+                        <div key={index} style={{
+                          color: entry.type === 'success' ? '#10b981' : entry.type === 'error' ? '#ef4444' : entry.type === 'warning' ? '#f59e0b' : '#9333ea',
+                          marginBottom: '3px'
+                        }}>
+                          [{entry.timestamp}] {entry.message}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ color: '#6b7280' }}>Connection log will appear here...</div>
+                    )}
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: '700',
+                      color: '#9333ea',
+                      marginBottom: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}>
+                      <span>🔥</span>
+                      <span>Hardware Test</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <button onClick={testAllLEDs} style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>All LEDs On</button>
+                      <button onClick={clearAllLEDs} style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>All LEDs Off</button>
+                      <button style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Chase Pattern</button>
+                      <button style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Rainbow Test</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Other modes placeholder */}
+            {(activeMode === 'animation' || activeMode === 'realtime') && (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#d1d5db' }}>
+                <div style={{ fontSize: '18px', marginBottom: '10px' }}>
+                  {activeMode === 'animation' ? '✨ Animation Designer' : '⚡ Real-time Control'}
+                </div>
+                <div>
+                  {activeMode === 'animation'
+                    ? 'Animation presets and custom pattern creation tools will be available here.'
+                    : 'Click any LED button above to toggle it on/off. Changes are sent to hardware in real-time via WebSocket.'
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div style={{
+          background: '#000000',
+          borderTop: '1px solid #9333ea',
+          padding: '20px 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <button style={{
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: 'none',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '14px',
+              background: 'linear-gradient(135deg, #9333ea, #7c3aed)',
+              color: '#ffffff'
+            }}>
+              Save Configuration
+            </button>
+            <button style={{
+              padding: '10px 20px',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '14px',
+              background: '#111111',
+              color: '#9333ea',
+              border: '1px solid #9333ea'
+            }}>
+              Export
+            </button>
+            <button
+              onClick={savePattern}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px',
+                background: '#111111',
+                color: '#10b981',
+                border: '1px solid #10b981',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              💾 Save Pattern
+            </button>
+            <button
+              onClick={loadPattern}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px',
+                background: '#111111',
+                color: '#f59e0b',
+                border: '1px solid #f59e0b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📁 Load Pattern
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#d1d5db', fontSize: '13px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#9333ea' }}></div>
+              <span>LEDBlinky Connected</span>
+            </div>
+            <div>
+              <span>Last Sync: Never</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+export default LEDBlinkyPanel

@@ -1,0 +1,124 @@
+{
+  "version": "1.0.0",
+  "updated": "2025-10-06",
+  "description": "Domain-specific terminology for Arcade Assistant",
+  "terms": {
+    "A_Drive": {
+      "definition": "The production deployment location for Arcade Assistant (A:\\)",
+      "related": ["AA_DRIVE_ROOT", "is_on_a_drive()"],
+      "files": ["backend/routers/launchbox.py", "A_DRIVE_MAP.md"]
+    },
+    "LaunchBox": {
+      "definition": "Game library management software that organizes emulators and ROMs",
+      "location": "A:\\LaunchBox",
+      "data": "A:\\LaunchBox\\Data\\Platforms\\*.xml",
+      "related": ["LoRa", "CLI_Launcher"],
+      "files": ["backend/routers/launchbox.py", "frontend/src/panels/launchbox/"]
+    },
+    "Panel": {
+      "definition": "Feature-specific React component representing an Arcade Assistant character's functionality",
+      "location": "frontend/src/panels/",
+      "pattern": "Each panel in its own directory with component + CSS",
+      "related": ["PanelShell", "Panel Kit"],
+      "examples": ["LaunchBoxPanel", "VoicePanel", "LEDBlinkyPanel"]
+    },
+    "Panel_Kit": {
+      "definition": "Shared React components for consistent panel UI/UX",
+      "location": "frontend/src/panels/_kit/",
+      "components": ["PanelShell", "DiffPreview", "ApplyBar", "useAIAction"],
+      "usage": "Import from '../_kit' in panel components"
+    },
+    "Gateway": {
+      "definition": "Node.js Express server acting as Backend-for-Frontend (BFF)",
+      "port": 8787,
+      "role": "Handles routing, AI integration, WebSockets",
+      "location": "gateway/",
+      "related": ["x-scope", "x-device-id"]
+    },
+    "Backend": {
+      "definition": "FastAPI Python server for local file operations",
+      "ports": "8000 (npm) or 8888 (direct)",
+      "role": "Safe, scoped file operations and emulator integration",
+      "location": "backend/",
+      "related": ["routers", "services"]
+    },
+    "Character": {
+      "definition": "One of 9 themed AI personalities in Arcade Assistant",
+      "list": ["Vicky", "LoRa", "Dewey", "Sam", "Wiz", "Chuck", "LED Blinky", "Gunner", "Doc"],
+      "routing": "/assistants?agent={character}",
+      "avatars": "frontend/public/{character}-avatar.jpeg"
+    },
+    "CLI_Launcher": {
+      "definition": "LaunchBox's command-line game launching utility",
+      "expected": "A:\\LaunchBox\\ThirdParty\\CLI_Launcher\\CLI_Launcher.exe",
+      "status": "NOT FOUND - alternative launch methods required",
+      "usage": "CLI_Launcher.exe launch_by_id {game_id}"
+    },
+    "Mock_Mode": {
+      "definition": "Development mode using mock data when not on A: drive",
+      "trigger": "!is_on_a_drive()",
+      "files": ["backend/routers/launchbox.py#get_mock_games()"],
+      "purpose": "Allow development without full LaunchBox installation"
+    },
+    "Sanctioned_Paths": {
+      "definition": "Directories where the backend is allowed to write",
+      "list": ["/configs", "/state", "/backups", "/logs", "/emulators"],
+      "config": ".aa/manifest.json",
+      "enforcement": "backend/services/policies.py"
+    },
+    "x-scope": {
+      "definition": "HTTP header indicating operation scope",
+      "values": ["state", "config", "backup"],
+      "usage": "Required on gateway config management requests",
+      "location": "gateway/routes/config.js"
+    },
+    "WebSocket": {
+      "definition": "Real-time bidirectional communication protocol",
+      "endpoints": ["ws://localhost:8787/ws/audio", "ws://localhost:8787/ws/led"],
+      "usage": "Voice recording, LED control",
+      "files": ["gateway/ws/"]
+    },
+    "DiffPreview": {
+      "definition": "Component showing config changes before applying",
+      "location": "frontend/src/panels/_kit/DiffPreview.jsx",
+      "workflow": "Preview → User approval → Apply with backup",
+      "related": ["ApplyBar", "config management"]
+    },
+    "Agent": {
+      "definition": "Specialized AI persona responsible for specific code areas",
+      "matrix": "agents/AGENT_CALL_MATRIX.md",
+      "validation": "cloud_code/claude_boot.js",
+      "examples": ["LoRa (LaunchBox)", "Argus (Hardware)", "Lexicon (Navigation)"]
+    },
+    "Tournament_Bracket": {
+      "definition": "Competition structure managed by ScoreKeeper panel",
+      "sizes": [4, 8, 16, 32],
+      "location": "frontend/src/panels/scorekeeper/",
+      "owner": "Sam",
+      "features": ["click-to-advance", "winner-tracking"]
+    },
+    "Platform_XML": {
+      "definition": "LaunchBox metadata file for games of a specific platform",
+      "location": "A:\\LaunchBox\\Data\\Platforms\\{Platform}.xml",
+      "count": 53,
+      "structure": "<LaunchBox><Game>...</Game></LaunchBox>",
+      "parsing": "backend/routers/launchbox.py#parse_launchbox_xml()"
+    }
+  },
+  "acronyms": {
+    "AA": "Arcade Assistant",
+    "BFF": "Backend for Frontend",
+    "TTS": "Text-to-Speech",
+    "STT": "Speech-to-Text",
+    "HMR": "Hot Module Replacement",
+    "SSE": "Server-Sent Events",
+    "RLS": "Row-Level Security",
+    "JWT": "JSON Web Token",
+    "XML": "Extensible Markup Language",
+    "API": "Application Programming Interface",
+    "UI": "User Interface",
+    "UX": "User Experience",
+    "HID": "Human Interface Device",
+    "USB": "Universal Serial Bus"
+  }
+}

@@ -1,0 +1,1 @@
+{"restored":false,"dry_run":false,"backup_path":"/mnt/a/backups/scorekeeper/20251110_112128/snapshot.json","diff":"","files_changed":0,"removed_files":[],"pre_restore_backup":"/mnt/a/backups/scorekeeper/20251110_112208/snapshot.json","message":"Scorekeeper state restored from snapshot.json"}

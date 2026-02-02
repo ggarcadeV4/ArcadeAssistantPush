@@ -1,0 +1,31 @@
+{
+  "emulator_type": "model2",
+  "display_name": "Sega Model 2",
+  "supported_players": 2,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.start", "p1.coin",
+    "p2.up", "p2.down", "p2.left", "p2.right",
+    "p2.button1", "p2.button2", "p2.button3", "p2.button4",
+    "p2.start", "p2.coin"
+  ],
+  "config_files": [
+    "EMULATOR.INI"
+  ],
+  "config_format": "ini",
+  "button_mapping": {
+    "button1": "JoyButton1",
+    "button2": "JoyButton2",
+    "button3": "JoyButton3",
+    "button4": "JoyButton4"
+  },
+  "special_controls": {
+    "start": "JoyStart",
+    "coin": "JoyCoin",
+    "up": "JoyUp",
+    "down": "JoyDown",
+    "left": "JoyLeft",
+    "right": "JoyRight"
+  }
+}

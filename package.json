@@ -1,0 +1,73 @@
+{
+  "name": "arcade-assistant",
+  "version": "1.0.0",
+  "description": "Cloud-first, hard-drive-bound arcade assistant with React UI, Node gateway, and FastAPI backend",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:gateway\" \"npm:dev:backend\"",
+    "dev:with-frontend": "concurrently \"npm:dev:gateway\" \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:clean": "npm run clean:cache && npm run dev",
+    "dev:build": "npm run build:frontend && npm run dev",
+    "dev:gateway": "cd gateway && node --no-deprecation server.js",
+    "dev:backend": "node scripts/dev-backend.cjs",
+    "dev:backend:legacy": "python backend/app.py",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "start": "cd gateway && node server.js",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
+    "clean": "rm -rf frontend/dist frontend/node_modules backend/__pycache__ backend/*.pyc",
+    "clean:cache": "rm -rf frontend/node_modules/.vite frontend/.vite",
+    "test:health": "curl -s http://localhost:8787/api/health | jq .",
+    "test:fastapi": "curl -s http://localhost:8000/health | jq .",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:watch": "npm test -- --watch",
+    "smoke:ps": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-cache.ps1",
+    "smoke:ps:no-start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-cache.ps1 -NoStart",
+    "smoke:sh": "bash scripts/verify-cache.sh",
+    "smoke:sh:no-start": "NOSTART=1 bash scripts/verify-cache.sh",
+    "smoke:gateway": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-gateway.ps1']:['scripts/verify-gateway.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "smoke:gateway:no-start": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-gateway.ps1','-NoStart']:['-lc','NOSTART=1 bash scripts/verify-gateway.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "smoke": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-cache.ps1']:['scripts/verify-cache.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "smoke:no-start": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-cache.ps1','-NoStart']:['-lc','NOSTART=1 bash scripts/verify-cache.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "smoke:stack": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-stack.ps1']:['scripts/verify-stack.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "smoke:stack:no-start": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-stack.ps1','-NoStart']:['-lc','NOSTART=1 bash scripts/verify-stack.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "selftest:autoconfig": "node -e \"const {spawnSync}=require('child_process');const isWin=process.platform==='win32';const cmd=isWin?'powershell':'bash';const args=isWin?['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/selftest_autoconfig.ps1']:['scripts/selftest_autoconfig.sh'];process.exit(spawnSync(cmd,args,{stdio:'inherit',shell:!isWin}).status)\"",
+    "selftest:ps": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/selftest_autoconfig.ps1",
+    "selftest:sh": "bash scripts/selftest_autoconfig.sh"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "msw": "^1.3.5",
+    "supertest": "^6.3.4",
+    "whatwg-fetch": "^3.6.20"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {}
+  },
+  "keywords": [
+    "arcade",
+    "emulation",
+    "mame",
+    "retroarch",
+    "fastapi",
+    "express"
+  ],
+  "author": "Arcade Assistant Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.10.0"
+  }
+}

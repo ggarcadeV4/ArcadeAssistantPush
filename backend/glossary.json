@@ -1,0 +1,100 @@
+{
+  "terms": {
+    "A_DRIVE": {
+      "definition": "Production arcade cabinet drive containing LaunchBox, ROMs, and BIOS files",
+      "detection": "Checks for paths starting with 'A:' or '/MNT/A' (WSL)",
+      "location": "backend/constants/a_drive_paths.py:43-46"
+    },
+    "AA_DRIVE_ROOT": {
+      "definition": "Environment variable pointing to Arcade Assistant root directory",
+      "example": "A:\\ for production, relative path for development",
+      "usage": "Set in .env file"
+    },
+    "LAUNCHBOX_ROOT": {
+      "definition": "Optional environment variable to override LaunchBox location",
+      "default": "AA_DRIVE_ROOT/LaunchBox",
+      "location": "backend/constants/a_drive_paths.py:35-42"
+    },
+    "FASTAPI_URL": {
+      "definition": "Backend service URL used by gateway",
+      "values": "http://localhost:8888 (direct) or http://localhost:8000 (npm)",
+      "importance": "Must match actual launch method"
+    },
+    "mock_data": {
+      "definition": "15 sample games loaded when A: drive is not available",
+      "purpose": "Enable development without production hardware",
+      "location": "backend/services/launchbox_parser.py:517-540"
+    },
+    "platform_xml": {
+      "definition": "XML files containing game metadata for each platform",
+      "location": "A:\\LaunchBox\\Data\\Platforms\\*.xml",
+      "count": "53 files on production system"
+    },
+    "sanctioned_paths": {
+      "definition": "Directories where backend is allowed to write files",
+      "examples": "/configs, /state, /backups, /logs, /emulators",
+      "source": "manifest.json"
+    },
+    "lazy_loading": {
+      "definition": "Parser initializes on first API request rather than startup",
+      "benefit": "Faster server startup, deferred XML parsing",
+      "location": "backend/services/launchbox_parser.py:52-54"
+    },
+    "parser_cache": {
+      "definition": "JSON file storing parsed game data to avoid re-parsing XMLs",
+      "location": "backend/cache/launchbox_parser_cache.json",
+      "max_age": "7 days before requiring refresh"
+    },
+    "plugin_bridge": {
+      "definition": "C# plugin running in LaunchBox for native game launching",
+      "endpoint": "http://localhost:9876",
+      "fallback": "Uses LaunchBox.exe or direct MAME if unavailable"
+    },
+    "lifespan": {
+      "definition": "FastAPI async context manager for startup/shutdown events",
+      "location": "backend/app.py:31-95",
+      "purpose": "Initialize cache, validate environment, cleanup on exit"
+    },
+    "cors": {
+      "definition": "Cross-Origin Resource Sharing configuration",
+      "allowed": "localhost:8787 (gateway port)",
+      "location": "backend/app.py:105-111"
+    },
+    "uvicorn": {
+      "definition": "ASGI server running the FastAPI application",
+      "modes": "reload=True for development, False for production",
+      "command": "python3 -m uvicorn backend.app:app"
+    },
+    "image_scanner": {
+      "definition": "Service that discovers and caches game image paths",
+      "cache_file": "backend/cache/image_cache.json",
+      "scan_time": "~30-40 seconds for full library"
+    },
+    "launch_fallback_chain": {
+      "definition": "Sequence of methods tried when launching a game",
+      "order": ["C# Plugin Bridge", "LaunchBox.exe", "Direct MAME"],
+      "reason": "CLI_Launcher.exe not found at expected location"
+    }
+  },
+  "acronyms": {
+    "AA": "Arcade Assistant",
+    "LB": "LaunchBox",
+    "WSL": "Windows Subsystem for Linux",
+    "ASGI": "Asynchronous Server Gateway Interface",
+    "CORS": "Cross-Origin Resource Sharing",
+    "API": "Application Programming Interface",
+    "XML": "eXtensible Markup Language",
+    "JSON": "JavaScript Object Notation",
+    "JWT": "JSON Web Token",
+    "RLS": "Row-Level Security",
+    "HMR": "Hot Module Replacement",
+    "TDD": "Test-Driven Development"
+  },
+  "error_codes": {
+    "404": "Resource not found (game, endpoint, or file)",
+    "429": "Too many requests (rate limited)",
+    "500": "Internal server error",
+    "200": "Success",
+    "201": "Created successfully"
+  }
+}

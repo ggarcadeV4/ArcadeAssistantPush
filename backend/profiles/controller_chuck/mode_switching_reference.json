@@ -1,0 +1,142 @@
+{
+  "description": "Encoder board mode switching methods and configuration software reference",
+  
+  "ultimarc_ipac": {
+    "config_software": "WinIPAC",
+    "config_storage": "Onboard flash memory",
+    "software_functions": [
+      "Key mapping (keyboard, gamepad, mouse, system commands)",
+      "Mode switching (fw v50+)",
+      "Firmware updates",
+      "Shift key assignment",
+      "Debounce settings"
+    ],
+    "auto_mode_switch": "WinIPAC temporarily switches board to keyboard mode for programming",
+    "mode_switching": {
+      "firmware_requirement": "v50+",
+      "method": "button_combination",
+      "procedure": {
+        "step1": "Press and hold Start1 (or user-defined shift button)",
+        "step2": "While holding, press and hold P1 Button 1-5 for 10 seconds",
+        "step3": "No other inputs during this time"
+      },
+      "button_to_mode_table": {
+        "P1_Button_1": {"mode": 1, "name": "Keyboard User Set", "default": true},
+        "P1_Button_2": {"mode": 2, "name": "DirectInput Preset"},
+        "P1_Button_3": {"mode": 3, "name": "XInput Preset"},
+        "P1_Button_4": {"mode": 4, "name": "DirectInput User Set"},
+        "P1_Button_5": {"mode": 5, "name": "XInput User Set"}
+      },
+      "persistence": "Saved to board memory, retained after power cycle",
+      "device_behavior": "Each mode appears as different USB device",
+      "limitations": {
+        "xinput": "Shift key functionality NOT available in XInput mode"
+      }
+    }
+  },
+
+  "pactotech": {
+    "config_software": null,
+    "config_method": "Physical inputs (button combos, wired switches, jumpers)",
+    "status_display": "SpecVision OLED (optional accessory)",
+    "mode_switching": {
+      "methods": {
+        "button_shortcuts": {
+          "description": "Hold Start/Select combinations for 8 seconds",
+          "varies_by_model": true
+        },
+        "dedicated_mode_pins": {
+          "description": "Wire mode pins to physical buttons/toggle switches",
+          "pins": ["Turbo", "Twinstick"],
+          "instant_access": true
+        },
+        "permanent_jumpers": {
+          "description": "Jumper mode pins to ground for fixed configuration",
+          "use_case": "Dedicated cabinets with single mode"
+        }
+      }
+    },
+    "operational_modes": {
+      "xinput": {
+        "name": "XInput Mode",
+        "default": true,
+        "description": "Emulates Xbox 360 controllers",
+        "compatibility": ["TeknoParrot", "Supermodel", "modern PC games"]
+      },
+      "turbo": {
+        "name": "Turbo Mode",
+        "rate": "15 presses/second",
+        "use_case": "Shoot 'em ups without autofire"
+      },
+      "twinstick": {
+        "name": "Twinstick Mode",
+        "description": "Remaps 4-player joysticks to left/right sticks for 2 players",
+        "use_case": "Robotron: 2084, Smash T.V."
+      },
+      "six_button": {
+        "name": "6-Button Layout Remapping",
+        "description": "Remaps 8-button to classic 6-button layout",
+        "use_case": "Street Fighter II, MAME fighting games"
+      },
+      "joystick_modes": {
+        "ANA-F": "Fast analog response",
+        "ANA-S": "Slow analog (precision)",
+        "DPAD": "Digital D-Pad"
+      },
+      "interlock": {
+        "name": "Interlock Mode",
+        "description": "Requires 2-second hold for Start+Back to prevent accidental exits"
+      }
+    }
+  },
+
+  "zero_delay": {
+    "config_software": null,
+    "mode_switching": false,
+    "configuration": "Fixed - hard-coded in firmware",
+    "mode": "Keyboard (HID) only",
+    "customization": "Must remap in emulator or OS controller settings"
+  },
+
+  "xin_mo": {
+    "config_software": null,
+    "mode_switching": false,
+    "configuration": "Fixed - hard-coded in firmware",
+    "mode": "Gamepad (DirectInput) only",
+    "customization": "Must remap in emulator or OS controller settings"
+  },
+
+  "brook": {
+    "config_software": "Firmware update tools (optional config)",
+    "mode_switching": "Automatic - auto-detects console",
+    "manual_override": "Button combinations exist for forcing specific modes",
+    "advanced_features": {
+      "socd_cleaning": "Configured via button holds on startup",
+      "button_remapping": "Via firmware updates or startup combos"
+    }
+  },
+
+  "grs": {
+    "config_software": null,
+    "configuration": "Hardware-based - determined by component connections",
+    "mode_switching": "Limited - physical switches on joysticks (4-way/8-way)",
+    "no_software_modes": true
+  },
+
+  "diagnostic_checklist": {
+    "when_controller_not_working": [
+      "1. Identify encoder type (check VID/PID or board markings)",
+      "2. Determine current mode (HID query, SpecVision, or test inputs)",
+      "3. Check game/emulator requirements (Keyboard vs XInput vs DirectInput)",
+      "4. If mode mismatch: use appropriate switching method",
+      "5. For fixed-mode boards: remap in emulator settings"
+    ],
+    "mode_detection_methods": {
+      "ipac": "WinIPAC will show current mode, or test if inputs register as keyboard vs gamepad",
+      "pactotech": "SpecVision OLED shows mode, or test input behavior",
+      "zero_delay": "Always keyboard - test with Notepad",
+      "xin_mo": "Always gamepad - check Windows Game Controllers",
+      "brook": "Auto-detects - usually just works"
+    }
+  }
+}

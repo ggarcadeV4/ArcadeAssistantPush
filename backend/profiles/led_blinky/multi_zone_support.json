@@ -1,0 +1,61 @@
+{
+  "description": "Multi-zone LED support for marquees, underglow, and control panels",
+  
+  "zones": {
+    "control_panel": {
+      "description": "Player buttons, joysticks, coin/start",
+      "typical_controller": "PacLED64 or LED-Wiz",
+      "behavior": "Game-specific button colors, react to game selection",
+      "channels": "Usually channels 1-32 or 1-64"
+    },
+    "marquee": {
+      "description": "Backlit marquee or LED strip behind marquee",
+      "typical_controller": "Separate LED-Wiz or RGB strip controller",
+      "behavior": "Independent animation, can match game theme or run attract mode",
+      "channels": "Usually separate device or upper channels"
+    },
+    "underglow": {
+      "description": "Cabinet underglow or side lighting",
+      "typical_controller": "RGB strip controller",
+      "behavior": "Ambient effects, can sync with music or game events",
+      "channels": "Usually separate device"
+    },
+    "coin_door": {
+      "description": "Coin slot illumination",
+      "typical_controller": "Shared with control panel",
+      "behavior": "Blink when credits available, solid when game running",
+      "channels": "Usually 1-2 channels"
+    }
+  },
+
+  "animation_groups": {
+    "description": "Different zones can run independent animations simultaneously",
+    "example": {
+      "control_panel": {"animation": "solid", "source": "game_profile"},
+      "marquee": {"animation": "rainbow", "speed": 5},
+      "underglow": {"animation": "pulse", "color": "#0000FF", "speed": 3}
+    }
+  },
+
+  "common_setups": {
+    "single_controller": {
+      "description": "One LED-Wiz or PacLED64 for everything",
+      "control_panel_channels": "1-24",
+      "marquee_channels": "25-32"
+    },
+    "dual_controller": {
+      "description": "PacLED64 for control panel, LED-Wiz for cabinet",
+      "device_1": {"type": "PacLED64", "zone": "control_panel"},
+      "device_2": {"type": "LED-Wiz", "zone": "marquee + underglow"}
+    }
+  },
+
+  "configuration_storage": "configs/ledblinky/zones.json",
+
+  "implementation_notes": [
+    "Each zone should have independent animation state",
+    "Zone assignments stored in config, user-editable",
+    "Support hot-swap when device disconnects/reconnects",
+    "Fallback to control_panel zone if zone not configured"
+  ]
+}

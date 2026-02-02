@@ -1,0 +1,31 @@
+{
+  "emulator_type": "citra",
+  "display_name": "Citra",
+  "supported_players": 1,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6",
+    "p1.start", "p1.coin"
+  ],
+  "config_files": [
+    "qt-config.ini"
+  ],
+  "config_format": "ini",
+  "button_mapping": {
+    "button1": "button_a",
+    "button2": "button_b",
+    "button3": "button_x",
+    "button4": "button_y",
+    "button5": "button_l",
+    "button6": "button_r"
+  },
+  "special_controls": {
+    "start": "button_start",
+    "coin": "button_select",
+    "up": "button_up",
+    "down": "button_down",
+    "left": "button_left",
+    "right": "button_right"
+  }
+}

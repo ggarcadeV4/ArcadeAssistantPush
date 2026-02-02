@@ -1,0 +1,133 @@
+{
+  "vendor": "Ultimarc",
+  "vendor_id": "D209",
+  "product_line": "I-PAC",
+  "description": "Arcade controller encoder boards for interfacing buttons/joysticks to PC",
+  "models": {
+    "ipac2": {
+      "name": "I-PAC2",
+      "product_id": "0501",
+      "inputs": 32,
+      "players": 2,
+      "price": "$39.00",
+      "layout": "2 joysticks, 8 buttons each, coin1/2, start1/2, MAME control keys",
+      "features": ["trackball_spinner_connector", "pac_link_expansion", "screw_terminals_5mm"]
+    },
+    "ipac4": {
+      "name": "I-PAC4",
+      "product_id": "0502",
+      "inputs": 56,
+      "players": 4,
+      "layout": "4 joysticks, 8 buttons each, coin1/2/3/4, start1/2/3/4",
+      "features": ["multi_mode", "multiple_shift_keys", "trackball_spinner_optional"]
+    },
+    "ipac_ultimate": {
+      "name": "I-PAC Ultimate I/O",
+      "inputs": 48,
+      "outputs": 96,
+      "players": 2,
+      "features": ["led_control_96_single_or_24_rgb", "trackball_spinner", "multi_mode"]
+    },
+    "mini_pac": {
+      "name": "Mini-PAC",
+      "description": "Compact form factor, fewer inputs than I-PAC2"
+    },
+    "jpac": {
+      "name": "J-PAC",
+      "product_id": "0511",
+      "description": "JAMMA interface for connecting real arcade PCBs to PC",
+      "features": ["jamma_harness_direct_connection", "vga_passthrough"]
+    }
+  },
+  "operating_modes": {
+    "firmware_requirement": "v50+",
+    "modes": {
+      "1": {
+        "name": "Keyboard/Mouse",
+        "type": "keyboard",
+        "description": "Traditional keyboard encoder mode",
+        "features": ["breaks_6_key_limit", "best_for_mame"],
+        "default": true
+      },
+      "2": {
+        "name": "DirectInput Preset",
+        "type": "dinput",
+        "description": "Emulates 2 DirectInput game controllers"
+      },
+      "3": {
+        "name": "XInput Preset",
+        "type": "xinput",
+        "description": "Emulates 2 Xbox 360 controllers",
+        "limitations": ["no_shift_key", "no_mouse_buttons", "no_power_sleep_wake", "no_volume_control"]
+      },
+      "4": {
+        "name": "DirectInput User Set",
+        "type": "dinput_custom",
+        "description": "Customizable DirectInput configuration"
+      },
+      "5": {
+        "name": "XInput User Set",
+        "type": "xinput_custom",
+        "description": "Customizable XInput configuration"
+      }
+    }
+  },
+  "mode_switching": {
+    "method": "button_combination",
+    "hold_duration_seconds": 10,
+    "procedure": "Hold Start1 + press Button 1-5 for 10 seconds",
+    "button_to_mode": {
+      "button1": 1,
+      "button2": 2,
+      "button3": 3,
+      "button4": 4,
+      "button5": 5
+    },
+    "notes": [
+      "Mode persists after power cycle",
+      "Modes appear as different USB devices",
+      "WinIPAC auto-switches to keyboard mode when started"
+    ]
+  },
+  "shift_key": {
+    "default_button": "Start1",
+    "reassignable": true,
+    "dual_function": true,
+    "use_case": "Access MAME functions without extra buttons",
+    "example_shifted_keys": ["Escape", "Tab", "Enter", "Coin"]
+  },
+  "arcade_features": {
+    "no_matrix": true,
+    "no_ghosting": true,
+    "no_blocking": true,
+    "debounce_configurable": true,
+    "debounce_can_disable": true,
+    "self_test_led": true,
+    "flash_rom_retention": true,
+    "usb_2_full_speed": true
+  },
+  "configuration": {
+    "software": "WinIPAC",
+    "storage": "EEPROM",
+    "no_config_file_on_disk": true,
+    "drivers_required": false,
+    "platforms": ["Windows", "Linux", "Mac", "Raspberry Pi"]
+  },
+  "compatibility": {
+    "mame": "Primary target",
+    "any_keyboard_software": true,
+    "any_gamepad_software": true
+  },
+  "wiring": {
+    "connection": "Screw terminal strips 5mm",
+    "ground_reference": "All inputs referenced to single ground",
+    "expansion": "Multiple boards via additional USB ports"
+  },
+  "references": {
+    "main_site": "https://www.ultimarc.com",
+    "ipac2": "https://www.ultimarc.com/control-interfaces/i-pacs/i-pac2/",
+    "ipac4": "https://www.ultimarc.com/control-interfaces/i-pacs/i-pac4-board/",
+    "downloads": "https://www.ultimarc.com/downloads/",
+    "multi_mode_pdf": "https://www.ultimarc.com/MultiMode.pdf"
+  }
+}

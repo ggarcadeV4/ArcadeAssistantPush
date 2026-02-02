@@ -1,0 +1,73 @@
+{
+  "profile_id": "8bitdo_sn30",
+  "name": "8BitDo SN30 Pro",
+  "manufacturer": "8BitDo",
+  "type": "wireless_gamepad",
+  "usb_identifiers": [
+    {"vid": "2dc8", "pid": "6101", "description": "8BitDo SN30 Pro (USB)"},
+    {"vid": "2dc8", "pid": "6100", "description": "8BitDo SN30 Pro (Wireless)"},
+    {"vid": "2dc8", "pid": "6102", "description": "8BitDo SN30 Pro+ (Plus)"},
+    {"vid": "2dc8", "pid": "6171", "description": "8BitDo SN30 Pro for MacOS"}
+  ],
+  "buttons": {
+    "b": {"index": 0, "label": "B", "position": "bottom"},
+    "a": {"index": 1, "label": "A", "position": "right"},
+    "y": {"index": 3, "label": "Y", "position": "left"},
+    "x": {"index": 2, "label": "X", "position": "top"},
+    "l": {"index": 4, "label": "L1"},
+    "r": {"index": 5, "label": "R1"},
+    "zl": {"index": 6, "label": "L2"},
+    "zr": {"index": 7, "label": "R2"},
+    "select": {"index": 8, "label": "Select"},
+    "start": {"index": 9, "label": "Start"},
+    "l3": {"index": 10, "label": "L3 (Left Stick Click)"},
+    "r3": {"index": 11, "label": "R3 (Right Stick Click)"},
+    "home": {"index": 12, "label": "Home / Guide"}
+  },
+  "dpad": {
+    "up": {"type": "hat", "hat": 0, "direction": "up", "label": "D-Pad Up"},
+    "down": {"type": "hat", "hat": 0, "direction": "down", "label": "D-Pad Down"},
+    "left": {"type": "hat", "hat": 0, "direction": "left", "label": "D-Pad Left"},
+    "right": {"type": "hat", "hat": 0, "direction": "right", "label": "D-Pad Right"}
+  },
+  "axes": {
+    "left_stick_x": {"index": 0, "label": "Left Stick X", "deadzone": 0.15},
+    "left_stick_y": {"index": 1, "label": "Left Stick Y", "deadzone": 0.15},
+    "right_stick_x": {"index": 3, "label": "Right Stick X", "deadzone": 0.15},
+    "right_stick_y": {"index": 4, "label": "Right Stick Y", "deadzone": 0.15},
+    "left_trigger": {"index": 2, "label": "Left Trigger (LT)", "deadzone": 0.0},
+    "right_trigger": {"index": 5, "label": "Right Trigger (RT)", "deadzone": 0.0}
+  },
+  "retroarch_defaults": {
+    "input_device": "8BitDo SN30 Pro Controller",
+    "input_b_btn": "0",
+    "input_y_btn": "3",
+    "input_select_btn": "8",
+    "input_start_btn": "9",
+    "input_up_btn": "h0up",
+    "input_down_btn": "h0down",
+    "input_left_btn": "h0left",
+    "input_right_btn": "h0right",
+    "input_a_btn": "1",
+    "input_x_btn": "2",
+    "input_l_btn": "4",
+    "input_r_btn": "5",
+    "input_l2_btn": "6",
+    "input_r2_btn": "7",
+    "input_l3_btn": "10",
+    "input_r3_btn": "11",
+    "input_menu_toggle_btn": "12"
+  },
+  "features": {
+    "wireless": true,
+    "supports_switch_mode": true,
+    "supports_windows_mode": true,
+    "supports_macos_mode": true,
+    "supports_android_mode": true,
+    "supports_linux_mode": true,
+    "gyro_capable": false,
+    "rumble_capable": true
+  },
+  "notes": "8BitDo SN30 Pro is a multi-mode wireless controller compatible with Windows, macOS, Linux, Android, and Nintendo Switch. Ensure firmware is updated for best compatibility.",
+  "version": "1.0"
+}

@@ -1,0 +1,90 @@
+{
+  "directory": "frontend/src/panels",
+  "purpose": "Feature-specific React panel components for Arcade Assistant characters",
+  "structure": {
+    "pattern": "Each panel in its own directory with component + CSS",
+    "naming": "PascalCase for components (e.g., LaunchBoxPanel.jsx), kebab-case for CSS"
+  },
+  "panels": {
+    "_kit": {
+      "role": "Shared Panel Kit components",
+      "owner": "Core",
+      "components": ["PanelShell", "DiffPreview", "ApplyBar", "useAIAction"],
+      "tags": ["shared", "utilities", "ui-kit"]
+    },
+    "voice": {
+      "role": "Voice Assistant panel with 9-character system",
+      "owner": "Vicky",
+      "component": "VoicePanel.jsx",
+      "features": ["voice-recording", "tts", "character-selection"],
+      "tags": ["voice", "audio", "assistant", "microphone"]
+    },
+    "launchbox": {
+      "role": "LaunchBox game library management",
+      "owner": "LoRa",
+      "component": "LaunchBoxPanel.jsx",
+      "features": ["game-browsing", "filtering", "launching", "statistics"],
+      "backend": "/api/launchbox/*",
+      "tags": ["games", "library", "launchbox", "emulation"]
+    },
+    "controller": {
+      "role": "Controller configuration wizard",
+      "owner": "Wiz",
+      "component": "ControllerWizardPanel.jsx",
+      "features": ["button-mapping", "profile-management"],
+      "tags": ["controllers", "input", "configuration"]
+    },
+    "lightguns": {
+      "role": "Light gun calibration and management",
+      "owner": "Gunner",
+      "component": "LightGunsPanel.jsx",
+      "features": ["calibration", "profile-management"],
+      "tags": ["lightgun", "input", "calibration"]
+    },
+    "led-blinky": {
+      "role": "LED lighting control and effects",
+      "owner": "LED Blinky",
+      "component": "LEDBlinkyPanel.jsx",
+      "features": ["pattern-control", "color-management", "websocket"],
+      "tags": ["led", "lighting", "effects", "hardware"]
+    },
+    "dewey": {
+      "role": "AI assistant for game recommendations",
+      "owner": "Dewey",
+      "component": "DeweyPanel.jsx",
+      "features": ["chat", "recommendations", "user-profiles"],
+      "routing": "Direct access only (no intermediate screen)",
+      "tags": ["ai", "assistant", "recommendations", "chat"]
+    },
+    "scorekeeper": {
+      "role": "Tournament bracket management",
+      "owner": "Sam",
+      "component": "ScoreKeeperPanel.jsx",
+      "features": ["tournament-brackets", "player-management", "winner-tracking"],
+      "routing": "Accessed via ?agent=historian or ?agent=scorekeeper",
+      "tags": ["tournament", "scoring", "competition", "brackets"]
+    },
+    "system-health": {
+      "role": "System diagnostics and monitoring",
+      "owner": "Doc",
+      "component": "SystemHealthPanel.jsx",
+      "features": ["diagnostics", "monitoring", "alerts"],
+      "tags": ["system", "health", "monitoring", "diagnostics"]
+    }
+  },
+  "routing": {
+    "location": "frontend/src/components/Assistants.jsx",
+    "pattern": "Query parameter based: /assistants?agent={name}",
+    "aliases": {
+      "launchbox": ["lora"],
+      "scorekeeper": ["sam", "historian"],
+      "dewey": ["chat=dewey"],
+      "voice": ["vicky"]
+    }
+  },
+  "shared_patterns": {
+    "chat_sidebar": "Slide-in chat panel with fixed positioning",
+    "avatar_system": "48px circular images in /public/{character}-avatar.jpeg",
+    "ai_integration": "useAIAction hook from Panel Kit"
+  }
+}

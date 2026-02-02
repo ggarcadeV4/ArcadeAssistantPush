@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Godot Voice</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1e293b;
+      color: #e0e0e0;
+    }
+    h1 {
+      color: #c8ff00;
+    }
+    .test-box {
+      background: rgba(30, 41, 59, 0.8);
+      border: 2px solid rgba(0, 229, 255, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: rgba(34, 197, 94, 0.2);
+      border: 2px solid #22c55e;
+      border-radius: 8px;
+      color: #22c55e;
+      cursor: pointer;
+      margin: 8px 8px 8px 0;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: rgba(34, 197, 94, 0.3);
+      transform: translateY(-1px);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button.playing {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 2px solid rgba(0, 229, 255, 0.3);
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .status {
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎤 Test Godot Voice</h1>
+
+  <div class="test-box">
+    <h2>Quick Tests</h2>
+    <button onclick="testGodot()">🎯 Test Godot Voice</button>
+    <button onclick="testGunner()">🔫 Test Gunner Voice (Same as Godot)</button>
+    <button onclick="testAdam()">👤 Test Adam Voice (Default)</button>
+  </div>
+
+  <div class="test-box">
+    <h2>Custom Text</h2>
+    <textarea id="customText" placeholder="Enter text for Godot to speak...">Greetings. I am Godot, your light gun calibration specialist. Let me guide you through this process.</textarea>
+    <br><br>
+    <button onclick="speakCustom()">🗣️ Speak Custom Text</button>
+    <button onclick="stopAudio()">⏹️ Stop Audio</button>
+  </div>
+
+  <div id="status" class="status" style="display: none;"></div>
+
+  <script>
+    let currentAudio = null;
+
+    function getDeviceId() {
+      let deviceId = localStorage.getItem('aa_device_id');
+      if (!deviceId) {
+        deviceId = `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem('aa_device_id', deviceId);
+      }
+      return deviceId;
+    }
+
+    function showStatus(message, isError = false) {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = 'status' + (isError ? ' error' : '');
+      statusEl.style.display = 'block';
+    }
+
+    function hideStatus() {
+      document.getElementById('status').style.display = 'none';
+    }
+
+    async function speak(text, voiceProfile) {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+      }
+
+      hideStatus();
+      showStatus(`🔊 Speaking as ${voiceProfile}...`);
+
+      try {
+        const response = await fetch('/api/voice/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-device-id': getDeviceId()
+          },
+          body: JSON.stringify({
+            text: text,
+            voice_profile: voiceProfile
+          })
+        });
+
+        if (response.status === 501) {
+          showStatus('❌ TTS not configured. Please set ELEVENLABS_API_KEY in your .env file.', true);
+          return;
+        }
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+          showStatus(`❌ Error: ${error.message || response.statusText}`, true);
+          return;
+        }
+
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        currentAudio = audio;
+
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+          currentAudio = null;
+          showStatus('✅ Playback complete!');
+          setTimeout(hideStatus, 2000);
+        };
+
+        audio.onerror = (err) => {
+          console.error('Audio playback error:', err);
+          URL.revokeObjectURL(audioUrl);
+          currentAudio = null;
+          showStatus('❌ Audio playback failed', true);
+        };
+
+        await audio.play();
+        showStatus(`🔊 Playing ${voiceProfile} voice...`);
+
+      } catch (error) {
+        console.error('TTS error:', error);
+        showStatus(`❌ Error: ${error.message}`, true);
+      }
+    }
+
+    function stopAudio() {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+        showStatus('⏹️ Audio stopped');
+        setTimeout(hideStatus, 2000);
+      }
+    }
+
+    function testGodot() {
+      speak(
+        "Greetings. I am Godot, your light gun specialist. Aim at the top-left corner and pull the trigger when ready.",
+        'godot'
+      );
+    }
+
+    function testGunner() {
+      speak(
+        "Starting calibration. I will guide you through each of the nine calibration points. Let's begin.",
+        'gunner'
+      );
+    }
+
+    function testAdam() {
+      speak(
+        "This is the default Adam voice for comparison. Notice the difference in tone and style.",
+        'adam'
+      );
+    }
+
+    function speakCustom() {
+      const text = document.getElementById('customText').value.trim();
+      if (!text) {
+        showStatus('❌ Please enter some text first', true);
+        return;
+      }
+      speak(text, 'godot');
+    }
+
+    // Show initial instructions
+    setTimeout(() => {
+      showStatus('👆 Click a button to test the Godot voice!');
+    }, 500);
+  </script>
+</body>
+</html>
