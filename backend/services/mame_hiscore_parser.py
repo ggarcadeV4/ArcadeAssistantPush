@@ -385,13 +385,12 @@ def get_default_hiscore_path() -> Path:
     """
     drive_root = Path(os.environ.get("AA_DRIVE_ROOT", "A:\\"))
     
-    # Common MAME hiscore locations
+    # Common MAME hiscore locations (all derived from drive_root)
     candidates = [
         drive_root / "Emulators" / "MAME Gamepad" / "hiscore",
         drive_root / "Emulators" / "MAME" / "hiscore",
         drive_root / "Emulators" / "MAME" / "hi",
-        Path("A:\\") / "Emulators" / "MAME Gamepad" / "hiscore",
-        Path("A:\\") / "Emulators" / "MAME" / "hi",
+        drive_root / "Emulators" / "MAME Gamepad" / "hi",
     ]
     
     for path in candidates:

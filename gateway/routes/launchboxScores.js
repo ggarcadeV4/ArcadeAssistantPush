@@ -1,4 +1,9 @@
 import express from 'express'
+import {
+  injectPlayerIdentity,
+  checkScoreDuplicate,
+  recordScoreAfterWrite
+} from '../middleware/scoringMiddleware.js'
 
 const router = express.Router()
 
@@ -53,9 +58,27 @@ router.get('/leaderboard', async (req, res) => {
   return proxyToBackend(req, res, `/leaderboard?${q}`)
 })
 
-router.post('/submit', async (req, res) => {
-  return proxyToBackend(req, res, '/submit/apply')
-})
+// Score submission with Sam gem middleware chain:
+// 1. injectPlayerIdentity - hydrates from Supabase session
+// 2. checkScoreDuplicate - prevents duplicate recordings
+// 3. recordScoreAfterWrite - caches hash after success
+router.post('/submit',
+  injectPlayerIdentity,
+  checkScoreDuplicate,
+  recordScoreAfterWrite,
+  async (req, res) => {
+    // Inject player identity from Sam gem if body needs hydration
+    if (req.samPlayer && req.body) {
+      const playerName = (req.body.player || '').trim().toLowerCase()
+      if (!playerName || ['', '??', '???', 'unknown'].includes(playerName)) {
+        req.body.player = req.samPlayer.player_name
+        req.body.player_userId = req.samPlayer.player_id
+        req.body.player_source = req.samPlayer.source
+      }
+    }
+    return proxyToBackend(req, res, '/submit/apply')
+  }
+)
 
 router.post('/events/launch-start', async (req, res) => {
   return proxyToBackend(req, res, '/events/launch-start')

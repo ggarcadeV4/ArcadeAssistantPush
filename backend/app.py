@@ -110,6 +110,8 @@ print("DEBUG: Importing teknoparrot_health...")
 from backend.routers import teknoparrot_health
 print("DEBUG: Importing hiscore...")
 from backend.routers import hiscore
+print("DEBUG: Importing tournament_router...")
+from backend.routers import tournament_router
 print("DEBUG: Importing score_router...")
 from backend.routers import score_router
 print("DEBUG: Importing aa_launch...")
@@ -281,6 +283,15 @@ async def lifespan(app: FastAPI):
                     print("Game lifecycle service initialized")
                 except Exception as e:
                     print(f"WARNING: Game lifecycle service initialization failed: {e}")
+                
+                # Start Match Watcher for Tournament Mode (Sam's Tournament Eyes)
+                try:
+                    from backend.services.match_watcher import start_match_watcher
+                    match_watcher = start_match_watcher(str(drive_root))
+                    app.state.match_watcher = match_watcher
+                    print(f"Match watcher started, watching: {match_watcher.results_path}")
+                except Exception as e:
+                    print(f"WARNING: Match watcher initialization failed: {e}")
             else:
                 print("WARNING: Session/Leaderboard services not initialized (no drive root)")
         except Exception as e:
@@ -581,6 +592,7 @@ app.include_router(tendencies_router.router)  # User tendency/preference trackin
 app.include_router(model_router_router.router)  # Smart AI model routing
 app.include_router(escalation_router.router)  # AI escalation to Fleet Manager
 app.include_router(wizard_router.router)  # Controller Wizard real-time input stream
+app.include_router(tournament_router.router)  # Tournament mode plugin integration for Sam
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

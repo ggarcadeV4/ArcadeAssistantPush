@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import json
+import os
 from pathlib import Path
 
 from backend.services.match_watcher import get_match_watcher
@@ -96,7 +97,8 @@ async def get_last_result():
     
     Returns the most recent match result written by MAME.
     """
-    results_path = Path(r"A:\.aa\state\scorekeeper\match_results.json")
+    drive_root = os.getenv("AA_DRIVE_ROOT", "A:\\")
+    results_path = Path(drive_root) / ".aa" / "state" / "scorekeeper" / "match_results.json"
     
     if not results_path.exists():
         return {"status": "no_results"}
