@@ -59,52 +59,84 @@ PWM_MIN = 0
 PWM_MAX = 48  # Maximum steady brightness - DO NOT EXCEED
 
 # =============================================================================
-# COLOR SCALING - Balance LED intensity across channels
+# GAMMA CORRECTION - Smoother fades and natural brightness perception
 # =============================================================================
-# Green LEDs appear dimmer than Red/Blue on camera.
-# Scale Red and Blue DOWN to match the weaker Green channel.
+# Human eyes perceive brightness logarithmically, not linearly.
+# Gamma 2.5 lookup table maps linear input (0-48) to perceptually smooth output.
+# This eliminates the "robotic" fade at low brightness levels.
 
-SCALE_RED = 0.70    # ~34/48 - Reduce red intensity
-SCALE_GREEN = 1.0   # Full 48/48 - Green is the baseline
-SCALE_BLUE = 0.85   # ~40/48 - Slightly reduce blue
+GAMMA = 2.5
+GAMMA_TABLE: List[int] = []
+
+# Pre-calculate Gamma 2.5 lookup table for 0-48 range at module load
+for i in range(PWM_MAX + 1):  # 0 to 48
+    # Normalize to 0-1, apply gamma, scale back to 0-48
+    normalized = i / PWM_MAX
+    gamma_corrected = pow(normalized, GAMMA)
+    GAMMA_TABLE.append(int(round(gamma_corrected * PWM_MAX)))
+
+# =============================================================================
+# COLOR SCALING - "Electric Ice" Cinema Calibration
+# =============================================================================
+# Green LEDs appear dimmer than Red/Blue on camera due to LED physics.
+# Scale Red and Blue DOWN to match the weaker Green channel (anchor).
+# These values are tuned for arcade cabinet camera visibility.
+
+SCALE_RED = 0.65    # Dampen voltage dominance
+SCALE_GREEN = 1.0   # Anchor - Green is the baseline
+SCALE_BLUE = 0.75   # Dampen luminous dominance
 
 # MAX_BRIGHTNESS_MODE: When True, any non-zero brightness value becomes max (scaled)
 # This makes LEDs "pop" on camera and ensures maximum visual impact
 MAX_BRIGHTNESS_MODE = True
 
 
-def normalize_brightness(value: int, color: str = 'green') -> int:
+def apply_gamma(linear_value: int) -> int:
+    """Apply gamma correction using pre-calculated lookup table."""
+    if linear_value <= 0:
+        return 0
+    if linear_value >= PWM_MAX:
+        return PWM_MAX
+    return GAMMA_TABLE[linear_value]
+
+
+def normalize_brightness(value: int, color: str = 'green', use_gamma: bool = True) -> int:
     """
     Normalize a 0-255 brightness value to the LED-Wiz 0-48 PWM range,
-    with optional color scaling for balanced intensity.
+    with gamma correction and color scaling for cinema-grade output.
     
     LED-Wiz Hardware Facts:
     - 0 = LED Off
     - 1-48 = Steady brightness levels
     - 49+ = Strobe/Pulse patterns (causes flickering/dimming!)
     
-    Color Scaling:
-    - Red: 70% (scaled down to match green)
-    - Green: 100% (baseline - appears dimmest)
-    - Blue: 85% (slightly scaled down)
+    Color Scaling (Electric Ice):
+    - Red: 65% (dampen voltage dominance)
+    - Green: 100% (anchor - appears dimmest)
+    - Blue: 75% (dampen luminous dominance)
     
     Args:
         value: Brightness 0-255 (standard RGB range) or 0-48 direct
         color: 'red', 'green', or 'blue' for scaling
+        use_gamma: Apply gamma correction for smooth fades (default: True)
     
     Returns:
-        PWM value 0-48 safe for LED-Wiz, scaled by color
+        PWM value 0-48 safe for LED-Wiz, gamma-corrected and color-scaled
     """
     if value <= 0:
         return PWM_MIN
     
-    # Calculate base PWM value
+    # Calculate base PWM value (linear)
     if value <= PWM_MAX:
-        base_pwm = float(value)
+        base_pwm = int(value)
     elif value <= 255:
-        base_pwm = (value / 255) * PWM_MAX
+        base_pwm = int((value / 255) * PWM_MAX)
     else:
-        base_pwm = float(PWM_MAX)
+        base_pwm = PWM_MAX
+    
+    # Apply gamma correction for perceptually smooth fades
+    if use_gamma:
+        base_pwm = apply_gamma(base_pwm)
     
     # Apply color scaling
     color_lower = color.lower() if color else 'green'
