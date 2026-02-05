@@ -1,4 +1,221 @@
-# **Session 2026-02-04 - Day 5: Network Blockade Fixes + LED Stub Mode**
+# **Session 2026-02-05 - Day 6: LED Driver Revolution + Cinema Calibration + Visual Wizard Architecture**
+
+## **Status: ✅ MISSION COMPLETE**
+
+### **Executive Summary**
+
+**The Breakthrough:** We bypassed `node-hid` and LEDBlinky entirely. We are now running a **proprietary Python ctypes driver** (`ledwiz_direct.py`) that speaks directly to the Windows Kernel via HID APIs. No more blocking Node.js event loop, no external dependencies.
+
+**The Safety:** We hard-coded a **0-48 PWM Clamp** to prevent the "Strobe Command" crash. Values 49-129 trigger LED-Wiz strobe modes which caused system instability. Windows is now stable.
+
+**The Look:** We implemented **Gamma 2.5 Correction** and **Electric Ice Color Balancing** (Red 65% / Green 100% / Blue 75%) to fix the dim green LED issue on camera.
+
+**The Next Step (For Jules):** Build the **Visual Calibration Wizard** in the React GUI. The backend logic is fully documented in `ARCHITECTURE.md`. The goal is a "Click-to-Map" interface so the AI knows where buttons are physically located without hardcoding port numbers.
+
+---
+
+## **What Was Accomplished**
+
+### **1) Python ctypes LED-Wiz Driver**
+**File:** `backend/services/led_engine/ledwiz_direct.py` (~660 lines)
+
+A complete rewrite of LED hardware control:
+- **Direct Windows HID APIs** via ctypes (setupapi.dll, hid.dll)
+- **Named Pipe daemon** (`\\.\pipe\ArcadeLED`) for inter-process communication
+- **Multi-board discovery** — automatically finds all 3 LED-Wiz units (PIDs 0x00F0-0x00FF)
+- **PWM Safety Clamp** — all values clamped to 0-48 (never triggers strobe mode)
+- **SBA/PBA command support** — native LED-Wiz protocol implementation
+
+| Key Function | Purpose |
+|--------------|---------|
+| `discover_boards()` | Enumerate all LED-Wiz hardware via Windows APIs |
+| `normalize_brightness(value, color)` | Convert 0-255 to 0-48 with gamma + color scaling |
+| `apply_gamma(value)` | Gamma 2.5 lookup table for perceptual smoothness |
+| `send_pba_chunk()` | Write brightness values to 8-port chunks |
+
+---
+
+### **2) Cinema Calibration — Gamma 2.5 + Electric Ice**
+
+**Problem:** LED fades appeared "robotic" at low brightness, and green LEDs looked dim on camera compared to red/blue.
+
+**Solution — Gamma 2.5 Correction:**
+```python
+GAMMA = 2.5
+GAMMA_TABLE = [int(round(pow(i/48, GAMMA) * 48)) for i in range(49)]
+```
+Pre-calculated lookup table for perceptually smooth fades. Human eyes perceive brightness logarithmically, not linearly.
+
+**Solution — Electric Ice Color Scaling:**
+| Channel | Scale | Max PWM |
+|---------|-------|---------|
+| **Green** | 1.00 (anchor) | 48 |
+| **Blue** | 0.75 | 36 |
+| **Red** | 0.65 | 31 |
+
+Scales red and blue DOWN to match the weaker green LED physics, creating balanced color on camera.
+
+---
+
+### **3) Port Roll Call Diagnostic Tool**
+**File:** `backend/services/led_engine/roll_call.py` (~116 lines)
+
+Interactive diagnostic that lights up each port 1-32 sequentially (3 seconds each) so users can physically map their cabinet wiring:
+
+```
+>>> BOARD 1 <<<
+--> LIGHTING UP PORT [  1 ] (Board 1)
+--> LIGHTING UP PORT [  2 ] (Board 1)
+...
+```
+
+Found **3 LED-Wiz boards** connected to the cabinet.
+
+---
+
+### **4) Visual Stress Test Demo**
+**File:** `backend/services/led_engine/led_enhancement_demo.py` (~240 lines)
+
+Two-phase test:
+1. **Static Test (5 sec)** — RAW 48 to all channels, confirms basic connectivity
+2. **Breathing Test (10 sec)** — Sine-wave animation 0-48 at 10Hz, confirms smooth fades
+
+**Test Results:**
+- ✅ PWM_MAX = 48 verified
+- ✅ 10Hz update rate achieved
+- ✅ USB stack remained stable
+- ✅ All 3 boards responding
+
+---
+
+### **5) Visual Calibration Wizard Architecture**
+**File:** `ARCHITECTURE.md` (lines 270-500, ~230 new lines)
+
+Complete architectural specification for Jules to implement:
+
+**The Visual Feedback Loop (Mirror System):**
+```
+REALITY (Cabinet)              SCREEN (React GUI)
+─────────────────              ─────────────────
+┌─────────────┐               ┌─────────────────┐
+│ ● P1 START  │  ◄──────────► │  "What lit up?" │
+│   (RED)     │    YOU SEE    │  [Virtual Panel]│
+└─────────────┘    & CLICK    └─────────────────┘
+```
+
+**The 4-Step Wizard Flow:**
+1. Backend lights up ONE physical port at max brightness
+2. GUI asks: "What lit up?" and "What color is it?"
+3. User clicks matching component on Virtual Cabinet (React GUI)
+4. System saves Port ID → Logical Component + Color Channel
+
+**Virtual Device Mapping (Multi-Port Grouping):**
+```json
+{
+  "trackball": {
+    "red_port":   { "uid": 3, "port": 10 },
+    "green_port": { "uid": 3, "port": 11 },
+    "blue_port":  { "uid": 3, "port": 12 }
+  }
+}
+```
+
+Supports non-standard wiring (like Trackball RGB wired across 3 separate ports on Board #3) without hardcoding.
+
+---
+
+## **PWM Safety Protocol — Critical Knowledge**
+
+### **LED-Wiz Hardware Facts (NEVER VIOLATE)**
+
+| Value Range | Behavior |
+|-------------|----------|
+| **0** | LED Off |
+| **1-48** | Steady brightness (48 = maximum) |
+| **49-129** | ⚠️ STROBE/PULSE MODES — Causes flickering, dimming, system instability! |
+
+**Root Cause of Previous Issues:** Gateway was sending unclamped brightness values (e.g., 255) which the LED-Wiz interpreted as strobe commands (value 129), causing erratic behavior.
+
+**Solution Implemented:**
+```python
+PWM_MAX = 48  # NEVER EXCEED
+clamped = [max(0, min(48, int(b))) for b in brightness]
+```
+
+---
+
+## **Files Created**
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `backend/services/led_engine/ledwiz_direct.py` | ~660 | ctypes LED-Wiz driver with Named Pipe daemon |
+| `backend/services/led_engine/roll_call.py` | ~116 | Port mapping diagnostic (1-32 sequentially) |
+| `backend/services/led_engine/led_enhancement_demo.py` | ~240 | Visual stress test (static + breathing) |
+
+---
+
+## **Files Modified**
+
+| File | Changes |
+|------|---------|
+| `ARCHITECTURE.md` | +230 lines: LED Blinky Panel specs, Visual Wizard architecture, Virtual Device Mapping, Visual Feedback Loop UX |
+
+---
+
+## **Commits This Session**
+
+| Hash | Message |
+|------|---------|
+| `680a652` | FEAT: Cinema Calibration - Gamma 2.5 LUT + Electric Ice |
+| `27aff2a` | DOCS: Added architectural roadmap for LED Calibration Wizard |
+| `c1666c7` | DOCS: Added Virtual Device Mapping architecture for multi-port RGB grouping |
+| `5fe30f2` | DOCS: Finalized specs for Visual Calibration Wizard. MISSION COMPLETE. |
+
+---
+
+## **Jules Handoff Briefing**
+
+```
+MISSION REPORT: LED ARCHITECTURE
+
+THE BREAKTHROUGH: 
+We bypassed node-hid and LEDBlinky entirely. We are running a 
+proprietary Python ctypes driver that speaks directly to the 
+Windows Kernel via HID APIs.
+
+THE SAFETY: 
+We hard-coded a 0-48 PWM Clamp to prevent the "Strobe Command" 
+crash. Windows is stable.
+
+THE LOOK: 
+We implemented Gamma 2.5 Correction and Color Balancing 
+(Red 65% / Blue 75%) to fix the "Electric Ice" dimming issue.
+
+THE NEXT STEP (FOR YOU, JULES): 
+Build the "Visual Calibration Wizard" in the React GUI. 
+The backend logic is documented in ARCHITECTURE.md (lines 270-500). 
+The goal is a "Click-to-Map" interface so the AI knows where 
+the buttons are physically located.
+
+KEY FILES:
+- ARCHITECTURE.md (lines 270-500) - Full wizard specs
+- backend/services/led_engine/ledwiz_direct.py - Cinema driver
+- backend/services/led_engine/roll_call.py - Port mapping tool
+- config/led_mapping.json - Target output format
+```
+
+---
+
+## **Known Future Work**
+
+1. **React Visual Wizard UI** — Jules to implement Click-to-Map interface
+2. **LED Animation Engine** — Use mapping to drive game-specific LED profiles
+3. **Gateway `aa-blinky` gem integration** — Connect Named Pipe to speaking mode animations
+4. **Production startup** — Add daemon auto-start to `start-aa.bat`
+
+---
+
+
 
 ## **Status: ✅ Complete (with strategic pivot)**
 
