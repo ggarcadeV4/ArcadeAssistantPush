@@ -344,8 +344,85 @@ users to create a mapping between logical button names and physical port numbers
       "1": { "button": "p2_punch", "color": "red" },
       "2": { "button": "p2_kick", "color": "blue" }
     }
+  },
+  "virtualDevices": {
+    "trackball": {
+      "type": "rgb",
+      "ports": [
+        { "board": 3, "port": 10, "channel": "red" },
+        { "board": 3, "port": 11, "channel": "green" },
+        { "board": 3, "port": 12, "channel": "blue" }
+      ]
+    },
+    "marquee_left": {
+      "type": "rgb",
+      "ports": [
+        { "board": 3, "port": 1, "channel": "red" },
+        { "board": 3, "port": 2, "channel": "green" },
+        { "board": 3, "port": 3, "channel": "blue" }
+      ]
+    }
   }
 }
+```
+
+---
+
+### Virtual Device Mapping (Multi-Port Grouping)
+
+**Context:** The cabinet does NOT use dedicated boards for accessories like Trackballs.
+RGB components are wired directly into the general LED-Wiz array across multiple ports.
+
+**The Problem:**
+- Standard mapping: `Port 1 = P1_Start` (single port, single LED)
+- Complex mapping: `Trackball = Unit3_Port10(R) + Unit3_Port11(G) + Unit3_Port12(B)`
+
+**The Solution: `virtualDevices` Layer**
+
+The config supports grouping multiple physical ports into a single logical component:
+
+```json
+"virtualDevices": {
+  "trackball": {
+    "type": "rgb",           // Component type (rgb, single, multi)
+    "ports": [
+      { "board": 3, "port": 10, "channel": "red" },
+      { "board": 3, "port": 11, "channel": "green" },
+      { "board": 3, "port": 12, "channel": "blue" }
+    ]
+  }
+}
+```
+
+**Driver API for Virtual Devices:**
+
+```python
+# Single-port button (standard)
+set_button('p1_start', brightness=48)
+
+# Multi-port virtual device (RGB)
+set_virtual_device('trackball', color=(255, 128, 0))  # Orange
+# Translates to:
+#   - Board 3, Port 10: Red=255 → 48 (max)
+#   - Board 3, Port 11: Green=128 → 24 (half)
+#   - Board 3, Port 12: Blue=0 → 0 (off)
+```
+
+**GUI Wizard Requirement:**
+
+The Calibration Wizard must support:
+1. **Single Port Assignment** - Standard button mapping
+2. **Multi-Port Grouping** - Assign N ports to one logical component
+3. **Channel Labeling** - Identify which port is R/G/B within a group
+
+**Animation Engine Benefit:**
+
+The animation engine can treat virtual devices as single objects:
+
+```javascript
+// Animate trackball to pulse cyan
+animate('trackball', { color: '#00FFFF', mode: 'breathe' });
+// Engine handles splitting to 3 physical ports automatically
 ```
 
 ### Benefits
