@@ -268,9 +268,123 @@ THIRDSCREEN_ROOT = os.path.join(os.getenv('AA_DRIVE_ROOT'), 'ThirdScreen-v5.0.12
 - **No dynamic discovery** - if XML doesn't exist, show error with expected path
 
 ### LED Blinky Panel
-- **Purpose:** Button LED control
-- **Config location:** TBD (to be documented when panel is defined)
-- **No runtime path finding** - use fixed config path
+- **Purpose:** Button LED control via LED-Wiz hardware
+- **Driver location:** `C:\Arcade Assistant Local\backend\services\led_engine\`
+- **Config location:** `C:\Arcade Assistant Local\config\led_mapping.json`
+- **Required components:**
+  - `ledwiz_direct.py` - Python ctypes HID driver (Named Pipe daemon)
+  - `led_enhancement_demo.py` - Visual stress test (Gamma 2.5, color scaling)
+  - `roll_call.py` - Port mapping diagnostic (lights ports 1-32 sequentially)
+- **Hardware:** LED-Wiz boards (VID: 0xFAFA, PIDs: 0x00F0-0x00FF)
+- **No runtime path finding** - uses fixed config path
+
+---
+
+## LED Calibration Wizard (Future Feature)
+
+### Concept: Interactive GUI-Driven Port Mapping
+
+The LED-Wiz hardware uses port numbers 1-32 per board, but physical cabinet wiring
+varies. Instead of hardcoding port assignments, the Calibration Wizard will allow
+users to create a mapping between logical button names and physical port numbers.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LED CALIBRATION WIZARD                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   ┌──────────────┐         ┌──────────────┐                    │
+│   │   Backend    │  Named  │   Gateway    │   WebSocket        │
+│   │  ledwiz_     │ ───────►│  aa-blinky   │◄─────────────────► │
+│   │  direct.py   │  Pipe   │   gem        │                    │
+│   └──────────────┘         └──────────────┘                    │
+│          │                        │                             │
+│          │                        │                             │
+│          ▼                        ▼                             │
+│   ┌──────────────┐         ┌──────────────┐                    │
+│   │  LED-Wiz     │         │   Frontend   │                    │
+│   │  Hardware    │         │   Wizard UI  │                    │
+│   └──────────────┘         └──────────────┘                    │
+│                                   │                             │
+│                                   ▼                             │
+│                           ┌──────────────┐                     │
+│                           │ led_mapping  │                     │
+│                           │    .json     │                     │
+│                           └──────────────┘                     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Process Flow
+
+1. **User Initiates Wizard** - Opens LED Calibration panel in frontend
+2. **Backend Lights Port X** - turns on a single port at max brightness (48)
+3. **Frontend Prompts User** - "Which button is lit?" with button picker UI
+4. **User Identifies Button** - Clicks "P1 Start", "P2 Punch", etc.
+5. **System Saves Mapping** - Stores `{portNumber: buttonId}` pair
+6. **Repeat for All Ports** - Loops through 32 ports per board
+7. **Mapping Saved** - Writes to `config/led_mapping.json`
+
+### Config File Format: `config/led_mapping.json`
+
+```json
+{
+  "version": "1.0",
+  "created": "2026-02-05T13:58:00Z",
+  "boards": {
+    "1": {
+      "1": { "button": "p1_start", "color": "green" },
+      "2": { "button": "p2_start", "color": "green" },
+      "3": { "button": "p1_punch", "color": "red" },
+      "4": { "button": "p1_kick", "color": "blue" }
+    },
+    "2": {
+      "1": { "button": "p2_punch", "color": "red" },
+      "2": { "button": "p2_kick", "color": "blue" }
+    }
+  }
+}
+```
+
+### Benefits
+
+1. **Decouples Wiring from Code** - No hardcoded port numbers in driver logic
+2. **Cabinet Portability** - Different cabinets can have different mappings
+3. **User-Friendly Setup** - Visual wizard instead of manual config editing
+4. **Arcade Cartridge Compatible** - Mapping travels with A: drive
+
+### Driver Integration
+
+The driver uses the mapping to translate logical commands to physical ports:
+
+```python
+# Instead of hardcoded:
+set_port(1, brightness)  # P1 Start
+
+# Use mapping-aware:
+set_button('p1_start', brightness)  # Looks up port from led_mapping.json
+```
+
+### Implementation Priority: FUTURE
+
+This feature is documented for future development sessions (Jules).
+Current implementation uses `roll_call.py` for manual port identification.
+
+---
+
+### LED Driver Technical Specifications
+
+**Cinema Calibration Settings (Current):**
+- **PWM Range:** 0-48 (49+ triggers strobe mode - NEVER EXCEED)
+- **Gamma Correction:** 2.5 (pre-calculated lookup table)
+- **Color Scaling (Electric Ice):**
+  - Red: 65% (dampen voltage dominance)
+  - Green: 100% (anchor - appears dimmest)
+  - Blue: 75% (dampen luminous dominance)
+- **Named Pipe:** `\\.\pipe\ArcadeLED`
+- **Update Rate:** 10Hz (100ms intervals)
 
 ### Controller Panels (Wiz/Chuck)
 - **Purpose:** Input mapping, controller configuration
