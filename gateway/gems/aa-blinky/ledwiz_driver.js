@@ -151,8 +151,8 @@ class LEDWizShimClient {
 
     setPort(port, brightness) {
         // Simple mapping: port 1-32 = board 1, 33-64 = board 2, etc.
-        const boardId = Math.floor((port - 1) / CHANNEL_COUNT) + 1;
-        const localPort = ((port - 1) % CHANNEL_COUNT) + 1;
+        const boardId = Math.floor((port - 1) / CHANNEL_COUNT_INTERNAL) + 1;
+        const localPort = ((port - 1) % CHANNEL_COUNT_INTERNAL) + 1;
 
         // Use the last known frame to avoid turning off other LEDs
         const frame = [...this._lastFrame];
