@@ -2,7 +2,7 @@
  * aa-blinky Gem - LED-Wiz Shim Client for JavaScript
  * Part of: Phase 5 Blinky Gem Pivot
  * 
- * Replaces node-hid with a Named Pipe client that talks to the C++ LED-Wiz Shim.
+ * Replaces node-hid with a Named Pipe client that talks to the Python LED-Wiz Direct driver.
  * This avoids the "Imposter Device" phenomenon and event loop blocking.
  */
 
@@ -11,12 +11,53 @@ import path from 'path';
 import fs from 'fs';
 
 // ============================================================================
+// GEM METADATA
+// ============================================================================
+
+export const gemInfo = {
+    name: 'aa-blinky',
+    version: '2.0.0',
+    description: 'LED-Wiz driver via Named Pipe (Python ctypes backend)',
+    author: 'Arcade Assistant',
+    created: '2026-02-05',
+    phase: 'Phase 5 Blinky Gem Pivot',
+    dependencies: []  // No longer depends on node-hid
+};
+
+// ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const PIPE_NAME = '\\\\.\\pipe\\ArcadeLED';
-const CHANNEL_COUNT = 32;
+const CHANNEL_COUNT_INTERNAL = 32;
 const WRITE_THROTTLE_MS = 10;
+
+// ============================================================================
+// LEGACY STUB: LEDWizDevice class for compatibility
+// ============================================================================
+
+export class LEDWizDevice {
+    constructor(deviceId = 'shim', product = 'LED-Wiz Shim') {
+        this.deviceId = deviceId;
+        this.product = product;
+    }
+
+    writeFrame(frame) {
+        return globalClient.writeFrame(1, frame);
+    }
+
+    allOff() {
+        return globalClient.sendCommand('ALL_OFF');
+    }
+
+    setPort(port, val) {
+        return globalClient.setPort(port, val);
+    }
+
+    getInfo() {
+        return { deviceId: this.deviceId, product: this.product };
+    }
+}
 
 // ============================================================================
 // SHIM CLIENT
@@ -27,7 +68,7 @@ class LEDWizShimClient {
         this.client = null;
         this.connected = false;
         this._lastWriteTime = 0;
-        this._lastFrame = new Array(CHANNEL_COUNT).fill(0);
+        this._lastFrame = new Array(CHANNEL_COUNT_INTERNAL).fill(0);
     }
 
     connect() {
@@ -161,7 +202,7 @@ export async function isPythonLEDEngineActive() {
 
 export const SUPPORTED_IDS = [[0xFAFA, 0x00F0]];
 export const LEDWIZ_VID = 0xFAFA;
-export const CHANNEL_COUNT_VAL = 32;
+export { CHANNEL_COUNT_INTERNAL as CHANNEL_COUNT };
 
 export default {
     discover,
@@ -171,5 +212,5 @@ export default {
     isPythonLEDEngineActive,
     SUPPORTED_IDS,
     LEDWIZ_VID,
-    CHANNEL_COUNT: CHANNEL_COUNT_VAL
+    CHANNEL_COUNT: CHANNEL_COUNT_INTERNAL
 };
