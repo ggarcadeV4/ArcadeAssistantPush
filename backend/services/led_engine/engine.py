@@ -35,6 +35,7 @@ class LEDEngine:
         self._last_tick_ms = 0.0
         self._last_hid_write: Optional[float] = None
         self._last_error: Optional[str] = None
+        self._voice_amplitude: float = 0.0
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -73,6 +74,12 @@ class LEDEngine:
     async def update_brightness(self, level: int) -> None:
         level = max(0, min(100, int(level)))
         await self._queue.put({"type": "brightness", "level": level})
+
+    async def update_voice_amplitude(self, amplitude: float) -> None:
+        """Update the real-time voice breathing amplitude."""
+        amplitude = max(0.0, min(1.0, float(amplitude)))
+        # We use a direct set to avoid queue latency for 10Hz updates
+        self._voice_amplitude = amplitude
 
     async def refresh_devices(self) -> None:
         await self._queue.put({"type": "refresh_devices"})
@@ -189,7 +196,13 @@ class LEDEngine:
             base = self._profile_frames.get(device.device_id)
             if base is None:
                 base = [0] * device.channel_count
-            frames[device.device_id] = base[: device.channel_count]
+            frames[device.device_id] = list(base[: device.channel_count])
+
+            # Apply Voice Breathing to P1/P2 Start buttons (Ports 1 & 2)
+            if self._voice_amplitude > 0 and len(frames[device.device_id]) >= 2:
+                v_bright = int(48 * self._voice_amplitude)
+                frames[device.device_id][0] = max(frames[device.device_id][0], v_bright)
+                frames[device.device_id][1] = max(frames[device.device_id][1], v_bright)
 
         if self._active_pattern:
             elapsed_ms = (time.monotonic() - self._active_pattern.started_at) * 1000.0

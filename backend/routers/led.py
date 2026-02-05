@@ -237,6 +237,10 @@ class LEDBrightnessPayload(BaseModel):
     level: int = Field(..., ge=0, le=100)
 
 
+class VoiceAmplitudePayload(BaseModel):
+    amplitude: float = Field(..., ge=0.0, le=1.0)
+
+
 class LEDChannelTestPayload(BaseModel):
     device_id: Optional[str] = Field(default=None, description="LED controller identifier")
     channel: int = Field(..., ge=0, le=2048)
@@ -856,6 +860,15 @@ async def update_led_brightness(request: Request, payload: LEDBrightnessPayload)
     engine = get_led_engine(request.app.state)
     await engine.update_brightness(payload.level)
     return {"status": "updated", "level": payload.level}
+
+
+@router.post("/voice/amplitude")
+async def set_voice_amplitude(request: Request, payload: VoiceAmplitudePayload) -> Dict[str, Any]:
+    """Update the real-time voice breathing amplitude."""
+    require_scope(request, "state")
+    engine = get_led_engine(request.app.state)
+    await engine.update_voice_amplitude(payload.amplitude)
+    return {"status": "ok", "amplitude": payload.amplitude}
 
 
 @router.post("/refresh")

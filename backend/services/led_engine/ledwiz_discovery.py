@@ -72,35 +72,30 @@ async def discover_devices() -> List[DeviceInfo]:
     return await asyncio.to_thread(_scan)
 
 
-async def register_devices(registry) -> Dict[str, "LEDWizDLLDriver"]:
+async def register_devices(registry) -> Dict[str, "LEDWizShimDriver"]:
     """Populate the LED registry with detected LED-Wiz drivers.
     
-    Uses the DLL-based driver for reliable LED control.
+    Uses the C++ Shim-based driver for high-performance, reliable LED control.
     """
-    from .ledwiz_dll_driver import LEDWizDLLDriver
+    from .ledwiz_shim_driver import LEDWizShimDriver
     
-    devices_map: Dict[str, LEDWizDLLDriver] = {}
+    devices_map: Dict[str, LEDWizShimDriver] = {}
     try:
-        # First, try to discover via DLL (more reliable)
-        dll_drivers = await LEDWizDLLDriver.discover()
-        if dll_drivers:
-            logger.info("Using DLL-based LED-Wiz driver")
-            for driver in dll_drivers:
-                devices_map[driver.device_id] = driver
-        else:
-            # Fall back to HID discovery for device info only
-            discovered = await discover_devices()
-            if hasattr(registry, "update_discovery"):
-                registry.update_discovery(discovered)
+        # Prioritize the C++ Shim driver as per the 'Day 5' mission briefing
+        logger.info("Initializing C++ Shim-based LED-Wiz drivers")
+        shim_drivers = await LEDWizShimDriver.discover()
+
+        # We also still perform HID discovery for UI reporting/discovery status
+        discovered = await discover_devices()
+        if hasattr(registry, "update_discovery"):
+            registry.update_discovery(discovered)
+
+        # Register all potential shim drivers
+        for driver in shim_drivers:
+            devices_map[driver.device_id] = driver
             
-            if discovered:
-                # Create DLL driver for first discovered device
-                logger.info("Creating DLL driver for discovered LED-Wiz")
-                driver = LEDWizDLLDriver(
-                    device_id=f"{discovered[0].vendor_id:04x}:{discovered[0].product_id:04x}",
-                    ledwiz_id=1,
-                )
-                devices_map[driver.device_id] = driver
+        logger.info("Registered %d potential LED-Wiz units via C++ Shim", len(shim_drivers))
+
     except Exception as exc:  # pragma: no cover - defensive
         logger.error("LED-Wiz registration failed: %s", exc)
         devices_map = {}

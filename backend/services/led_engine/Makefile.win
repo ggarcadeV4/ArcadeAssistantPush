@@ -1,0 +1,13 @@
+CC = cl
+CFLAGS = /EHsc /O2
+LIBS = setupapi.lib hid.lib
+TARGET = ledwiz_daemon.exe
+SRC = ledwiz_daemon.cpp
+
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $(SRC) /Fe:$(TARGET) $(LIBS)
+
+clean:
+	del $(TARGET) *.obj
