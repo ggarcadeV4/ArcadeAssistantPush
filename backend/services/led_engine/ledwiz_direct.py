@@ -45,6 +45,15 @@ LEDWIZ_PID_MIN = 0x00F0  # Unit 1
 LEDWIZ_PID_MAX = 0x00FF  # Unit 16
 
 # =============================================================================
+# BRIGHTNESS CONFIGURATION
+# =============================================================================
+
+# MAX_BRIGHTNESS_MODE: When True, any non-zero brightness value becomes 48 (max)
+# This makes LEDs "pop" on camera and ensures maximum visual impact
+MAX_BRIGHTNESS_MODE = True
+MAX_BRIGHTNESS_VALUE = 48
+
+# =============================================================================
 # Windows API Structures
 # =============================================================================
 
@@ -207,6 +216,11 @@ class LEDWizBoard:
         """Send PBA (Profile Brightness Address) chunk."""
         marker = 0x40 + chunk_idx
         clamped = [max(0, min(48, int(b))) for b in brightness[:8]]
+        
+        # Apply MAX_BRIGHTNESS_MODE: any non-zero value becomes max (48)
+        if MAX_BRIGHTNESS_MODE:
+            clamped = [MAX_BRIGHTNESS_VALUE if b > 0 else 0 for b in clamped]
+        
         while len(clamped) < 8:
             clamped.append(0)
         report = bytes([0x00, marker] + clamped)
