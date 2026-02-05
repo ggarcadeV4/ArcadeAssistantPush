@@ -48,10 +48,46 @@ LEDWIZ_PID_MAX = 0x00FF  # Unit 16
 # BRIGHTNESS CONFIGURATION
 # =============================================================================
 
+# LED-Wiz PWM Range Facts:
+#   0 = LED Off
+#   1-48 = Steady brightness levels (48 = maximum)
+#   49-129 = Strobe/Pulse modes (NOT brightness! This was causing dim green!)
+#
+# CRITICAL: All brightness inputs must be normalized to 0-48 before sending!
+
+PWM_MIN = 0
+PWM_MAX = 48  # Maximum steady brightness - DO NOT EXCEED
+
 # MAX_BRIGHTNESS_MODE: When True, any non-zero brightness value becomes 48 (max)
 # This makes LEDs "pop" on camera and ensures maximum visual impact
 MAX_BRIGHTNESS_MODE = True
-MAX_BRIGHTNESS_VALUE = 48
+
+
+def normalize_brightness(value: int) -> int:
+    """
+    Normalize a 0-255 brightness value to the LED-Wiz 0-48 PWM range.
+    
+    LED-Wiz Hardware Facts:
+    - 0 = LED Off
+    - 1-48 = Steady brightness levels
+    - 49+ = Strobe/Pulse patterns (causes flickering/dimming!)
+    
+    Args:
+        value: Brightness 0-255 (standard RGB range) or 0-48 direct
+    
+    Returns:
+        PWM value 0-48 safe for LED-Wiz
+    """
+    if value <= 0:
+        return PWM_MIN
+    if value <= PWM_MAX:
+        # Already in valid range
+        return int(value)
+    if value <= 255:
+        # Normalize 0-255 to 0-48
+        return int((value / 255) * PWM_MAX)
+    # Clamp anything above 255
+    return PWM_MAX
 
 # =============================================================================
 # Windows API Structures
@@ -213,17 +249,24 @@ class LEDWizBoard:
         return self.write_report(report)
     
     def send_pba_chunk(self, chunk_idx: int, brightness: List[int]) -> bool:
-        """Send PBA (Profile Brightness Address) chunk."""
+        """Send PBA (Profile Brightness Address) chunk.
+        
+        All values are normalized through normalize_brightness() to ensure
+        they stay in the 0-48 PWM range. Values >48 trigger strobe mode!
+        """
         marker = 0x40 + chunk_idx
-        clamped = [max(0, min(48, int(b))) for b in brightness[:8]]
+        
+        # CRITICAL: Normalize all brightness values to 0-48 range
+        # This fixes the dim green LED issue (values >48 were triggering strobe)
+        normalized = [normalize_brightness(int(b)) for b in brightness[:8]]
         
         # Apply MAX_BRIGHTNESS_MODE: any non-zero value becomes max (48)
         if MAX_BRIGHTNESS_MODE:
-            clamped = [MAX_BRIGHTNESS_VALUE if b > 0 else 0 for b in clamped]
+            normalized = [PWM_MAX if b > 0 else 0 for b in normalized]
         
-        while len(clamped) < 8:
-            clamped.append(0)
-        report = bytes([0x00, marker] + clamped)
+        while len(normalized) < 8:
+            normalized.append(0)
+        report = bytes([0x00, marker] + normalized)
         return self.write_report(report)
     
     def set_channels(self, frame: Sequence[int]) -> bool:
