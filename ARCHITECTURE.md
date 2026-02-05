@@ -415,6 +415,86 @@ The Calibration Wizard must support:
 2. **Multi-Port Grouping** - Assign N ports to one logical component
 3. **Channel Labeling** - Identify which port is R/G/B within a group
 
+---
+
+### The Visual Feedback Loop (Mirror System)
+
+**This is the core UX innovation of the LED Calibration Wizard.**
+
+Instead of boring text lists ("Port 1: [Type Here]"), we build a **Mirror System**
+where the user becomes the bridge between hardware and software.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    VISUAL FEEDBACK LOOP                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   REALITY (Cabinet)              SCREEN (React GUI)             │
+│   ─────────────────              ─────────────────              │
+│                                                                 │
+│   ┌─────────────┐               ┌─────────────────┐            │
+│   │ ● P1 START  │  ◄──────────► │  "What lit up?" │            │
+│   │   (RED)     │    YOU SEE    │  [Virtual Panel]│            │
+│   └─────────────┘    & CLICK    │     ● ● ● ●     │            │
+│         ▲                       │     ● ● ● ●     │            │
+│         │                       └─────────────────┘            │
+│         │                              │                        │
+│   ┌─────┴─────┐                        │                        │
+│   │  LED-Wiz  │                        ▼                        │
+│   │  Board 1  │               ┌─────────────────┐              │
+│   │  Port 5   │               │ "What color?"   │              │
+│   └───────────┘               │ [RED] [GRN] [BLU]│              │
+│                               └─────────────────┘              │
+│                                        │                        │
+│                                        ▼                        │
+│                               ┌─────────────────┐              │
+│                               │  MAPPING SAVED  │              │
+│                               │ Port 5 = P1_Start│              │
+│                               │ + Red Channel   │              │
+│                               └─────────────────┘              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**The 4-Step Wizard Flow:**
+
+1. **Sequential Test** - Backend lights up ONE physical port at max brightness
+2. **User Query** - GUI asks: "What lit up?" and "What color is it?"
+3. **Visual Selection** - User clicks the matching component on Virtual Cabinet (React GUI)
+4. **Mapping Saved** - System ties the active Port ID to Logical Component + Color Channel
+
+**Why This Solves the "Crowded Board" Problem:**
+
+This approach completely bypasses the complexity of cabinet wiring:
+
+- ✅ Software doesn't care if Trackball Red is on Board 1 Port 5 or Board 3 Port 12
+- ✅ Software doesn't care if you wired Red to Port 1 and Blue to Port 2, or vice versa
+- ✅ **YOU (the Human) are the bridge** - by seeing Red and clicking Red, you create the perfect map
+
+**The "Rosetta Stone" File:**
+
+When you finish clicking through the wizard, the system generates the Golden Map:
+
+```json
+{
+  "p1_start": {
+    "red_port":   { "uid": 1, "port": 0 },
+    "green_port": { "uid": 1, "port": 1 },
+    "blue_port":  { "uid": 1, "port": 2 }
+  },
+  "trackball": {
+    "red_port":   { "uid": 3, "port": 10 },
+    "green_port": { "uid": 3, "port": 11 },
+    "blue_port":  { "uid": 3, "port": 12 }
+  }
+}
+```
+
+**Critical Design Requirement:**
+
+This Visual Feedback Loop allows supporting **non-standard wiring** (like Trackball on Board #3)
+**without hard-coding**. The AI becomes "smart" about your unique hardware because YOU taught it.
+
 **Animation Engine Benefit:**
 
 The animation engine can treat virtual devices as single objects:
