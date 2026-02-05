@@ -1,4 +1,115 @@
-# **Session 2026-02-04 - Day 4: Hardware & Wiring Wizard (Golden Drive Standards)**
+# **Session 2026-02-04 - Day 5: Network Blockade Fixes + LED Stub Mode**
+
+## **Status: ✅ Complete (with strategic pivot)**
+
+### **Network Blockade Resolution**
+
+| Issue | Root Cause | Fix | File |
+|-------|-----------|-----|------|
+| **Image 404s** | Frontend requests `/api/launchbox/image/{uuid}` but no resolver | Added Image UUID Resolver route | `launchboxProxy.js` |
+| **LED 400 Errors** | Pydantic rejected unknown fields in payload | Added `model_config = {"extra": "allow"}` | `led.py` |
+| **CORS Failures** | Missing `127.0.0.1` origin variants | Added IP variants to whitelist | `server.js`, `app.py` |
+
+---
+
+### **Changes Made**
+
+#### **1) Image UUID Resolver**
+**File:** `gateway/routes/launchboxProxy.js`
+
+New route `/image/:uuid` that:
+1. Queries FastAPI for game metadata by UUID
+2. Maps title/platform to LaunchBox Images folder
+3. Serves actual PNG/JPG file
+
+Search paths:
+- `A:/LaunchBox/Images/Box - Front/{Platform}/{Title}.png`
+- `A:/LaunchBox/Images/Screenshot - Game Title/{Platform}/{Title}.png`
+- `A:/LaunchBox/Images/Clear Logo/{Platform}/{Title}.png`
+
+#### **2) Pydantic Schema Relaxation**
+**File:** `backend/routers/led.py`
+
+```python
+class GameSelectionPayload(BaseModel):
+    model_config = {"extra": "allow"}  # Prevents 400 errors from extra fields
+```
+
+#### **3) CORS Whitelist Expansion**
+**Files:** `server.js`, `app.py`
+
+Added `127.0.0.1` variants for both `:8787` and `:5173` ports.
+
+---
+
+### **LED Endpoint: STUB MODE**
+
+**Current State:** Returns `200 OK` immediately but does NOT control hardware.
+
+```javascript
+router.post('/blinky/game-selected', (req, res) => {
+  return res.json({ success: true, minimal: true })
+})
+```
+
+**Root Cause:** `node-hid` performs synchronous HID device enumeration on import, blocking the Node.js event loop.
+
+---
+
+### **🔄 Strategic Pivot: LEDBlinky.exe (Next Session)**
+
+Instead of debugging the Node.js HID driver, we will replace `aa-blinky` gem with subprocess calls to the external `LEDBlinky.exe`:
+
+```javascript
+// Future implementation
+import { spawn } from 'child_process';
+spawn('A:/LEDBlinky/LEDBlinky.exe', ['--profile', genre], {
+  detached: true, stdio: 'ignore'
+}).unref();
+```
+
+**Benefits:**
+- Native C++ drivers (no Node.js blocking)
+- Already installed and production-proven
+- Simple CLI interface
+
+---
+
+### **Files Modified**
+
+| File | Change |
+|------|--------|
+| `gateway/routes/launchboxProxy.js` | +Image UUID Resolver route |
+| `gateway/routes/led.js` | Stubbed game-selected handler |
+| `gateway/server.js` | +127.0.0.1 CORS origins |
+| `backend/app.py` | +127.0.0.1 CORS origins |
+| `backend/routers/led.py` | +`model_config = {"extra": "allow"}` |
+
+---
+
+### **New Files**
+
+| File | Purpose |
+|------|---------|
+| `gateway/gems/aa-blinky/` | LED-Wiz gem (stubbed pending LEDBlinky.exe pivot) |
+| `frontend/src/components/WiringWizard.jsx` | Wiring Wizard UI component |
+| `gateway/routes/cabinet.js` | Cabinet config + Wiring Wizard routes |
+| `gateway/services/wiring_wizard.js` | Wiring Wizard state machine |
+| `gateway/tests/verify_blinky.js` | Blinky verification tests |
+
+---
+
+### **Next Session Priorities**
+
+1. Implement LEDBlinky.exe subprocess caller
+2. Test image resolver with live game UUIDs
+3. Verify full game selection flow end-to-end
+
+---
+
+
+
+# **Session 2026-02-03 - Day 4: Hardware & Wiring Wizard (Golden Drive Standards)**
 
 ## **Status**
 
