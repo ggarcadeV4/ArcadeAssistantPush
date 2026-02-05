@@ -3,6 +3,17 @@ import { randomUUID } from 'crypto'
 
 import { getLedWebSocketStatus, closeLedConnection } from '../ws/led.js'
 
+// aa-blinky gem loader - DISABLED until LED-Wiz hardware is connected
+// The node-hid import blocks synchronously on discovery, which freezes the Gateway
+// TODO: Enable when running on cabinet with LED-Wiz hardware connected
+let _aaBlinky = null
+const getAaBlinky = async () => {
+  // TEMPORARY: Skip loading to prevent Gateway hang during development
+  // The aa-blinky gem requires LED-Wiz hardware to be connected
+  console.log('[LED] aa-blinky gem loading disabled (no hardware)')
+  return null
+}
+
 const router = express.Router()
 
 const LED_PANEL_ID = 'led-blinky'
@@ -312,6 +323,121 @@ router.post(
   enforceDeviceHeaders,
   requireScopeValue('state'),
   (req, res) => proxyToFastAPI(req, res)
+)
+
+// =============================================================================
+// UNIVERSAL PAYLOAD HANDLER - Blinky Game Events
+// =============================================================================
+// Accepts BOTH custom frontend format AND legacy plugin format:
+// - Frontend: { gameId, title, platform? }
+// - Plugin:   { rom, emulator }
+// Normalizes to backend expected format: { rom, emulator }
+
+/**
+ * Normalize payload from either frontend or plugin format
+ * @param {object} body - Request body
+ * @returns {object} Normalized payload { rom, emulator }
+ */
+const normalizeGamePayload = (body) => {
+  const {
+    // Frontend format
+    gameId, title, platform,
+    // Plugin format  
+    rom, emulator,
+    // Hybrid
+    id
+  } = body || {}
+
+  // Determine the game identifier (priority: rom > gameId > id)
+  const normalizedRom = rom || gameId || id || ''
+
+  // Determine platform/emulator (priority: emulator > platform > default)
+  const normalizedEmulator = emulator || platform || 'MAME'
+
+  if (!normalizedRom) {
+    return { error: "Either 'rom', 'gameId', or 'id' is required" }
+  }
+
+  return {
+    rom: normalizedRom,
+    emulator: normalizedEmulator,
+    // Pass through title for logging/display if provided
+    _title: title || normalizedRom,
+    _source: rom ? 'plugin' : 'frontend'
+  }
+}
+
+/**
+ * POST /blinky/game-selected
+ * PURE NUCLEAR BYPASS v2 - absolute minimum
+ */
+router.post('/blinky/game-selected', (req, res) => {
+  return res.json({ success: true, minimal: true })
+})
+
+/**
+ * POST /blinky/game-launch
+ * Universal receiver for game launch events (immediate)
+ */
+router.post(
+  '/blinky/game-launch',
+  enforceScopeHeader,
+  enforceDeviceHeaders,
+  async (req, res) => {
+    console.log('[LED Universal] /blinky/game-launch received:', JSON.stringify(req.body))
+    const normalized = normalizeGamePayload(req.body)
+
+    if (normalized.error) {
+      return res.status(400).json({
+        error: 'invalid_payload',
+        message: normalized.error,
+        accepted_formats: [
+          '{ rom: string, emulator?: string }',
+          '{ gameId: string, title?: string, platform?: string }'
+        ]
+      })
+    }
+
+    console.log(`[LED] Game launch (${normalized._source}): ${normalized.rom} [${normalized.emulator}]`)
+
+    try {
+      // Lazy-load aa-blinky gem
+      const aaBlinky = await getAaBlinky()
+      if (!aaBlinky) {
+        return res.json({
+          success: true,
+          rom: normalized.rom,
+          launched: true,
+          ledApplied: false,
+          message: 'LED gem not loaded'
+        })
+      }
+
+      // Apply genre profile for the launched game
+      const genre = normalized.emulator || 'Arcade'
+      const success = aaBlinky.applyGenreProfile(genre)
+
+      // For launch events, also set full brightness
+      aaBlinky.setAllBrightness(48)
+
+      console.log(`[LED] Game launched - genre '${genre}', full brightness`)
+
+      return res.json({
+        success: true,
+        rom: normalized.rom,
+        genre,
+        launched: true,
+        ledApplied: success
+      })
+    } catch (err) {
+      console.error('[LED] Game launch error:', err)
+      return res.json({
+        success: false,
+        rom: normalized.rom,
+        error: err.message
+      })
+    }
+  }
 )
 
 router.get('/ws', enforceDeviceHeaders, (req, res) => {

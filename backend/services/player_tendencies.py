@@ -14,6 +14,51 @@ from backend.constants.drive_root import get_drive_root
 
 logger = logging.getLogger(__name__)
 
+
+def _get_supabase_active_player(device_id: str = "CAB-0001") -> Optional[Dict[str, Any]]:
+    """
+    Check Supabase aa_lora_sessions for active_player field.
+    Part of Phase 5 Split-Brain Fix: Supabase is source of truth.
+    
+    Args:
+        device_id: Device identifier for session lookup
+        
+    Returns:
+        active_player dict or None if not found/error
+    """
+    try:
+        import os
+        import httpx
+        
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+        
+        if not supabase_url or not supabase_key:
+            return None
+        
+        # Query aa_lora_sessions for this device
+        response = httpx.get(
+            f"{supabase_url}/rest/v1/aa_lora_sessions",
+            params={"device_id": f"eq.{device_id}", "select": "active_player"},
+            headers={
+                "apikey": supabase_key,
+                "Authorization": f"Bearer {supabase_key}"
+            },
+            timeout=2.0
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0 and data[0].get("active_player"):
+                logger.info(f"Got active_player from Supabase: {data[0]['active_player']}")
+                return data[0]["active_player"]
+        
+        return None
+        
+    except Exception as e:
+        logger.debug(f"Supabase active_player check failed: {e}")
+        return None
+
 # Global session storage (in-memory for V1, could move to Redis for multi-instance)
 _active_session: Optional[Dict[str, Any]] = None
 SESSION_TIMEOUT_MINUTES = 30
@@ -248,6 +293,12 @@ def get_active_player() -> str:
     """Get the currently active player name."""
     global _active_session
     
+    # Phase 5 Split-Brain Fix: Check Supabase first
+    supabase_player = _get_supabase_active_player()
+    if supabase_player and supabase_player.get("player_name"):
+        return supabase_player["player_name"]
+    
+    # Fallback to local session
     if not _active_session:
         _active_session = _load_session_from_disk()
     if not _active_session:
@@ -321,6 +372,21 @@ def get_active_session() -> Optional[Dict[str, Any]]:
     """Get the current active session."""
     global _active_session
     
+    # Phase 5 Split-Brain Fix: Check Supabase first
+    supabase_player = _get_supabase_active_player()
+    if supabase_player and supabase_player.get("player_name"):
+        # Return a session-like dict from Supabase data
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        return {
+            "player_name": supabase_player["player_name"],
+            "player_id": supabase_player.get("player_id"),
+            "source": "supabase",
+            "started_at": now.isoformat(),
+            "expires_at": (now + timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()
+        }
+    
+    # Fallback to local session
     if not _active_session:
         _active_session = _load_session_from_disk()
     if not _active_session:

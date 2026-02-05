@@ -501,13 +501,19 @@ app = FastAPI(
 )
 
 # CORS - locked to localhost gateway
+# Include both localhost and 127.0.0.1 to prevent CORS identity crisis
 app.add_middleware(
     CORSMiddleware,
       allow_origins=[
         "https://localhost:8787",
         "http://localhost:8787",
         "http://localhost:5173",
-        "https://localhost:5173"
+        "https://localhost:5173",
+        # 127.0.0.1 variants (same machine, different hostname)
+        "https://127.0.0.1:8787",
+        "http://127.0.0.1:8787",
+        "http://127.0.0.1:5173",
+        "https://127.0.0.1:5173"
       ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],

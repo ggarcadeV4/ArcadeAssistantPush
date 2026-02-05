@@ -8,6 +8,7 @@ import ArcadePanelPreview from './led-blinky/ArcadePanelPreview'
 import './led-blinky/ArcadePanelPreview.css'
 import { useLEDLearnWizard } from '../hooks/useLEDLearnWizard'
 import { useLEDCalibrationWizard } from '../hooks/useLEDCalibrationWizard'
+import WiringWizard from './WiringWizard'
 
 import {
   testLED,
@@ -463,8 +464,78 @@ const LEDBlinkyPanel = () => {
   const [demoColorPickerControl, setDemoColorPickerControl] = useState(null) // { player, button }
   const [demoLastError, setDemoLastError] = useState(null)
 
-  // Cabinet configuration state
-  const [cabinetPlayerCount, setCabinetPlayerCount] = useState(4)
+  // Cabinet configuration state - fetched from backend
+  const [cabinetPlayerCount, setCabinetPlayerCount] = useState(2)  // Default to 2, fetched from /api/cabinet/config
+
+  // Phase 6.5: Shared Wiring Wizard state (hoisted for ArcadePanelPreview access)
+  const [wizardState, setWizardState] = useState({
+    isActive: false,
+    sessionId: null,
+    currentPort: null,
+    currentStep: 0,
+    totalPorts: 0,
+    mappedCount: 0,
+    buttonToPortMap: {}
+  })
+
+  // Fetch cabinet config on mount (Phase 6: Dynamic Player Count)
+  useEffect(() => {
+    const fetchCabinetConfig = async () => {
+      try {
+        const res = await fetch('/api/cabinet/config')
+        const data = await res.json()
+        if (data.success && data.config?.num_players) {
+          setCabinetPlayerCount(data.config.num_players)
+          console.log('[LEDBlinkyPanel] Cabinet config loaded, num_players:', data.config.num_players)
+        }
+        // Check if wizard is active from backend
+        if (data.led?.wizard_active) {
+          setWizardState(prev => ({ ...prev, isActive: true }))
+        }
+      } catch (e) {
+        console.warn('[LEDBlinkyPanel] Failed to fetch cabinet config:', e.message)
+      }
+    }
+    fetchCabinetConfig()
+  }, [])
+
+  // Phase 6.5: Hoisted handleMapButton - shared between WiringWizard and ArcadePanelPreview
+  const handleWizardMapButton = useCallback(async (buttonId) => {
+    if (!wizardState.isActive) {
+      console.log('[LEDBlinkyPanel] Wizard not active, skipping map')
+      return { success: false, error: 'Wizard not active' }
+    }
+
+    console.log('[LEDBlinkyPanel] Mapping button:', buttonId)
+
+    try {
+      const res = await fetch('/api/cabinet/wizard/map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buttonId })
+      })
+
+      const data = await res.json()
+
+      if (data.complete) {
+        showToast(`All ports mapped! ${buttonId} was last.`, 'success')
+        return { success: true, complete: true }
+      }
+
+      if (data.success) {
+        showToast(`Mapped ${buttonId} to port ${data.port || wizardState.currentPort}`, 'success')
+        // Trigger next blink
+        await fetch('/api/cabinet/wizard/blink', { method: 'POST' })
+      }
+
+      return data
+
+    } catch (e) {
+      console.error('[LEDBlinkyPanel] Map failed:', e)
+      showToast('Failed to map button: ' + e.message, 'error')
+      return { success: false, error: e.message }
+    }
+  }, [wizardState.isActive, wizardState.currentPort, showToast])
 
   // LED Learn Wizard state
   const [ledLearnWizardActive, setLedLearnWizardActive] = useState(false)
@@ -1360,12 +1431,6 @@ const LEDBlinkyPanel = () => {
   }, [])
 
   const toggleLED = useCallback((player, button) => {
-    // If calibration wizard is active, confirm this button as the mapping
-    if (calibrationWizard.isActive) {
-      calibrationWizard.confirmButton(player, button)
-      return
-    }
-
     // Normal toggle behavior
     const key = `${player}-${button}`
     const isActive = activeButtonsRef.current.has(key)
@@ -1379,7 +1444,7 @@ const LEDBlinkyPanel = () => {
     })
 
     wsManagerRef.current?.sendLEDCommand(player, button, newState)
-  }, [calibrationWizard])
+  }, [])
 
   const clearAllLEDs = useCallback(async () => {
     setCurrentActiveButtons(new Set())
@@ -2463,11 +2528,10 @@ const LEDBlinkyPanel = () => {
         }}>
           {[
             { key: 'profiles', icon: '🎮', label: 'Game Profiles' },
-            { key: 'animation', icon: '✨', label: 'Animation Designer' },
             { key: 'realtime', icon: '⚡', label: 'Real-time Control' },
             { key: 'layout', icon: '🔧', label: 'LED Layout' },
             { key: 'hardware', icon: '💻', label: 'Hardware' },
-            { key: 'shared', icon: '🔗', label: 'Shared', disabled: true }
+            { key: 'calibration', icon: '🎓', label: 'Calibration' }
           ].map((mode) => {
             const isDisabled = Boolean(mode.disabled)
             const isActive = activeMode === mode.key
@@ -2857,25 +2921,6 @@ const LEDBlinkyPanel = () => {
               <button onClick={randomPattern} style={{ padding: '12px', background: '#000000', border: '1px solid #7c3aed', color: '#d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
                 <span>🎲</span> Random
               </button>
-              <button
-                disabled
-                title="Wave pattern will be available once the backend LED runner lands."
-                style={{
-                  padding: '12px',
-                  background: '#000000',
-                  border: '1px solid #7c3aed',
-                  color: '#d1d5db',
-                  borderRadius: '8px',
-                  cursor: 'not-allowed',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  opacity: 0.5
-                }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                  <span>🌊 Wave</span>
-                  <ComingSoonTag />
-                </div>
-              </button>
             </div>
 
             {/* LED Calibration Wizard */}
@@ -3142,7 +3187,17 @@ const LEDBlinkyPanel = () => {
                     activeButtons={currentActiveButtons}
                     playerCount={cabinetPlayerCount}
                     showLabels={true}
-                    onButtonClick={toggleLED}
+                    onButtonClick={(player, button) => {
+                      // Phase 6.5: Unified wizard-aware click handler
+                      const buttonId = `p${player}.button${button}`
+                      if (wizardState.isActive && activeMode === 'calibration') {
+                        // Route to hoisted wizard mapping function
+                        handleWizardMapButton(buttonId)
+                      } else {
+                        // Normal LED toggle
+                        toggleLED(player, button)
+                      }
+                    }}
                   />
                 </div>
 
@@ -4404,7 +4459,120 @@ const LEDBlinkyPanel = () => {
               </div>
             )}
 
-            {/* Animation Designer Mode */}
+            {/* Calibration Mode - Wiring Wizard (Phase 6.5) */}
+            {activeMode === 'calibration' && (
+              <div style={{
+                padding: '24px',
+                overflowY: 'auto',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '24px'
+              }}>
+                {/* Left: Wiring Wizard Controls */}
+                <div>
+                  <WiringWizard
+                    wizardState={wizardState}
+                    onStateChange={setWizardState}
+                    numPlayers={cabinetPlayerCount}
+                    onMapButton={handleWizardMapButton}
+                    onComplete={() => {
+                      setWizardState(prev => ({ ...prev, isActive: false }))
+                      showToast('LED mappings saved successfully!', 'success')
+                    }}
+                    onCancel={() => {
+                      setWizardState(prev => ({ ...prev, isActive: false }))
+                      showToast('Calibration cancelled', 'info')
+                    }}
+                  />
+
+                  {/* Existing Channel Mappings Display */}
+                  <div style={{
+                    marginTop: '24px',
+                    padding: '20px',
+                    background: '#0f0f0f',
+                    borderRadius: '12px',
+                    border: '1px solid #7c3aed'
+                  }}>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: '700',
+                      color: '#9333ea',
+                      marginBottom: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span>📋</span>
+                      <span>Current LED Channel Mappings</span>
+                    </div>
+                    <p style={{ color: '#9ca3af', fontSize: '13px' }}>
+                      {Object.keys(channelState.channels || {}).length > 0
+                        ? `${Object.keys(channelState.channels).length} button(s) mapped`
+                        : 'No mappings configured. Use the wizard above to create mappings.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right: Arcade Panel Preview - MUST be visible in calibration mode */}
+                <div>
+                  <div style={{
+                    padding: '20px',
+                    background: wizardState.isActive ? '#1a0a2e' : '#0f0f0f',
+                    borderRadius: '12px',
+                    border: wizardState.isActive ? '2px solid #10b981' : '1px solid #9333ea',
+                    transition: 'all 0.3s ease'
+                  }}>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: '700',
+                      color: wizardState.isActive ? '#10b981' : '#9333ea',
+                      marginBottom: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span>{wizardState.isActive ? '👆' : '🎮'}</span>
+                      <span>{wizardState.isActive ? 'Click Button to Map' : 'Arcade Panel Preview'}</span>
+                    </div>
+
+                    {wizardState.isActive && (
+                      <div style={{
+                        marginBottom: '16px',
+                        padding: '12px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                        color: '#34d399',
+                        fontSize: '14px',
+                        fontWeight: '600'
+                      }}>
+                        👇 Click the button on this panel that matches the blinking LED
+                      </div>
+                    )}
+
+                    <ArcadePanelPreview
+                      mappingForm={mappingForm}
+                      activeButtons={currentActiveButtons}
+                      playerCount={cabinetPlayerCount}
+                      showLabels={true}
+                      onButtonClick={(player, button) => {
+                        // Phase 6.5: Unified wizard click handler
+                        const buttonId = `p${player}.button${button}`
+                        if (wizardState.isActive) {
+                          // Route to hoisted wizard mapping function
+                          handleWizardMapButton(buttonId)
+                        } else {
+                          // Normal LED toggle when wizard not active
+                          toggleLED(player, button)
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Animation Designer Mode - DEPRECATED (keeping for backwards compat) */}
             {activeMode === 'animation' && (
               <div style={{ padding: '24px', overflowY: 'auto' }}>
                 {/* Profile Selector */}

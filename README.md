@@ -1,3 +1,63 @@
+# **Session 2026-02-04 - Day 4: Hardware & Wiring Wizard (Golden Drive Standards)**
+
+## **Status**
+
+### **✅ Completed Today (Audited + Fixed)**
+
+#### **1) The Blinky Gem (`aa-blinky`)**
+
+- **Native HID path confirmed**: `gateway/gems/aa-blinky/ledwiz_driver.js` uses `node-hid` for LED-Wiz SBA/PBA writes.
+- **Single-port test primitive confirmed**: `gateway/gems/aa-blinky/index.js` exports `blinkSinglePort(portId)` (ON → delay → OFF) used by the Wiring Wizard.
+- **Single-writer safety confirmed**: gem initialization checks for Python LED engine contention via `isPythonLEDEngineActive()`.
+
+#### **2) Wiring Wizard Engine (Gateway)**
+
+- **API surface confirmed**: `gateway/routes/cabinet.js` exposes Wiring Wizard routes under:
+  - `POST /api/cabinet/wizard/start`
+  - `POST /api/cabinet/wizard/blink`
+  - `POST /api/cabinet/wizard/map`
+  - `POST /api/cabinet/wizard/skip`
+  - `POST /api/cabinet/wizard/finish`
+  - `POST /api/cabinet/wizard/cancel`
+  - `GET /api/cabinet/wizard/state`
+- **Canonical mapping target confirmed**: `gateway/services/wiring_wizard.js` writes to:
+  - `AA_DRIVE_ROOT/configs/ledblinky/led_channels.json`
+
+#### **3) Frontend Wiring Verification (React)**
+
+- **Signal trace completed**:
+  - Verified the click path from `ArcadePanelPreview` → `onButtonClick` → Wiring Wizard map endpoint.
+  - Verified frontend fetch paths/payloads match the gateway routes (`{ buttonId }`).
+- **Calibration UI integrity verified**:
+  - `LEDBlinkyPanel.jsx` renders `activeMode === 'calibration'` as a side-by-side layout with **both**:
+    - `<WiringWizard />` controls
+    - `<ArcadePanelPreview />` click target for mapping
+- **Zombie intercept removed (bug fix)**:
+  - Removed legacy `calibrationWizard.confirmButton(...)` short-circuit from `toggleLED()` in `frontend/src/components/LEDBlinkyPanel.jsx`.
+  - `toggleLED()` is now a pure LED toggle (no calibration logic).
+
+### **🟡 Still In Progress / Follow-ups**
+
+#### **A) Remote Config → `num_players` source-of-truth**
+
+- `LEDBlinkyPanel.jsx` now queries `GET /api/cabinet/config` to set `cabinetPlayerCount`, but `gateway/services/remote_config.js` currently fetches:
+  - `ai_model`, `fallback_models`, `feature_flags`
+- **TODO**: extend remote config to include `num_players` (or define a deterministic fallback strategy) so the cabinet layout is truly cloud-config driven.
+
+#### **B) UI Razor / Tab cleanup**
+
+- **Not completed today**: removing or fully deprecating older UI sections (e.g., legacy “Animation Designer” and other placeholder modes) is still pending.
+
+#### **C) Legacy calibration paths (avoid split-brain calibration UX)**
+
+- Wiring Wizard is now the primary click-to-map flow, but legacy calibration/learn wizard codepaths still exist in the panel.
+- **TODO**: explicitly consolidate the calibration story so only one mapping flow is presented to users.
+
+#### **D) Golden Drive path hygiene audit**
+
+- **TODO**: re-audit for any remaining hardcoded paths (outside Wiring Wizard + led channel mapping) and ensure all runtime file paths are manifest/AA_DRIVE_ROOT compliant.
+
+---
 
 # **Session 2026-02-03 - Phase 4: Sam Gem Pivot + Tournament Eyes Integration**
 

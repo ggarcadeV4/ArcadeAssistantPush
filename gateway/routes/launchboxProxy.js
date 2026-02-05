@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
@@ -137,6 +139,101 @@ router.post('/shaders/revert', async (req, res) => {
   } catch (error) {
     console.error('[Gateway] Shader revert failed:', error);
     res.status(500).json({ error: 'Failed to revert shader change' });
+  }
+});
+
+// =============================================================================
+// IMAGE UUID RESOLVER
+// =============================================================================
+// Resolves LaunchBox game UUIDs to actual image file paths
+// Frontend requests: /api/launchbox/image/{uuid}
+// Actual files: A:/LaunchBox/Images/{ImageType}/{Platform}/{Title}.png
+
+// (imports at top of file)
+
+const LAUNCHBOX_IMAGES_ROOT = 'A:/LaunchBox/Images';
+const IMAGE_TYPES = ['Box - Front', 'Screenshot - Game Title', 'Clear Logo', 'Fanart - Background'];
+
+/**
+ * GET /image/:uuid
+ * Resolves a game UUID to its box art image and serves it
+ */
+router.get('/image/:uuid', async (req, res) => {
+  const { uuid } = req.params;
+  console.log(`[Image Resolver] Looking up game: ${uuid}`);
+
+  try {
+    // Step 1: Query FastAPI for game metadata by UUID
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const gameResponse = await fetch(`${backendUrl}/api/launchbox/game/${uuid}`, {
+      headers: {
+        'x-scope': 'state',
+        'x-device-id': req.headers['x-device-id'] || 'unknown'
+      }
+    });
+
+    if (!gameResponse.ok) {
+      console.log(`[Image Resolver] Game not found: ${uuid}`);
+      return res.status(404).json({ error: 'game_not_found', uuid });
+    }
+
+    const game = await gameResponse.json();
+    const title = game.title || game.Title || game.name || '';
+    const platform = game.platform || game.Platform || 'MAME';
+
+    if (!title) {
+      console.log(`[Image Resolver] No title for game: ${uuid}`);
+      return res.status(404).json({ error: 'no_title', uuid });
+    }
+
+    console.log(`[Image Resolver] Game: ${title} [${platform}]`);
+
+    // Step 2: Sanitize title for filesystem (remove invalid chars)
+    const safeTitle = title.replace(/[<>:"/\\|?*]/g, '_').trim();
+
+    // Step 3: Search for image file across image types
+    for (const imageType of IMAGE_TYPES) {
+      const candidates = [
+        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}.png`),
+        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}.jpg`),
+        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}-01.png`),
+        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}-01.jpg`)
+      ];
+
+      for (const imagePath of candidates) {
+        if (fs.existsSync(imagePath)) {
+          console.log(`[Image Resolver] Found: ${imagePath}`);
+          return res.sendFile(imagePath);
+        }
+      }
+    }
+
+    // Step 4: Fallback - try platform root without image type folder
+    const fallbackPaths = [
+      path.join(LAUNCHBOX_IMAGES_ROOT, platform, `${safeTitle}.png`),
+      path.join(LAUNCHBOX_IMAGES_ROOT, platform, `${safeTitle}.jpg`)
+    ];
+
+    for (const imagePath of fallbackPaths) {
+      if (fs.existsSync(imagePath)) {
+        console.log(`[Image Resolver] Fallback found: ${imagePath}`);
+        return res.sendFile(imagePath);
+      }
+    }
+
+    // No image found
+    console.log(`[Image Resolver] No image for: ${safeTitle} [${platform}]`);
+    return res.status(404).json({
+      error: 'image_not_found',
+      uuid,
+      title: safeTitle,
+      platform,
+      searched: IMAGE_TYPES
+    });
+
+  } catch (err) {
+    console.error(`[Image Resolver] Error for ${uuid}:`, err);
+    return res.status(500).json({ error: 'resolver_error', message: err.message });
   }
 });
 

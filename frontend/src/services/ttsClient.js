@@ -13,12 +13,27 @@ let currentAudio = null
 let fallbackUtterance = null
 
 /**
+ * Signal speaking mode to backend (fire-and-forget, non-blocking)
+ * @param {boolean} enabled - true when speaking starts, false when done
+ */
+function signalSpeakingMode(enabled) {
+  fetch('/api/cabinet/lighting/speaking', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  }).catch(err => {
+    console.warn('[TTS] Speaking mode signal failed (non-fatal):', err)
+  })
+}
+
+/**
  * Stop any currently playing TTS audio
  * Uses try-catch to prevent any errors from bubbling up
  */
 export function stopSpeaking() {
   if (currentAudio) {
     console.log('[TTS] Stopping current audio playback')
+    signalSpeakingMode(false)
     try {
       // Store reference and clear immediately to prevent race conditions
       const audio = currentAudio
@@ -135,7 +150,7 @@ export async function speak(text, options = {}) {
 
     const audioUrl = URL.createObjectURL(audioBlob)
     console.log('[TTS] Created blob URL:', audioUrl)
-    
+
     const audio = new Audio(audioUrl)
     currentAudio = audio  // Track the audio so we can stop it
 
@@ -144,9 +159,16 @@ export async function speak(text, options = {}) {
 
     // Return a promise that resolves when audio playback COMPLETES
     return new Promise((resolve, reject) => {
+      // Signal speaking mode when audio starts playing
+      audio.onplaying = () => {
+        console.log('[TTS] Audio playing - signaling speaking mode ON')
+        signalSpeakingMode(true)
+      }
+
       // Clean up URL after playing
       audio.onended = () => {
         console.log('[TTS] Audio playback completed')
+        signalSpeakingMode(false)
         URL.revokeObjectURL(audioUrl)
         if (currentAudio === audio) {
           currentAudio = null
@@ -156,6 +178,7 @@ export async function speak(text, options = {}) {
 
       audio.onerror = (err) => {
         console.error('[TTS] Audio playback error:', err)
+        signalSpeakingMode(false)
         console.error('[TTS] Audio error details:', {
           code: audio.error?.code,
           message: audio.error?.message,
@@ -247,12 +270,21 @@ function speakWithBrowserVoice(text, { voice_profile } = {}) {
 
     return new Promise((resolve, reject) => {
       fallbackUtterance = utterance
+
+      utterance.onstart = () => {
+        console.log('[TTS] Browser speech started - signaling speaking mode ON')
+        signalSpeakingMode(true)
+      }
+
       utterance.onend = () => {
+        console.log('[TTS] Browser speech ended - signaling speaking mode OFF')
+        signalSpeakingMode(false)
         fallbackUtterance = null
         resolve()
       }
       utterance.onerror = (err) => {
         console.error('[TTS] Browser speech synthesis failed:', err)
+        signalSpeakingMode(false)
         fallbackUtterance = null
         reject(err.error || err)
       }

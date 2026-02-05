@@ -49,6 +49,7 @@ import scorekeeperBroadcastRoutes from './routes/scorekeeperBroadcast.js';
 import { setupScorekeeperWebSocket } from './ws/scorekeeper.js';
 import sessionBroadcastRoutes from './routes/sessionBroadcast.js';
 import { setupSessionWebSocket } from './ws/session.js';
+import cabinetRoutes from './routes/cabinet.js';
 
 async function createServer() {
   try {
@@ -94,11 +95,17 @@ async function createServer() {
     installNoLocalWritesGuard();
 
     // CORS - locked to localhost (dev allowlist includes Vite)
+    // Include both localhost and 127.0.0.1 to prevent CORS identity crisis
     const defaultOrigins = [
       'https://localhost:8787',
       'http://localhost:8787',
       'http://localhost:5173',
-      'https://localhost:5173'
+      'https://localhost:5173',
+      // 127.0.0.1 variants (same machine, different hostname)
+      'https://127.0.0.1:8787',
+      'http://127.0.0.1:8787',
+      'http://127.0.0.1:5173',
+      'https://127.0.0.1:5173'
     ]
     const flintEnv = [process.env.FLINT_CONSOLE_ORIGIN, process.env.FLINT_CONSOLE_ORIGINS]
       .filter(Boolean)
@@ -158,6 +165,18 @@ async function createServer() {
     app.use('/api/scores', localProxyRoutes);  // Score reset/backup API (proxied to FastAPI)
     app.use('/api', profileRoutes); // /api/profile/* and /api/consent/*
     app.use('/api/launchbox', launchboxProxyRoutes);  // Data proxy
+    app.use('/api/cabinet', cabinetRoutes);  // Cabinet config + Wiring Wizard (Phase 5.5)
+
+    // Serve LaunchBox images (for frontend image requests)
+    // Frontend requests: /api/launchbox/image/{uuid}
+    const launchboxImages = 'A:/LaunchBox/Images';
+    if (fs.existsSync(launchboxImages)) {
+      console.log('📷 Serving LaunchBox images at /api/launchbox/image from:', launchboxImages);
+      app.use('/api/launchbox/image', express.static(launchboxImages, {
+        maxAge: '1d',  // Cache for 24 hours (images rarely change)
+        immutable: true
+      }));
+    }
 
     // Serve frontend static files (AFTER API routes)
     const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');

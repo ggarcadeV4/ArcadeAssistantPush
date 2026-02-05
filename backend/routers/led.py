@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, model_validator
 import os, asyncio
 from ..services.supabase_client import send_telemetry as sb_send_telemetry
 
@@ -1930,9 +1930,35 @@ async def blinky_set_game(request: Request, game_name: str) -> Dict[str, Any]:
 from ..services.blinky_service import BlinkyProcessManager
 
 class GameSelectionPayload(BaseModel):
-    """Payload for game selection (debounced)."""
-    rom: str = Field(..., min_length=1, max_length=256)
+    """Payload for game selection (debounced).
+    
+    Accepts either LaunchBox plugin format OR custom frontend format:
+    - Plugin: { rom, emulator }
+    - Custom: { gameId, title, emulator? }
+    
+    Extra fields are allowed to prevent 400 errors from unexpected data.
+    """
+    # Allow extra fields to prevent validation failures
+    model_config = {"extra": "allow"}
+    
+    # Primary fields (from plugin)
+    rom: Optional[str] = Field(default=None, max_length=256)
     emulator: str = Field(default="MAME", max_length=64)
+    
+    # Alternative fields (from custom frontend)
+    gameId: Optional[str] = Field(default=None, max_length=256)
+    title: Optional[str] = Field(default=None, max_length=256)
+
+    @model_validator(mode='after')
+    def require_game_identifier(self):
+        """Ensure we have at least one game identifier."""
+        if not self.rom and not self.gameId:
+            raise ValueError("Either 'rom' or 'gameId' is required")
+        return self
+
+    def get_rom(self) -> str:
+        """Return rom, falling back to gameId if rom not set."""
+        return self.rom or self.gameId or ""
 
 
 class AnimationPayload(BaseModel):
@@ -1974,8 +2000,9 @@ async def blinky_game_selected(request: Request, payload: GameSelectionPayload) 
     """
     require_scope(request, "config")
     manager = BlinkyProcessManager.get_instance()
-    result = await manager.game_selected(payload.rom, payload.emulator)
-    logger.debug(f"[Blinky] Game selected: {payload.rom} -> debouncing")
+    rom = payload.get_rom()
+    result = await manager.game_selected(rom, payload.emulator)
+    logger.debug(f"[Blinky] Game selected: {rom} -> debouncing")
     return result
 
 
@@ -1989,8 +2016,9 @@ async def blinky_game_launch(request: Request, payload: GameSelectionPayload) ->
     """
     require_scope(request, "config")
     manager = BlinkyProcessManager.get_instance()
-    result = await manager.game_launch(payload.rom, payload.emulator)
-    logger.info(f"[Blinky] Game launch: {payload.rom} ({payload.emulator}) -> {result.get('success')}")
+    rom = payload.get_rom()
+    result = await manager.game_launch(rom, payload.emulator)
+    logger.info(f"[Blinky] Game launch: {rom} ({payload.emulator}) -> {result.get('success')}")
     return result
 
 
