@@ -58,36 +58,64 @@ LEDWIZ_PID_MAX = 0x00FF  # Unit 16
 PWM_MIN = 0
 PWM_MAX = 48  # Maximum steady brightness - DO NOT EXCEED
 
-# MAX_BRIGHTNESS_MODE: When True, any non-zero brightness value becomes 48 (max)
+# =============================================================================
+# COLOR SCALING - Balance LED intensity across channels
+# =============================================================================
+# Green LEDs appear dimmer than Red/Blue on camera.
+# Scale Red and Blue DOWN to match the weaker Green channel.
+
+SCALE_RED = 0.70    # ~34/48 - Reduce red intensity
+SCALE_GREEN = 1.0   # Full 48/48 - Green is the baseline
+SCALE_BLUE = 0.85   # ~40/48 - Slightly reduce blue
+
+# MAX_BRIGHTNESS_MODE: When True, any non-zero brightness value becomes max (scaled)
 # This makes LEDs "pop" on camera and ensures maximum visual impact
 MAX_BRIGHTNESS_MODE = True
 
 
-def normalize_brightness(value: int) -> int:
+def normalize_brightness(value: int, color: str = 'green') -> int:
     """
-    Normalize a 0-255 brightness value to the LED-Wiz 0-48 PWM range.
+    Normalize a 0-255 brightness value to the LED-Wiz 0-48 PWM range,
+    with optional color scaling for balanced intensity.
     
     LED-Wiz Hardware Facts:
     - 0 = LED Off
     - 1-48 = Steady brightness levels
     - 49+ = Strobe/Pulse patterns (causes flickering/dimming!)
     
+    Color Scaling:
+    - Red: 70% (scaled down to match green)
+    - Green: 100% (baseline - appears dimmest)
+    - Blue: 85% (slightly scaled down)
+    
     Args:
         value: Brightness 0-255 (standard RGB range) or 0-48 direct
+        color: 'red', 'green', or 'blue' for scaling
     
     Returns:
-        PWM value 0-48 safe for LED-Wiz
+        PWM value 0-48 safe for LED-Wiz, scaled by color
     """
     if value <= 0:
         return PWM_MIN
+    
+    # Calculate base PWM value
     if value <= PWM_MAX:
-        # Already in valid range
-        return int(value)
-    if value <= 255:
-        # Normalize 0-255 to 0-48
-        return int((value / 255) * PWM_MAX)
-    # Clamp anything above 255
-    return PWM_MAX
+        base_pwm = float(value)
+    elif value <= 255:
+        base_pwm = (value / 255) * PWM_MAX
+    else:
+        base_pwm = float(PWM_MAX)
+    
+    # Apply color scaling
+    color_lower = color.lower() if color else 'green'
+    if color_lower == 'red':
+        scaled_pwm = base_pwm * SCALE_RED
+    elif color_lower == 'blue':
+        scaled_pwm = base_pwm * SCALE_BLUE
+    else:  # green or default
+        scaled_pwm = base_pwm * SCALE_GREEN
+    
+    return int(min(scaled_pwm, PWM_MAX))
 
 # =============================================================================
 # Windows API Structures
