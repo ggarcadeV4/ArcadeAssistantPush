@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from typing import List
 
-MAX_BRIGHTNESS = 48
+MAX_BRIGHTNESS = 255
 
 
 def color_to_brightness(color: str, max_value: int = MAX_BRIGHTNESS) -> int:

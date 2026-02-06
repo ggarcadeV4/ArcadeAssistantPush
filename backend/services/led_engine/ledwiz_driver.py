@@ -148,9 +148,9 @@ class LEDWizDriver:
             for chunk_idx in range(4):
                 start = chunk_idx * 8
                 chunk = frame[start:start + 8]
-                # Clamp to LED-Wiz brightness range (1-48, 0 = off)
+                # Downsample 0-255 to LED-Wiz brightness range (1-48, 0 = off)
                 # Note: 0 means "off/default", 1-48 is PWM brightness
-                clamped = [max(0, min(48, int(v))) for v in chunk]
+                clamped = [max(0, min(48, int(v * 48.0 / 255.0))) for v in chunk]
                 # PBA packet: marker + 8 brightness values
                 marker = 0x40 + chunk_idx  # 0x40, 0x41, 0x42, 0x43
                 pba_packet = [0x00, marker] + clamped

@@ -234,7 +234,7 @@ class LEDWizDLL:
         This is the main method used by the LED engine.
         
         Args:
-            frame: Array of 32 brightness values (0-48)
+            frame: Array of 32 brightness values (0-255)
         """
         # Build SBA bitmasks (which outputs are ON)
         bank0 = bank1 = bank2 = bank3 = 0
@@ -252,11 +252,13 @@ class LEDWizDLL:
         # Turn on the appropriate outputs
         self.sba(bank0, bank1, bank2, bank3, 2)
         
-        # Set brightness levels (convert 0-48 to 1-49 for non-zero values)
+        # Set brightness levels (convert 0-255 to 1-49 for non-zero values)
         brightness_arr = []
         for v in frame[:32]:
             if v > 0:
-                brightness_arr.append(min(49, max(1, v)))
+                # Downsample 0-255 to 1-49
+                pwm_val = int(v * 49.0 / 255.0)
+                brightness_arr.append(min(49, max(1, pwm_val)))
             else:
                 brightness_arr.append(0)
         brightness_arr.extend([0] * (self.CHANNEL_COUNT - len(brightness_arr)))

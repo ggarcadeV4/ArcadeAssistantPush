@@ -200,7 +200,7 @@ class LEDEngine:
 
             # Apply Voice Breathing to P1/P2 Start buttons (Ports 1 & 2)
             if self._voice_amplitude > 0 and len(frames[device.device_id]) >= 2:
-                v_bright = int(48 * self._voice_amplitude)
+                v_bright = int(255 * self._voice_amplitude)
                 frames[device.device_id][0] = max(frames[device.device_id][0], v_bright)
                 frames[device.device_id][1] = max(frames[device.device_id][1], v_bright)
 
@@ -211,10 +211,10 @@ class LEDEngine:
             if self._active_pattern.duration_ms and elapsed_ms >= self._active_pattern.duration_ms:
                 self._active_pattern = None
 
-        # Apply global brightness scaling
+        # Apply global brightness scaling (remain in 0-255 space for drivers)
         scale = self._global_brightness / 100.0
         for device_id, frame in frames.items():
-            frames[device_id] = [max(0, min(48, int(value * scale))) for value in frame]
+            frames[device_id] = [max(0, min(255, int(value * scale))) for value in frame]
         return frames
 
     async def _flush_frames(self, frames: Dict[str, List[int]]) -> None:

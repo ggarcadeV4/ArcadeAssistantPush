@@ -7,6 +7,31 @@ from typing import List, Sequence
 
 logger = logging.getLogger("led_engine.shim")
 
+# =============================================================================
+# CINEMA CALIBRATION LOGIC (The Intelligence Layer)
+# =============================================================================
+SCALE_RED = 0.65
+SCALE_GREEN = 1.0
+SCALE_BLUE = 0.75
+GAMMA = 2.5
+PORT_TRIM = {}  # Per-port calibration (e.g., {port_id: multiplier})
+
+# Pre-calculated Gamma 2.5 Table (Input 0-255 -> Output PWM 0-48)
+GAMMA_TABLE = [
+    max(0, min(48, int(pow(i / 255.0, GAMMA) * 48.0)))
+    for i in range(256)
+]
+
+def normalize_brightness(r, g, b):
+    """
+    Applies color scaling and gamma correction to an RGB triplet.
+    Returns a triplet of perfected PWM values (0-48).
+    """
+    r_val = GAMMA_TABLE[max(0, min(255, int(r * SCALE_RED)))]
+    g_val = GAMMA_TABLE[max(0, min(255, int(g * SCALE_GREEN)))]
+    b_val = GAMMA_TABLE[max(0, min(255, int(b * SCALE_BLUE)))]
+    return (r_val, g_val, b_val)
+
 class LEDWizShimClient:
     """Python client for the C++ LED-Wiz Shim Daemon."""
 
@@ -90,7 +115,7 @@ class LEDWizShimClient:
         """Sends SBA and PBA commands for a full frame."""
         # board_id is 1-based
 
-        # 1. SBA Command
+        # 1. SBA Command (ON/OFF state)
         bank0 = bank1 = bank2 = bank3 = 0
         for i, val in enumerate(frame[:32]):
             if val > 0:
@@ -102,14 +127,28 @@ class LEDWizShimClient:
         sba_cmd = f"SBA {board_id} {bank0} {bank1} {bank2} {bank3} 2"
         self.send_command(sba_cmd)
 
-        # 2. PBA Commands (4 chunks)
+        # 2. PBA Commands (4 chunks of 8 ports)
         for chunk_idx in range(4):
             start = chunk_idx * 8
             chunk = frame[start:start+8]
-            clamped = [max(0, min(48, int(v))) for v in chunk]
-            while len(clamped) < 8: clamped.append(0)
 
-            pba_vals = " ".join(map(str, clamped))
+            # Apply Cinema Calibration (Port Trim + Gamma 2.5 Table)
+            perfected = []
+            for i, v in enumerate(chunk):
+                # Calculate global port ID (1-based)
+                port_id = (board_id - 1) * 32 + (chunk_idx * 8) + i + 1
+
+                # 1. Apply per-port trim
+                trimmed_val = int(v * PORT_TRIM.get(port_id, 1.0))
+
+                # 2. Apply Gamma Correction (0-255 -> 0-48 PWM)
+                perfected_val = GAMMA_TABLE[max(0, min(255, trimmed_val))]
+                perfected.append(perfected_val)
+
+            while len(perfected) < 8:
+                perfected.append(0)
+
+            pba_vals = " ".join(map(str, perfected))
             pba_cmd = f"PBA_CHUNK {board_id} {chunk_idx} {pba_vals}"
             self.send_command(pba_cmd)
 
