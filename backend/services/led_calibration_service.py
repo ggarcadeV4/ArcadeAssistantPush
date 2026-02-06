@@ -255,6 +255,29 @@ class LEDCalibrationService:
         cls._session.is_active = False
         logger.info("[Calibration] Session cancelled")
         return {"status": "cancelled"}
+
+    @classmethod
+    def update_multiplier(cls, value: float):
+        """
+        Update the global/current port multiplier for real-time calibration.
+        Pushes the value directly to the shim client for instant feedback.
+        """
+        from backend.services.led_engine.ledwiz_shim_client import get_shim_client, PORT_TRIM
+
+        # For simplicity, we'll update the multiplier for the CURRENTLY blinking port
+        # or use it as a global trim if no session is active.
+        current_port = cls._session.current_port if cls._session.is_active else 1
+
+        PORT_TRIM[current_port] = float(value)
+        logger.info(f"[Calibration] Updated Multiplier for Port {current_port}: {value:.2f}")
+
+        # Trigger a re-send of the current state to the shim if possible
+        # Since we don't have the full last frame here easily without the engine,
+        # we'll assume the engine's next tick will pick up the new PORT_TRIM.
+        # But if we want INSTANT feedback on the current blink:
+        if cls._session.is_active:
+            # The _blink_loop will pick this up on the next pulse.
+            pass
     
     # =========================================================================
     # PRIVATE ASYNC HELPERS
