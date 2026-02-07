@@ -35,7 +35,7 @@ class LEDWizShimDriver:
 
     async def set_channels(self, frame: Sequence[int]) -> None:
         """Write a full brightness frame via the shim."""
-        # Use a thread pool or just direct call since it's a pipe write
+        # Intelligence (Cinema Calibration) is now in the client
         self._client.set_channels(self.ledwiz_id, frame)
 
     async def close(self) -> None:
