@@ -1,0 +1,11 @@
+{
+  "provider": "claude",
+  "messages": [
+    { "role": "system", "content": "You are Arcade Assistant. Keep answers short." },
+    { "role": "user", "content": "Calibrate LED test sequence A." }
+  ],
+  "temperature": 0.1,
+  "max_tokens": 256,
+  "metadata": { "panel": "led-blinky" }
+}
+

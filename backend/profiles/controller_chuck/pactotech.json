@@ -1,0 +1,223 @@
+{
+  "vendor": "PaCTo Tech",
+  "description": "XInput arcade encoder boards with advanced arcade-specific features",
+  "primary_mode": "XInput (Xbox 360 controller emulation)",
+  
+  "models": {
+    "4000T": {
+      "name": "4000T - 4 Player Control Interface",
+      "price": "$79.00",
+      "inputs": 56,
+      "players": 4,
+      "layout": "4 joysticks + 8 buttons per player + coin/start",
+      "emulation": "4 Xbox 360 controllers (XInput)",
+      "connection": "Spring terminal"
+    },
+    "2000T": {
+      "name": "2000T - 2 Player Control Interface",
+      "price": "$59.00",
+      "inputs": 32,
+      "players": 2,
+      "layout": "2 joysticks + 8 buttons per player + coin/start",
+      "emulation": "2 Xbox 360 controllers (XInput)",
+      "connection": "Spring terminal"
+    },
+    "2000H": {
+      "name": "2000H - 2 Player (XInput only)",
+      "description": "Simplified version, XInput only, no mode switching"
+    },
+    "1000T": {
+      "name": "1000T - 1 Player Twinstick",
+      "price": "$59.00",
+      "players": 1,
+      "description": "Twin-stick shooters with dual joystick support"
+    },
+    "ATLAS1": {
+      "name": "ATLAS1 - Trackball and Keyboard Encoder",
+      "price": "$39.00",
+      "emulation": "Keyboard",
+      "features": ["trackball_interface", "button_inputs"]
+    },
+    "ATLAS0": {
+      "name": "ATLAS0 - Trackball Encoder",
+      "description": "Trackball-only interface"
+    }
+  },
+
+  "arcade_features": {
+    "turbo_mode": {
+      "description": "Pulses buttons 15 times per second",
+      "use_case": "Games like 1941 without autofire"
+    },
+    "twinstick_mode": {
+      "description": "Converts 4 joysticks into left/right sticks for 2 players",
+      "use_case": "Twin-stick shooters"
+    },
+    "six_button_remap": {
+      "description": "On-the-fly remapping from 8-button to 6-button layout",
+      "use_case": "MAME/Hyperspin/CoinOps classic arcade games"
+    },
+    "dedicated_exit": {
+      "description": "Combines Start+Back for quick emulator exit"
+    },
+    "interlock_mode": {
+      "description": "Prevents accidental Start+Back (requires 2-second hold)"
+    }
+  },
+
+  "joystick_modes": {
+    "ANA-F": {
+      "name": "Analog Fast",
+      "description": "Fast analog stick response"
+    },
+    "ANA-S": {
+      "name": "Analog Slow",
+      "description": "Slower analog stick response for precision"
+    },
+    "DPAD": {
+      "name": "Digital D-pad",
+      "description": "4-way/8-way digital mode"
+    }
+  },
+
+  "technical_specs": {
+    "latency": "1ms polling rate",
+    "comparison": "vs 8ms for Xbox 360 controller",
+    "player_order_persistence": true,
+    "platforms": ["Windows", "Linux", "Raspberry Pi"],
+    "not_compatible": ["Xbox console"]
+  },
+
+  "mode_switching": {
+    "methods": {
+      "button_shortcuts": "Hold start/select combinations for 8 seconds",
+      "mode_input_wiring": "Dedicated mode pins wired to buttons/switches",
+      "permanent_jumpers": "Mode pins jumpered for fixed configuration"
+    },
+    "available_modes": ["XInput", "Keyboard", "Turbo", "Twinstick", "6-Button"]
+  },
+
+  "accessories": {
+    "specvision": {
+      "name": "SpecVision",
+      "price": "$29.00",
+      "description": "OLED display showing board configuration and mode status"
+    },
+    "usb_cable_6ft": "$8.00",
+    "pcb_mounting_feet": "$4.00",
+    "wiring_kit_2player_happ": "$24.99"
+  },
+
+  "resources": {
+    "user_manuals": "PDF available for all models",
+    "firmware_updates": true,
+    "3d_models": true,
+    "video_tutorials": [
+      "Spring terminals usage",
+      "Stick modes (ANA F, ANA S, DPAD)",
+      "Firmware update process",
+      "DongleMaster gamepad switching"
+    ]
+  },
+
+  "references": {
+    "main_site": "https://pactotech.com",
+    "resources": "https://pactotech.com/en-us/blogs/resources/pacto-tech-user-manuals",
+    "products": "https://pactotech.com/en-us/collections/products"
+  },
+
+  "detailed_mode_switching": {
+    "default_mode": "2P mode (3124 player positions) with Fast Analog (ANA-F)",
+    "default_output": "XInput (Xbox 360 controller emulation)",
+    "method_button_combo": {
+      "duration": "8 seconds",
+      "persistence": "Resets on power cycle"
+    },
+    "method_jumpers": {
+      "location": "OPTIONS section on right side of board",
+      "persistence": "Permanent until jumper removed"
+    }
+  },
+
+  "mode_pins": {
+    "2P": "2 Player mode (3124 positions) - DEFAULT",
+    "4P": "4 Player mode (1234 positions)",
+    "TWINST": "Twinstick mode",
+    "DPAD": "Digital D-PAD mode - DEFAULT",
+    "ANA-F": "Analog Fast - DEFAULT",
+    "ANA-S": "Analog Slow",
+    "TURBO": "Turbo/Rapid-fire (15 presses/sec)",
+    "ITURBO": "Turbo variant",
+    "8TO6": "8-to-6 button layout modifier",
+    "I8TO6": "8-to-6 variant",
+    "EXIT": "Exit function",
+    "DISC": "Disconnect/Keyboard mode",
+    "INT": "Interlock Start/Back (2-sec hold required)",
+    "GND": "Ground (multiple pins)"
+  },
+
+  "player_modes": {
+    "2P_mode": {
+      "player_order": "P3, P1, P2, P4 (3124)",
+      "use_case": "2-player games with middle positions"
+    },
+    "4P_mode": {
+      "player_order": "P1, P2, P3, P4 (1234)",
+      "use_case": "4-player games left-to-right"
+    }
+  },
+
+  "twinstick_sub_modes": {
+    "TS_2P": {
+      "name": "1122 mode",
+      "description": "2 players, each with 2 joysticks"
+    },
+    "TS_1P": {
+      "name": "X11X mode",
+      "description": "1 player with 2 joysticks (mid positions)"
+    }
+  },
+
+  "8to6_button_remap": {
+    "original": "X Y RB LB / A B RT LT",
+    "normal_8to6": "X Y LB LT / A B RB RT",
+    "right_shifted": "LT X Y LB / RT A B RB",
+    "right_shift_activation": "Hold LT or LB while activating"
+  },
+
+  "keyboard_mode_mappings": {
+    "description": "Key mappings when in DIS (Disconnect/Keyboard) mode",
+    "player1_mid_left": {
+      "up": "Up Arrow", "down": "Down Arrow", "left": "Left Arrow", "right": "Right Arrow",
+      "start": "1", "back": "5", "guide": "ESC",
+      "A": "L-Ctrl", "B": "L-Alt", "X": "Space", "Y": "L-Shift",
+      "LB": "Z", "RB": "X", "LT": "C", "RT": "V"
+    },
+    "player2_mid_right": {
+      "up": "R", "down": "F", "left": "D", "right": "G",
+      "start": "2", "back": "6", "guide": "ESC",
+      "A": "A", "B": "S", "X": "Q", "Y": "W",
+      "LB": "E", "RB": "F13", "LT": "F14", "RT": "F15"
+    },
+    "player3_far_left": {
+      "up": "I", "down": "K", "left": "J", "right": "L",
+      "start": "3", "back": "7", "guide": "ESC",
+      "A": "R-Ctrl", "B": "R-Shift", "X": "Enter", "Y": "O",
+      "LB": "F16", "RB": "F17", "LT": "F18", "RT": "F19"
+    },
+    "player4_far_right": {
+      "up": "Num 8", "down": "Num 2", "left": "Num 4", "right": "Num 6",
+      "start": "4", "back": "8", "guide": "ESC",
+      "A": "Num 0", "B": "Num .", "X": "Num Enter", "Y": "M",
+      "LB": "F20", "RB": "F21", "LT": "F22", "RT": "F23"
+    }
+  },
+
+  "controller_chuck_recommendations": {
+    "assume_xinput": true,
+    "use_xinput_config": "mame_xinput_8button_layout.xml",
+    "no_config_software": true,
+    "mode_persistence_note": "Button holds reset on power cycle, jumpers are permanent",
+    "keyboard_fallback": "DIS mode enables keyboard encoder with specific mappings"
+  }
+}

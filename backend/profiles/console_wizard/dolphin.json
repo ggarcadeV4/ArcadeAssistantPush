@@ -1,0 +1,101 @@
+{
+  "emulator_type": "dolphin",
+  "display_name": "Dolphin",
+  "supported_players": 4,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6",
+    "p1.start", "p1.coin",
+    "p1.lstick_up", "p1.lstick_down", "p1.lstick_left", "p1.lstick_right",
+    "p1.cstick_up", "p1.cstick_down", "p1.cstick_left", "p1.cstick_right",
+    "p2.up", "p2.down", "p2.left", "p2.right",
+    "p2.button1", "p2.button2", "p2.button3", "p2.button4",
+    "p2.button5", "p2.button6",
+    "p2.start", "p2.coin",
+    "p2.lstick_up", "p2.lstick_down", "p2.lstick_left", "p2.lstick_right",
+    "p2.cstick_up", "p2.cstick_down", "p2.cstick_left", "p2.cstick_right"
+  ],
+  "config_files": [
+    "Config/Dolphin.ini",
+    "Config/GCPadNew.ini",
+    "Config/WiimoteNew.ini",
+    "Config/Hotkeys.ini"
+  ],
+  "config_locations": {
+    "windows": "Documents\\Dolphin Emulator\\Config\\",
+    "linux": "~/.config/dolphin-emu/ or ~/.local/share/dolphin-emu/",
+    "mac": "~/Library/Application Support/Dolphin/Config/"
+  },
+  "profile_locations": {
+    "gcpad": "Config/Profiles/GCPad/",
+    "wiimote": "Config/Profiles/Wiimote/"
+  },
+  "config_format": "ini",
+  "device_formats": {
+    "xinput": "XInput/0/Gamepad",
+    "evdev": "evdev/0/Device Name",
+    "dinput": "DInput/0/Device Name",
+    "sdl": "SDL/0/Device Name"
+  },
+  "notes": "Backticks required for inputs with spaces. Pipe operator for multiple motors. Per-game profiles via GameINI.",
+  "button_mapping": {
+    "button1": "Buttons/A",
+    "button2": "Buttons/B",
+    "button3": "Buttons/X",
+    "button4": "Buttons/Y",
+    "button5": "Triggers/L",
+    "button6": "Triggers/R"
+  },
+  "special_controls": {
+    "start": "Buttons/Start",
+    "coin": "Buttons/Z",
+    "up": "D-Pad/Up",
+    "down": "D-Pad/Down",
+    "left": "D-Pad/Left",
+    "right": "D-Pad/Right"
+  },
+  "analog_mapping": {
+    "lstick_up": "Main Stick/Up",
+    "lstick_down": "Main Stick/Down",
+    "lstick_left": "Main Stick/Left",
+    "lstick_right": "Main Stick/Right",
+    "cstick_up": "C-Stick/Up",
+    "cstick_down": "C-Stick/Down",
+    "cstick_left": "C-Stick/Left",
+    "cstick_right": "C-Stick/Right"
+  },
+  "axis_syntax": {
+    "description": "Direction format varies by device type",
+    "xinput": "Left Y+, Left Y-, Left X-, Left X+, Right Y+, etc.",
+    "evdev": "Axis 1-, Axis 1+, Axis 0-, Axis 0+",
+    "dpad": "Pad N (North), Pad S (South), Pad E (East), Pad W (West)",
+    "note": "Up = Negative Y axis, Down = Positive Y axis"
+  },
+  "modifier_settings": {
+    "main_stick_modifier": "Main Stick/Modifier",
+    "main_stick_range": "Main Stick/Modifier/Range",
+    "cstick_modifier": "C-Stick/Modifier",
+    "cstick_range": "C-Stick/Modifier/Range",
+    "default_range": "50.000000000000000"
+  },
+  "rumble_config": {
+    "syntax": "`Motor L` | `Motor R`",
+    "range": "Rumble/Motor/Range (0-400+)"
+  },
+  "per_game_config": {
+    "method": "Right-click game > Properties > Editor tab",
+    "format": "[Controls]\nPadProfile1 = GCPad/ProfileName"
+  },
+  "wiimote_extensions": ["Nunchuk", "Classic Controller", "Guitar", "Drums", "Turntable", "MotionPlus"],
+  "common_issues": {
+    "axis_off_center": "Check for +- prefix on axis mappings (shouldn't exist)",
+    "profile_loading": "Profiles saved in Config/Profiles/GCPad/ or Wiimote/",
+    "device_detection": "May need to refresh controller list after connection"
+  },
+  "references": {
+    "official_guide": "https://dolphin-emu.org/docs/guides/configuring-controllers/",
+    "gameini_wiki": "https://wiki.dolphin-emu.org/index.php?title=GameINI_(Controller_Settings)",
+    "input_syntax": "https://wiki.dolphin-emu.org/index.php?title=Input_Syntax"
+  }
+}

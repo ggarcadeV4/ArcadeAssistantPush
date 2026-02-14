@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: x-device-id,x-scope,x-panel,x-corr-id,x-tts-quota-warn
+Content-Type: text/html; charset=utf-8
+Content-Length: 123
+ETag: W/"7b-HTYwug2je9eaSjhj9BzRbsrMqlY"
+Date: Tue, 11 Nov 2025 02:52:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"status":"applied","profile":"calibrated-default","dry_run":false,"message":"Legacy light gun profile apply acknowledged"}

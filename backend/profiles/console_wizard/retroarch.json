@@ -1,0 +1,37 @@
+{
+  "emulator_type": "retroarch",
+  "display_name": "RetroArch",
+  "supported_players": 2,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6", "p1.button7", "p1.button8",
+    "p1.start", "p1.coin",
+    "p2.up", "p2.down", "p2.left", "p2.right",
+    "p2.button1", "p2.button2", "p2.button3", "p2.button4",
+    "p2.button5", "p2.button6", "p2.button7", "p2.button8",
+    "p2.start", "p2.coin"
+  ],
+  "config_files": [
+    "config/retroarch.cfg"
+  ],
+  "config_format": "cfg",
+  "button_mapping": {
+    "button1": "b_btn",
+    "button2": "a_btn",
+    "button3": "y_btn",
+    "button4": "x_btn",
+    "button5": "l_btn",
+    "button6": "r_btn",
+    "button7": "l2_btn",
+    "button8": "r2_btn"
+  },
+  "special_controls": {
+    "start": "start_btn",
+    "coin": "select_btn",
+    "up": "up_btn",
+    "down": "down_btn",
+    "left": "left_btn",
+    "right": "right_btn"
+  }
+}

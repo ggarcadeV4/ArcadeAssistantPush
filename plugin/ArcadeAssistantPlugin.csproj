@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <!-- LaunchBox 13.24 uses .NET 9 -->
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU</Platforms>
+    <AssemblyName>ArcadeAssistantPlugin</AssemblyName>
+    <!-- Put DLL directly under bin/Release so deploy command matches -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+
+  <!-- Only compile our new plugin sources under src/** -->
+  <ItemGroup>
+    <Compile Remove="**\*.cs" />
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Unbroken.LaunchBox.Plugins">
+      <HintPath>A:\LaunchBox\Core\Unbroken.LaunchBox.Plugins.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

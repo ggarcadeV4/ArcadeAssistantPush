@@ -1,0 +1,18 @@
+{
+  "_comment": "Custom light gun models - add your gun's VID:PID here if not auto-detected",
+  "_format": "VID:PID in hex format (e.g., '0x1A86:0x5750')",
+  "_instructions": "Find your gun's VID/PID in Windows Device Manager > Properties > Details > Hardware IDs",
+  
+  "0x1A86:0x5750": {
+    "name": "Retro Shooter RS3 Reaper",
+    "features": {"ir": true, "recoil": true, "rumble": false, "pedal": true},
+    "vendor": "Retro Shooter",
+    "notes": "Premium light gun with 24V solenoid recoil. 4IR sensor system."
+  },
+  "0x1A86:0x5751": {
+    "name": "Retro Shooter RS3 Reaper (Gun 2)",
+    "features": {"ir": true, "recoil": true, "rumble": false, "pedal": true},
+    "vendor": "Retro Shooter",
+    "notes": "Premium light gun - second player gun"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "profile_id": "ps4_dualshock",
+  "name": "PS4 DualShock 4",
+  "manufacturer": "Sony",
+  "type": "console_gamepad",
+  "usb_identifiers": [
+    {"vid": "054c", "pid": "05c4", "description": "DualShock 4 (CUH-ZCT1)"},
+    {"vid": "054c", "pid": "09cc", "description": "DualShock 4 (CUH-ZCT2)"},
+    {"vid": "054c", "pid": "0ba0", "description": "DualShock 4 USB Wireless Adapter"}
+  ],
+  "buttons": {
+    "cross": {"index": 0, "label": "Cross (X)", "color": "blue"},
+    "circle": {"index": 1, "label": "Circle", "color": "red"},
+    "square": {"index": 2, "label": "Square", "color": "pink"},
+    "triangle": {"index": 3, "label": "Triangle", "color": "green"},
+    "l1": {"index": 4, "label": "L1"},
+    "r1": {"index": 5, "label": "R1"},
+    "l2": {"index": 6, "label": "L2"},
+    "r2": {"index": 7, "label": "R2"},
+    "share": {"index": 8, "label": "Share"},
+    "options": {"index": 9, "label": "Options"},
+    "l3": {"index": 10, "label": "L3 (Left Stick)"},
+    "r3": {"index": 11, "label": "R3 (Right Stick)"},
+    "ps": {"index": 12, "label": "PS"},
+    "touchpad": {"index": 13, "label": "Touchpad Click"}
+  },
+  "dpad": {
+    "up": {"index": 14, "label": "D-Pad Up"},
+    "down": {"index": 15, "label": "D-Pad Down"},
+    "left": {"index": 16, "label": "D-Pad Left"},
+    "right": {"index": 17, "label": "D-Pad Right"}
+  },
+  "axes": {
+    "left_stick_x": {"index": 0, "label": "Left Stick X", "deadzone": 0.15},
+    "left_stick_y": {"index": 1, "label": "Left Stick Y", "deadzone": 0.15},
+    "right_stick_x": {"index": 2, "label": "Right Stick X", "deadzone": 0.15},
+    "right_stick_y": {"index": 3, "label": "Right Stick Y", "deadzone": 0.15},
+    "l2_analog": {"index": 4, "label": "L2 Analog Pressure", "range": [0, 1]},
+    "r2_analog": {"index": 5, "label": "R2 Analog Pressure", "range": [0, 1]}
+  },
+  "retroarch_defaults": {
+    "input_device": "Sony DualShock 4",
+    "input_b_btn": "1",
+    "input_y_btn": "2",
+    "input_select_btn": "8",
+    "input_start_btn": "9",
+    "input_up_btn": "h0up",
+    "input_down_btn": "h0down",
+    "input_left_btn": "h0left",
+    "input_right_btn": "h0right",
+    "input_a_btn": "0",
+    "input_x_btn": "3",
+    "input_l_btn": "4",
+    "input_r_btn": "5",
+    "input_l2_btn": "6",
+    "input_r2_btn": "7",
+    "input_l3_btn": "10",
+    "input_r3_btn": "11",
+    "input_l_x_plus_axis": "+0",
+    "input_l_x_minus_axis": "-0",
+    "input_l_y_plus_axis": "+1",
+    "input_l_y_minus_axis": "-1",
+    "input_r_x_plus_axis": "+2",
+    "input_r_x_minus_axis": "-2",
+    "input_r_y_plus_axis": "+3",
+    "input_r_y_minus_axis": "-3"
+  },
+  "features": {
+    "touchpad": true,
+    "lightbar": true,
+    "speaker": true,
+    "headphone_jack": true,
+    "motion_sensors": true,
+    "vibration": true
+  },
+  "notes": "PS4 DualShock 4 with touchpad, lightbar, and motion controls. L2/R2 are both buttons and analog axes. Compatible with PS4, PC, and most emulators.",
+  "created": "2025-10-16",
+  "version": "1.0"
+}

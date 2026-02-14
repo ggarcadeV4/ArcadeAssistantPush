@@ -40,7 +40,7 @@ The **NotebookLM library** is your primary source of truth.
 - **Purpose**: Autonomous management of the Second Brain.
 
 ### Check & Balance
-- **Post-Task Summary**: After completing any major major task or architectural decision, you MUST create a `.md` summary of the work and upload it as a source to the relevant notebook.
+- **Post-Task Summary**: After completing any major task or architectural decision, you MUST create a `.md` summary of the work and upload it as a source to the relevant notebook.
 
 ### The 'Second Opinion' Rule
 - **Uncertainty Protocol**: If you are ever unsure of a path:
@@ -58,12 +58,18 @@ The **NotebookLM library** is your primary source of truth.
 - **Policy #1**: Always use **timestamped migrations** for database changes.
 - **Policy #2**: Never disable **Row Level Security (RLS)**. All tables must have RLS enabled and policies defined.
 
-## 7. Contextual Handshake Protocol
+## 7. Contextual Handshake & Sync Protocol
+
+### Repository & Branch Integrity
+- **Primary Remote**: `https://github.com/ggarcadeV4/Arcade-Assistant-Basement-Build.git`
+- **Target Branch**: `master`
+- **Constraint**: You MUST always sync to this specific remote and branch. Do not guess.
+
 ### Detection
 - **Initial Verification**: Upon session start, you MUST run `pwd` and `git branch` to identify the environment.
 
 ### Declaration
-- **Statement**: You MUST state: *"I am in [Folder Name]. I am linking to Supabase Project [Ref ID] and preparing to sync to branch [Branch Name]."*
+- **Statement**: You MUST state: *"I am in [Folder Name]. I am linking to Supabase Project [Ref ID] and preparing to sync to branch master."*
 
 ### Logic Layer & Non-Mixed Guarantee
 - **Context A**: If in `AI-Hub` (Arcade Assistant context):
@@ -73,17 +79,17 @@ The **NotebookLM library** is your primary source of truth.
     - **Supabase Ref**: `asceipzpbqezwjtwvryi` (G&G Arcade Hub)
     - **Constraint**: STRICTLY FORBIDDEN from accessing "Arcade Assistant" resources.
 
-### Session-End Sync
-- **Protocol**: Every session must end with:
-    1. **Daily Log**: Create or append to `logs/YYYY-MM-DD.md` with a bulleted list of all terminal commands run and their outcomes.
-    2. **Master Roll**: Append a 2-3 sentence summary of the session's 'Net Progress' to the top of `ROLLING_LOG.md`.
-    3. `git push` (including logs) to the confirmed branch.
-    4. `nlm source add` of the session log to the relevant notebook.
-
-## 9. Mandatory Rolling Log Protocol
-- **Initialization**: Ensure `/logs` directory exists in AI-Hub root.
-- **Backup Rule**: Logs must be committed/pushed with code. If push fails, save logs to a 'Recovery' notebook in NotebookLM.
-- **Self-Correction**: Read `ROLLING_LOG.md` at start of session to verify 'State of the Union' before proposing work.
+### Session-End Discipline (Automatic Handoff)
+- **Protocol**: When a high-level task is finished, or if I signal 'Session End', you must autonomously execute the following:
+    1. **Pack Context**: Run `repomix --output logs/context-pack.md` to bundle the latest code.
+    2. **Log Progress**:
+        - Append a 'Session Summary' to `logs/YYYY-MM-DD.md`.
+        - Append 'Net Progress' to `ROLLING_LOG.md`.
+    3. **Auto-Sync**:
+        - `git add .`
+        - `git commit -m "Auto-Sync: [Brief Achievement Summary]"`
+        - `git push origin master`
+    4. **Safety Net**: If push fails, save `logs/context-pack.md` to a 'Recovery' notebook in NotebookLM.
 
 ## 8. Multi-Level Agent Workflow (ROE)
 ### Agent Specialization (Roles)
@@ -103,3 +109,8 @@ The **NotebookLM library** is your primary source of truth.
 
 ### Sync Governance
 - **Final Check**: The final 'Session Sync' to GitHub must be verified by the **Security Judge** to ensure it meets the 'Arcade Assistant' quality bar.
+
+## 9. Mandatory Rolling Log Protocol
+- **Initialization**: Ensure `/logs` directory exists in AI-Hub root.
+- **Backup Rule**: Logs must be committed/pushed with code. If push fails, save logs to a 'Recovery' notebook in NotebookLM.
+- **Self-Correction**: Read `ROLLING_LOG.md` at start of session to verify 'State of the Union' before proposing work.

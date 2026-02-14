@@ -1,0 +1,79 @@
+{
+  "profile_id": "switch_pro",
+  "name": "Nintendo Switch Pro Controller",
+  "manufacturer": "Nintendo",
+  "type": "console_gamepad",
+  "usb_identifiers": [
+    {"vid": "057e", "pid": "2009", "description": "Switch Pro Controller (USB)"},
+    {"vid": "057e", "pid": "2017", "description": "Switch Pro Controller (Bluetooth)"}
+  ],
+  "buttons": {
+    "b": {"index": 0, "label": "B", "position": "bottom"},
+    "a": {"index": 1, "label": "A", "position": "right"},
+    "y": {"index": 2, "label": "Y", "position": "left"},
+    "x": {"index": 3, "label": "X", "position": "top"},
+    "l": {"index": 4, "label": "L"},
+    "r": {"index": 5, "label": "R"},
+    "zl": {"index": 6, "label": "ZL"},
+    "zr": {"index": 7, "label": "ZR"},
+    "minus": {"index": 8, "label": "Minus (-)"},
+    "plus": {"index": 9, "label": "Plus (+)"},
+    "l3": {"index": 10, "label": "L3 (Left Stick)"},
+    "r3": {"index": 11, "label": "R3 (Right Stick)"},
+    "home": {"index": 12, "label": "Home"},
+    "capture": {"index": 13, "label": "Capture"}
+  },
+  "dpad": {
+    "up": {"index": 14, "label": "D-Pad Up"},
+    "down": {"index": 15, "label": "D-Pad Down"},
+    "left": {"index": 16, "label": "D-Pad Left"},
+    "right": {"index": 17, "label": "D-Pad Right"}
+  },
+  "axes": {
+    "left_stick_x": {"index": 0, "label": "Left Stick X", "deadzone": 0.15},
+    "left_stick_y": {"index": 1, "label": "Left Stick Y", "deadzone": 0.15},
+    "right_stick_x": {"index": 2, "label": "Right Stick X", "deadzone": 0.15},
+    "right_stick_y": {"index": 3, "label": "Right Stick Y", "deadzone": 0.15}
+  },
+  "retroarch_defaults": {
+    "input_device": "Nintendo Switch Pro Controller",
+    "input_b_btn": "1",
+    "input_y_btn": "2",
+    "input_select_btn": "8",
+    "input_start_btn": "9",
+    "input_up_btn": "h0up",
+    "input_down_btn": "h0down",
+    "input_left_btn": "h0left",
+    "input_right_btn": "h0right",
+    "input_a_btn": "0",
+    "input_x_btn": "3",
+    "input_l_btn": "4",
+    "input_r_btn": "5",
+    "input_l2_btn": "6",
+    "input_r2_btn": "7",
+    "input_l3_btn": "10",
+    "input_r3_btn": "11",
+    "input_l_x_plus_axis": "+0",
+    "input_l_x_minus_axis": "-0",
+    "input_l_y_plus_axis": "+1",
+    "input_l_y_minus_axis": "-1",
+    "input_r_x_plus_axis": "+2",
+    "input_r_x_minus_axis": "-2",
+    "input_r_y_plus_axis": "+3",
+    "input_r_y_minus_axis": "-3"
+  },
+  "features": {
+    "motion_sensors": true,
+    "nfc_reader": true,
+    "hd_rumble": true,
+    "usb_charging": true,
+    "bluetooth": true
+  },
+  "layout_notes": {
+    "face_buttons": "Nintendo layout (A on right, B on bottom) differs from Xbox (A on bottom, B on right)",
+    "button_labels": "Physical labels may need remapping for Xbox-style games"
+  },
+  "notes": "Nintendo Switch Pro Controller with HD Rumble and NFC. Button layout differs from Xbox/PlayStation standards. ZL/ZR are digital triggers, not analog.",
+  "created": "2025-10-16",
+  "version": "1.0"
+}

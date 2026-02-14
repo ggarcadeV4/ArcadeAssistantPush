@@ -1,0 +1,142 @@
+.hotkey-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.hotkey-overlay-panel {
+  width: min(92vw, 480px);
+  max-height: 86vh;
+  background: linear-gradient(180deg, #0d1328 0%, #0a0e27 100%);
+  color: #e6f0ff;
+  border: 2px solid rgba(0, 229, 255, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 20px 64px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 229, 255, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hotkey-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #1a2456 0%, #0d1328 100%);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+.hotkey-overlay-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #67e8f9;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.hotkey-overlay-close {
+  appearance: none;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  background: rgba(0, 229, 255, 0.1);
+  color: #67e8f9;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.hotkey-overlay-close:hover {
+  background: rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.hotkey-overlay-body {
+  padding: 18px;
+  overflow: auto;
+}
+
+.hotkey-hint {
+  margin: 0 18px 10px;
+  font-size: 12px;
+  color: #9db7d8;
+  opacity: 0.8;
+}
+
+/* Action Buttons */
+.hotkey-overlay-btn {
+  appearance: none;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  background: rgba(0, 229, 255, 0.1);
+  color: #67e8f9;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hotkey-overlay-btn:hover {
+  background: rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.hotkey-overlay-btn:active {
+  transform: translateY(0);
+}
+
+/* Save button - green accent */
+.hotkey-overlay-btn.save {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+.hotkey-overlay-btn.save:hover {
+  background: rgba(74, 222, 128, 0.2);
+  box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+}
+
+/* Load button - amber accent */
+.hotkey-overlay-btn.load {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+}
+
+.hotkey-overlay-btn.load:hover {
+  background: rgba(251, 191, 36, 0.2);
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+}
+
+/* Resume button - cyan accent (primary) */
+.hotkey-overlay-btn.resume {
+  border-color: rgba(0, 229, 255, 0.5);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.2) 0%, rgba(0, 184, 212, 0.2) 100%);
+  color: #00e5ff;
+}
+
+.hotkey-overlay-btn.resume:hover {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.3) 0%, rgba(0, 184, 212, 0.3) 100%);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+}
+
+/* Wizard button - purple accent */
+.hotkey-overlay-btn.wizard {
+  border-color: rgba(139, 92, 246, 0.4);
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+}
+
+.hotkey-overlay-btn.wizard:hover {
+  background: rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+}

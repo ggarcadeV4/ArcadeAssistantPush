@@ -1,0 +1,8 @@
+{
+  "id": "msg_01h...",
+  "provider": "claude",
+  "created": 1738000000,
+  "message": { "role": "assistant", "content": "Starting sequence A: redgreenblue, duration 5s each." },
+  "usage": { "prompt_tokens": 42, "completion_tokens": 22, "total_tokens": 64 }
+}
+

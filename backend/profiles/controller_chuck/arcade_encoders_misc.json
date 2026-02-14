@@ -1,0 +1,172 @@
+{
+  "description": "Lesser-known arcade encoder boards reference",
+  
+  "zero_delay": {
+    "name": "Zero Delay Encoder",
+    "type": "keyboard",
+    "manufacturers": ["EasyGet", "Reyann", "DragonRise", "Generic Chinese"],
+    "players": [1, 2],
+    "inputs_per_player": "1 joystick + 8-10 buttons",
+    "connection": "USB Type-B",
+    "price_range": "$5-15",
+    "mode_switching": false,
+    "configuration_software": false,
+    "features": {
+      "plug_and_play": true,
+      "drivers_required": false,
+      "led_support": "Some versions have 5V output",
+      "fixed_mapping": true
+    },
+    "limitations": [
+      "Keyboard mode only",
+      "Cannot remap without software",
+      "No shift key functionality",
+      "No turbo/macros",
+      "Variable quality by manufacturer"
+    ],
+    "best_for": ["MAME", "FBNeo", "budget_arcade_builds"],
+    "not_ideal_for": ["Modern games requiring XInput", "advanced features"],
+    "platforms": ["Windows XP/7/8/10/11", "Linux", "Raspberry Pi"]
+  },
+
+  "xin_mo": {
+    "name": "Xin-Mo XM-10",
+    "type": "gamepad",
+    "manufacturer": "Xin-Mo",
+    "players": 2,
+    "inputs": 30,
+    "layout": "2 joysticks + 8 buttons per player + coin/start",
+    "connection": "USB Type-B",
+    "price_range": "$10-20",
+    "mode_switching": false,
+    "configuration_software": false,
+    "features": {
+      "gamepad_emulation": true,
+      "dual_device": "Appears as 2 separate joystick devices",
+      "no_ghosting": true,
+      "ps3_compatible": true
+    },
+    "key_difference": "Registers as game controller, NOT keyboard",
+    "limitations": [
+      "No keyboard mode",
+      "Fixed button mapping",
+      "Limited documentation"
+    ],
+    "best_for": ["MAME gamepad mode", "PS3", "multi-player setups"],
+    "not_ideal_for": ["Keyboard-only emulators", "advanced configuration"],
+    "platforms": ["Windows", "PS3"]
+  },
+
+  "grs": {
+    "name": "GRS (Glen's Retro Show) Encoders",
+    "manufacturer": "Glen's Retro Show / Thunder Stick Studio",
+    "products": {
+      "universal_encoder_hub": {
+        "players": 2,
+        "inputs": "Up to 12 buttons per player",
+        "features": ["8-way/4-way switchable joystick", "LED support", "trackball_spinner_connectivity"]
+      },
+      "12_in_1_interface": {
+        "purpose": "Hub for multiple arcade peripherals",
+        "connections": ["spinner", "trackball", "buttons", "joysticks", "LED outputs"]
+      },
+      "arcade_spinner": {
+        "type": "High-resolution optical rotary encoder",
+        "use": "Tempest, Arkanoid, etc."
+      },
+      "trackball": {
+        "type": "Optical trackball",
+        "use": "Golden Tee, Centipede, etc."
+      }
+    },
+    "price_range": "$40-60",
+    "features": {
+      "modular_design": true,
+      "industrial_quality": true,
+      "led_integration": true
+    },
+    "best_for": ["Premium arcade builds", "spinner/trackball games"],
+    "not_ideal_for": ["Budget builds"],
+    "url": "https://thunderstickstudio.com/products/grs-universal-encoder-hub-board"
+  },
+
+  "kade": {
+    "name": "KADE Encoder",
+    "status": "DISCONTINUED",
+    "origin": "Failed Kickstarter 2012",
+    "features_historical": {
+      "multi_console": ["PC", "Xbox 360", "PS3", "Wii"],
+      "open_source": true,
+      "console_switching": true
+    },
+    "current_status": "No longer available or supported",
+    "historical_significance": "Pioneered multi-console support concept"
+  },
+
+  "mayflash": {
+    "name": "Mayflash",
+    "type": "Integrated arcade sticks (not standalone encoders)",
+    "products": {
+      "f700": "PS5/PS4/Switch/PC arcade stick",
+      "f500": "Universal arcade stick",
+      "f300": "Budget arcade stick"
+    },
+    "note": "Encoders are pre-integrated, not sold separately",
+    "features": {
+      "fighting_game_focus": true,
+      "multi_platform": true,
+      "replaceable_encoder": "Can swap for Brook UFB"
+    },
+    "best_for": ["Pre-built fighting sticks", "console gaming"],
+    "not_ideal_for": ["DIY arcade cabinet builds"]
+  },
+
+  "brook": {
+    "name": "Brook Gaming",
+    "type": "universal",
+    "products": {
+      "ufb": {
+        "name": "Universal Fighting Board",
+        "compatibility": ["PS3", "PS4", "PS5", "Xbox 360", "Xbox One", "Switch", "PC", "Neo Geo Mini"],
+        "features": ["sub_1ms_latency", "firmware_updates", "audio_passthrough_ps4", "touchpad_support_ps4"],
+        "price": "$70-95"
+      },
+      "gen5": {
+        "name": "Gen-5 Fighting Board",
+        "compatibility": ["PS4", "PS5", "Switch", "Switch 2", "PC"],
+        "native_support": true
+      }
+    },
+    "mode_switching": "Console auto-detect",
+    "features": {
+      "native_console_recognition": true,
+      "tournament_legal": true,
+      "firmware_updates": true,
+      "pre_soldered_headers": true
+    },
+    "best_for": ["Multi-console fighting sticks", "tournament play"],
+    "not_ideal_for": ["Budget builds", "PC-only MAME"],
+    "url": "https://www.brookaccessory.com/"
+  },
+
+  "sanwa_clarification": {
+    "name": "Sanwa Denshi",
+    "type": "COMPONENTS (NOT encoders)",
+    "note": "Sanwa makes joysticks and buttons, NOT USB encoders",
+    "products": {
+      "joysticks": "JLF-TP-8YT (industry standard)",
+      "buttons": "OBSF-30, OBSF-24 (snap-in, screw-in)",
+      "microswitches": "High-quality arcade switches"
+    },
+    "common_misconception": "Sanwa DIY kits include generic encoders, not Sanwa encoders",
+    "pair_with": ["I-PAC", "Brook", "Zero Delay", "any encoder"]
+  },
+
+  "comparison": {
+    "budget_mame": "Zero Delay ($5-15)",
+    "budget_multiplatform": "Xin-Mo ($10-20)",
+    "premium_peripherals": "GRS ($40-60)",
+    "professional_mame": "I-PAC ($39-89)",
+    "multi_console_fighting": "Brook UFB ($70-95)"
+  }
+}

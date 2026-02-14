@@ -1,0 +1,71 @@
+{
+  "name": "ArcadeAssistantPlugin",
+  "version": "1.0.0",
+  "type": "launchbox-plugin",
+  "protocol": "http",
+  "port": 9999,
+  "production_path": "A:\\LaunchBox\\Plugins\\ArcadeAssistant\\",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "description": "Plugin health check and version info"
+    },
+    {
+      "method": "GET",
+      "path": "/search-game",
+      "params": ["title"],
+      "description": "Search games by title"
+    },
+    {
+      "method": "POST",
+      "path": "/launch-game",
+      "body": {"GameId": "uuid-string"},
+      "description": "Launch game by LaunchBox ID"
+    },
+    {
+      "method": "GET",
+      "path": "/list-platforms",
+      "description": "Get all unique platforms"
+    },
+    {
+      "method": "GET",
+      "path": "/list-genres",
+      "description": "Get all unique genres"
+    }
+  ],
+  "owner": "Hermes",
+  "role": "HTTP bridge between Arcade Assistant and LaunchBox",
+  "dependencies": [
+    "LaunchBox.exe",
+    ".NET 6.0 Runtime",
+    "Unbroken.LaunchBox.Plugins.dll"
+  ],
+  "linked": [
+    "/backend/services/launchbox_plugin_client.py",
+    "/backend/routers/launchbox.py",
+    "/docs/LAUNCHBOX_PLUGIN_INTEGRATION.md",
+    "/docs/launchbox_plugin_restore.md"
+  ],
+  "build": {
+    "tool": "dotnet",
+    "command": "dotnet build -c Release",
+    "output": "bin/Release/net6.0/ArcadeAssistantPlugin.dll"
+  },
+  "deployment": {
+    "target": "A:\\LaunchBox\\Plugins\\ArcadeAssistant\\",
+    "files": [
+      "ArcadeAssistantPlugin.dll",
+      "*.deps.json",
+      "*.runtimeconfig.json"
+    ],
+    "restart_required": true
+  },
+  "tags": [
+    "launchbox",
+    "plugin",
+    "http-api",
+    "game-launcher",
+    "bridge"
+  ]
+}

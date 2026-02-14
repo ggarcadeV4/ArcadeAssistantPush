@@ -1,0 +1,125 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Smoke (start)",
+      "type": "shell",
+      "command": "npm run smoke",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Smoke (no-start)",
+      "type": "shell",
+      "command": "npm run smoke:no-start",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Gateway Smoke (start)",
+      "type": "shell",
+      "command": "npm run smoke:gateway",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Gateway Smoke (no-start)",
+      "type": "shell",
+      "command": "npm run smoke:gateway:no-start",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Gateway Smoke (start)",
+      "type": "shell",
+      "command": "npm run smoke:gateway",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Gateway Smoke (no-start)",
+      "type": "shell",
+      "command": "npm run smoke:gateway:no-start",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Stack Smoke (start)",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-stack.ps1",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Stack Smoke (no-start)",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-stack.ps1 -NoStart",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

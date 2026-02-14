@@ -1,0 +1,12 @@
+[
+  {
+    "vid": "0x0C12",
+    "pid": "0x0EF8",
+    "family": "brook_ufb",
+    "vendor": "Brook",
+    "product_name": "Brook Universal Fighting Board",
+    "spoof_xinput": true,
+    "confidence": 0.9,
+    "notes": "Often enumerates as an Xbox-compatible XInput encoder."
+  }
+]

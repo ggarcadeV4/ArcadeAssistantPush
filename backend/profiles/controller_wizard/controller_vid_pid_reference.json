@@ -1,0 +1,173 @@
+{
+  "description": "Controller VID/PID Reference for automatic detection and profiling",
+  "vendors": {
+    "045E": {
+      "name": "Microsoft Corp.",
+      "controllers": {
+        "0202": {"name": "Xbox Controller (USA)", "connection": "USB", "input_api": "XInput"},
+        "0285": {"name": "Xbox Controller (Japan)", "connection": "USB", "input_api": "XInput"},
+        "0289": {"name": "Xbox Controller S", "connection": "USB", "input_api": "XInput"},
+        "028E": {"name": "Xbox 360 Controller", "connection": "USB", "input_api": "XInput"},
+        "0291": {"name": "Unlicensed Xbox 360 Wireless Receiver", "connection": "Wireless", "input_api": "XInput"},
+        "02A1": {"name": "Xbox 360 Wireless Controller", "connection": "Wireless", "input_api": "XInput"},
+        "02D1": {"name": "Xbox One Controller", "connection": "USB", "input_api": "XInput"},
+        "02DD": {"name": "Xbox One Controller", "connection": "USB", "input_api": "XInput"},
+        "02E0": {"name": "Xbox One S Controller", "connection": "Bluetooth", "input_api": "XInput"},
+        "02E3": {"name": "Xbox One Elite Controller", "connection": "USB", "input_api": "XInput"},
+        "02EA": {"name": "Xbox One S Controller", "connection": "USB", "input_api": "XInput"},
+        "02FD": {"name": "Xbox One S Controller", "connection": "Bluetooth", "input_api": "XInput"},
+        "02FF": {"name": "Xbox One Elite Controller (Series 2)", "connection": "USB", "input_api": "XInput"},
+        "0B12": {"name": "Xbox Wireless Controller", "connection": "Wireless Adapter", "input_api": "XInput"},
+        "0B13": {"name": "Xbox Wireless Controller", "connection": "Bluetooth", "input_api": "XInput"},
+        "0719": {"name": "Xbox 360 Wireless Receiver", "connection": "Wireless", "input_api": "XInput"}
+      }
+    },
+    "054C": {
+      "name": "Sony Corp.",
+      "controllers": {
+        "0268": {"name": "DualShock 3 / Sixaxis", "connection": "USB/Bluetooth", "input_api": "DirectInput", "notes": "Requires DS3/Sixaxis drivers"},
+        "042F": {"name": "SplitFish FragFX", "connection": "USB", "input_api": "DirectInput"},
+        "05C4": {"name": "DualShock 4 (CUH-ZCT1x)", "connection": "USB/Bluetooth", "input_api": "DirectInput", "notes": "Use DS4Windows for XInput mode"},
+        "05C5": {"name": "Strike Pack FPS Dominator", "connection": "USB", "input_api": "DirectInput"},
+        "09CC": {"name": "DualShock 4 (CUH-ZCT2x)", "connection": "USB/Bluetooth", "input_api": "DirectInput", "notes": "Use DS4Windows for XInput mode"},
+        "0BA0": {"name": "DualShock 4 USB Receiver", "connection": "Wireless", "input_api": "DirectInput"},
+        "0CE6": {"name": "DualSense (PS5)", "connection": "USB/Bluetooth", "input_api": "DirectInput", "notes": "Native support in some emulators, DS4Windows for others"}
+      }
+    },
+    "057E": {
+      "name": "Nintendo Co., Ltd.",
+      "controllers": {
+        "0306": {"name": "Wii Remote (Wiimote)", "connection": "Bluetooth", "input_api": "Custom", "notes": "Requires special drivers"},
+        "0330": {"name": "Wii U Pro Controller", "connection": "Bluetooth", "input_api": "DirectInput"},
+        "0337": {"name": "GameCube Controller Adapter", "connection": "USB", "input_api": "Custom", "notes": "Used by Dolphin natively"},
+        "2006": {"name": "Switch Joy-Con (Left)", "connection": "Bluetooth", "input_api": "DirectInput"},
+        "2007": {"name": "Switch Joy-Con (Right)", "connection": "Bluetooth", "input_api": "DirectInput"},
+        "2009": {"name": "Switch Pro Controller", "connection": "USB/Bluetooth", "input_api": "DirectInput"},
+        "200E": {"name": "Switch Joy-Con Charging Grip", "connection": "USB", "input_api": "DirectInput"}
+      }
+    },
+    "046D": {
+      "name": "Logitech, Inc.",
+      "controllers": {
+        "C216": {"name": "F310 Gamepad", "connection": "USB", "input_api": "DirectInput", "notes": "Switch to XInput mode for better compatibility"},
+        "C218": {"name": "F510 Gamepad", "connection": "USB", "input_api": "DirectInput"},
+        "C219": {"name": "F710 Gamepad", "connection": "USB", "input_api": "DirectInput"},
+        "C21D": {"name": "F310 Gamepad", "connection": "USB", "input_api": "XInput"},
+        "C21E": {"name": "F510 Gamepad", "connection": "USB", "input_api": "XInput"},
+        "C21F": {"name": "F710 Gamepad", "connection": "USB", "input_api": "XInput"},
+        "C242": {"name": "ChillStream Controller", "connection": "USB", "input_api": "DirectInput"},
+        "C261": {"name": "G920 Racing Wheel", "connection": "USB", "input_api": "DirectInput"},
+        "C299": {"name": "G25 Racing Wheel", "connection": "USB", "input_api": "DirectInput"},
+        "C29A": {"name": "Driving Force GT", "connection": "USB", "input_api": "DirectInput"},
+        "C29B": {"name": "G27 Racing Wheel", "connection": "USB", "input_api": "DirectInput"},
+        "CA84": {"name": "Cordless Xbox Controller", "connection": "Wireless", "input_api": "XInput"},
+        "CA88": {"name": "Compact Xbox Controller", "connection": "USB", "input_api": "XInput"}
+      }
+    },
+    "2DC8": {
+      "name": "8BitDo",
+      "controllers": {
+        "3013": {"name": "Ultimate Wireless Controller", "connection": "Bluetooth", "input_api": "DirectInput"},
+        "3106": {"name": "Ultimate Wireless Controller", "connection": "2.4GHz Wireless", "input_api": "XInput"},
+        "9001": {"name": "SN30 Pro", "connection": "USB/Bluetooth", "input_api": "DirectInput"},
+        "9002": {"name": "SN30 Pro+", "connection": "USB/Bluetooth", "input_api": "DirectInput"},
+        "9018": {"name": "Pro 2", "connection": "USB/Bluetooth", "input_api": "DirectInput"}
+      }
+    },
+    "0738": {
+      "name": "Mad Catz",
+      "controllers": {
+        "3250": {"name": "FightPad Pro (PS3)", "connection": "USB", "input_api": "DirectInput"},
+        "3285": {"name": "Fight Stick TE (PS3)", "connection": "USB", "input_api": "DirectInput"},
+        "3384": {"name": "Fight Stick TE+ (PS3)", "connection": "USB", "input_api": "DirectInput"},
+        "3480": {"name": "Fight Stick TE2 (PS3)", "connection": "USB", "input_api": "DirectInput"},
+        "4426": {"name": "Various Mad Catz Gamepads", "connection": "USB", "input_api": "DirectInput"}
+      }
+    },
+    "0F0D": {
+      "name": "Hori",
+      "controllers": {
+        "0000": {"name": "Various Hori Controllers", "connection": "USB", "input_api": "DirectInput", "notes": "Fighting game controllers and arcade sticks"}
+      }
+    },
+    "0079": {
+      "name": "Mayflash",
+      "controllers": {
+        "1800": {"name": "Wii U Pro Adapter", "connection": "USB", "input_api": "DirectInput"},
+        "1843": {"name": "GameCube Adapter", "connection": "USB", "input_api": "DirectInput"},
+        "1844": {"name": "GameCube Controller Adapter", "connection": "USB", "input_api": "DirectInput"},
+        "1879": {"name": "N64 USB Adapter", "connection": "USB", "input_api": "DirectInput"},
+        "18D2": {"name": "Magic-NS (Multi-console adapter)", "connection": "USB", "input_api": "XInput"},
+        "18D3": {"name": "Magic-NS (Multi-console adapter)", "connection": "USB", "input_api": "XInput"}
+      }
+    }
+  },
+  "connection_types": {
+    "USB": {
+      "reliability": "Most reliable",
+      "latency": "Lowest",
+      "notes": "Plug-and-play, VID/PID remains consistent"
+    },
+    "Bluetooth": {
+      "reliability": "Good",
+      "latency": "Higher than USB",
+      "notes": "May have different PID than USB version, requires Bluetooth stack"
+    },
+    "Wireless Adapter": {
+      "reliability": "Good",
+      "latency": "Lower than Bluetooth",
+      "notes": "Proprietary protocol, requires specific dongle"
+    }
+  },
+  "input_apis": {
+    "XInput": {
+      "platforms": ["Windows"],
+      "notes": "Native Xbox support, limited button mapping flexibility",
+      "supported_controllers": ["Xbox 360", "Xbox One", "Xbox Series", "XInput-mode third-party"]
+    },
+    "DirectInput": {
+      "platforms": ["Windows"],
+      "notes": "More flexible, requires per-game configuration",
+      "supported_controllers": ["PlayStation (via DS4Windows)", "Logitech F-series", "Generic USB"]
+    },
+    "SDL": {
+      "platforms": ["Windows", "Linux", "Mac"],
+      "notes": "Cross-platform, used by Dolphin, RetroArch",
+      "requires": "Device name or GUID"
+    },
+    "evdev": {
+      "platforms": ["Linux"],
+      "notes": "Linux-native controller support"
+    }
+  },
+  "guid_formats": {
+    "windows_dinput": {
+      "format": "{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}",
+      "notes": "Based on VID/PID and device instance"
+    },
+    "sdl": {
+      "format": "03000000VVVVPPPP0000000000000000",
+      "notes": "VVVV = Vendor ID (hex), PPPP = Product ID (hex)",
+      "example": "030000005e040000ea020000ff0f0000 (Xbox 360)"
+    }
+  },
+  "controller_behaviors": {
+    "xbox": {
+      "features": ["Native XInput on Windows", "Consistent button layout", "Analog triggers", "Rumble standard"]
+    },
+    "playstation": {
+      "features": ["Require third-party drivers on Windows", "Touchpad (DS4/DualSense)", "Motion controls", "Analog triggers (DualSense)"]
+    },
+    "nintendo": {
+      "features": ["Require special drivers/adapters", "Joy-Cons can be individual or paired", "Motion controls", "Digital triggers only"]
+    },
+    "arcade": {
+      "features": ["Usually DirectInput", "May lack analog triggers", "Button numbering varies", "Requires manual mapping"]
+    }
+  },
+  "references": {
+    "github_gist": "https://gist.github.com/nondebug/aec93dff7f0f1969f4cc2291b24a3171",
+    "linux_usb_ids": "http://www.linux-usb.org/usb.ids",
+    "sdl_gamecontroller_db": "https://github.com/gabomdq/SDL_GameControllerDB"
+  }
+}

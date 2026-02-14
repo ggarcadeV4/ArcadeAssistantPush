@@ -1,0 +1,45 @@
+
+
+    Directory: A:\backups\scorekeeper
+
+
+Mode                 LastWriteTime         Length Name                                                                                                                        
+----                 -------------         ------ ----                                                                                                                        
+d-----        11/10/2025  11:21 AM                20251110_112128                                                                                                             
+d-----        11/10/2025  11:21 AM                20251110_112143                                                                                                             
+d-----        11/10/2025  11:22 AM                20251110_112208                                                                                                             
+d-----        11/10/2025   9:50 PM                20251110_215015                                                                                                             
+
+
+    Directory: A:\backups\scorekeeper\20251110_112128
+
+
+Mode                 LastWriteTime         Length Name                                                                                                                        
+----                 -------------         ------ ----                                                                                                                        
+-a----        11/10/2025  11:21 AM         115634 snapshot.json                                                                                                               
+
+
+    Directory: A:\backups\scorekeeper\20251110_112143
+
+
+Mode                 LastWriteTime         Length Name                                                                                                                        
+----                 -------------         ------ ----                                                                                                                        
+-a----        11/10/2025  11:21 AM         117544 snapshot.json                                                                                                               
+
+
+    Directory: A:\backups\scorekeeper\20251110_112208
+
+
+Mode                 LastWriteTime         Length Name                                                                                                                        
+----                 -------------         ------ ----                                                                                                                        
+-a----        11/10/2025  11:22 AM         115628 snapshot.json                                                                                                               
+
+
+    Directory: A:\backups\scorekeeper\20251110_215015
+
+
+Mode                 LastWriteTime         Length Name                                                                                                                        
+----                 -------------         ------ ----                                                                                                                        
+-a----        11/10/2025   9:50 PM         115648 snapshot.json                                                                                                               
+
+

@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "*",
+      "WebFetch(domain:docs.google.com)",
+      "WebFetch(domain:doc-14-0k-sheets.googleusercontent.com)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout 10 bash -c 'while ! curl -s http://localhost:8787/api/health > /dev/null 2>&1; do sleep 1; done && echo \"\"Gateway ready!\"\" || echo \"\"Timeout waiting for gateway\"\"')",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout:*)",
+      "Bash(start cmd /k \"npm run dev\")",
+      "Bash(cat:*)",
+      "Bash(dir:*)",
+      "Bash(time:*)",
+      "Bash(ls:*)",
+      "Bash(supabase --version:*)",
+      "Bash(npm install:*)",
+      "Bash(scoop --version:*)",
+      "Bash(npx supabase --version)",
+      "Bash(npx supabase login)",
+      "Bash(npx supabase link:*)",
+      "Bash(npx supabase:*)",
+      "Bash(test:*)",
+      "Read(//c/LEDBlinky/LWCloneU2/**)",
+      "Bash(./LEDBlinky.exe:*)",
+      "Bash(for:*)",
+      "Bash(do curl -s http://localhost:8000/health)",
+      "Bash(break)",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

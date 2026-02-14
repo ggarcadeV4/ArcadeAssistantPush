@@ -1,0 +1,63 @@
+{
+  "emulator_type": "redream",
+  "display_name": "Redream",
+  "supported_players": 4,
+  "logical_inputs": [
+    "p1.up", "p1.down", "p1.left", "p1.right",
+    "p1.button1", "p1.button2", "p1.button3", "p1.button4",
+    "p1.button5", "p1.button6",
+    "p1.start",
+    "p1.lstick_up", "p1.lstick_down", "p1.lstick_left", "p1.lstick_right",
+    "p2.up", "p2.down", "p2.left", "p2.right",
+    "p2.button1", "p2.button2", "p2.button3", "p2.button4",
+    "p2.button5", "p2.button6",
+    "p2.start"
+  ],
+  "config_files": [
+    "redream.cfg"
+  ],
+  "config_locations": {
+    "windows": "same directory as executable",
+    "linux": "same directory as executable",
+    "mac": "~/Library/Application Support/redream/",
+    "retropie": "/opt/retropie/configs/dreamcast/redream/redream.cfg"
+  },
+  "config_format": "cfg",
+  "input_system": "SDL",
+  "notes": "Uses SDL controller database for automatic configuration. Supports 4 ports (input0-3) and 8 profiles (profile0-7).",
+  "profile_format": {
+    "description": "Each profile uses hwid: prefix followed by device identifier and button mappings",
+    "example": "profile0: hwid:keyboard3",
+    "button_syntax": "+button_name:key_or_button (+ for positive, - for negative axis)"
+  },
+  "button_mapping": {
+    "button1": "btna",
+    "button2": "btnb",
+    "button3": "btnx",
+    "button4": "btny",
+    "button5": "ltrig",
+    "button6": "rtrig"
+  },
+  "special_controls": {
+    "start": "start",
+    "up": "dup",
+    "down": "ddown",
+    "left": "dleft",
+    "right": "dright"
+  },
+  "analog_mapping": {
+    "lstick_up": "-joyy",
+    "lstick_down": "+joyy",
+    "lstick_left": "-joyx",
+    "lstick_right": "+joyx"
+  },
+  "config_keys": {
+    "fullscreen": "1 or 0",
+    "aspect": "4:3 or 16:9",
+    "res": "resolution setting (0=auto)",
+    "region": "usa, japan, europe",
+    "language": "english, japanese, etc.",
+    "broadcast": "ntsc or pal",
+    "cable": "vga, rgb, composite"
+  }
+}

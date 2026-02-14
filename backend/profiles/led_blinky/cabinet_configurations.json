@@ -1,0 +1,416 @@
+{
+  "description": "LED cabinet configuration standards based on research",
+  "last_updated": "2025-12-13",
+  
+  "hardware_recommendations": {
+    "default": "PacLED64",
+    "legacy_support": "LED-Wiz",
+    "reasoning": {
+      "pacled64": "64 channels, user-configurable device ID via jumpers, hardware fades/flashes, direct plug-in for Ultimarc RGB buttons",
+      "ledwiz": "32 channels, factory-set device ID (must be ordered correctly), legacy standard with wide software support"
+    }
+  },
+
+  "cabinet_configs": {
+    "2player_single_color": {
+      "description": "2-player cabinet with single-color LEDs",
+      "total_channels": 23,
+      "recommended_hardware": "1x LED-Wiz (32 channels)",
+      "cost_effective": true
+    },
+    "2player_rgb": {
+      "description": "2-player cabinet with RGB LEDs",
+      "total_channels": 55,
+      "recommended_hardware": "1x PacLED64 (64 channels)",
+      "note": "LED-Wiz would require 2 boards"
+    },
+    "4player_single_color": {
+      "description": "4-player cabinet with single-color LEDs",
+      "total_channels": 43,
+      "recommended_hardware": "1x PacLED64 (64 channels)",
+      "note": "LED-Wiz would require 2 boards"
+    },
+    "4player_rgb": {
+      "description": "4-player cabinet with RGB LEDs",
+      "total_channels": 107,
+      "recommended_hardware": "2x PacLED64 (128 channels)",
+      "note": "Easier than 4x LED-Wiz boards"
+    }
+  },
+
+  "per_player_layout": {
+    "buttons_per_player": 8,
+    "layout_description": "6 action buttons (Street Fighter layout) + 2 additional (for PlayStation/Xbox shoulder buttons)",
+    "joystick_leds": false,
+    "joystick_note": "Illuminated joystick directions are not standard - adds 4 LEDs per joystick"
+  },
+
+  "button_layout_standards": {
+    "4_button_neogeo": {
+      "games": "Neo Geo (King of Fighters, Metal Slug)",
+      "layout": "4 action buttons in row or arc",
+      "community_note": "Can play ~90% of MAME library with 4 buttons"
+    },
+    "6_button_street_fighter": {
+      "games": "Street Fighter, most Capcom fighters",
+      "layout": "3 Punch (LP, MP, HP) over 3 Kick (LK, MK, HK)",
+      "community_note": "Most popular choice for general-purpose MAME cabinets",
+      "consensus": "No fighting game really uses 8 buttons, even modern ones"
+    },
+    "7_button_hybrid": {
+      "layout": "6-button SF + 1 additional for Neo Geo compatibility",
+      "use_case": "Compromise between Neo Geo and Street Fighter"
+    },
+    "8_button_console": {
+      "primary_use": "PlayStation, Xbox, N64 console emulation",
+      "layout": "6 action + 2 shoulder (L2/R2 or LT/RT)",
+      "games": "Racing games, sports games, PS1/PS2/Xbox emulation",
+      "community_note": "8 buttons is for consoles, not really for MAME"
+    }
+  },
+
+  "channel_counts_by_button_layout": {
+    "2player_6button": {
+      "per_player": {"action": 6, "start": 1, "coin": 1, "subtotal": 8},
+      "shared": {"trackball": "2-4", "admin": 1, "subtotal": "3-5"},
+      "total": "19-21 channels"
+    },
+    "2player_8button": {
+      "per_player": {"action": 8, "start": 1, "coin": 1, "subtotal": 10},
+      "shared": {"trackball": "2-4", "admin": 1, "subtotal": "3-5"},
+      "total": "23-25 channels"
+    },
+    "4player_6button": {
+      "per_player": {"action": 6, "start": 1, "coin": 1, "subtotal": 8},
+      "four_players": 32,
+      "shared": {"trackball": "2-4", "admin": 1, "subtotal": "3-5"},
+      "total": "35-37 channels"
+    },
+    "4player_8button": {
+      "per_player": {"action": 8, "start": 1, "coin": 1, "subtotal": 10},
+      "four_players": 40,
+      "shared": {"trackball": "2-4", "admin": 1, "subtotal": "3-5"},
+      "total": "43-45 channels"
+    }
+  },
+
+  "joystick_illumination": {
+    "standard_practice": "NOT standard in arcade cabinets",
+    "reasons": [
+      "Most arcade games don't require directional feedback",
+      "Adds significant complexity (4 LEDs per joystick)",
+      "Not part of traditional arcade aesthetics",
+      "Would require 16 additional channels for 4-player (4 joysticks × 4 directions)"
+    ],
+    "if_implemented": {
+      "per_joystick": 4,
+      "2player_additional": 8,
+      "4player_additional": 16
+    }
+  },
+
+  "channel_mapping_standard": {
+    "method": "Sequential (Button 1 → Channel 1, Button 2 → Channel 2, etc.)",
+    "player_1": {
+      "button1": 1, "button2": 2, "button3": 3, "button4": 4,
+      "button5": 5, "button6": 6, "button7": 7, "button8": 8,
+      "start": 9, "coin": 10
+    },
+    "player_2_offset": 10,
+    "player_3_offset": 20,
+    "player_4_offset": 30
+  },
+
+  "shared_zones": {
+    "trackball": {
+      "standard": {
+        "type": "Suzo Happ 3\" RGB Illuminated Trackball",
+        "channels_required": 0,
+        "note": "Built-in color-cycling controller, just needs 5V power"
+      },
+      "advanced": {
+        "type": "Ultimarc U-Trak with RGB LED kit ($35)",
+        "channels_required": 3,
+        "connection": "Connects to PacLED64 pins (R, G, B)",
+        "benefit": "Game-specific trackball colors"
+      },
+      "buttons": {
+        "left_button": 1,
+        "right_button": 1,
+        "middle_button_optional": 1,
+        "total_channels": "2-3"
+      }
+    },
+    "marquee": {
+      "standard": {
+        "type": "Single white LED strip (20\" for 2P, 30-40\" for 4P)",
+        "channels_required": 0,
+        "power": "Always-on with cabinet power or USB 5V",
+        "price": "$10-20",
+        "note": "White provides best visibility for artwork"
+      },
+      "advanced": {
+        "type": "RGB LED strip for game-specific colors",
+        "channels_required": 3,
+        "note": "Uncommon - constantly shifting colors look wrong behind printed marquees"
+      }
+    },
+    "underglow": {
+      "standard": {
+        "type": "Standalone Govee/Tapo RGB strips with IR remote",
+        "channels_required": 0,
+        "length": "16.4ft (5 meters) standard",
+        "price": "$5-15 per cabinet",
+        "brands": ["Govee ($14)", "Monster Walmart ($4.88)", "Tapo (brighter, Alexa)"],
+        "note": "Self-contained with 12V wall adapter"
+      },
+      "advanced": {
+        "type": "RGB strips connected to LED controller",
+        "single_zone_channels": 3,
+        "multi_zone_channels": 9,
+        "multi_zone_layout": ["Left side (3)", "Right side (3)", "Bottom (3)"],
+        "benefit": "Game-synchronized underglow effects"
+      }
+    }
+  },
+
+  "led_types": {
+    "recommendation": "Hybrid approach",
+    "action_buttons": "RGB LEDs (to match game colors)",
+    "admin_buttons": "Single-color LEDs (Start, Coin, Admin)",
+    "reasoning": "Best visual experience while conserving channels and reducing cost"
+  },
+
+  "rgb_wiring": {
+    "order": "R-G-B (Red, Green, Blue)",
+    "type": "Common Anode (most common)",
+    "common_anode": {
+      "pin1": "Common Anode (+5V)",
+      "pin2": "Red cathode (to controller)",
+      "pin3": "Green cathode (to controller)",
+      "pin4": "Blue cathode (to controller)"
+    },
+    "common_cathode": {
+      "pin1": "Common Cathode (Ground)",
+      "pin2": "Red anode (to controller)",
+      "pin3": "Green anode (to controller)",
+      "pin4": "Blue anode (to controller)"
+    },
+    "ultimarc_goldleaf": {
+      "price": "$6.90 per button",
+      "features": "Dual internal RGB LEDs, 500mm pre-wired",
+      "connection": "Direct plug-in to PacLED64 or I-PAC Ultimate I/O",
+      "warning": "No resistors - MUST use current-controlled outputs"
+    }
+  },
+
+  "rgb_channel_math": {
+    "single_color_per_button": 1,
+    "rgb_per_button": 3,
+    "2player_8button_single": {
+      "p1": 10, "p2": 10, "shared": 3,
+      "total": 23,
+      "hardware": "1x LED-Wiz or 1x PacLED64"
+    },
+    "2player_8button_rgb": {
+      "p1": "(8×3)+2 = 26", "p2": "(8×3)+2 = 26", "shared": 3,
+      "total": 55,
+      "hardware": "2x LED-Wiz or 1x PacLED64 (86%)"
+    },
+    "4player_8button_single": {
+      "all_players": 40, "shared": 3,
+      "total": 43,
+      "hardware": "2x LED-Wiz or 1x PacLED64"
+    },
+    "4player_8button_rgb": {
+      "all_players": 104, "shared": 3,
+      "total": 107,
+      "hardware": "4x LED-Wiz or 2x PacLED64"
+    },
+    "hybrid_2player": {
+      "description": "RGB action buttons, single-color Start/Coin/Admin",
+      "p1": "(8 RGB × 3) + 2 single = 26",
+      "p2": "(8 RGB × 3) + 2 single = 26",
+      "shared": 3,
+      "total": 55,
+      "hardware": "1x PacLED64 (86% capacity)"
+    }
+  },
+
+  "rgb_decision_matrix": {
+    "2player_6button": {"recommendation": "Single-color", "reason": "Simple, cost-effective, 1 board"},
+    "2player_8button": {"recommendation": "Single-color or RGB", "reason": "RGB requires 1 PacLED64 or 2 LED-Wiz"},
+    "4player_6button": {"recommendation": "Single-color", "reason": "1 board covers all"},
+    "4player_8button": {"recommendation": "Single-color", "reason": "RGB requires 2-4 boards"}
+  },
+
+  "device_id_assignment": {
+    "ledwiz": {
+      "method": "Factory-set device ID (1-16)",
+      "changeable": false,
+      "max_devices": 16,
+      "note": "Must be ordered with unique IDs - set at factory, cannot change without specialized equipment",
+      "ordering": "Select device ID via dropdown on product page at purchase",
+      "best_practices": [
+        "Order boards with sequential device IDs (1, 2, 3, 4)",
+        "Assign Device #1 to Player 1 (or P1+P2)",
+        "Assign Device #2 to Player 2 (or P3+P4)",
+        "Document device ID assignments in cabinet wiring diagram",
+        "Configure LEDBlinky to match physical device ID assignments"
+      ],
+      "usb_note": "Device ID has no relationship to USB port order - software addresses by programmed ID"
+    },
+    "pacled64": {
+      "method": "User-configurable via on-board jumpers",
+      "changeable": true,
+      "max_devices": 4,
+      "jumper_config": {
+        "no_jumper": "Device #1 (default)",
+        "J1_jumpered": "Device #2",
+        "J2_jumpered": "Device #3",
+        "J1_and_J2_jumpered": "Device #4"
+      },
+      "jumper_location": "On PCB near USB connector",
+      "best_practices": [
+        "Leave first board at default (no jumper) = Device #1",
+        "Set second board jumper to J1 = Device #2",
+        "Assign Device #1 to Player 1 + Player 2",
+        "Assign Device #2 to Player 3 + Player 4 (if 4-player)",
+        "Document jumper settings in cabinet wiring diagram"
+      ]
+    },
+    "logical_assignment": {
+      "device_1": "Player 1 (or P1+P2)",
+      "device_2": "Player 2 (or P3+P4)",
+      "device_3": "Player 3 (if separate board)",
+      "device_4": "Player 4 (if separate board)"
+    },
+    "multi_board_setups": {
+      "2player_single_ledwiz": "Device #1: All buttons (P1, P2, trackball, admin)",
+      "2player_dual_ledwiz_rgb": {
+        "device_1": "P1 RGB buttons (ch 1-24) + Start/Coin (ch 25-26)",
+        "device_2": "P2 RGB buttons (ch 1-24) + Start/Coin (ch 25-26) + Shared (ch 27-29)"
+      },
+      "4player_dual_ledwiz": {
+        "device_1": "Player 1 + Player 2 (32 channels)",
+        "device_2": "Player 3 + Player 4 + Shared (32 channels)"
+      },
+      "4player_quad_ledwiz_rgb": {
+        "device_1": "Player 1 RGB buttons",
+        "device_2": "Player 2 RGB buttons",
+        "device_3": "Player 3 RGB buttons",
+        "device_4": "Player 4 RGB buttons + Shared"
+      }
+    }
+  },
+
+  "real_world_examples": {
+    "2player_bambam1963": {
+      "source": "Arcade Controls Forum",
+      "total_leds": 22,
+      "breakdown": {
+        "buttons_per_player": 7,
+        "player_buttons": 14,
+        "spinner_buttons": 2,
+        "trackball_buttons": 2,
+        "p1_coin": 1,
+        "p1_start": 1,
+        "p2_coin": 1,
+        "p2_start": 1
+      },
+      "hardware": "1x LED-Wiz (32 channels)",
+      "current_draw": "440mA (22 LEDs × 20mA)",
+      "recommended_fuse": "500mA-1A"
+    },
+    "4player_standard": {
+      "source": "Hyperspin Forum",
+      "hardware": "iPac-4 + 2x LED-Wiz boards",
+      "cost": "~$200",
+      "board_1": "Players 1 & 2 + shared controls",
+      "board_2": "Players 3 & 4 + trackball/spinner"
+    }
+  },
+
+  "wiring_standards": {
+    "polarity_warning": {
+      "note": "ARCADE INDUSTRY HAS BACKWARDS POLARITY",
+      "black_wire": "+5V (positive)",
+      "red_wire": "Ground (negative)",
+      "source": "The Geek Pub - opposite of standard electronics convention"
+    },
+    "power_distribution": {
+      "method": "Daisy-chain +5V is acceptable",
+      "alternative": "Junction point for +5V lines (more reliable)",
+      "wire_gauge": "Must handle entire load"
+    },
+    "led_specs": {
+      "current_per_led": "20mA",
+      "resistor_location": "On cathode (short lead/negative)"
+    },
+    "joystick_leds": {
+      "note": "Joystick LED illumination requires separate channels on LED controller",
+      "not_on_encoder": "Input encoder boards do not have dedicated LED outputs for joystick directions"
+    }
+  },
+
+  "community_insights": {
+    "pacled64_advantages": [
+      "RGB buttons can plug directly into PacLED64 (no resistors needed)",
+      "255 brightness levels vs LED-Wiz 48 levels",
+      "No flicker at dark colors (LED-Wiz flickers)"
+    ],
+    "ledwiz_note": "LED-Wiz was designed for average pushbutton use, simpler but limited"
+  },
+
+  "complete_channel_counts": {
+    "2player_standard": {
+      "description": "2-Player with standalone marquee/underglow/trackball",
+      "p1_buttons": 8,
+      "p1_start_coin": 2,
+      "p2_buttons": 8,
+      "p2_start_coin": 2,
+      "trackball_buttons": 2,
+      "admin_exit": 1,
+      "marquee_standalone": 0,
+      "underglow_standalone": 0,
+      "trackball_rgb_standalone": 0,
+      "total_channels": 23,
+      "hardware": "1x LED-Wiz (32ch) or 1x PacLED64 (64ch)"
+    },
+    "2player_advanced_rgb": {
+      "description": "2-Player with controlled marquee/underglow/trackball",
+      "buttons_subtotal": 23,
+      "marquee_rgb": 3,
+      "underglow_rgb_single": 3,
+      "trackball_rgb_controlled": 3,
+      "total_channels": 32,
+      "hardware": "1x LED-Wiz (at capacity) or 1x PacLED64 (room to grow)"
+    },
+    "4player_standard": {
+      "description": "4-Player with standalone marquee/underglow/trackball",
+      "p1_p4_buttons": 32,
+      "p1_p4_start_coin": 8,
+      "trackball_buttons": 2,
+      "admin_exit": 1,
+      "marquee_standalone": 0,
+      "underglow_standalone": 0,
+      "trackball_rgb_standalone": 0,
+      "total_channels": 43,
+      "hardware": "2x LED-Wiz (64ch) or 1x PacLED64 (64ch)"
+    },
+    "4player_advanced_rgb": {
+      "description": "4-Player with controlled marquee/underglow/trackball",
+      "buttons_subtotal": 43,
+      "marquee_rgb": 3,
+      "underglow_rgb_single": 3,
+      "trackball_rgb_controlled": 3,
+      "total_channels": 52,
+      "hardware": "2x LED-Wiz (64ch) or 1x PacLED64 (81% capacity)"
+    }
+  },
+
+  "design_philosophy": {
+    "standard_builds": "Use standalone lighting for marquee/underglow/trackball to conserve LED controller channels for button illumination",
+    "advanced_builds": "Integrate all lighting into LED controller for fully synchronized, game-specific lighting effects"
+  }
+}

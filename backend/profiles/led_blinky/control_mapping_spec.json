@@ -1,0 +1,106 @@
+{
+  "description": "LED control mapping specification - logical button to LED port mapping",
+  
+  "core_principle": "LED output must be associated with same input code that physical button sends",
+  
+  "abstraction_layers": {
+    "physical_button": "Button on control panel (e.g., Player 1, Button 1)",
+    "input_code": "Signal from encoder (e.g., KEY_LEFT_CTRL, JOYCODE_1_BUTTON1)",
+    "led_port": "Physical output on LED controller (e.g., LED-Wiz 1, Port 1)",
+    "control_code": "Logical name linking input and LED (e.g., P1_BUTTON1)"
+  },
+
+  "standard_control_codes": {
+    "player_buttons": [
+      "P1_BUTTON1", "P1_BUTTON2", "P1_BUTTON3", "P1_BUTTON4",
+      "P1_BUTTON5", "P1_BUTTON6", "P1_BUTTON7", "P1_BUTTON8",
+      "P2_BUTTON1", "P2_BUTTON2", "P2_BUTTON3", "P2_BUTTON4",
+      "P2_BUTTON5", "P2_BUTTON6", "P2_BUTTON7", "P2_BUTTON8",
+      "P3_BUTTON1", "P3_BUTTON2", "P3_BUTTON3", "P3_BUTTON4",
+      "P4_BUTTON1", "P4_BUTTON2", "P4_BUTTON3", "P4_BUTTON4"
+    ],
+    "joystick": [
+      "P1_UP", "P1_DOWN", "P1_LEFT", "P1_RIGHT",
+      "P2_UP", "P2_DOWN", "P2_LEFT", "P2_RIGHT",
+      "P3_UP", "P3_DOWN", "P3_LEFT", "P3_RIGHT",
+      "P4_UP", "P4_DOWN", "P4_LEFT", "P4_RIGHT"
+    ],
+    "admin_buttons": [
+      "P1_START", "P2_START", "P3_START", "P4_START",
+      "COIN1", "COIN2", "COIN3", "COIN4",
+      "UI_PAUSE", "UI_CANCEL", "UI_SELECT"
+    ],
+    "special_controls": [
+      "TRACKBALL_X", "TRACKBALL_Y",
+      "PADDLE", "SPINNER",
+      "PEDAL_GAS", "PEDAL_BRAKE",
+      "LIGHTGUN_X", "LIGHTGUN_Y", "LIGHTGUN_TRIGGER"
+    ]
+  },
+
+  "input_code_to_control_code": {
+    "keyboard_ipac_defaults": {
+      "KEY_LEFT_CTRL": "P1_BUTTON1",
+      "KEY_LEFT_ALT": "P1_BUTTON2",
+      "KEY_SPACE": "P1_BUTTON3",
+      "KEY_LEFT_SHIFT": "P1_BUTTON4",
+      "KEY_Z": "P1_BUTTON5",
+      "KEY_X": "P1_BUTTON6",
+      "KEY_C": "P1_BUTTON7",
+      "KEY_V": "P1_BUTTON8",
+      "KEY_UP": "P1_UP",
+      "KEY_DOWN": "P1_DOWN",
+      "KEY_LEFT": "P1_LEFT",
+      "KEY_RIGHT": "P1_RIGHT",
+      "KEY_1": "P1_START",
+      "KEY_5": "COIN1",
+      "KEY_A": "P2_BUTTON1",
+      "KEY_S": "P2_BUTTON2",
+      "KEY_Q": "P2_BUTTON3",
+      "KEY_W": "P2_BUTTON4",
+      "KEY_I": "P2_BUTTON5",
+      "KEY_K": "P2_BUTTON6",
+      "KEY_J": "P2_BUTTON7",
+      "KEY_L": "P2_BUTTON8",
+      "KEY_R": "P2_UP",
+      "KEY_F": "P2_DOWN",
+      "KEY_D": "P2_LEFT",
+      "KEY_G": "P2_RIGHT",
+      "KEY_2": "P2_START",
+      "KEY_6": "COIN2"
+    },
+    "xinput_defaults": {
+      "JOYCODE_1_BUTTON1": "P1_BUTTON1",
+      "JOYCODE_1_BUTTON2": "P1_BUTTON2",
+      "JOYCODE_1_BUTTON3": "P1_BUTTON3",
+      "JOYCODE_1_BUTTON4": "P1_BUTTON4",
+      "JOYCODE_1_BUTTON5": "P1_BUTTON5",
+      "JOYCODE_1_BUTTON6": "P1_BUTTON6",
+      "JOYCODE_1_ZAXIS_NEG_SWITCH": "P1_BUTTON7",
+      "JOYCODE_1_ZAXIS_POS_SWITCH": "P1_BUTTON8",
+      "JOYCODE_1_YAXIS_UP_SWITCH": "P1_UP",
+      "JOYCODE_1_YAXIS_DOWN_SWITCH": "P1_DOWN",
+      "JOYCODE_1_XAXIS_LEFT_SWITCH": "P1_LEFT",
+      "JOYCODE_1_XAXIS_RIGHT_SWITCH": "P1_RIGHT",
+      "JOYCODE_1_BUTTON8": "P1_START",
+      "JOYCODE_1_BUTTON7": "COIN1"
+    }
+  },
+
+  "mapping_override": {
+    "description": "User can override physical wiring mistakes via AI command",
+    "example_commands": [
+      "This is actually button 1",
+      "Swap button 2 and button 3",
+      "The red button is P1_BUTTON1"
+    ],
+    "storage": "configs/ledblinky/led_channels.json"
+  },
+
+  "dynamic_detection": {
+    "method": "Use SDK device discovery instead of hardcoded VID/PID",
+    "ledwiz": "LWZ_Initialize() returns count of connected devices",
+    "ultimarc": "PacGetDeviceCount() + PacGetDeviceType() for each",
+    "fallback": "Virtual device in mock mode"
+  }
+}

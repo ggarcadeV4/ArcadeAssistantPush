@@ -1,0 +1,58 @@
+name: Windows Smoke (Plugin-First)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/smoke_win.ps1"
+      - "gateway/**"
+      - "backend/**"
+      - "plugin/**"
+      - ".github/workflows/smoke-windows.yml"
+
+jobs:
+  smoke-win:
+    # Self-hosted Windows runner expected (labels may vary per environment)
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run smoke (PowerShell)
+        id: smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          Write-Host "Running scripts/smoke_win.ps1 ..."
+          & .\scripts\smoke_win.ps1
+          $code = $LASTEXITCODE
+          "exit_code=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+          @"
+          ## Windows Smoke Result
+          Exit code: $code
+          **Semantics**
+          - 0 = OK (plugin up; fresh scores; launch healthy)
+          - 2 = Degraded (plugin offline; cached:true or friendly 503; launch unaffected)
+          - 1 = Fail (backend/gateway unreachable, missing header, or empty library)
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+          if ($code -eq 1) { exit 1 }      # hard fail
+          if ($code -eq 2) {
+            Write-Host "PLUGIN OFFLINE  serving cached scores; launches unaffected"
+            exit 0                         # success with note
+          }
+          exit 0                            # code 0 = success
+
+      - name: Upload logs (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcade-assistant-logs
+          path: |
+            A:\LaunchBox\Logs\ArcadeAssistant\*.jsonl
+            gateway\logs\*.log
+            backend\logs\*.log
+          if-no-files-found: ignore

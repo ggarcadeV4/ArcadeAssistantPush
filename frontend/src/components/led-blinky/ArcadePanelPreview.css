@@ -1,0 +1,143 @@
+/* ArcadePanelPreview.css - Styling for the LED arcade panel visualization */
+
+.arcade-panel-preview {
+    background: linear-gradient(180deg, #0a0a0a 0%, #151515 100%);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #333;
+    margin: 16px 0;
+}
+
+.arcade-panel-preview svg {
+    max-width: 600px;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Scanning indicator animation */
+.led-scanning-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(147, 51, 234, 0.1), rgba(6, 182, 212, 0.1));
+    border: 1px solid #9333ea;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.led-scanning-indicator .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #333;
+    border-top-color: #9333ea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.led-scanning-indicator .text {
+    color: #d1d5db;
+    font-size: 14px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(147, 51, 234, 0.3);
+        border-color: #9333ea;
+    }
+
+    50% {
+        box-shadow: 0 0 15px rgba(147, 51, 234, 0.5);
+        border-color: #a855f7;
+    }
+}
+
+/* Hardware status banner */
+.led-hardware-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.led-hardware-banner.connected {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05));
+    border: 1px solid #10b981;
+    color: #34d399;
+}
+
+.led-hardware-banner.disconnected {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05));
+    border: 1px solid #f59e0b;
+    color: #fbbf24;
+}
+
+.led-hardware-banner.mock {
+    background: linear-gradient(90deg, rgba(147, 51, 234, 0.15), rgba(147, 51, 234, 0.05));
+    border: 1px solid #9333ea;
+    color: #c4b5fd;
+}
+
+.led-hardware-banner .status-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: status-pulse 2s ease-in-out infinite;
+}
+
+.led-hardware-banner.connected .status-icon {
+    background: #10b981;
+}
+
+.led-hardware-banner.disconnected .status-icon {
+    background: #f59e0b;
+}
+
+.led-hardware-banner.mock .status-icon {
+    background: #9333ea;
+}
+
+@keyframes status-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.led-hardware-banner .info {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.led-hardware-banner .action {
+    font-size: 12px;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.led-hardware-banner .action:hover {
+    background: rgba(255, 255, 255, 0.2);
+}

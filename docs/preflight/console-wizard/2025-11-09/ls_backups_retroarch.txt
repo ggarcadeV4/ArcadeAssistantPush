@@ -1,0 +1,9 @@
+
+FullName                                                      
+--------                                                      
+A:\backups\20251021\220713_config_retroarch_8bitdo_sn30_p1.cfg
+A:\backups\20251110\103834_config_retroarch_xbox_360_p1.cfg   
+A:\backups\20251110\104031_config_retroarch_xbox_360_p1.cfg   
+A:\backups\20251110\104035_config_retroarch_xbox_360_p1.cfg   
+
+

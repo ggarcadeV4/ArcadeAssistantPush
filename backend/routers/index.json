@@ -1,0 +1,69 @@
+{
+  "directory": "backend/routers",
+  "purpose": "FastAPI route handlers for backend services",
+  "files": {
+    "health.py": {
+      "role": "Health check endpoint",
+      "owner": "Core",
+      "endpoints": ["/health"],
+      "dependencies": [],
+      "tags": ["monitoring", "system", "healthcheck"]
+    },
+    "config_ops.py": {
+      "role": "Configuration management operations",
+      "owner": "Core",
+      "endpoints": ["/config/preview", "/config/apply", "/config/revert"],
+      "dependencies": ["services/backup.py", "services/diffs.py"],
+      "tags": ["configuration", "backup", "state"]
+    },
+    "session_log.py": {
+      "role": "Session logging operations",
+      "owner": "Core",
+      "endpoints": ["/docs/session_log"],
+      "dependencies": [],
+      "tags": ["logging", "session", "documentation"]
+    },
+    "emulator_mame.py": {
+      "role": "MAME emulator integration",
+      "owner": "Argus",
+      "endpoints": ["/mame/*"],
+      "dependencies": [],
+      "tags": ["emulator", "mame", "gaming"]
+    },
+    "emulator_retroarch.py": {
+      "role": "RetroArch emulator integration",
+      "owner": "Argus",
+      "endpoints": ["/retroarch/*"],
+      "dependencies": [],
+      "tags": ["emulator", "retroarch", "gaming"]
+    },
+    "screen_capture.py": {
+      "role": "Screen capture operations",
+      "owner": "Core",
+      "endpoints": ["/screen/capture"],
+      "dependencies": [],
+      "tags": ["screenshot", "capture", "display"]
+    },
+    "claude_api.py": {
+      "role": "Claude AI API integration",
+      "owner": "Hermes",
+      "endpoints": ["/claude/*"],
+      "dependencies": [],
+      "tags": ["ai", "claude", "anthropic"]
+    },
+    "launchbox.py": {
+      "role": "LaunchBox game library integration",
+      "owner": "LoRa",
+      "endpoints": ["/api/launchbox/games", "/api/launchbox/launch", "/api/launchbox/stats"],
+      "dependencies": [],
+      "status": "inactive",
+      "activation": "Requires A: drive deployment (AA_DRIVE_ROOT=A:\\)",
+      "tags": ["games", "launchbox", "library", "xml"]
+    }
+  },
+  "patterns": {
+    "naming": "snake_case for files, PascalCase for classes",
+    "structure": "APIRouter instance exported as 'router'",
+    "registration": "Imported and registered in backend/app.py"
+  }
+}

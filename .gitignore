@@ -1,0 +1,191 @@
+# ============================================
+# Arcade Assistant - Git Ignore Configuration
+# CODE ONLY - No ROMs, ISOs, BIOS, or large assets
+# ============================================
+
+# ---------------------------
+# ROMs, ISOs, BIOS - NEVER COMMIT THESE
+# ---------------------------
+*.iso
+*.ISO
+*.bin
+*.BIN
+*.rom
+*.ROM
+*.cue
+*.CUE
+*.gdi
+*.GDI
+*.chd
+*.CHD
+*.zip
+*.7z
+*.rar
+**/Roms/
+**/ROMs/
+**/roms/
+**/Bios/
+**/BIOS/
+**/bios/
+**/_tmp/
+**/Console ROMs/
+
+# ---------------------------
+# Environment & Secrets (NEVER commit these!)
+# ---------------------------
+.env
+.env.backup
+.env.win
+.env.wsl
+# Keep these template files:
+# .env.example
+# .env.template
+
+# ---------------------------
+# Python
+# ---------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+.pytest_cache/
+*.egg-info/
+.eggs/
+*.egg
+
+# ---------------------------
+# Node.js
+# ---------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------------------------
+# Build Artifacts
+# ---------------------------
+frontend/dist/
+dist/
+build/
+*.bundle.js
+*.bundle.js.map
+
+# ---------------------------
+# Cache & Generated Files
+# ---------------------------
+.config/
+backend/cache/
+.cache/
+*.cache
+
+# ---------------------------
+# Logs
+# ---------------------------
+logs/
+*.log
+*.err
+*.out
+backend.log
+backend.err
+backend_*.log
+gateway_*.log
+startup.log
+uvicorn.log
+refactor.log
+
+# ---------------------------
+# Backup Files
+# ---------------------------
+*.bak
+*.bak_*
+*.old
+*.orig
+backups/
+README.md.*.bak
+
+# ---------------------------
+# Large Audit/Data Files
+# ---------------------------
+audit_file_tree.txt
+audit_frontend_files.txt
+audit_python_files.txt
+audit_env.txt
+audit_ports.txt
+openapi_temp.json
+pylint_report.txt
+pytest_cov.txt
+
+# ---------------------------
+# IDE & Editor
+# ---------------------------
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.superdesign/
+.kiro/
+
+# ---------------------------
+# OS Files
+# ---------------------------
+nul
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# ---------------------------
+# Temporary Files
+# ---------------------------
+tmp/
+temp/
+*.tmp
+temp_*.json
+TEMP_*.txt
+
+# ---------------------------
+# Test Artifacts
+# ---------------------------
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ---------------------------
+# Brain/Agent Working Files
+# ---------------------------
+.gemini/
+.aa/
+
+# ---------------------------
+# Large State/Data Directories
+# ---------------------------
+state/
+AA_DRIVE_ROOT_NOT_SET/
+
+# ---------------------------
+# Large Binary/Media Files
+# ---------------------------
+*.dll
+*.exe
+*.mp3
+*.wav
+*.ogg
+*.mp4
+*.avi
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.psd
+
+# Exception: Keep public assets that are small and needed for the app
+!frontend/public/*.png
+!frontend/public/*.jpg
+!frontend/public/*.jpeg

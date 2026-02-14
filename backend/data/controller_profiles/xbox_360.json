@@ -1,0 +1,68 @@
+{
+  "profile_id": "xbox_360",
+  "name": "Xbox 360 Controller",
+  "manufacturer": "Microsoft",
+  "type": "console_gamepad",
+  "usb_identifiers": [
+    {"vid": "045e", "pid": "028e", "description": "Xbox 360 Wired Controller"},
+    {"vid": "045e", "pid": "02a1", "description": "Xbox 360 Wireless Receiver"},
+    {"vid": "045e", "pid": "0719", "description": "Xbox 360 Wireless Controller"}
+  ],
+  "buttons": {
+    "a": {"index": 0, "label": "A", "color": "green"},
+    "b": {"index": 1, "label": "B", "color": "red"},
+    "x": {"index": 2, "label": "X", "color": "blue"},
+    "y": {"index": 3, "label": "Y", "color": "yellow"},
+    "lb": {"index": 4, "label": "LB"},
+    "rb": {"index": 5, "label": "RB"},
+    "back": {"index": 6, "label": "Back"},
+    "start": {"index": 7, "label": "Start"},
+    "ls": {"index": 8, "label": "L3 (Left Stick)"},
+    "rs": {"index": 9, "label": "R3 (Right Stick)"},
+    "guide": {"index": 10, "label": "Guide"}
+  },
+  "dpad": {
+    "up": {"index": 12, "label": "D-Pad Up"},
+    "down": {"index": 13, "label": "D-Pad Down"},
+    "left": {"index": 14, "label": "D-Pad Left"},
+    "right": {"index": 15, "label": "D-Pad Right"}
+  },
+  "axes": {
+    "left_stick_x": {"index": 0, "label": "Left Stick X", "deadzone": 0.15},
+    "left_stick_y": {"index": 1, "label": "Left Stick Y", "deadzone": 0.15},
+    "right_stick_x": {"index": 2, "label": "Right Stick X", "deadzone": 0.15},
+    "right_stick_y": {"index": 3, "label": "Right Stick Y", "deadzone": 0.15},
+    "left_trigger": {"index": 4, "label": "LT (Left Trigger)", "range": [0, 1]},
+    "right_trigger": {"index": 5, "label": "RT (Right Trigger)", "range": [0, 1]}
+  },
+  "retroarch_defaults": {
+    "input_device": "Xbox 360 Controller",
+    "input_b_btn": "0",
+    "input_y_btn": "2",
+    "input_select_btn": "6",
+    "input_start_btn": "7",
+    "input_up_btn": "h0up",
+    "input_down_btn": "h0down",
+    "input_left_btn": "h0left",
+    "input_right_btn": "h0right",
+    "input_a_btn": "1",
+    "input_x_btn": "3",
+    "input_l_btn": "4",
+    "input_r_btn": "5",
+    "input_l2_axis": "+4",
+    "input_r2_axis": "+5",
+    "input_l3_btn": "8",
+    "input_r3_btn": "9",
+    "input_l_x_plus_axis": "+0",
+    "input_l_x_minus_axis": "-0",
+    "input_l_y_plus_axis": "+1",
+    "input_l_y_minus_axis": "-1",
+    "input_r_x_plus_axis": "+2",
+    "input_r_x_minus_axis": "-2",
+    "input_r_y_plus_axis": "+3",
+    "input_r_y_minus_axis": "-3"
+  },
+  "notes": "Standard Xbox 360 controller layout. Compatible with most PC games and emulators. Triggers are analog axes, not buttons.",
+  "created": "2025-10-16",
+  "version": "1.0"
+}

@@ -1,0 +1,324 @@
+{
+  "report_date": "2025-10-23",
+  "test_environment": "WSL accessing A: drive via /mnt/a",
+  "summary": {
+    "emulator_configs_found": 5,
+    "retroarch_status": "PASS",
+    "cores_available": 183,
+    "sample_platforms_tested": 3,
+    "root_cause": "Path conversion + Plugin dependency",
+    "severity": "MEDIUM"
+  },
+
+  "emulator_mappings": [
+    {
+      "id": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "name": "Retroarch-Controller",
+      "application_path": "Emulators\\RetroArch\\RetroArch-Controller\\retroarch.exe",
+      "absolute_path_wsl": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/retroarch.exe",
+      "absolute_path_windows": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller\\retroarch.exe",
+      "exe_exists": true,
+      "type": "Multi-system emulator (RetroArch)",
+      "platforms_supported": [
+        "3DO Interactive Multiplayer",
+        "Amstrad CPC",
+        "Atari 2600",
+        "Atari 5200",
+        "Atari 7800",
+        "Atari Jaguar",
+        "Atari Lynx",
+        "Atari ST",
+        "ColecoVision",
+        "Commodore 64",
+        "Commodore Amiga",
+        "GCE Vectrex",
+        "Nintendo 64",
+        "Nintendo DS",
+        "Nintendo Entertainment System",
+        "Super Nintendo Entertainment System"
+      ]
+    },
+    {
+      "id": "09cc3f18-e08b-42c8-94a8-b00ca2378a95",
+      "name": "Redream",
+      "application_path": "Emulators\\redream.x86_64-windows-v1.5.0\\redream.exe",
+      "absolute_path_wsl": "/mnt/a/LaunchBox/Emulators/redream.x86_64-windows-v1.5.0/redream.exe",
+      "absolute_path_windows": "A:\\LaunchBox\\Emulators\\redream.x86_64-windows-v1.5.0\\redream.exe",
+      "exe_exists": true,
+      "type": "Standalone emulator (Dreamcast)",
+      "platforms_supported": ["Sega Dreamcast"]
+    },
+    {
+      "id": "0bcf7925-4ab1-4ce8-9ac4-0b2473fcf71a",
+      "name": "MAME Gun 4x3",
+      "application_path": "..\\Gun Build\\Emulators\\MAME 4x3\\mame.exe",
+      "absolute_path_wsl": "/mnt/a/Gun Build/Emulators/MAME 4x3/mame.exe",
+      "absolute_path_windows": "A:\\Gun Build\\Emulators\\MAME 4x3\\mame.exe",
+      "exe_exists": true,
+      "type": "Standalone emulator (Arcade)",
+      "platforms_supported": ["Arcade"]
+    },
+    {
+      "id": "01d57c9e-b76f-4db1-bb99-d1c8f18468fb",
+      "name": "Pinball FX2",
+      "application_path": "..\\Roms\\PINBALL-FX2\\Pinball FX2.exe",
+      "absolute_path_wsl": "/mnt/a/Roms/PINBALL-FX2/Pinball FX2.exe",
+      "absolute_path_windows": "A:\\Roms\\PINBALL-FX2\\Pinball FX2.exe",
+      "exe_exists": true,
+      "type": "Direct application",
+      "platforms_supported": ["Pinball FX2"]
+    },
+    {
+      "id": "15c657c3-abf7-4f7b-98d7-8749dccc0217",
+      "name": "MFME",
+      "application_path": "..\\Emulators\\MFME 19\\MFME\\MFME.exe",
+      "absolute_path_wsl": "/mnt/a/Emulators/MFME 19/MFME/MFME.exe",
+      "absolute_path_windows": "A:\\Emulators\\MFME 19\\MFME\\MFME.exe",
+      "exe_exists": "NOT_CHECKED",
+      "type": "Standalone emulator",
+      "platforms_supported": ["Fruit Machines"]
+    }
+  ],
+
+  "platform_command_lines": {
+    "Atari 2600": {
+      "emulator": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "command_line": "-L \"cores\\stella_libretro.dll\" -f",
+      "core_file": "stella_libretro.dll",
+      "core_exists": true,
+      "core_path_wsl": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/cores/stella_libretro.dll"
+    },
+    "Nintendo Entertainment System": {
+      "emulator": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "command_line": "-L \"cores\\nestopia_libretro.dll\" -f",
+      "core_file": "nestopia_libretro.dll",
+      "core_exists": true,
+      "core_path_wsl": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/cores/nestopia_libretro.dll"
+    },
+    "Nintendo 64": {
+      "emulator": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "command_line": "-L \"cores\\mupen64plus_next_libretro.dll\" -f",
+      "core_file": "mupen64plus_next_libretro.dll",
+      "core_exists": true,
+      "core_path_wsl": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/cores/mupen64plus_next_libretro.dll"
+    },
+    "Nintendo DS": {
+      "emulator": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "command_line": "-L \"cores\\desmume_libretro.dll\" -f",
+      "core_file": "desmume_libretro.dll",
+      "core_exists": true,
+      "core_path_wsl": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/cores/desmume_libretro.dll"
+    },
+    "Atari 7800": {
+      "emulator": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "command_line": "-L \"cores\\prosystem_libretro.dll\" -f",
+      "core_file": "prosystem_libretro.dll",
+      "core_exists": true,
+      "core_path_wsl": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/cores/prosystem_libretro.dll"
+    }
+  },
+
+  "retroarch_verification": {
+    "exe_path": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/retroarch.exe",
+    "exe_exists": true,
+    "cores_directory": "/mnt/a/LaunchBox/Emulators/RetroArch/RetroArch-Controller/cores",
+    "cores_directory_exists": true,
+    "total_cores": 183,
+    "sample_cores_verified": [
+      "stella_libretro.dll",
+      "stella2014_libretro.dll",
+      "nestopia_libretro.dll",
+      "mupen64plus_next_libretro.dll",
+      "desmume_libretro.dll",
+      "desmume2015_libretro.dll",
+      "prosystem_libretro.dll"
+    ]
+  },
+
+  "sample_games_dry_run": [
+    {
+      "game_id": "e8f430ac-9876-4579-8de6-3e62be9cae98",
+      "title": "Rush Hour (USA) (Proto)",
+      "platform": "Atari 2600",
+      "rom_path_relative": "..\\Console ROMs\\Atari 2600\\roms\\Rush Hour (USA) (Proto).zip",
+      "rom_path_absolute_wsl": "/mnt/a/Console ROMs/Atari 2600/roms/Rush Hour (USA) (Proto).zip",
+      "rom_path_absolute_windows": "A:\\Console ROMs\\Atari 2600\\roms\\Rush Hour (USA) (Proto).zip",
+      "rom_exists": true,
+      "emulator_id": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "emulator_exe": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller\\retroarch.exe",
+      "expected_command_line": "retroarch.exe -L \"cores\\stella_libretro.dll\" -f \"A:\\Console ROMs\\Atari 2600\\roms\\Rush Hour (USA) (Proto).zip\"",
+      "launch_plan": {
+        "method": "RetroArch direct execution",
+        "working_directory": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller",
+        "executable": "retroarch.exe",
+        "arguments": ["-L", "cores\\stella_libretro.dll", "-f", "A:\\Console ROMs\\Atari 2600\\roms\\Rush Hour (USA) (Proto).zip"],
+        "expected_result": "SUCCESS (all paths exist, core available)"
+      },
+      "failure_scenarios": [
+        "WSL path not converted to Windows format (rom path stays /mnt/a/...)",
+        "Relative core path not resolved correctly",
+        "LaunchBox plugin not running (localhost:9999 unreachable)"
+      ]
+    },
+    {
+      "game_id": "3a686b9d-66dc-4c30-8dd6-f45bae71cb2a",
+      "title": "The Flintstones: The Surprise at Dinosaur Peak",
+      "platform": "Nintendo Entertainment System",
+      "rom_path_relative": "..\\Console ROMs\\Nintendo Entertainment System\\roms\\Flintstones, The - The Surprise at Dinosaur Peak! (USA).zip",
+      "rom_path_absolute_wsl": "/mnt/a/Console ROMs/Nintendo Entertainment System/roms/Flintstones, The - The Surprise at Dinosaur Peak! (USA).zip",
+      "rom_path_absolute_windows": "A:\\Console ROMs\\Nintendo Entertainment System\\roms\\Flintstones, The - The Surprise at Dinosaur Peak! (USA).zip",
+      "rom_exists": true,
+      "emulator_id": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "emulator_exe": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller\\retroarch.exe",
+      "expected_command_line": "retroarch.exe -L \"cores\\nestopia_libretro.dll\" -f \"A:\\Console ROMs\\Nintendo Entertainment System\\roms\\Flintstones, The - The Surprise at Dinosaur Peak! (USA).zip\"",
+      "launch_plan": {
+        "method": "RetroArch direct execution",
+        "working_directory": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller",
+        "executable": "retroarch.exe",
+        "arguments": ["-L", "cores\\nestopia_libretro.dll", "-f", "A:\\Console ROMs\\Nintendo Entertainment System\\roms\\Flintstones, The - The Surprise at Dinosaur Peak! (USA).zip"],
+        "expected_result": "SUCCESS (all paths exist, core available)"
+      },
+      "failure_scenarios": [
+        "WSL path not converted to Windows format",
+        "Special characters in filename (!)",
+        "Plugin bridge method (localhost:9999) not available"
+      ]
+    },
+    {
+      "game_id": "sample-n64-001",
+      "title": "Sample Nintendo 64 Game",
+      "platform": "Nintendo 64",
+      "rom_path_relative": "..\\Console ROMs\\Nintendo 64\\roms\\sample.z64",
+      "rom_path_absolute_wsl": "/mnt/a/Console ROMs/Nintendo 64/roms/sample.z64",
+      "rom_path_absolute_windows": "A:\\Console ROMs\\Nintendo 64\\roms\\sample.z64",
+      "rom_exists": "NOT_VERIFIED",
+      "emulator_id": "f93d5193-9394-44a3-8da9-fc9f6fc03f70",
+      "emulator_exe": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller\\retroarch.exe",
+      "expected_command_line": "retroarch.exe -L \"cores\\mupen64plus_next_libretro.dll\" -f \"A:\\Console ROMs\\Nintendo 64\\roms\\sample.z64\"",
+      "launch_plan": {
+        "method": "RetroArch direct execution",
+        "working_directory": "A:\\LaunchBox\\Emulators\\RetroArch\\RetroArch-Controller",
+        "executable": "retroarch.exe",
+        "arguments": ["-L", "cores\\mupen64plus_next_libretro.dll", "-f", "A:\\Console ROMs\\Nintendo 64\\roms\\sample.z64"],
+        "expected_result": "SUCCESS IF ROM EXISTS (core available)"
+      },
+      "failure_scenarios": [
+        "ROM file may not exist (not verified)",
+        "WSL path conversion issue",
+        "Plugin not running"
+      ]
+    }
+  ],
+
+  "current_failure_analysis": {
+    "primary_issue": "LaunchBox Plugin Dependency",
+    "description": "Backend launcher prioritizes LaunchBox Plugin bridge (localhost:9999) but plugin is not running during smoke test",
+    "evidence": [
+      "Backend log shows: 'Plugin health check failed: Request failed after 2 attempts'",
+      "Launcher fallback chain: 1) Plugin → 2) Auto-detected emulator → 3) Direct execution",
+      "Only MAME launches succeed (likely has working fallback path)"
+    ],
+    "secondary_issues": [
+      {
+        "issue": "Path Format Mismatch (WSL vs Windows)",
+        "description": "When running from WSL, paths are in /mnt/a/ format but Windows .exe files need A:\\ format",
+        "impact": "RetroArch cannot find ROMs if paths not converted",
+        "current_mitigation": "Code has _convert_wsl_paths_for_windows() function but may not cover all cases"
+      },
+      {
+        "issue": "Missing Emulator Configuration Parsing",
+        "description": "Backend may not be parsing Emulators.xml correctly to get emulator paths and command lines",
+        "impact": "Cannot build proper launch commands without LaunchBox XML data",
+        "evidence": "No clear XML parsing in launcher.py for emulator configs"
+      }
+    ]
+  },
+
+  "root_cause_summary": {
+    "why_mame_works": [
+      "MAME may have hardcoded fallback path in backend",
+      "MAME emulator path is simpler (no core loading required)",
+      "MAME adapter may be registered in ADAPTERS registry"
+    ],
+    "why_retroarch_fails": [
+      "Plugin bridge not running (localhost:9999 unavailable)",
+      "Backend may not be parsing LaunchBox Emulators.xml for RetroArch config",
+      "Path conversion issues (WSL /mnt/a/ vs Windows A:\\)",
+      "Core path resolution (-L parameter with relative path may fail)",
+      "No fallback adapter registered for RetroArch platforms in launcher_registry.py"
+    ]
+  },
+
+  "recommended_fixes": [
+    {
+      "priority": "P0",
+      "type": "ENV_CONFIG",
+      "fix": "Start LaunchBox Plugin",
+      "description": "Launch LaunchBox with plugin enabled on port 9999 to enable primary launch method",
+      "implementation": "Manual - open LaunchBox.exe before testing launches",
+      "impact": "HIGH - Enables most reliable launch method"
+    },
+    {
+      "priority": "P1",
+      "type": "CONFIG",
+      "fix": "Add RetroArch Platform Adapters",
+      "description": "Register RetroArch adapter in launcher_registry.py for common platforms (NES, SNES, N64, etc.)",
+      "implementation": "Code change required - see backend/services/adapters/retroarch_adapter.py",
+      "impact": "HIGH - Provides fallback when plugin unavailable"
+    },
+    {
+      "priority": "P1",
+      "type": "CONFIG",
+      "fix": "Parse LaunchBox Emulators.xml",
+      "description": "Add emulator config parser to read Emulators.xml and build launch commands",
+      "implementation": "Code change - create backend/services/launchbox_emulator_parser.py",
+      "impact": "MEDIUM - Enables auto-detection method in fallback chain"
+    },
+    {
+      "priority": "P2",
+      "type": "ENV_CONFIG",
+      "fix": "Set AA_ALLOW_DIRECT_EMULATOR=true",
+      "description": "Enable direct emulator execution method in .env",
+      "implementation": "Add AA_ALLOW_DIRECT_EMULATOR=true to .env file",
+      "impact": "MEDIUM - Enables last fallback method"
+    },
+    {
+      "priority": "P2",
+      "type": "CONFIG",
+      "fix": "Verify WSL Path Conversion",
+      "description": "Ensure _convert_wsl_paths_for_windows() is called for all paths when running from WSL",
+      "implementation": "Code review - check launcher.py spawn calls",
+      "impact": "MEDIUM - Fixes Windows exe execution from WSL"
+    }
+  ],
+
+  "immediate_no_code_fixes": [
+    {
+      "fix": "Start LaunchBox Plugin",
+      "steps": [
+        "1. Open A:\\LaunchBox\\LaunchBox.exe",
+        "2. Enable the web API plugin (if not already enabled)",
+        "3. Verify plugin is running by visiting http://localhost:9999/health",
+        "4. Keep LaunchBox running in background during tests",
+        "5. Retry launching non-MAME games from frontend"
+      ],
+      "expected_result": "All platforms should now launch via plugin bridge"
+    },
+    {
+      "fix": "Set Environment Variable for Direct Execution",
+      "steps": [
+        "1. Edit .env file",
+        "2. Add line: AA_ALLOW_DIRECT_EMULATOR=true",
+        "3. Restart backend: npm run dev:backend",
+        "4. Retry launching games"
+      ],
+      "expected_result": "Backend will attempt direct emulator execution as fallback"
+    }
+  ],
+
+  "next_steps": {
+    "immediate": "Try starting LaunchBox.exe with plugin to enable primary launch method",
+    "short_term": "Review backend/services/adapters/ to add RetroArch adapter registration",
+    "long_term": "Implement full LaunchBox Emulators.xml parsing for auto-detection method"
+  }
+}

@@ -1,0 +1,106 @@
+version: "2025-10-11"
+purpose: >
+  Authoritative operational blueprint for Arcade Assistant (Frontend  Gateway  Backend),
+  used by all agents and runtime validators to enforce deterministic, local-first behavior.
+
+global_invariants:
+  - "AA_DRIVE_ROOT must exist and be validated before any route registration."
+  - "Gateway performs no direct file I/O; all writes proxy to FastAPI /config/*."
+  - "All writes follow Preview  Apply  Restore."
+  - "When /.aa/manifest.json has sanctioned_paths=[], all writes are rejected (read-only mode)."
+  - "CORS with credentials must enumerate origins (no '*'); allow headers: x-device-id, x-scope, content-type, authorization."
+  - "Missing/disabled AI keys return 501 NOT_CONFIGURED (never 500)."
+  - "Structured logs include request_id, x-device-id, x-panel, and backup_path when applicable."
+  - "Threads/tasks are joined/cancelled on shutdown; no orphaned workers."
+  - "Frontend panels are isolated with ErrorBoundaries; errors log to /logs/frontend_errors.jsonl."
+
+startup_sequence:
+  order: ["backend:init", "gateway:init", "frontend:init"]
+  backend:init:
+    - "Load AA_DRIVE_ROOT"
+    - "Load /.aa/manifest.json (sanctioned_paths, policies)"
+    - "Set dry_run_default=true unless explicitly disabled for env"
+    - "Start service threads (LaunchBox parser, image scanner)"
+    - "Register routes AFTER policy+manifest load"
+  gateway:init:
+    - "Wait for backend /health {aa_drive_root_verified:true}"
+    - "Apply CORS (explicit origins, credentials:true, allow headers)"
+    - "Register routes; ensure /config/* proxies to backend"
+  frontend:init:
+    - "Mount Global ErrorBoundary"
+    - "Mount panels in parallel after gateway health OK"
+    - "System Health panel verifies readiness first"
+
+clusters:
+  - cluster_id: 1
+    title: "Gateway Integrity & Path Consistency"
+    acceptance:
+      - "Health handshake succeeds before route use"
+      - "No local Gateway file I/O detected in audit"
+      - "CORS policy lists origins and required headers"
+  - cluster_id: 2
+    title: "Backend Safety & Lifecycle"
+    acceptance:
+      - "Empty manifest  writes rejected"
+      - "Backups timestamped and cross-linked in JSONL"
+      - "All worker threads joined with lifecycle logs"
+  - cluster_id: 3
+    title: "Voice / AI Pipeline"
+    targets:
+      stt: "Whisper local fallback when cloud keys absent"
+      sse: "Token streaming with heartbeat; TTS can overlap playback"
+      quota_store: "Supabase (device-scoped) or local state file in offline"
+    acceptance:
+      - "StopSTT transcript < 2s (happy path)"
+      - "SSE streams tokens; 501 on missing provider"
+      - "Logs correlate session across GW/BE"
+  - cluster_id: 4
+    title: "Frontend Resilience & UX Safety"
+    acceptance:
+      - "Global + per-panel ErrorBoundaries installed"
+      - "Panel crash does not unmount siblings"
+      - "Errors recorded in /logs/frontend_errors.jsonl"
+  - cluster_id: 5
+    title: "Supabase / Cloud Isolation"
+    acceptance:
+      - "JWT device_id propagated  RLS enforced"
+      - "Local config is source of truth; cloud as user override"
+      - "RLS sanity test runs weekly (manual or cron)"
+  - cluster_id: 6
+    title: "Documentation & Manifest Consistency"
+    acceptance:
+      - "Backend owns /.aa/manifest.json generation/validation"
+      - "New panels auto-append sanctioned paths"
+      - "a_drive_paths.* constants match manifest entries"
+      - "CI lint checks safety hooks (backup, dry-run, manifest)"
+
+paths:
+  aa_drive_root: "A:\\"
+  manifest: "A:\\.aa\\manifest.json"
+  logs_structured: "A:\\logs\\changes.jsonl"
+  logs_frontend_errors: "A:\\logs\\frontend_errors.jsonl"
+  backups: "A:\\backups\\"
+
+validation:
+  backend_on_startup:
+    - "Read YAML; assert global_invariants"
+    - "Verify filesystem paths exist or create safe defaults"
+    - "Fail fast if invariants violated; print actionable errors"
+  gateway_on_startup:
+    - "Load YAML; verify CORS policy matches spec"
+    - "Refuse to start if config routes would write locally"
+  frontend_on_mount:
+    - "Assert ErrorBoundary presence for App and each panel"
+
+telemetry:
+  fields: ["timestamp","level","request_id","x-device-id","x-panel","event","details","backup_path?"]
+  sinks:
+    - "A:\\logs\\changes.jsonl"
+    - "A:\\logs\\frontend_errors.jsonl"
+  pii_policy: "Device-scoped only; no user PII in local logs"
+
+failover:
+  ai_missing: "Return 501 NOT_CONFIGURED with clear message"
+  supabase_down: "Queue telemetry locally; flush on reconnect"
+  gateway_down: "Panels show fallback UI; retry with backoff"
+  read_only_mode: "All config writes blocked; display banner"

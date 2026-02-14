@@ -1,0 +1,268 @@
+================================================================================
+                    MAME & GUN GAMES ARCHITECTURE
+================================================================================
+
+LAUNCHBOX DATA LAYER
+================================================================================
+
+A:\LaunchBox\Data\Platforms\
+├── Arcade MAME.xml (12.9 MB)          ← Regular games
+│   └── 13,500+ games
+│       ├── Platform: "Arcade MAME"
+│       ├── RomPath: A:\Roms\MAME\[name].zip
+│       └── ApplicationPath: A:\Emulators\MAME\mame.exe
+│
+└── MAME Gun Games.xml (617 KB)         ← Gun game variant
+    └── 200-300 games
+        ├── Platform: "MAME Gun Games"
+        ├── RomPath: A:\Roms\MAME\[name].zip (?)
+        │            or A:\Gun Build\Roms\[name].zip (?)
+        └── ApplicationPath: A:\Emulators\MAME\mame.exe (SAME)
+
+EMULATOR LAYER
+================================================================================
+
+A:\Emulators\MAME\mame.exe (200 MB)     ← BOTH use same executable
+├── cfg/           Regular MAME config
+├── ini/           MAME INI files
+├── nvram/         High scores / NVRAM
+└── plugins/
+
+A:\Emulators\MAME Gamepad\              Alternative for gamepad
+
+BACKEND LAUNCH CHAIN (launcher.py)
+================================================================================
+
+Game Launch Request (any platform)
+        ↓
+    ┌───────────────────────────────────────┐
+    │  1. PLUGIN BRIDGE (localhost:9999)   │
+    │     C# LaunchBox plugin (BEST)       │
+    │     ✓ Returns immediately on success │
+    └────────┬────────────────────────────┘
+             ├─ SUCCESS? → Return
+             │
+             └─ FAIL ↓
+    ┌───────────────────────────────────────┐
+    │  2. AUTO-DETECTED EMULATOR           │
+    │     From LaunchBox config            │
+    │     Uses EmulatorConfig objects      │
+    └────────┬────────────────────────────┘
+             ├─ SUCCESS? → Return
+             │
+             └─ FAIL ↓
+    ┌───────────────────────────────────────┐
+    │  3. DIRECT EMULATOR (Optional)       │
+    │     Gate: AA_ALLOW_DIRECT_MAME      │
+    │     Platform-specific routing        │
+    ├─ "Arcade MAME" → _build_mame_command
+    ├─ "MAME Gun Games" → _build_mame_command (SAME!)
+    │     Platform normalization:
+    │     "MAME Gun Games" → "mame"
+    │     ↓
+    │     Check adapter registry
+    │     Gun profile detection
+    └────────┬────────────────────────────┘
+             ├─ SUCCESS? → Return
+             │
+             └─ FAIL ↓
+    ┌───────────────────────────────────────┐
+    │  4. LAUNCHBOX.EXE (LAST RESORT)     │
+    │     Open LaunchBox UI               │
+    └───────────────────────────────────────┘
+
+
+MAME COMMAND BUILDING (_build_mame_command)
+================================================================================
+
+Regular MAME Game                MAME Gun Game
+  ↓                                ↓
+ROM Path: A:\Roms\MAME\       ROM Path: ??? (TBD)
+  ↓                                ↓
+Command: [                      Command: [
+  "mame.exe",                     "mame.exe",
+  "-rompath", "A:\Roms\MAME\",    "-rompath", "???",
+  "pacman"                        "timetrap"
+]                               ]
+  ↓                                ↓
+[Optional flags from config/launchers.json]
+  ├── -skip_gameinfo (skip nags)
+  ├── -cheat (cheat support)
+  ├── -cheatpath (cheat path)
+  └── custom flags list
+
+NOTE: NO GUN-SPECIFIC PARAMETERS YET!
+
+
+PLATFORM DETECTION & NORMALIZATION
+================================================================================
+
+Raw Platform Name           Normalized Key (for adapters)
+───────────────────────────────────────────────────────
+"Arcade MAME"          →    "arcade mame"
+"MAME Gun Games"       →    "mame" (Gun Games stripped!)
+"Model 2 Gun Games"    →    "model 2"
+"TeknoParrot"          →    "teknoparrot"
+"TeknoParrot (Light Guns)" → "teknoparrot"
+
+This allows same adapter to handle both regular + gun variants!
+
+
+GUN GAME SUPPORT MATRIX
+================================================================================
+
+Platform              | Dedicated XML | Special Config | Launch Support
+──────────────────────┼───────────────┼────────────────┼─────────────────
+Arcade MAME           | YES (12.9MB)  | NO             | Standard MAME
+MAME Gun Games        | YES (617KB)   | NO (bug!)      | Standard MAME
+TeknoParrot           | YES           | YES            | + AHK wrapper
+TeknoParrot (Guns)    | YES (345KB)   | YES            | + Profile routing
+Model 2 Gun Games     | YES (43KB)    | No adapter yet | Via direct_app
+Model 3 Gun Games     | YES (27KB)    | No adapter yet | Via direct_app
+[17 more platforms]   | YES each      | Partial        | Varies
+
+FULL GUN SUPPORT: TeknoParrot (AHK wrappers, profiles, device mgmt)
+LIMITED SUPPORT: MAME (same params as regular, no gun flags)
+
+
+ROM PATH RESOLUTION LOGIC
+================================================================================
+
+def _resolve_rom_path(game: Game):
+    rom_path = Path(game.rom_path)
+    
+    # If not absolute, resolve against LaunchBox root
+    if not rom_path.is_absolute():
+        rom_path = LAUNCHBOX_ROOT / game.rom_path
+    
+    # If STILL doesn't exist, check fallback
+    if not rom_path.exists():
+        # BUG: Only checks ("Arcade", "Arcade MAME")
+        # Does NOT check "MAME Gun Games"!
+        if game.platform in ("Arcade", "Arcade MAME"):  ← MISSING "MAME Gun Games"!
+            rom_path = MAME_ROMS / f"{rom_name}.zip"
+    
+    return rom_path
+
+
+FRONTEND INTEGRATION (LaunchBoxPanel.jsx)
+================================================================================
+
+API Endpoints Called:
+  /api/launchbox/games         ← Both MAME + gun games
+  /api/launchbox/platforms     ← All 50+ platforms
+  /api/launchbox/genres        ← Genre list
+  /api/launchbox/stats         ← Statistics
+
+Response includes:
+  [
+    { platform: "Arcade MAME", ... },
+    { platform: "MAME Gun Games", ... },
+    ...
+  ]
+
+Platform Filter Dropdown:
+  All
+  Arcade MAME
+  MAME Gun Games
+  [48+ more platforms]
+  ↓
+  Click → Filters to only selected platform games
+
+
+CONFIGURATION FILES (OPTIONAL)
+================================================================================
+
+config/launchers.json
+├── mame                       ← Regular MAME config
+│   ├── flags: ["-skip_gameinfo"]
+│   ├── cheat.enabled: true
+│   └── cheat.path: "A:/Emulators/MAME/cheat/"
+└── global.allow_direct_mame: true
+
+A:\configs\routing-policy.json
+├── profiles
+│   └── lightgun               ← Gun game profile
+│       ├── ahk_wrapper: true
+│       ├── kill_existing: true
+│       └── exclusive_fullscreen: true
+└── mame_protected: ["Arcade MAME", "MAME Gun Games"]
+
+
+ADAPTER REGISTRY (launcher_registry.py)
+================================================================================
+
+Registered Adapters:
+  1. duckstation_adapter     (PS1, gate: AA_ENABLE_ADAPTER_DUCKSTATION)
+  2. dolphin_adapter         (GameCube/Wii, gate: AA_ENABLE_ADAPTER_DOLPHIN)
+  3. flycast_adapter         (Dreamcast, gate: AA_ENABLE_ADAPTER_FLYCAST)
+  4. model2_adapter          (Model 2, gate: AA_ENABLE_ADAPTER_MODEL2)
+  5. supermodel_adapter      (Model 3, gate: AA_ENABLE_ADAPTER_SUPERMODEL)
+  6. retroarch_adapter       (Multi, gate: AA_ALLOW_DIRECT_RETROARCH)
+  7. redream_adapter         (Dreamcast, gate: AA_ALLOW_DIRECT_REDREAM)
+  8. pcsx2_adapter           (PS2, gate: AA_ALLOW_DIRECT_PCSX2)
+  9. rpcs3_adapter           (PS3, gate: AA_ALLOW_DIRECT_RPCS3)
+ 10. teknoparrot_adapter     (Modern arcade, gate: AA_ALLOW_DIRECT_TEKNOPARROT)
+ 11. direct_app_adapter      (Generic ApplicationPath, ALWAYS enabled)
+
+Note: NO dedicated MAME adapter! MAME is handled specially in _launch_direct()
+
+
+IDENTIFIED ISSUES
+================================================================================
+
+CRITICAL BUG #1: ROM Path Fallback
+  File: backend/services/launcher.py:1137
+  Issue: "MAME Gun Games" not in fallback check
+  Current: if game.platform in ("Arcade", "Arcade MAME")
+  Should:  if game.platform in ("Arcade", "Arcade MAME", "MAME Gun Games")
+  Impact: Gun game launches fail if XML ROM path is incorrect
+
+MISSING FEATURE #1: Gun-Specific Parameters
+  File: backend/services/launcher.py:_build_mame_command()
+  Issue: No gun-specific MAME flags
+  Examples: -gun, -gunaxis, -overlay, sensor config
+  Impact: Gun games launch but without light gun support
+
+MISSING FEATURE #2: Gun Profile Support (MAME)
+  File: backend/services/launcher.py (or new adapter)
+  Issue: Only TeknoParrot has gun profiles
+  Missing: MAME gun game profiles in routing-policy.json
+  Impact: No per-game gun configuration for MAME
+
+
+RECOMMENDED FIXES (PRIORITY ORDER)
+================================================================================
+
+1. BUG FIX (Urgent)
+   Add "MAME Gun Games" to ROM fallback check
+   - File: launcher.py:1137
+   - Impact: Prevents launch failures for incorrect paths
+
+2. CONFIGURATION (Soon)
+   Create config/mame-gun.json with gun parameters
+   - Define gun-specific flags
+   - Map to hardware (Sinden/Gun4IR)
+   - Per-game profiles
+
+3. ROUTING POLICY (Soon)
+   Extend routing-policy.json with MAME gun profiles
+   - Add lightgun profile for MAME
+   - Define per-game mappings
+   - Hardware detection rules
+
+4. UI POLISH (Later)
+   Add gun game indicators
+   - Light gun icon next to titles
+   - Separate filter option
+   - Hardware status display
+
+5. HARDWARE SUPPORT (Later)
+   Auto-detect Sinden/Gun4IR
+   - Device enumeration
+   - Calibration UI
+   - Per-game device mapping
+
+================================================================================
+                         END ARCHITECTURE DIAGRAM
+================================================================================

@@ -1,0 +1,1 @@
+config/retroarch/xbox_360_p1.cfg

@@ -1,0 +1,5 @@
+C:\Users\Dad's PC\Desktop\Arcade Assistant Local\plugin\obj\Release\net9.0-windows\ArcadeAssistantPlugin.csproj.AssemblyReference.cache
+C:\Users\Dad's PC\Desktop\Arcade Assistant Local\plugin\obj\Release\net9.0-windows\ArcadeAssistantPlugin.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Dad's PC\Desktop\Arcade Assistant Local\plugin\obj\Release\net9.0-windows\ArcadeAssistantPlugin.AssemblyInfoInputs.cache
+C:\Users\Dad's PC\Desktop\Arcade Assistant Local\plugin\obj\Release\net9.0-windows\ArcadeAssistantPlugin.AssemblyInfo.cs
+C:\Users\Dad's PC\Desktop\Arcade Assistant Local\plugin\obj\Release\net9.0-windows\ArcadeAssistantPlugin.csproj.CoreCompileInputs.cache

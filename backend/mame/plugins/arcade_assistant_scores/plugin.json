@@ -1,0 +1,10 @@
+{
+    "plugin": {
+        "name": "arcade_assistant_scores",
+        "description": "Arcade Assistant Live Score Broadcaster",
+        "version": "1.0",
+        "author": "Arcade Assistant",
+        "type": "plugin",
+        "start": "false"
+    }
+}

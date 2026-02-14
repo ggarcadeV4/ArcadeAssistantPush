@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LaunchBox Search Test</title>
+    <style>
+        body {
+            background: #0a0e27;
+            color: #00e5ff;
+            font-family: -apple-system, sans-serif;
+            padding: 2rem;
+        }
+        .filter-controls {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(0, 229, 255, 0.05);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .filter-input {
+            background: #1a2456;
+            color: #00e5ff;
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            outline: none;
+            transition: all 0.2s;
+            min-width: 200px;
+        }
+        .filter-input::placeholder {
+            color: rgba(0, 229, 255, 0.5);
+        }
+        .filter-input:focus {
+            border-color: #00e5ff;
+            box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.1);
+        }
+        .game-list {
+            display: grid;
+            gap: 0.5rem;
+        }
+        .game-card {
+            padding: 1rem;
+            background: rgba(0, 229, 255, 0.05);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            border-radius: 0.5rem;
+        }
+        .results {
+            color: #a5f3fc;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>LaunchBox Search Functionality Test</h1>
+
+    <div class="filter-controls">
+        <div class="filter-group">
+            <label for="search">Search:</label>
+            <input
+                id="search"
+                type="text"
+                class="filter-input"
+                placeholder="Search by title..."
+                autocomplete="off"
+            />
+        </div>
+    </div>
+
+    <div class="results">
+        Showing <span id="count">5</span> games
+    </div>
+
+    <div class="game-list" id="gameList">
+        <!-- Games will be inserted here -->
+    </div>
+
+    <script>
+        // Mock game data for testing
+        const mockGames = [
+            { id: 1, title: 'Mortal Kombat II', platform: 'Arcade', year: 1993, genre: 'Fighting' },
+            { id: 2, title: 'Street Fighter II', platform: 'Arcade', year: 1991, genre: 'Fighting' },
+            { id: 3, title: 'Metal Slug', platform: 'Arcade', year: 1996, genre: 'Run & Gun' },
+            { id: 4, title: 'Pac-Man', platform: 'Arcade', year: 1980, genre: 'Maze' },
+            { id: 5, title: 'Galaga', platform: 'Arcade', year: 1981, genre: 'Shooter' }
+        ];
+
+        const searchInput = document.getElementById('search');
+        const gameList = document.getElementById('gameList');
+        const countSpan = document.getElementById('count');
+
+        function filterGames(query) {
+            if (!query.trim()) {
+                return mockGames;
+            }
+            const lowerQuery = query.toLowerCase().trim();
+            return mockGames.filter(game =>
+                game.title.toLowerCase().includes(lowerQuery)
+            );
+        }
+
+        function renderGames(games) {
+            gameList.innerHTML = games.map(game => `
+                <div class="game-card">
+                    <strong>${game.title}</strong> - ${game.platform} (${game.year}) - ${game.genre}
+                </div>
+            `).join('');
+            countSpan.textContent = games.length;
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            const filtered = filterGames(e.target.value);
+            renderGames(filtered);
+        });
+
+        // Initial render
+        renderGames(mockGames);
+    </script>
+</body>
+</html>

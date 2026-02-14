@@ -1,0 +1,171 @@
+{
+  "description": "MAME 6-button fighter configuration guide for Controller Chuck",
+  
+  "six_button_layout": {
+    "arrangement": "Two rows of three buttons",
+    "visual": "LP  MP  HP\nLK  MK  HK",
+    "mapping": {
+      "LP": {"name": "Light Punch", "button": 1},
+      "MP": {"name": "Medium Punch", "button": 2},
+      "HP": {"name": "Heavy Punch", "button": 3},
+      "LK": {"name": "Light Kick", "button": 4},
+      "MK": {"name": "Medium Kick", "button": 5},
+      "HK": {"name": "Heavy Kick", "button": 6}
+    },
+    "joystick": "8-way (required for diagonal special moves)"
+  },
+
+  "keyboard_mode": {
+    "encoders": ["I-PAC", "Zero Delay"],
+    "default_ipac_mappings": {
+      "player1": {
+        "up": "Up Arrow",
+        "down": "Down Arrow",
+        "left": "Left Arrow",
+        "right": "Right Arrow",
+        "button1": "Left Ctrl",
+        "button2": "Left Alt",
+        "button3": "Space",
+        "button4": "Left Shift",
+        "button5": "Z",
+        "button6": "X",
+        "start": "1",
+        "coin": "5"
+      },
+      "player2": {
+        "up": "R",
+        "down": "F",
+        "left": "D",
+        "right": "G",
+        "button1": "A",
+        "button2": "S",
+        "button3": "Q",
+        "button4": "W",
+        "button5": "I",
+        "button6": "K",
+        "start": "2",
+        "coin": "6"
+      }
+    },
+    "mame_keycodes": {
+      "button1": "KEYCODE_LCONTROL",
+      "button2": "KEYCODE_LALT",
+      "button3": "KEYCODE_SPACE",
+      "button4": "KEYCODE_LSHIFT",
+      "button5": "KEYCODE_Z",
+      "button6": "KEYCODE_X"
+    },
+    "setup_steps": [
+      "1. Save config as 6button_fighter_keyboard.cfg in mame/ctrlr/",
+      "2. Edit mame.ini: ctrlr 6button_fighter_keyboard",
+      "3. Launch MAME"
+    ],
+    "advantages": ["Universal compatibility", "Shift key support (I-PAC)", "Works out of box with MAME defaults"]
+  },
+
+  "xinput_mode": {
+    "encoders": ["PaCTo Tech", "I-PAC (v50+ Mode 3)"],
+    "xbox360_mapping": {
+      "A": {"mame_code": "JOYCODE_1_BUTTON1", "fighter": "Light Punch"},
+      "B": {"mame_code": "JOYCODE_1_BUTTON2", "fighter": "Medium Punch"},
+      "X": {"mame_code": "JOYCODE_1_BUTTON3", "fighter": "Heavy Punch"},
+      "Y": {"mame_code": "JOYCODE_1_BUTTON4", "fighter": "Light Kick"},
+      "LB": {"mame_code": "JOYCODE_1_BUTTON5", "fighter": "Medium Kick"},
+      "RB": {"mame_code": "JOYCODE_1_BUTTON6", "fighter": "Heavy Kick"},
+      "Back": {"mame_code": "JOYCODE_1_BUTTON7", "fighter": "Coin"},
+      "Start": {"mame_code": "JOYCODE_1_BUTTON8", "fighter": "Start"}
+    },
+    "joystick_codes": {
+      "up": "JOYCODE_1_YAXIS_UP_SWITCH",
+      "down": "JOYCODE_1_YAXIS_DOWN_SWITCH",
+      "left": "JOYCODE_1_XAXIS_LEFT_SWITCH",
+      "right": "JOYCODE_1_XAXIS_RIGHT_SWITCH"
+    },
+    "setup_steps": [
+      "1. Set encoder to XInput mode (I-PAC: Start1 + Button 3 for 10 sec)",
+      "2. Save config as 6button_fighter_xinput.cfg in mame/ctrlr/",
+      "3. Edit mame.ini: ctrlr 6button_fighter_xinput AND joystickprovider dinput",
+      "4. Launch MAME"
+    ],
+    "advantages": ["Modern game compatibility", "No keyboard ghosting", "Native analog support"],
+    "limitations": ["No shift key functionality", "Requires custom ctrlr file"]
+  },
+
+  "mode_selection_guide": {
+    "keyboard_mode_best_for": ["MAME", "FinalBurn Neo", "classic emulators"],
+    "xinput_mode_best_for": ["TeknoParrot", "Supermodel", "modern games"],
+    "keyboard_recommended_encoders": ["I-PAC", "Zero Delay"],
+    "xinput_recommended_encoders": ["PaCTo Tech", "I-PAC (v50+)"]
+  },
+
+  "troubleshooting": {
+    "joystick_not_detected_xinput": {
+      "problem": "MAME not detecting joystick in XInput mode",
+      "solution": "Set joystickprovider dinput in mame.ini or use -joystickprovider dinput flag"
+    },
+    "buttons_not_responding_keyboard": {
+      "problem": "Some buttons not responding in keyboard mode",
+      "solution": "Check encoder wiring, verify connections to labeled terminals, use self-test LED"
+    },
+    "player2_not_working": {
+      "problem": "Player 2 controls not working",
+      "solution": "Ensure encoder emulates two controllers. Map P2 to JOYCODE_2_* instead of JOYCODE_1_*"
+    }
+  },
+
+  "mame_config_locations": {
+    "ctrlr_directory": "mame/ctrlr/",
+    "config_file": "mame.ini",
+    "per_game_config": "Add <system name=\"gamename\"> sections to XML"
+  },
+
+  "xml_port_types": {
+    "joystick": ["P1_JOYSTICK_UP", "P1_JOYSTICK_DOWN", "P1_JOYSTICK_LEFT", "P1_JOYSTICK_RIGHT"],
+    "buttons_6": ["P1_BUTTON1", "P1_BUTTON2", "P1_BUTTON3", "P1_BUTTON4", "P1_BUTTON5", "P1_BUTTON6"],
+    "buttons_8": ["P1_BUTTON1", "P1_BUTTON2", "P1_BUTTON3", "P1_BUTTON4", "P1_BUTTON5", "P1_BUTTON6", "P1_BUTTON7", "P1_BUTTON8"],
+    "system": ["P1_START", "P1_COIN"]
+  },
+
+  "eight_button_layout": {
+    "arrangement": "Two rows of four buttons",
+    "visual": "B1  B2  B3  B4\nB5  B6  B7  B8",
+    "use_cases": ["Neo Geo games", "Street Fighter V", "Tekken 7", "Console ports with shoulder/trigger buttons"],
+    "keyboard_mappings": {
+      "player1": {
+        "button7": "C",
+        "button8": "V"
+      },
+      "player2": {
+        "button7": "J",
+        "button8": "L"
+      }
+    },
+    "xinput_mappings": {
+      "button7": {"xbox": "Left Trigger", "mame_code": "JOYCODE_1_BUTTON7"},
+      "button8": {"xbox": "Right Trigger", "mame_code": "JOYCODE_1_BUTTON8"}
+    }
+  },
+
+  "config_files": {
+    "keyboard_6button": "mame_keyboard_6button_layout.xml",
+    "keyboard_8button": "mame_keyboard_8button_layout.xml",
+    "xinput_6button": "mame_xinput_6button_layout.xml",
+    "xinput_8button": "mame_xinput_8button_layout.xml"
+  },
+
+  "recommendations": {
+    "eight_button_cabinets": {
+      "mame_classic": {
+        "config": "mame_keyboard_8button_layout.xml",
+        "mode": "Keyboard",
+        "reason": "Best compatibility, shift key for admin functions"
+      },
+      "modern_games": {
+        "config": "mame_xinput_8button_layout.xml",
+        "mode": "XInput",
+        "reason": "Seamless compatibility with TeknoParrot, modern standards"
+      }
+    },
+    "note": "8-button layout files work for both 6-button and 8-button games"
+  }
+}

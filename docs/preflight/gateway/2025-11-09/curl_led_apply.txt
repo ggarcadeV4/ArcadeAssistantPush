@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: x-device-id,x-scope,x-panel,x-corr-id,x-tts-quota-warn
+Content-Length: 162
+Content-Type: application/json; charset=utf-8
+date: Tue, 11 Nov 2025 02:50:02 GMT
+server: uvicorn
+ETag: W/"a2-3Qsl67tjCUZ/s67y3V1N2qLs5kw"
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"status":"applied","profile":"attract","dry_run":false,"target_file":"configs/ledblinky/profiles/attract.json","message":"Legacy LED profile apply acknowledged"}

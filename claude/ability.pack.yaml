@@ -1,0 +1,35 @@
+ability: "Arcade Assistant POR Compliance"
+roles:
+  planner:
+    can_edit:
+      - "plan/por.yaml"
+      - "plan/evidence/*.jsonl"   # append-only
+      - "plan/logs/*.md"
+    must:
+      - "Only change: status, evidence path, last_verified_sha"
+      - "Append one JSONL line per touched task with actor:'planner', mode:'preflight'"
+  engineer:
+    can_edit:
+      - "backend/**"
+      - "frontend/**"
+      - "gateway/**"
+      - "plugins/**"
+      - "tests/**"
+      - "plan/evidence/*.jsonl"   # append apply/restore runs
+      - "plan/por.yaml"           # may set in_progress→done only
+    must:
+      - "Prove Preview→Apply→Restore for any writes"
+      - "Append JSONL with actor:'engineer' and artifacts"
+  verifier:
+    can_edit:
+      - "plan/por.yaml"           # set done→verified + last_verified_sha
+      - "plan/evidence/*.jsonl"   # append verifier line
+    must:
+      - "Run read-only checks matching 'acceptance' items"
+      - "Append JSONL actor:'verifier', checks_passed:true/false"
+guardrails:
+  - "Repo is source of truth; long-form plan is reference only"
+  - "No status flip to done/verified without a fresh evidence line"
+  - "All filesystem writes must go through Preview→Apply→Restore workflow"
+  - "Gateway/backend must return 501 NOT_CONFIGURED when required API keys are missing"
+  - "UI must gracefully handle offline/degraded states without 500 errors"

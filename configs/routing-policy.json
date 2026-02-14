@@ -1,0 +1,20 @@
+{
+  "policy_version": "1.0",
+  "order": ["plugin", "detected_emulator", "direct", "launchbox"],
+  "mame_protected": ["Arcade", "MAME", "FinalBurn Neo"],
+  "platform_map": {
+    "TeknoParrot (Light Guns)": { "adapter": "teknoparrot", "profile": "lightgun" }
+  },
+  "profiles": {
+    "general": {},
+    "lightgun": {
+      "ahk_wrapper": true,
+      "input_profile": "guns",
+      "exclusive_fullscreen": true
+    }
+  },
+  "diagnostics": {
+    "log_routing": true,
+    "log_to": "logs/routing-decisions.jsonl"
+  }
+}
