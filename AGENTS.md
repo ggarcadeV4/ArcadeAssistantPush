@@ -73,7 +73,7 @@ The **NotebookLM library** is your primary source of truth.
 
 ### Logic Layer & Non-Mixed Guarantee
 - **Context A**: If in `AI-Hub` (Arcade Assistant context):
-    - **Supabase Ref**: `zlkhsxacfyxsctqpvbsh` (Arcade Assistant Backend)
+    - **Supabase Ref**: `hjxzbicsjzyzalwilmlj` (Arcade Assistant Backend)
     - **Constraint**: STRICTLY FORBIDDEN from accessing "G&G Arcade Website" resources.
 - **Context B**: If in `Website-Dev` (Website Development context):
     - **Supabase Ref**: `asceipzpbqezwjtwvryi` (G&G Arcade Hub)
