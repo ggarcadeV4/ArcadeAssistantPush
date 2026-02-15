@@ -478,6 +478,11 @@ const LEDBlinkyPanel = () => {
     buttonToPortMap: {}
   })
 
+  // Toast helper — declared early to avoid TDZ in dependency arrays below
+  const showToast = useCallback((message, type = 'success') => {
+    console.log(`Toast [${type}]: ${message}`)
+  }, [])
+
   // Fetch cabinet config on mount (Phase 6: Dynamic Player Count)
   useEffect(() => {
     const fetchCabinetConfig = async () => {
@@ -645,9 +650,7 @@ const LEDBlinkyPanel = () => {
   const activePatternName = engineHealth?.active_pattern || engineDiagnostics?.active_pattern || null
   const registryMessage = runtimeStatus?.registry?.message
 
-  const showToast = useCallback((message, type = 'success') => {
-    console.log(`Toast [${type}]: ${message}`)
-  }, [])
+  // (showToast moved above — see early declaration near line 482)
 
   const formatTimestampValue = (value) => {
     if (!value) return 'Never'

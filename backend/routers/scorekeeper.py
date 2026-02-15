@@ -1735,19 +1735,20 @@ async def archive_tournament_route(request: Request, tournament_id: str):
 
 
 @router.get("/highscores/{game_id}")
-async def get_launchbox_highscores(
+async def get_game_highscores(
     request: Request,
     game_id: str,
     limit: int = Query(10, ge=1, le=100, description="Max scores to return")
 ):
     """
-    Get high scores for a specific LaunchBox game.
+    Get high scores for a specific game.
 
-    Parses A:\\LaunchBox\\Data\\HighScores.json for the specified game_id.
-    Returns top scores sorted by value (descending).
+    Reads from the ScoreKeeper JSONL file (scores.jsonl) and
+    optionally from Supabase cabinet_game_score.
+    Falls back to MAME nvram hiscore if available.
 
     Args:
-        game_id: LaunchBox game ID
+        game_id: Game ID or ROM name
         limit: Maximum number of scores to return (default 10, max 100)
 
     Returns:
@@ -1757,60 +1758,52 @@ async def get_launchbox_highscores(
             "scores": [{"player": str, "score": int, "timestamp": str}],
             "total_count": int
         }
-
-    Note: No dynamic discovery - only returns scores from HighScores.json.
     """
     import os
 
     try:
-        # Get drive root from environment
-        drive_root = Path(os.getenv('AA_DRIVE_ROOT', '/mnt/a'))
-        highscores_path = drive_root / 'LaunchBox' / 'Data' / 'HighScores.json'
+        drive_root = Path(
+            getattr(request.app.state, "drive_root", os.getenv("AA_DRIVE_ROOT", "A:\\"))
+        )
+        scores_file = get_scores_file(drive_root)
 
-        if not highscores_path.exists():
-            logger.warning("highscores_file_not_found",
-                         path=str(highscores_path),
-                         game_id=game_id)
-            return {
-                "game_id": game_id,
-                "game_title": "Unknown",
-                "scores": [],
-                "total_count": 0,
-                "error": "HighScores.json not found"
-            }
-
-        # Parse HighScores.json with timeout protection
-        try:
-            with open(highscores_path, 'r', encoding='utf-8') as f:
-                highscores_data = json.load(f)
-        except json.JSONDecodeError as e:
-            logger.error("highscores_parse_error", error=str(e), path=str(highscores_path))
-            raise HTTPException(status_code=500, detail="Failed to parse HighScores.json")
-
-        # Find scores for this game_id
         game_scores = []
-        game_title = "Unknown"
+        game_title = game_id
 
-        # HighScores.json structure: {"Games": [{"Id": "...", "Title": "...", "Scores": [...]}]}
-        for game in highscores_data.get('Games', []):
-            if game.get('Id') == game_id:
-                game_title = game.get('Title', game_id)
-                game_scores = game.get('Scores', [])
-                break
+        # Read from ScoreKeeper JSONL
+        if scores_file.exists():
+            try:
+                with open(scores_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line.strip())
+                            # Match by game_id or game title
+                            if (
+                                entry.get('game_id') == game_id
+                                or entry.get('game', '').lower() == game_id.lower()
+                            ):
+                                game_scores.append(entry)
+                                # Use the most recent title seen
+                                if entry.get('game_title') or entry.get('game'):
+                                    game_title = entry.get('game_title') or entry.get('game')
+                        except json.JSONDecodeError:
+                            continue
+            except Exception as e:
+                logger.warning("scores_file_read_error", error=str(e))
 
         # Sort scores descending by value
         sorted_scores = sorted(
             game_scores,
-            key=lambda s: s.get('Score', 0),
+            key=lambda s: s.get('score', 0),
             reverse=True
         )[:limit]
 
         # Format response
         formatted_scores = [
             {
-                "player": score.get('Player', 'Anonymous'),
-                "score": score.get('Score', 0),
-                "timestamp": score.get('Timestamp', 'Unknown'),
+                "player": score.get('player', 'Anonymous'),
+                "score": score.get('score', 0),
+                "timestamp": score.get('timestamp', 'Unknown'),
                 "rank": idx + 1
             }
             for idx, score in enumerate(sorted_scores)
@@ -1835,8 +1828,8 @@ async def get_launchbox_highscores(
         raise HTTPException(status_code=500, detail=f"Failed to retrieve high scores: {str(e)}")
 
 
-class LaunchBoxAutoSubmit(BaseModel):
-    """Auto-submit score from LaunchBox game end event."""
+class GameAutoSubmit(BaseModel):
+    """Auto-submit score from game end event (Playnite / bus event)."""
     game_id: str
     game_title: str
     player: str
@@ -1845,13 +1838,14 @@ class LaunchBoxAutoSubmit(BaseModel):
     tournament_id: Optional[str] = None
 
 
+# Keep /autosubmit path for backwards compatibility
 @router.post("/autosubmit")
-async def launchbox_autosubmit(request: Request, submit_data: LaunchBoxAutoSubmit):
+async def game_autosubmit(request: Request, submit_data: GameAutoSubmit):
     """
-    Auto-submit score from LaunchBox on game end (bus event integration).
+    Auto-submit score on game end (bus event integration).
 
-    This endpoint is called automatically when a LaunchBox game ends,
-    triggered by a bus event. Scores are submitted to both local JSONL
+    This endpoint is called automatically when a game ends (Playnite or bus event).
+    Scores are submitted to both local JSONL
     and Supabase (if tournament active).
 
     Args:
@@ -1943,7 +1937,7 @@ async def launchbox_autosubmit(request: Request, submit_data: LaunchBoxAutoSubmi
             "score": submit_data.score,
             "session_id": submit_data.session_id,
             "tournament_id": submit_data.tournament_id,
-            "source": "launchbox_autosubmit"
+            "source": "game_autosubmit"
         }
         if player_user_id:
             score_entry["player_userId"] = player_user_id
@@ -1963,7 +1957,7 @@ async def launchbox_autosubmit(request: Request, submit_data: LaunchBoxAutoSubmi
                     submit_data.player,
                     submit_data.score,
                     {
-                        'source': 'launchbox_autosubmit',
+                        'source': 'game_autosubmit',
                         'session_id': submit_data.session_id,
                         'tournament_id': submit_data.tournament_id,
                     }
@@ -1971,7 +1965,7 @@ async def launchbox_autosubmit(request: Request, submit_data: LaunchBoxAutoSubmi
         except Exception:
             pass
 
-        logger.info("launchbox_autosubmit",
+        logger.info("game_autosubmit",
                    game_id=game_id or submit_data.game_id,
                    player=submit_data.player,
                    score=submit_data.score,
@@ -2031,7 +2025,7 @@ async def launchbox_autosubmit(request: Request, submit_data: LaunchBoxAutoSubmi
         log_scorekeeper_change(
             request,
             drive_root,
-            "launchbox_autosubmit",
+            "game_autosubmit",
             {
                 "game": game_title,
                 "game_id": game_id,

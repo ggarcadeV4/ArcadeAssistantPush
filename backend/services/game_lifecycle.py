@@ -291,7 +291,7 @@ class GameLifecycleService:
 
             headers = {
                 "x-scope": "state",
-                "x-panel": "launchbox",
+                "x-panel": "playnite",
                 "Content-Type": "application/json",
             }
 
