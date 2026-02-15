@@ -1,0 +1,6 @@
+Id: ArcadeAssistantBridge_12345
+Name: Arcade Assistant Bridge
+Author: ggArcade
+Version: 1.0.0
+Module: script.psm1
+Type: GenericPlugin
