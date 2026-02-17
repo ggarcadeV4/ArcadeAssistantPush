@@ -10,3 +10,9 @@
   - **Event Handlers**: Fixed `OnGameStarted`/`OnGameStopped` parameter binding (`param($eventArgs)` was missing).
   - **Key Learnings**: `$__logger` does NOT work in Playnite PowerShell script extensions — use file-based debug logging (`arcade_debug.log`). LiteDB collection name is `Emulator` (singular), not `Emulators`.
   - **Open Items**: 171 games unmatched (missing emulator profiles for their platforms). Cinema Logic tag injection, Dewey Liaison F9 HUD, Basement Shield scripts, Play Now button remain for next session.
+- **2026-02-17 (Late Night)**: Command Center Dashboard — UI code complete, build verified, browser deployment blocked by cache.
+  - **Assistants.jsx Rewrite**: Replaced empty `personas` grid with `CommandCenterGrid` (9-agent glassmorphism cards, `AgentCard` component, character pop-out hover effects, inner glows, pill buttons). All existing `?agent=` routing preserved.
+  - **index.css**: ~440 lines of Command Center CSS (glassmorphism, Rajdhani font, Lora special panel, responsive breakpoints). Fixed `@import` position to top of file.
+  - **Frontend Build**: `npm install` (291 pkgs) + `npx vite build` (v4.5.14, 225 modules, 1.80s) completed clean. Dist hashes: `Assistants-93ad8b5a.js`, `index-97209d6a.css`.
+  - **Blocker**: Browser aggressively caches old JS bundles. Need full cache clear or incognito window to see new build. Gateway restart via `start-aa.bat` requires `.env` vars and is slow due to `Test-NetConnection`.
+  - **Next**: Clear browser cache → verify grid renders → save 9 character PNGs to `frontend/public/characters/` → rebuild → verify pop-out effects.

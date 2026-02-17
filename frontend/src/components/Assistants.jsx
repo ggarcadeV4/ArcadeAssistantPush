@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LEDBlinkyPanel from './LEDBlinkyPanel'
 import ErrorBoundary from './ErrorBoundary'
@@ -17,43 +17,202 @@ import ScoreKeeperPanel from '../panels/scorekeeper/ScoreKeeperPanel'
 import CabinetHighScoresPanel from '../panels/scorekeeper/CabinetHighScoresPanel'
 import { stopSpeaking } from '../services/ttsClient'
 
-// Dewey is accessed directly via /assistants?agent=dewey, not from the personas grid
-const personas = []
+// ─── Command Center Agent Grid ─────────────────────────────────────────
+const agentCards = [
+  {
+    id: 'lora',
+    name: 'Launchbox Lora',
+    subtitle: '3D Integration',
+    glowClass: 'cc-glow-magenta',
+    panelClass: 'cc-lora-panel',
+    isPrimary: true,
+    charImage: '/characters/lora-char.png',
+    subtitleColor: '#d946ef',
+  },
+  {
+    id: 'dewey',
+    name: 'Dewey',
+    subtitle: 'Cabinet Assistant',
+    glowClass: 'cc-glow-blue',
+    charImage: '/characters/dewey-char.png',
+    subtitleColor: '#38bdf8',
+  },
+  {
+    id: 'sam',
+    name: 'Sam',
+    subtitle: 'Scorekeeper',
+    glowClass: 'cc-glow-blue',
+    charImage: '/characters/sam-char.png',
+    subtitleColor: '#38bdf8',
+  },
+  {
+    id: 'voice',
+    name: 'Vicki Voice',
+    subtitle: 'Natural Input',
+    glowClass: 'cc-glow-green',
+    charImage: '/characters/vicki-char.png',
+    subtitleColor: '#4ade80',
+  },
+  {
+    id: 'chuck',
+    name: 'Chuck',
+    subtitle: 'Controller Core',
+    glowClass: 'cc-glow-green',
+    charImage: '/characters/chuck-char.png',
+    subtitleColor: '#4ade80',
+  },
+  {
+    id: 'controller-wizard',
+    name: 'Wizard',
+    subtitle: 'Mapping Logic',
+    glowClass: 'cc-glow-green',
+    charImage: '/characters/wizard-char.png',
+    subtitleColor: '#4ade80',
+  },
+  {
+    id: 'led-blinky',
+    name: 'Blinky',
+    subtitle: 'LED Dynamics',
+    glowClass: 'cc-glow-magenta',
+    charImage: '/characters/blinky-char.png',
+    subtitleColor: '#d946ef',
+  },
+  {
+    id: 'gunner',
+    name: 'Gunner',
+    subtitle: 'Aim & Sync',
+    glowClass: 'cc-glow-magenta',
+    charImage: '/characters/gunner-char.png',
+    subtitleColor: '#d946ef',
+  },
+  {
+    id: 'doc',
+    name: 'Doc',
+    subtitle: 'System Health',
+    glowClass: 'cc-glow-magenta',
+    charImage: '/characters/doc-char.png',
+    subtitleColor: '#d946ef',
+  },
+]
 
-function chunk(arr, size) {
-  const out = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
-}
-
-function PersonaCard({ p }) {
+function AgentCard({ agent }) {
   const navigate = useNavigate()
+  const containerClass = [
+    'cc-glass-container',
+    agent.glowClass,
+    agent.panelClass || '',
+  ].filter(Boolean).join(' ')
 
-  const handleLaunchPanel = () => {
-    console.log('Launching panel for:', p.id)
-    navigate(`/assistants?agent=${p.id}`)
-  }
-
-  const handleChatWithAI = () => {
-    console.log('Chat with AI for:', p.id)
-    navigate(`/assistants?agent=${p.id}`)
+  const handleOpen = () => {
+    navigate(`/assistants?agent=${agent.id}`)
   }
 
   return (
-    <div className="card persona-card">
-      <div className="persona-hero">
-        <img src={p.hero} alt={`${p.name} hero`} className="persona-hero-img" />
-        <img src={p.avatar} alt={`${p.name} avatar`} className="persona-avatar" />
+    <div className={containerClass} onClick={handleOpen} role="button" tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && handleOpen()}
+      aria-label={`Open ${agent.name} panel`}
+    >
+      {/* Lora special bg glow */}
+      {agent.isPrimary && <div className="cc-lora-bg-glow" />}
+
+      {/* Character pop-out image */}
+      <img
+        src={agent.charImage}
+        alt={agent.name}
+        className={`cc-char-pop-out${agent.isPrimary ? ' cc-char-primary' : ''}`}
+        loading="lazy"
+      />
+
+      {/* Bottom gradient overlay */}
+      <div className="cc-card-gradient" />
+
+      {/* Card info */}
+      <div className="cc-card-info">
+        <div className="cc-card-text">
+          <h3 className="cc-card-name">{agent.name}</h3>
+          <p className="cc-card-subtitle" style={{ color: agent.subtitleColor }}>
+            {agent.subtitle}
+          </p>
+        </div>
+        <button
+          className={agent.isPrimary ? 'cc-pill-button-magenta' : 'cc-pill-button'}
+          onClick={(e) => { e.stopPropagation(); handleOpen() }}
+        >
+          OPEN
+        </button>
       </div>
-      <div className="persona-body">
-        <h3 className="mb-1">{p.name}</h3>
-        <div className="text-sm mb-1" aria-label="role">{p.role}</div>
-        <p className="text-sm">{p.summary}</p>
+    </div>
+  )
+}
+
+function CommandCenterGrid() {
+  const [time, setTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <div className="cc-dashboard">
+      {/* Header */}
+      <header className="cc-header">
+        <div className="cc-header-left">
+          <h1 className="cc-title">ARCADE ASSISTANT</h1>
+          <p className="cc-subtitle">
+            <span className="cc-status-dot" />
+            Master Command Dashboard • System Online
+          </p>
+        </div>
+        <div className="cc-header-right">
+          <div className="cc-header-user">
+            <div className="cc-user-info">
+              <span className="cc-user-name">Admin User</span>
+              <span className="cc-user-level">Lvl 99 Operative</span>
+            </div>
+            <div className="cc-user-avatar">GG</div>
+          </div>
+        </div>
+      </header>
+
+      {/* 3x3 Agent Grid */}
+      <div className="cc-agent-grid">
+        {agentCards.map(agent => (
+          <AgentCard key={agent.id} agent={agent} />
+        ))}
       </div>
-      <div className="persona-actions">
-        <button className="btn btn-primary" onClick={handleLaunchPanel} aria-label={`Launch ${p.name} panel`}>Launch Panel</button>
-        <button className="btn btn-success" onClick={handleChatWithAI} aria-label={`Chat with ${p.name}`}>Chat with AI</button>
-      </div>
+
+      {/* Footer Stats */}
+      <footer className="cc-footer">
+        <div className="cc-footer-stats">
+          <div className="cc-stat">
+            <span className="cc-stat-label">Total Games Indexed</span>
+            <span className="cc-stat-value">7,170</span>
+          </div>
+          <div className="cc-stat">
+            <span className="cc-stat-label">System Load</span>
+            <span className="cc-stat-value cc-stat-green">
+              14%
+              <span className="cc-stat-bars">
+                <span className="cc-bar cc-bar-1" />
+                <span className="cc-bar cc-bar-2" />
+                <span className="cc-bar cc-bar-3" />
+              </span>
+            </span>
+          </div>
+          <div className="cc-stat">
+            <span className="cc-stat-label">Active Neural Nodes</span>
+            <span className="cc-stat-value cc-stat-blue">09<span className="cc-stat-dim">/</span>09</span>
+          </div>
+        </div>
+        <div className="cc-footer-status">
+          <span className="cc-pulse-container">
+            <span className="cc-pulse-ring" />
+            <span className="cc-pulse-dot" />
+          </span>
+          <span className="cc-footer-status-text">Hyper-link protocols active</span>
+        </div>
+      </footer>
     </div>
   )
 }
@@ -211,21 +370,6 @@ export default function Assistants() {
     </>
   }
 
-  // Otherwise render the normal assistants grid
-  const rows = chunk(personas, 3)
-  return (
-    <div className="assistants-page">
-      {rows.map((row, idx) => (
-        <section className="persona-section" key={idx}>
-          <div className="container">
-            <div className="persona-grid">
-              {row.map(p => (
-                <PersonaCard key={p.id} p={p} />
-              ))}
-            </div>
-          </div>
-        </section>
-      ))}
-    </div>
-  )
+  // ─── Default: Render Command Center Dashboard ──────────────────────────
+  return <CommandCenterGrid />
 }

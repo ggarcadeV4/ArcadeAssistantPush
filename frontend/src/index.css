@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap');
+
 :root {
   --primary-color: #4f46e5;
   --primary-hover: #4338ca;
@@ -4462,5 +4464,471 @@ main {
 
   .player-buttons {
     justify-content: center;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Command Center Dashboard — Glassmorphism Agent Grid
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Dashboard container */
+.cc-dashboard {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 48px 24px 60px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.cc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 96px;
+}
+
+.cc-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #fff;
+  margin: 0;
+  line-height: 1;
+}
+
+.cc-subtitle {
+  color: #94a3b8;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+}
+
+.cc-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+  display: inline-block;
+  animation: cc-dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes cc-dot-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.cc-header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.cc-header-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 24px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cc-user-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.cc-user-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.cc-user-level {
+  font-size: 10px;
+  color: #60a5fa;
+  font-weight: 500;
+}
+
+.cc-user-avatar {
+  height: 40px;
+  width: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #fff;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* ─── Agent Grid ──────────────────────────────────────────────────────── */
+.cc-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px 32px;
+  row-gap: 96px;
+}
+
+@media (max-width: 1024px) {
+  .cc-agent-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .cc-agent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cc-header {
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 64px;
+  }
+}
+
+/* ─── Glass Container (Card Base) ─────────────────────────────────────── */
+.cc-glass-container {
+  position: relative;
+  overflow: visible;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  height: 256px;
+  cursor: pointer;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cc-glass-container:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.6);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.cc-glass-container:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Inner Glow Variants ─────────────────────────────────────────────── */
+.cc-glow-blue {
+  box-shadow: inset 0 0 40px -10px rgba(14, 165, 233, 0.4);
+}
+
+.cc-glow-green {
+  box-shadow: inset 0 0 40px -10px rgba(34, 197, 94, 0.4);
+}
+
+.cc-glow-magenta {
+  box-shadow: inset 0 0 40px -10px rgba(217, 70, 239, 0.4);
+}
+
+.cc-glass-container:hover.cc-glow-blue {
+  box-shadow: inset 0 0 50px -8px rgba(14, 165, 233, 0.5), 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.cc-glass-container:hover.cc-glow-green {
+  box-shadow: inset 0 0 50px -8px rgba(34, 197, 94, 0.5), 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.cc-glass-container:hover.cc-glow-magenta {
+  box-shadow: inset 0 0 50px -8px rgba(217, 70, 239, 0.5), 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Lora Special Treatment ──────────────────────────────────────────── */
+.cc-lora-panel {
+  border: 1px solid rgba(217, 70, 239, 0.3) !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.4) 0%, rgba(15, 23, 42, 0.8) 100%) !important;
+}
+
+.cc-lora-bg-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(circle, rgba(217, 70, 239, 0.25) 0%, rgba(34, 211, 238, 0.15) 50%, transparent 70%);
+  filter: blur(40px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ─── Character Pop-Out ───────────────────────────────────────────────── */
+.cc-char-pop-out {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -64px;
+  width: 100%;
+  height: 110%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+
+.cc-char-primary {
+  transform: translateX(-50%) scale(1.1);
+}
+
+.cc-glass-container:hover .cc-char-pop-out {
+  transform: translateX(-50%) translateY(-8px) scale(1.05);
+}
+
+.cc-glass-container:hover .cc-char-primary {
+  transform: translateX(-50%) translateY(-8px) scale(1.15);
+}
+
+/* ─── Card Gradient & Info ────────────────────────────────────────────── */
+.cc-card-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(2, 6, 23, 0.9) 0%, transparent 60%);
+  border-radius: 16px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.cc-card-info {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  z-index: 20;
+}
+
+.cc-card-text {
+  max-width: 60%;
+}
+
+.cc-card-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  margin: 0;
+}
+
+.cc-card-subtitle {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin: 4px 0 0;
+}
+
+/* ─── Pill Buttons ────────────────────────────────────────────────────── */
+.cc-pill-button {
+  padding: 8px 24px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.cc-pill-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.cc-pill-button-magenta {
+  padding: 8px 24px;
+  border-radius: 9999px;
+  border: 1px solid rgba(217, 70, 239, 0.5);
+  background: rgba(217, 70, 239, 0.1);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #e879f9;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(217, 70, 239, 0.3);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.cc-pill-button-magenta:hover {
+  background: rgba(217, 70, 239, 0.2);
+  border-color: #d946ef;
+  box-shadow: 0 0 25px rgba(217, 70, 239, 0.5);
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.cc-footer {
+  margin-top: 96px;
+  padding-top: 48px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 40px;
+}
+
+.cc-footer-stats {
+  display: flex;
+  gap: 48px;
+}
+
+.cc-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #64748b;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.cc-stat-value {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.cc-stat-green {
+  color: #4ade80;
+}
+
+.cc-stat-blue {
+  color: #60a5fa;
+}
+
+.cc-stat-dim {
+  color: #475569;
+}
+
+.cc-stat-bars {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.cc-bar {
+  width: 4px;
+  background: rgba(34, 197, 94, 0.4);
+}
+
+.cc-bar-1 {
+  height: 12px;
+}
+
+.cc-bar-2 {
+  height: 16px;
+  background: #22c55e;
+}
+
+.cc-bar-3 {
+  height: 8px;
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.cc-footer-status {
+  padding: 10px 20px;
+  border-radius: 9999px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cc-pulse-container {
+  position: relative;
+  display: flex;
+  width: 8px;
+  height: 8px;
+}
+
+.cc-pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #4ade80;
+  opacity: 0.75;
+  animation: cc-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.cc-pulse-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+@keyframes cc-ping {
+
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.cc-footer-status-text {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(74, 222, 128, 0.8);
+}
+
+@media (max-width: 768px) {
+  .cc-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cc-footer-stats {
+    flex-wrap: wrap;
+    gap: 24px;
   }
 }
