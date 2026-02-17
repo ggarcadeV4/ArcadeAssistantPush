@@ -19,22 +19,25 @@ function Setup-ArcadeEmulators {
     Write-Debug "=== STARTING EMULATOR SETUP ==="
     
     try {
-        $existingCount = ($PlayniteApi.Database.Emulators | Measure-Object).Count
-        Write-Debug "Found $existingCount existing emulators"
-        if ($existingCount -gt 0) {
-            Write-Debug "Emulators already configured, skipping"
-            return
-        }
+        # Build a lookup of existing emulator names for per-emulator idempotency
+        $existingEmulators = @{}
+        $PlayniteApi.Database.Emulators | ForEach-Object { $existingEmulators[$_.Name] = $true }
+        $existingCount = $existingEmulators.Count
+        Write-Debug "Found $existingCount existing emulators: $($existingEmulators.Keys -join ', ')"
     }
     catch {
         Write-Debug "ERROR checking emulators: $_"
+        $existingEmulators = @{}
     }
+    
+    # Helper: skip if emulator already exists
+    # Each section below checks: if ($existingEmulators.ContainsKey("Name")) { skip }
     
     # --- RetroArch ---
     try {
         $raDir = "A:\Emulators\RetroArch"
-        Write-Debug "RetroArch dir exists: $(Test-Path $raDir)"
-        if (Test-Path $raDir) {
+        if ($existingEmulators.ContainsKey("RetroArch")) { Write-Debug "RetroArch: already exists, skipping" }
+        elseif (Test-Path $raDir) {
             Write-Debug "Creating RetroArch emulator object..."
             $ra = New-Object Playnite.SDK.Models.Emulator
             Write-Debug "  Object created. Type: $($ra.GetType().FullName)"
@@ -106,7 +109,8 @@ function Setup-ArcadeEmulators {
     # --- MAME ---
     try {
         $mameDir = "A:\Emulators\MAME"
-        if (Test-Path $mameDir) {
+        if ($existingEmulators.ContainsKey("MAME")) { Write-Debug "MAME: already exists, skipping" }
+        elseif (Test-Path $mameDir) {
             Write-Debug "Creating MAME..."
             $mame = New-Object Playnite.SDK.Models.Emulator
             $mame.Name = "MAME"
@@ -139,7 +143,8 @@ function Setup-ArcadeEmulators {
     # --- Dolphin Tri-Force ---
     try {
         $dolphinDir = "A:\Emulators\Dolphin Tri-Force"
-        if (Test-Path $dolphinDir) {
+        if ($existingEmulators.ContainsKey("Dolphin Tri-Force")) { Write-Debug "Dolphin Tri-Force: already exists, skipping" }
+        elseif (Test-Path $dolphinDir) {
             Write-Debug "Creating Dolphin..."
             $dolphin = New-Object Playnite.SDK.Models.Emulator
             $dolphin.Name = "Dolphin Tri-Force"
@@ -172,7 +177,8 @@ function Setup-ArcadeEmulators {
     # --- Sega Model 2 ---
     try {
         $m2Dir = "A:\Emulators\Sega Model 2"
-        if (Test-Path $m2Dir) {
+        if ($existingEmulators.ContainsKey("Sega Model 2")) { Write-Debug "Sega Model 2: already exists, skipping" }
+        elseif (Test-Path $m2Dir) {
             Write-Debug "Creating Sega Model 2..."
             $m2 = New-Object Playnite.SDK.Models.Emulator
             $m2.Name = "Sega Model 2"
@@ -205,7 +211,8 @@ function Setup-ArcadeEmulators {
     # --- Super Model (Model 3) ---
     try {
         $m3Dir = "A:\Emulators\Super Model"
-        if (Test-Path $m3Dir) {
+        if ($existingEmulators.ContainsKey("Super Model")) { Write-Debug "Super Model: already exists, skipping" }
+        elseif (Test-Path $m3Dir) {
             Write-Debug "Creating Super Model..."
             $m3 = New-Object Playnite.SDK.Models.Emulator
             $m3.Name = "Super Model"
@@ -233,6 +240,96 @@ function Setup-ArcadeEmulators {
     }
     catch {
         Write-Debug "Super Model FAILED: $_ | $($_.Exception.GetType().FullName)"
+    }
+    
+    # --- MAME Gamepad (control panel / joystick+buttons arcade) ---
+    try {
+        $mameGpDir = "A:\Emulators\MAME Gamepad"
+        if ($existingEmulators.ContainsKey("MAME Gamepad")) { Write-Debug "MAME Gamepad: already exists, skipping" }
+        elseif (Test-Path $mameGpDir) {
+            Write-Debug "Creating MAME Gamepad..."
+            $mameGp = New-Object Playnite.SDK.Models.Emulator
+            $mameGp.Name = "MAME Gamepad"
+            $mameGp.InstallDir = $mameGpDir
+            $PlayniteApi.Database.Emulators.Add($mameGp)
+            $mameGp.CustomProfiles = New-Object "System.Collections.ObjectModel.ObservableCollection[Playnite.SDK.Models.CustomEmulatorProfile]"
+            
+            $prof = New-Object Playnite.SDK.Models.CustomEmulatorProfile
+            $prof.Name = "MAME Gamepad Default"
+            $prof.Executable = '{EmulatorDir}\mame.exe'
+            $prof.Arguments = '{ImageName}'
+            $prof.ImageExtensions = [System.Collections.Generic.List[string]]::new()
+            @("zip", "7z", "chd") | ForEach-Object { $prof.ImageExtensions.Add($_) }
+            
+            $plat = $PlayniteApi.Database.Platforms | Where-Object { $_.Name -eq "Arcade" } | Select-Object -First 1
+            if ($null -ne $plat) {
+                $prof.Platforms = [System.Collections.Generic.List[System.Guid]]::new()
+                $prof.Platforms.Add($plat.Id)
+            }
+            
+            $mameGp.CustomProfiles.Add($prof)
+            $PlayniteApi.Database.Emulators.Update($mameGp)
+            Write-Debug "MAME Gamepad saved"
+        }
+    }
+    catch {
+        Write-Debug "MAME Gamepad FAILED: $_ | $($_.Exception.GetType().FullName)"
+    }
+    
+    # --- TeknoParrot (lightgun / modern arcade) ---
+    try {
+        $tpDir = "A:\Emulators\TeknoParrot"
+        if ($existingEmulators.ContainsKey("TeknoParrot")) { Write-Debug "TeknoParrot: already exists, skipping" }
+        elseif (Test-Path $tpDir) {
+            Write-Debug "Creating TeknoParrot..."
+            $tp = New-Object Playnite.SDK.Models.Emulator
+            $tp.Name = "TeknoParrot"
+            $tp.InstallDir = $tpDir
+            $PlayniteApi.Database.Emulators.Add($tp)
+            $tp.CustomProfiles = New-Object "System.Collections.ObjectModel.ObservableCollection[Playnite.SDK.Models.CustomEmulatorProfile]"
+            
+            $prof = New-Object Playnite.SDK.Models.CustomEmulatorProfile
+            $prof.Name = "TeknoParrot Default"
+            $prof.Executable = '{EmulatorDir}\TeknoParrotUi.exe'
+            $prof.Arguments = '--profile={ImageName}'
+            $prof.ImageExtensions = [System.Collections.Generic.List[string]]::new()
+            @("xml") | ForEach-Object { $prof.ImageExtensions.Add($_) }
+            
+            $tp.CustomProfiles.Add($prof)
+            $PlayniteApi.Database.Emulators.Update($tp)
+            Write-Debug "TeknoParrot saved"
+        }
+    }
+    catch {
+        Write-Debug "TeknoParrot FAILED: $_ | $($_.Exception.GetType().FullName)"
+    }
+    
+    # --- TeknoParrot Gamepad (gamepad / modern arcade) ---
+    try {
+        $tpGpDir = "A:\Emulators\TeknoParrot Gamepad"
+        if ($existingEmulators.ContainsKey("TeknoParrot Gamepad")) { Write-Debug "TeknoParrot Gamepad: already exists, skipping" }
+        elseif (Test-Path $tpGpDir) {
+            Write-Debug "Creating TeknoParrot Gamepad..."
+            $tpGp = New-Object Playnite.SDK.Models.Emulator
+            $tpGp.Name = "TeknoParrot Gamepad"
+            $tpGp.InstallDir = $tpGpDir
+            $PlayniteApi.Database.Emulators.Add($tpGp)
+            $tpGp.CustomProfiles = New-Object "System.Collections.ObjectModel.ObservableCollection[Playnite.SDK.Models.CustomEmulatorProfile]"
+            
+            $prof = New-Object Playnite.SDK.Models.CustomEmulatorProfile
+            $prof.Name = "TeknoParrot Gamepad Default"
+            $prof.Executable = '{EmulatorDir}\TeknoParrotUi.exe'
+            $prof.Arguments = '--profile={ImageName}'
+            $prof.ImageExtensions = [System.Collections.Generic.List[string]]::new()
+            @("xml") | ForEach-Object { $prof.ImageExtensions.Add($_) }
+            
+            $tpGp.CustomProfiles.Add($prof)
+            $PlayniteApi.Database.Emulators.Update($tpGp)
+            Write-Debug "TeknoParrot Gamepad saved"
+        }
+    }
+    catch {
+        Write-Debug "TeknoParrot Gamepad FAILED: $_ | $($_.Exception.GetType().FullName)"
     }
     
     Write-Debug "=== EMULATOR SETUP COMPLETE ==="
