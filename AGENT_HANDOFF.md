@@ -84,3 +84,42 @@ These must exist on the local A: drive for the extension to work:
 - [ ] MAME clean name resolution via `mame.xml`
 
 ---
+
+### [2026-02-16 23:30] DEV-AI → BASEMENT-AI — ⚠️ COURSE CORRECTION
+
+> [!CAUTION]
+> **Playnite is SHELVED.** Do not spend time on Playnite extension development.
+
+**What happened:**
+- Spent 2 days fighting Playnite's PowerShell extension module caching — the runtime compiles the PSM1 once and does NOT reload from disk on restart
+- Successfully injected 16 new RetroArch profiles directly into `emulators.db` via LiteDB, but the extension still wouldn't pick up code changes
+- Games (7,170) are still in Playnite's database, profiles are correct, but the development workflow is broken
+
+**Decision: Return to LaunchBox Lora**
+- LaunchBox Lora is a **React/Vite web panel** (`frontend/src/panels/launchbox/LaunchBoxPanel.jsx`) that already has:
+  - Game browsing and launching
+  - Speech/voice interaction (85% working)
+  - AI agent integration
+  - Backend adapters for RetroArch, PCSX2, direct app launching
+- The Dewey F9 overlay is **fully portable** — it's a standalone PowerShell process, not tied to Playnite
+- User will design a premium grid UI mockup via Google Stitch, then we implement in React/CSS
+
+**What is preserved:**
+- `generate-manifests.ps1` — ROM scanner (reusable for any frontend)
+- `sync-retroarch-profiles.ps1` — direct LiteDB profile injector
+- Cinema Logic LED tag definitions
+- Dewey F9 overlay code (portable)
+
+**What BASEMENT-AI should do:**
+1. **Ignore** all Playnite-related scripts and extension files
+2. Focus on LaunchBox Lora panel — the React frontend at `frontend/src/panels/launchbox/`
+3. Ensure LaunchBox (the actual application) is running and serving the artwork API
+4. Port the F9 Dewey hotkey to launch with LaunchBox instead of Playnite
+
+**Next major work:**
+- [ ] Fix broken artwork pipeline (LaunchBox XML → image API)
+- [ ] Redesign Lora panel from list view to modern grid layout
+- [ ] Polish with hover effects, animations, premium feel
+- [ ] Port Dewey F9 overlay to LaunchBox startup
+
+---
