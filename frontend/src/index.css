@@ -2148,6 +2148,7 @@ main {
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 1rem;
+  background: #0a0e14;
   border: 1px solid color-mix(in srgb, var(--row-accent, #3b82f6) 35%, transparent);
 }
 

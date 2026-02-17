@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Arcade Assistant Master Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Rajdhani:wght@500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,FILL@0..1&amp;display=swap"
+        rel="stylesheet" />
+    <style type="text/tailwindcss">
+        :root {
+            --bg-deep-space: #020617;
+            --blue-glow: rgba(14, 165, 233, 0.4);
+            --green-glow: rgba(34, 197, 94, 0.4);
+            --magenta-glow: rgba(217, 70, 239, 0.4);
+            --lora-magenta: #d946ef;
+            --lora-cyan: #22d3ee;
+        }
+        body {
+            background-color: var(--bg-deep-space);
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(14, 165, 233, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(217, 70, 239, 0.05) 0%, transparent 40%),
+                url("data:image/svg+xml,%3Csvg width='400' height='400' viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='200' cy='200' r='1' fill='white' fill-opacity='0.2'/%3E%3Ccircle cx='50' cy='100' r='2' fill='white' fill-opacity='0.1'/%3E%3Ccircle cx='350' cy='300' r='1.5' fill='white' fill-opacity='0.15'/%3E%3C/svg%3E");
+            background-attachment: fixed;
+        }
+        .glass-container {
+            @apply relative overflow-visible rounded-2xl border border-white/10 bg-slate-900/40 backdrop-blur-xl transition-all duration-500;
+        }
+        .glass-container:hover {
+            @apply border-white/20 bg-slate-900/60;
+            transform: translateY(4px);
+        }
+        .char-pop-out {
+            @apply absolute left-1/2 -translate-x-1/2 -top-16 w-[100%] h-[110%] object-contain pointer-events-none transition-transform duration-500 z-10;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+        }
+        .glass-container:hover .char-pop-out {
+            transform: translate(-50%, -8px) scale(1.05);
+        }
+        .inner-glow-blue { box-shadow: inset 0 0 40px -10px var(--blue-glow); }
+        .inner-glow-green { box-shadow: inset 0 0 40px -10px var(--green-glow); }
+        .inner-glow-magenta { box-shadow: inset 0 0 40px -10px var(--magenta-glow); }
+        .lora-panel {
+            border: 1px solid rgba(217, 70, 239, 0.3);
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.4) 0%, rgba(15, 23, 42, 0.8) 100%);
+        }
+        .lora-bg-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(circle, rgba(217, 70, 239, 0.25) 0%, rgba(34, 211, 238, 0.15) 50%, transparent 70%);
+            filter: blur(40px);
+            z-index: 0;
+        }
+        .pill-button {
+            @apply px-6 py-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-md text-xs font-bold tracking-widest uppercase text-white hover:bg-white/20 hover:border-white/40 transition-all duration-300;
+        }
+        .pill-button-magenta {
+            @apply px-6 py-2 rounded-full border border-fuchsia-500/50 bg-fuchsia-500/10 backdrop-blur-md text-xs font-bold tracking-widest uppercase text-fuchsia-300 shadow-[0_0_15px_rgba(217,70,239,0.3)] hover:bg-fuchsia-500/20 hover:border-fuchsia-500 transition-all duration-300;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+
+<body class="font-sans text-slate-200 min-h-screen">
+    <div class="max-w-7xl mx-auto px-6 py-12">
+        <header class="flex justify-between items-center mb-24">
+            <div>
+                <h1 class="text-4xl font-bold uppercase tracking-widest text-white font-['Rajdhani']">Arcade Assistant
+                </h1>
+                <p class="text-slate-400 font-medium flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span>
+                    Master Command Dashboard • System Online
+                </p>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="flex gap-2">
+                    <button
+                        class="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">notifications</span>
+                    </button>
+                    <button
+                        class="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">settings</span>
+                    </button>
+                </div>
+                <div class="flex items-center gap-3 pl-6 border-l border-white/10">
+                    <div class="text-right">
+                        <p class="text-xs font-bold text-white uppercase tracking-tighter">Admin User</p>
+                        <p class="text-[10px] text-blue-400 font-medium">Lvl 99 Operative</p>
+                    </div>
+                    <div
+                        class="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">
+                        JD
+                    </div>
+                </div>
+            </div>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-24">
+            <div class="glass-container lora-panel h-64 group overflow-visible">
+                <div class="lora-bg-glow"></div>
+                <img alt="Launchbox Lora" class="char-pop-out scale-110"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUCwUi1zoSEohRZfqCe9TqqcI39KYVw2hhxsHdq76VbP2UvdHaW_R77svgd8xVd-gBkSpvUvZdkEKOQS6skQfloBb6oty0Ed1iFtTUmVkreDPkdEunnpnGRNVr-6D1_zonq9iWNCz58jU2XoGpc8HqI8qL0wpXRwPS1j69JEiWprKwxImP1vGkj-b-fYG0RNDkRYBGB1uiG0Sf99cDpVBGXaFILUnh6JTb8GdpHTdEUHRZpQ5jb5ZXtXpF8iv8sU4NY83Hq5AXoyvp" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent rounded-2xl z-[5]">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3 class="text-2xl font-bold text-white tracking-tight leading-none font-sans">Launchbox Lora
+                        </h3>
+                        <p class="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest mt-1">3D Integration
+                        </p>
+                    </div>
+                    <button class="pill-button-magenta">OPEN</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-blue h-64 group">
+                <img alt="Dewey" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQyC9UZgoKOdphBDbcd_obxrS34UxkFkJ_vDwipelIUGTGZGgGcaLs0N2BzsKb1l79vRhcPqplo_2JYNrX-6TPDLt3Vtue3w77DaU-XBsptULedwlDvq-91MH1491nVUAxHXIkRWeG42VujUhvfpa9yR75UE98rdfM2-XxDy10uqwaGAXveWh2ExUwVqd8fnb_lbgvfv5ZKoqbm2ZoYY0ng0tkhefUvKmyVbC71lvoop5U86wooEP7LsoTOWtXUc_D_C5yxnaarWVn" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Dewey</h3>
+                        <p class="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-1">Cabinet Assistant
+                        </p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-blue h-64 group">
+                <img alt="Sam" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOajfIbTNPMQ9qkmvfpYBJMZcRMTXtOP-ZU-wDHhJLyMVm8BH6NZRcwjrKiPsG88R3ofwnfm7yh1uJeyC2Q8An7pptXjWlVyCsYImt6xAiM6zHxQ168GG-xPJOQn_190ORBh06i3zGbVOXaO3gWJmKTG5uK6EDoth0LOXGXd7QrAFPNl1Vxad1vhEUV18Wp_S4IxTB1FXsXXnrwrKtcUEM18quGH6j6sUAb8S4OsD-D34wxWvYnTYOPFVceyesnlOqFf9yCNORq_qh" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Sam</h3>
+                        <p class="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-1">Scorekeeper</p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-green h-64 group">
+                <img alt="Voice" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSBF3Qy_NuR4UgUbYQE-VooJybk2HMJBQaZMfiVdxw7Qek-vno22By75rqTcn58pibRyP4RuJcXLbYzAhvBZ96Gw2CkAw7bg8pUzGDlP1C3f9a12G2dk6LDUMNjszBnBQAV0reK0vQOAxeLFdilASRrXCSvzq1hM-xfPObnFf6nlZeU_rJFrxBpWxS7b_yr7mxJFTUSup9Tr_HLXTmRh0j19-2_zOGVSqPKjqG7Y8Z7_BiW3oST1ZA0m9jlAQCp86wArKmUQHTo_NO" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Voice</h3>
+                        <p class="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1">Natural Input</p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-green h-64 group">
+                <img alt="Chuck" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDxJ2o6GBMG8f9ShoTW2g7LQFIW4K4mbFNR4sp6TLX_sKe_b-6h1MWZ-tsasPaIANEAdpq4Lf5Sky1dyUhOrOfYq___8zVgOGSIeMHmvq8DJaiDP67NVrzUR_craym_9c4jMOd6IipcO1iM-EitjFG2hVMG9a-KOL9_khUPZ0TYZLhtiRKAxSBsSXNhe-PgSz3P8dSRORLs2Uhj2vRjoXgR34PS_UerzHRk0xP03CBEVagB0teT8MFfrgzBX7ovGW4GG0H2-zj55Ayd" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Chuck</h3>
+                        <p class="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1">Controller Core
+                        </p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-green h-64 group">
+                <img alt="Wizard" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdVzh2SpPL8QwhuihbFuCIbq0wQesHjTkuJHHCnOOuTySO8Wl8i2QmSyTQLDo8eJLKf6w1Tk3ZzK2mBaWW4PSrq2jX7B6fENB57BVurtlYTf-bOiYqpTzRZr1l4oFoPUA-J3DFaYHUmP2XLTa6t9jAAZq_NNGUgIb9LhoZNEPfkSEgm4NwDKLsSOCKdHPTwZgytGRMm_hXyKip7sKGhCAxbXEc0AaemUw-AehlIFPCK6knSRCMQZfGAlZ9lSxERe7KszRR_FEHakcQ" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Wizard</h3>
+                        <p class="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1">Mapping Logic</p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-magenta h-64 group">
+                <img alt="Blinky" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7EtBHHxJF4VzYJUBfMMDncPGQBBFJqVbaY8-nSCY6IJ8tMVyzBL_oGYzZjep_KsA1OWwmNinXh3Es4ozKryIeKIvdNkUcP4tVp00ePj0F_9gWdRRYR6bqSNQtdvt28pf68suHLsoaRdcvaXoArthyn5xjt3QXVBW9-vU7eQLrCFco6xh6N71fvpRUE0_N7LVW1JUz9qwlciKX7v5ZP-0JSm5xV2z7fMNWBGTeSN0QjRmTPdGnAgFMh4yjLas1FJH9JjxonDBDng9F" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Blinky</h3>
+                        <p class="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest mt-1">LED Dynamics
+                        </p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-magenta h-64 group">
+                <img alt="Gunner" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDcI-v272HJHyjkYVoBuYc-hWyDvwXKoPyLBBvaVI_bgEKKQ-9VT-eWWlubO-7ytzqkIqidiroSGpHI2j4_U8tsXauWJr6ydpsQ4JC5nDlBc5PiPMYwYbKPEBnqaRJ0NH-rDpNzohp7JgvxExayVxHu-JBBOCf3f2gdqN6gqELuDr9x_BTCa9xRujQrCiGIMkM38_hHn6QtORzG3MIIHtOmM8nFp30sSyPCt9EbN9vIdXdcJl1oAtej8e--s0q7lwnTDY0CJxk6trbq" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Gunner</h3>
+                        <p class="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest mt-1">Aim &amp; Sync
+                        </p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+            <div class="glass-container inner-glow-magenta h-64 group">
+                <img alt="Doc" class="char-pop-out"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCX3hhWDIAMUXEOgxplHfMdeKU-WEFEwJhbPLnt9JpfdFjBW9Gcj0Q9cPAGbRXEZVR_h7AwLAxnuJBp9_7E3mZXuxI-c3z3txv-vavrGSs8zu8A4RxC8rEVZZhj3vlTK6rhi2dZ-39fws0JiEVlkgbuOiEqOK-kdRkV6FX_TJF5GXpdeKJ1x5jJMuTELlg10ZoBIO8WzNBmc4EfJegLlz7zjUXy7siUTz3PZCgqFxWoVie1PbwvXDem1Pupe2Lpr0xShG-ChDloRtWn" />
+                <div
+                    class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent rounded-2xl">
+                </div>
+                <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between z-20">
+                    <div class="max-w-[60%]">
+                        <h3
+                            class="font-['Rajdhani'] text-2xl font-bold text-white uppercase tracking-tight leading-none">
+                            Doc</h3>
+                        <p class="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest mt-1">System Health
+                        </p>
+                    </div>
+                    <button class="pill-button">Open</button>
+                </div>
+            </div>
+        </div>
+        <footer class="mt-24 pt-12 border-t border-white/5 flex flex-wrap justify-between items-center gap-10">
+            <div class="flex gap-12">
+                <div class="flex flex-col">
+                    <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">Total Games
+                        Indexed</span>
+                    <span class="text-3xl font-bold text-white tabular-nums font-['Rajdhani']">12,482</span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">System
+                        Load</span>
+                    <div class="flex items-end gap-2">
+                        <span class="text-3xl font-bold text-green-400 tabular-nums font-['Rajdhani']">14%</span>
+                        <div class="flex gap-0.5 mb-1.5">
+                            <div class="w-1 h-3 bg-green-500/40"></div>
+                            <div class="w-1 h-4 bg-green-500"></div>
+                            <div class="w-1 h-2 bg-green-500/20"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-1">Active Neural
+                        Nodes</span>
+                    <span class="text-3xl font-bold text-blue-400 tabular-nums font-['Rajdhani']">09<span
+                            class="text-slate-600">/</span>09</span>
+                </div>
+            </div>
+            <div class="px-5 py-2.5 rounded-full border border-green-500/20 bg-green-500/5 flex items-center gap-3">
+                <span class="relative flex h-2 w-2">
+                    <span
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span class="text-xs font-bold uppercase tracking-widest text-green-400/80">Hyper-link protocols
+                    active</span>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>

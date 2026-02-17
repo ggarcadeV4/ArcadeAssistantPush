@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Arcade Assistant Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0ea5e9",
+                        "background-light": "#f8fafc",
+                        "background-dark": "#020617",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.75rem",
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-light {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .hero-gradient {
+            background: linear-gradient(to top, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.4) 50%, rgba(2, 6, 23, 0) 100%);
+        }
+
+        .hero-gradient-light {
+            background: linear-gradient(to top, rgba(248, 250, 252, 1) 0%, rgba(248, 250, 252, 0.4) 50%, rgba(248, 250, 252, 0) 100%);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(120, 120, 120, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(120, 120, 120, 0.5);
+        }
+    </style>
+</head>
+
+<body
+    class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-300">
+    <nav
+        class="fixed top-0 w-full z-50 glass-light dark:glass border-b border-slate-200 dark:border-white/10 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <div class="flex items-center gap-2">
+                    <div
+                        class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                        <span class="material-icons-round">videogame_asset</span>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight">ARCADE<span class="text-primary">OS</span></span>
+                </div>
+                <div class="hidden md:flex items-center gap-6 text-sm font-medium">
+                    <a class="text-primary hover:text-primary/80 transition-colors" href="#">Dashboard</a>
+                    <a class="text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
+                        href="#">Library</a>
+                    <a class="text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
+                        href="#">Stats</a>
+                    <a class="text-slate-500 dark:text-slate-400 hover:text-primary transition-colors"
+                        href="#">Settings</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="relative hidden sm:block">
+                    <span
+                        class="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                    <input
+                        class="bg-slate-100 dark:bg-white/5 border-none rounded-full py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-primary transition-all"
+                        placeholder="Search games..." type="text" />
+                </div>
+                <button class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
+                    <span class="material-icons-round text-slate-500 dark:text-slate-400">notifications</span>
+                </button>
+                <div
+                    class="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white border-2 border-white dark:border-slate-800 overflow-hidden shadow-md">
+                    <img alt="User Profile"
+                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDB_54uFMpnQDhBOypB4o8gTIljtAZoA-MJsLjHGX8PnkQuXMenRcizb-o0_0TVXsq9w5rlIFkBSxDN2Ct7g_L3EN7o7uS6Cm5G2x-ANOX3Q3__5twsRlcS8bZXg0GTF940p8ORanz9rlm1Pj0S8eKMCVs28RzyENzYxtkwD8-We5htexvKg16OCbREX21TI8Zo7Dp2ivbycqR5OBWV0L3C_5ET_bQsVs83iNvALg9zqB40B3Ub6O1DdTYavGWM3TdSdP67jtvdWbcC" />
+                </div>
+            </div>
+        </div>
+    </nav>
+    <main class="pt-20 pb-12">
+        <section class="relative h-[500px] w-full overflow-hidden group">
+            <img alt="Cyberpunk Arcade Hero"
+                class="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-1000"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMO8rmbgu1IO3LgodBeCw3-RZXLIveOIXAAvRCFUraKsxXqTfkqLJCyt7Hyf1GHTn7ZouHJ8A7icdvQGpzyD4spotcAcnob0gbXUpLir06nYWnmxJ6rjvaWGpSNbHyE1UtTwumeJo0gquMgunuyK6wIikdfXUGD9USU7tQMiFSneX6KQdBW6BsM2--xhlMwgS1S1Y9TaaMhnMKC8oleTT9NL6anTWxK_9HWIowYqlRFAliat24ULhHWp5Kr69o9FH7b0mXwaJ1rimi" />
+            <div class="absolute inset-0 hero-gradient-light dark:hero-gradient"></div>
+            <div class="absolute bottom-0 left-0 w-full p-8 md:p-16">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex items-center gap-2 text-primary font-bold mb-4 tracking-wider text-xs uppercase">
+                        <span class="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+                        Last Played
+                    </div>
+                    <h1 class="text-5xl md:text-7xl font-black mb-4 tracking-tighter max-w-2xl leading-[1.1]">NEON
+                        STRIKE: <br /><span class="text-primary">ULTRA TURBO</span></h1>
+                    <div class="flex flex-wrap items-center gap-4 text-slate-600 dark:text-slate-300 mb-8 font-medium">
+                        <span class="flex items-center gap-1"><span class="material-icons-round text-sm">schedule</span>
+                            14h Played</span>
+                        <span class="flex items-center gap-1"><span
+                                class="material-icons-round text-sm">emoji_events</span> 12 Achievements</span>
+                        <span
+                            class="px-2 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-xs font-bold uppercase">Fighting</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button
+                            class="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-full font-bold shadow-xl shadow-primary/25 flex items-center gap-2 transition-all transform hover:scale-105">
+                            <span class="material-icons-round">play_arrow</span> CONTINUE PLAYING
+                        </button>
+                        <button
+                            class="glass-light dark:glass px-6 py-4 rounded-full font-bold flex items-center gap-2 hover:bg-slate-200 dark:hover:bg-white/20 transition-all">
+                            <span class="material-icons-round">info</span> DETAILS
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <div class="max-w-7xl mx-auto px-6 mt-12 space-y-12">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div
+                    class="p-6 rounded-2xl glass-light dark:glass flex flex-col items-center justify-center text-center">
+                    <span class="material-icons-round text-primary mb-2">sports_esports</span>
+                    <div class="text-2xl font-bold">1,204</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest">Total
+                        Games</div>
+                </div>
+                <div
+                    class="p-6 rounded-2xl glass-light dark:glass flex flex-col items-center justify-center text-center">
+                    <span class="material-icons-round text-purple-500 mb-2">timer</span>
+                    <div class="text-2xl font-bold">428h</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest">Time
+                        Played</div>
+                </div>
+                <div
+                    class="p-6 rounded-2xl glass-light dark:glass flex flex-col items-center justify-center text-center">
+                    <span class="material-icons-round text-amber-500 mb-2">star</span>
+                    <div class="text-2xl font-bold">84%</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest">Avg.
+                        Score</div>
+                </div>
+                <div
+                    class="p-6 rounded-2xl glass-light dark:glass flex flex-col items-center justify-center text-center">
+                    <span class="material-icons-round text-emerald-500 mb-2">trending_up</span>
+                    <div class="text-2xl font-bold">Top 5%</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest">Global
+                        Rank</div>
+                </div>
+            </div>
+            <section>
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold tracking-tight">Popular This Week</h2>
+                    <button class="text-primary text-sm font-semibold flex items-center gap-1 hover:underline">
+                        View All <span class="material-icons-round text-base">chevron_right</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
+                    <div class="group cursor-pointer">
+                        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden mb-3 shadow-lg">
+                            <img alt="Street Fighter"
+                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzw8A1wypMXLV9kAXM11O2bTUCLddK6tGY2G4P51aAyYBbjt9Oa-0MGG79ue0UiuBqotR5nSFgdHtZv9m50URo2QeRJp7vlEQsZdiPer9RVDrRRtoSrPkigXk71pcsWlasdLddkuvupwuwsM-VJsC09VOb-SobeQvcspIFwEy5IuwD6QGczJwO5lCqMW3lKzoIef5lQFdkZRpi-SHO88CYSkR5wCSqJUS0ndc94p0rWxo4yTd_-12-hYM0X8BA9KEUQhAmRwxPpjLR" />
+                            <div
+                                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                <button
+                                    class="w-full bg-primary text-white py-2 rounded-lg font-bold text-sm shadow-xl">PLAY
+                                    NOW</button>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-sm group-hover:text-primary transition-colors">Combat Evolved II</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Fighting • 1994</p>
+                    </div>
+                    <div class="group cursor-pointer">
+                        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden mb-3 shadow-lg">
+                            <img alt="Racing Game"
+                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpyaXxZw27XRwPQ18_dIaAOw6hpzYcvC4FSFIOpH-PmSKWbncIC43Q_xXBWA3KMqKsaeMMoHVIv7x7oehuj7emHYsKwf30Byl_puD54_sFSPw485GDcXhB9MWMPhz2OQwDlD5ZzAHktJK9Tfh7lIAXgpiYdEJaB0HcueL68q9vLkCxs23yD56ErCn5trspyJS44CBCHzgg__ILZiIohlZYIDGPD9wRg33z2IHojdoM-aKg9NgvPt8FzGu-UrXcdKwWXKkVPFbH__7J" />
+                            <div
+                                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                <button
+                                    class="w-full bg-primary text-white py-2 rounded-lg font-bold text-sm shadow-xl">PLAY
+                                    NOW</button>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-sm group-hover:text-primary transition-colors">Circuit Velocity</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Racing • 2001</p>
+                    </div>
+                    <div class="group cursor-pointer">
+                        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden mb-3 shadow-lg">
+                            <img alt="Puzzle Game"
+                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDYTwT8VRWPnfY-smH4I5Mw-u5gYkm0J75GGaRQkeYlpr_xbAewSz1q89z50kr7vPhknom1gSksuaBBzyNnka5opoYVi9cU4HugFlKTc99G1__uNVt1YIBvH623bOcoWu6lAu9IlXDRJ7CTk-DNPZki98MwtB6YRRA34gH0jraNSpp4L5QD26RJz5mMxDW_M_TVUmfyNIDo3RhfiPUEv-E-hDlaimBp8Ge822sAnZLAB-wDaqGp_XH6hmv9do-jTPxPKnmv2E9toxSV" />
+                            <div
+                                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                <button
+                                    class="w-full bg-primary text-white py-2 rounded-lg font-bold text-sm shadow-xl">PLAY
+                                    NOW</button>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-sm group-hover:text-primary transition-colors">Block Cascade</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Puzzle • 1989</p>
+                    </div>
+                    <div class="group cursor-pointer">
+                        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden mb-3 shadow-lg">
+                            <img alt="Shooter Game"
+                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-hWfOtF4uZCl2gdYW4L6ptDTCrK9bh4MDfpRA1JnQFj0xpyNy4mmPZT3qbc0kNUrLFTQCnDA60864nntLFtWKzQ_z0Ea9d0xViu-a_yA01O9wM81XgxZhULENaI-2rLURkv1A4Pbthudw2rqzasiu-9JBwdRbmolYMga9LMMMYAB_jxYP07oA4YcFRaTePUjBYZ_uVUvvEz8e4XT7o7qouvLVIpOZNdg06-aFgVTLydloci1LpH8QUtANcTyd6tigZ9AR5TvVuG6F" />
+                            <div
+                                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                <button
+                                    class="w-full bg-primary text-white py-2 rounded-lg font-bold text-sm shadow-xl">PLAY
+                                    NOW</button>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-sm group-hover:text-primary transition-colors">Galactic Guardian</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Shooter • 1982</p>
+                    </div>
+                    <div class="group cursor-pointer">
+                        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden mb-3 shadow-lg">
+                            <img alt="Platformer"
+                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBU3gGMbUlp4e2Y0bQ_ihD7XFb6fWVNvFoJSaIe-AVRAW3zWeDcUtLSFVgTn89sRZR9isZ4Omrw8kgn6f7W7s5OGhcr9X6yImCURX94ESsKNBw1VKH4-d7a3LwxdOYHbhUFbshboCjkSTlqpNgJQzqczhd0NDFyZxKmIxw04HhgVHLaa-Sib_QhHhumLz1uMIg7sXL6Df7Bl3lM81w825jVnZ3HnVIb8NiOqnW6ul45wpQFapQMhzSzNl5zY3GT9V6-Iqne-hQLFc09" />
+                            <div
+                                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                <button
+                                    class="w-full bg-primary text-white py-2 rounded-lg font-bold text-sm shadow-xl">PLAY
+                                    NOW</button>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-sm group-hover:text-primary transition-colors">Pixel Jumper Deluxe
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Platform • 1991</p>
+                    </div>
+                </div>
+            </section>
+            <section>
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold tracking-tight">New Additions</h2>
+                    <div class="flex gap-2">
+                        <button
+                            class="p-2 rounded-full glass-light dark:glass hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
+                            <span class="material-icons-round">chevron_left</span>
+                        </button>
+                        <button
+                            class="p-2 rounded-full glass-light dark:glass hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
+                            <span class="material-icons-round">chevron_right</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex gap-6 overflow-x-auto pb-4 -mx-2 px-2 scrollbar-hide">
+                    <div class="flex-shrink-0 w-80 group cursor-pointer">
+                        <div class="relative h-44 rounded-2xl overflow-hidden mb-3">
+                            <img alt="New Game 1"
+                                class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBX_szaey88ILKTePw8-mJ29eGJGYbU4hPX2PLEvdScrZoJlyM5gvua_fJgx6gwjOatVRaswlx8isEJsYIQXaqhu9I2nmjkSRCJnOIvBwcCz7vhe5AShDiZM0Q_LrJsr6TrBQBP-L_XemR8DNh3vr-GQvUAHEWJr2h3X4J3mWzvMf4gm8JiUdfcU87qEMUE4Jw0hzCvFKgCTBsqPUva7wT1tdU_EaIdBqWCvRp8hUfghVhPJPKMpQtcyyiHOQRo944JYRgRhowQfiCp" />
+                            <div
+                                class="absolute top-3 left-3 px-2 py-1 bg-emerald-500 text-white text-[10px] font-bold rounded">
+                                JUST ADDED</div>
+                        </div>
+                        <h3 class="font-bold group-hover:text-primary transition-colors">Shadow Strike: Legacy</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Action • Flash Gun Games</p>
+                    </div>
+                    <div class="flex-shrink-0 w-80 group cursor-pointer">
+                        <div class="relative h-44 rounded-2xl overflow-hidden mb-3">
+                            <img alt="New Game 2"
+                                class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBpfbTq8SBnqfwGhtwhVPv_MpAEHprD_CZi6SueEC9d6LDh2pdozLRhACkAouU_g3CD9yDk3Tgo3MLOkeKD5hhBHmCxKxrrLpSIgm8C5brvNi_2HwGLY4KdvoLlox_NqGC3Alg0GV3n7iqTzaVDsQIuIBOU7i2aJI_yjOfM9w_R1m4A2OfeRBXbYn5AKp52MoclYMkW5A96z7q5Lj0DMkT6gTdEj3OLFr0D-SCVSP9IICqCdok1HEbYsi19Ik1TWPKes1Nzldxcrsin" />
+                        </div>
+                        <h3 class="font-bold group-hover:text-primary transition-colors">Midnight Drift R</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Racing • Arcade MAME</p>
+                    </div>
+                    <div class="flex-shrink-0 w-80 group cursor-pointer">
+                        <div class="relative h-44 rounded-2xl overflow-hidden mb-3">
+                            <img alt="New Game 3"
+                                class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEB0bKiO1aYM7Ife6wpsA80_RZhKvLC4GYFsEHjJzbuTJvmWa0VsP6c9yVs7P-yGSkSY10GF1o21hvi3-Rd_COuJ6vdDCBGSW0KdeXRhLUdENPu4I5yazaBsvlh6Z6oEoBugGXkyLITm2CECracsiumOSn-rY9ZcC_ClWqnN63qaBkAVEAOl6uJ6FRrFzCjiq4LQw2hcVr-x9LcXflX1K0wQDg3hx1NQpg-ZHl9fsEDpfE1S7Z7TK2Ne9-ic2zurveVhw-Q_PMv0A8" />
+                        </div>
+                        <h3 class="font-bold group-hover:text-primary transition-colors">Cyber Odyssey</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">RPG • Nintendo ES</p>
+                    </div>
+                    <div class="flex-shrink-0 w-80 group cursor-pointer">
+                        <div class="relative h-44 rounded-2xl overflow-hidden mb-3">
+                            <img alt="New Game 4"
+                                class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYDrZmKS2_R33SGI66Nhnr-0pb7LTXLkGOJ7-JMS-ROIhs_aGdF6o7VZluKNCHI0-1onJxEIMmhswiqe_NSOEY4AohuWwu6GrvLkmaPyzNMPRr7q0RHln0ptcu0Y6CyH7PnY1oakvEMcOfNmFde1k-f4jZyfu9w7iuPc3rUTrgtOwLBi-2GXTWF4lhhkHwy4fwRD7AIViajM21_4JfdKNRBZJ67_O7a5rQwy79y5lZK24xtOmf3963UtE_48lIGYc7V1Qy0Ipbt8lP" />
+                        </div>
+                        <h3 class="font-bold group-hover:text-primary transition-colors">Vector Void</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Strategy • Flash Games</p>
+                    </div>
+                </div>
+            </section>
+            <section class="glass-light dark:glass rounded-3xl p-8 border border-slate-200 dark:border-white/10">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <h2 class="text-2xl font-bold tracking-tight">Full Library</h2>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button class="px-4 py-2 rounded-full text-xs font-bold bg-primary text-white">ALL</button>
+                        <button
+                            class="px-4 py-2 rounded-full text-xs font-bold bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10">ARCADE</button>
+                        <button
+                            class="px-4 py-2 rounded-full text-xs font-bold bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10">GENESIS</button>
+                        <button
+                            class="px-4 py-2 rounded-full text-xs font-bold bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10">SNES</button>
+                        <div class="ml-auto flex items-center gap-2">
+                            <span class="text-xs text-slate-500 font-medium">Sort by:</span>
+                            <select
+                                class="bg-slate-100 dark:bg-white/5 border-none rounded-lg text-xs font-bold py-1.5 focus:ring-1 focus:ring-primary">
+                                <option>Title (A-Z)</option>
+                                <option>Year</option>
+                                <option>Played Time</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div
+                        class="group flex items-center justify-between p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-white/10">
+                        <div class="flex items-center gap-4">
+                            <div
+                                class="w-12 h-12 rounded-lg bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-400">
+                                <span class="material-icons-round">videogame_asset</span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm">1941: Counter Attack</h4>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Arcade MAME • <span
+                                        class="text-primary/70">Shooter / Flying Vertical</span></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-8">
+                            <div class="hidden md:block text-right">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Played
+                                </div>
+                                <div class="text-xs font-bold">Never</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Year</div>
+                                <div class="text-xs font-bold">1990</div>
+                            </div>
+                            <button
+                                class="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-lg shadow-primary/5">
+                                <span class="material-icons-round">play_arrow</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex items-center justify-between p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-white/10">
+                        <div class="flex items-center gap-4">
+                            <div
+                                class="w-12 h-12 rounded-lg bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-400">
+                                <span class="material-icons-round">videogame_asset</span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm">10-Yard Fight</h4>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Arcade MAME • <span
+                                        class="text-primary/70">Sports / Football</span></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-8">
+                            <div class="hidden md:block text-right">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Played
+                                </div>
+                                <div class="text-xs font-bold">2.4h</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Year</div>
+                                <div class="text-xs font-bold">1983</div>
+                            </div>
+                            <button
+                                class="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-lg shadow-primary/5">
+                                <span class="material-icons-round">play_arrow</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex items-center justify-between p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-white/10">
+                        <div class="flex items-center gap-4">
+                            <div
+                                class="w-12 h-12 rounded-lg bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-400">
+                                <span class="material-icons-round">videogame_asset</span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm">Nightfire</h4>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Nintendo GameBoy • <span
+                                        class="text-primary/70">Shooter</span></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-8">
+                            <div class="hidden md:block text-right">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Played
+                                </div>
+                                <div class="text-xs font-bold">12h</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Year</div>
+                                <div class="text-xs font-bold">2003</div>
+                            </div>
+                            <button
+                                class="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-lg shadow-primary/5">
+                                <span class="material-icons-round">play_arrow</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-center pt-8 gap-4">
+                        <button
+                            class="px-6 py-2 rounded-full glass-light dark:glass text-xs font-bold hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">Previous</button>
+                        <span class="text-xs font-bold text-slate-400">Page 1 of 203</span>
+                        <button
+                            class="px-6 py-2 rounded-full bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors">Next</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <div class="fixed bottom-6 right-6 z-50">
+        <button
+            class="w-14 h-14 bg-primary text-white rounded-2xl shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all group">
+            <span class="material-icons-round text-3xl group-hover:rotate-12 transition-transform">bolt</span>
+        </button>
+    </div>
+    <button
+        class="fixed bottom-6 left-6 p-3 rounded-full glass-light dark:glass text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-all z-50"
+        onclick="document.documentElement.classList.toggle('dark')">
+        <span class="material-icons-round dark:hidden">dark_mode</span>
+        <span class="material-icons-round hidden dark:block">light_mode</span>
+    </button>
+</body>
+
+</html>

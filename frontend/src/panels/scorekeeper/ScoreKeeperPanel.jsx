@@ -1,4 +1,4 @@
-Ôªøimport React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAIAction } from '../_kit'
 import { getLeaderboard, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper } from '../../services/scorekeeperClient'
 import { useLocation } from 'react-router-dom'
@@ -15,7 +15,7 @@ const ROUND_KEY_MAP = {
   32: ['round1', 'round2', 'quarterfinals', 'semifinals', 'finals']
 }
 
-function formatScoreValue(value, fallback = '‚Äî') {
+function formatScoreValue(value, fallback = 'ó') {
   if (value === '' || value === null || value === undefined) return fallback
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? n.toLocaleString() : fallback
@@ -295,6 +295,7 @@ export default function ScoreKeeperPanel() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [aiStatus, setAiStatus] = useState('AI Ready')
   const [chatOpen, setChatOpen] = useState(false)
+  const [activeView, setActiveView] = useState('highscores') // 'highscores' or 'tournament'
 
   // Leaderboard state
   const [leaderboardData, setLeaderboardData] = useState([])
@@ -681,13 +682,13 @@ export default function ScoreKeeperPanel() {
                       : item)
                     : prev
                   )
-                  addChatMessage('system', `‚úì Match recorded: ${winner.name} advances`)
+                  addChatMessage('system', `? Match recorded: ${winner.name} advances`)
 
                   if (serverData.status === 'completed') {
                     const finalWinner = typeof serverData.winner === 'string'
                       ? serverData.winner
                       : serverData.winner?.name || winner.name
-                    addChatMessage('assistant', `üèÜ Tournament Complete! Winner: ${finalWinner}`)
+                    addChatMessage('assistant', `?? Tournament Complete! Winner: ${finalWinner}`)
                   }
                 } catch (err) {
                   console.error('[ScoreKeeper] Failed to fetch updated tournament:', err)
@@ -939,9 +940,9 @@ Current tournament context will be provided. Use it to give specific advice.`,
       <div className="scorekeeper-panel-wrapper" style={{ padding: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 48 }}>üèÜ</div>
+            <div style={{ fontSize: 48 }}>??</div>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#c8ff00' }}>ScoreKeeper Sam ‚Äî Big Board</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#c8ff00' }}>ScoreKeeper Sam ó Big Board</div>
               <div style={{ color: '#9ca3af' }}>Live leaderboard (read-only)</div>
             </div>
           </div>
@@ -962,7 +963,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
                     <td style={{ padding: 12 }}>
-                      {entry.player || entry.bestPlayer || '‚Äî'}
+                      {entry.player || entry.bestPlayer || 'ó'}
                       {(entry.player || entry.bestPlayer) && (
                         <span style={{
                           marginLeft: 8,
@@ -976,7 +977,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                       )}
                     </td>
                     <td style={{ padding: 12 }}>{formatScoreValue(entry.score ?? entry.bestScore)}</td>
-                    <td style={{ padding: 12 }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '‚Äî'}</td>
+                    <td style={{ padding: 12 }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : 'ó'}</td>
                   </tr>
                 )
               })}
@@ -989,335 +990,432 @@ Current tournament context will be provided. Use it to give specific advice.`,
 
   return (
     <div className="scorekeeper-panel-wrapper">
-      {/* Header */}
-      <div className="scorekeeper-header">
-        <div className="header-left">
-          <div className="header-logo">üèÜ</div>
-          <div className="header-title">
-            <h1>ScoreKeeper Sam</h1>
-            <p className="header-subtitle">Tournament Manager & High Score Tracker</p>
+      <div className="sam-dashboard">
+        {/* === HEADER === */}
+        <header className="sam-header glass-panel">
+          <div className="sam-header-left">
+            <div className="sam-header-game">
+              <span className="material-symbols-outlined game-icon">videogame_asset</span>
+              <div>
+                <h1>ScoreKeeper Sam</h1>
+                <p className="cabinet-id">HIGH SCORE TRACKER // {aiStatus.toUpperCase()}</p>
+              </div>
+            </div>
+            <div className="sam-header-divider" />
+            {leaderboardData.length > 0 && (
+              <div className="sam-header-ticker">
+                <span className="material-symbols-outlined">bolt</span>
+                <span>{formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore)} pts to beat!</span>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="header-status">
-          <div className="status-item">
-            <div className="status-dot"></div>
-            <span>{aiStatus}</span>
-          </div>
-          <button
-            className="chat-toggle-btn"
-            onClick={() => setChatOpen(true)}
-            aria-label="Chat with Sam"
-          >
-            üí¨ Chat with Sam
-          </button>
-          {tournamentList.length > 0 && (
-            <button
-              className="chat-toggle-btn"
-              onClick={async () => {
-                try {
-                  const last = tournamentList[0]
-                  if (!last?.id) return
-                  const srv = await getTournament(last.id)
-                  applyBackendTournament(srv, { silent: false })
-                } catch {
-                  addChatMessage('assistant', 'Failed to resume last tournament')
-                }
-              }}
-              aria-label="Resume last tournament"
-              title="Resume Last Tournament"
-            >
-              ‚èØ Resume Last
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Menu Bar */}
-      <div className="menu-bar">
-        <span className="menu-item">File</span>
-        <span className="menu-item">Edit</span>
-        <span className="menu-item">View</span>
-        <span className="menu-item">Window</span>
-        <span className="menu-item">Help</span>
-      </div>
-
-      {/* Status Bar */}
-      <div className="status-bar">
-        <span>Mode: Tournament Ready</span>
-        <span>Active: {tournament.status === 'active' ? '1' : '0'} Tournament</span>
-        <span>Players: {selectedPlayerCount} Registered</span>
-        {(!consent.accepted || !(consent.scopes || []).includes('leaderboard_public')) && (
-          <span title="Public leaderboards disabled (consent required)" style={{ marginLeft: '12px', color: '#f59e0b' }}>Public: Off</span>
-        )}
-        <span className="ai-status-indicator">
-          <span className="status-dot"></span>
-          {aiStatus}
-        </span>
-      </div>
-
-      {/* Main Container */}
-      <div className="main-container">
-        {/* Left Panel - Tournament Display */}
-        <div className="tournament-display-panel">
-          {tournament.status === 'setup' ? (
-            <div className="setup-message">
-              <div style={{ fontSize: '60px', marginBottom: '20px' }}>üèÜ</div>
-              <h2>Ready to Create Tournament</h2>
-              <p>Enter player names and click "Create Custom Bracket" to begin</p>
-            </div>
-          ) : (
-            <div className="bracket-container">
-              {/* Round 1 for 16/32 player tournaments */}
-              {tournament.bracket?.round1?.length > 0 && (
-                <div className="round">
-                  <div className="round-label">ROUND 1</div>
-                  {tournament.bracket.round1.map((match) => (
-                    <BracketMatch
-                      key={match.id}
-                      match={match}
-                      roundType="round1"
-                      onPlayerClick={advancePlayer}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Round 2 for 32 player tournaments */}
-              {tournament.bracket?.round2?.length > 0 && (
-                <div className="round">
-                  <div className="round-label">ROUND 2</div>
-                  {tournament.bracket.round2.map((match) => (
-                    <BracketMatch
-                      key={match.id}
-                      match={match}
-                      roundType="round2"
-                      onPlayerClick={advancePlayer}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Quarterfinals */}
-              {tournament.bracket?.quarterfinals?.length > 0 && (
-                <div className="round">
-                  <div className="round-label">QUARTERFINALS</div>
-                  {tournament.bracket.quarterfinals.map((match) => (
-                    <BracketMatch
-                      key={match.id}
-                      match={match}
-                      roundType="quarterfinals"
-                      onPlayerClick={advancePlayer}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Semifinals */}
-              {tournament.bracket?.semifinals?.length > 0 && (
-                <div className="round">
-                  <div className="round-label">SEMIFINALS</div>
-                  {tournament.bracket.semifinals.map((match) => (
-                    <BracketMatch
-                      key={match.id}
-                      match={match}
-                      roundType="semifinals"
-                      onPlayerClick={advancePlayer}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Finals */}
-              {tournament.bracket?.finals?.length > 0 && (
-                <div className="round">
-                  <div className="round-label">FINALS</div>
-                  <BracketMatch
-                    match={tournament.bracket.finals[0]}
-                    roundType="finals"
-                    onPlayerClick={advancePlayer}
-                  />
-                  <div className="championship-trophy">
-                    <div className="trophy-icon">üèÜ</div>
-                    <div className="winner-name">
-                      {tournament.winner ? tournament.winner.name : 'TBD'}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right Panel - Tournament Setup */}
-        <div className="setup-panel">
-          <div className="tournament-setup">
-            <input
-              type="text"
-              className="tournament-title-input"
-              value={tournament.name}
-              onChange={(e) => setTournament(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="Tournament Name"
-            />
-
-            {/* Quick Registration Presets */}
-            <div className="preset-buttons">
-              <button className="preset-btn family" onClick={() => alert('Family Tournament preset - Available after A: drive migration')}>
-                üè† Family Tournament
-              </button>
-              <button className="preset-btn friends" onClick={() => alert('Friends Night preset - Available after A: drive migration')}>
-                üë• Friends Night
-              </button>
-              <button className="preset-btn random" onClick={() => alert('Random Players - Available after A: drive migration')}>
-                üé≤ Random Players
-              </button>
-              <button className="preset-btn saved" onClick={() => alert('Load Saved Group - Available after A: drive migration')}>
-                üìã Load Saved
-              </button>
-            </div>
-
-            {/* Player Count Selection */}
-            <div className="player-count-buttons">
-              {PLAYER_COUNTS.map(count => (
-                <button
-                  key={count}
-                  className={`player-count-btn ${selectedPlayerCount === count ? 'active' : ''}`}
-                  onClick={() => setSelectedPlayerCount(count)}
-                >
-                  {count} Players
-                </button>
-              ))}
-            </div>
-
-            {/* Removed placeholder buttons (Enter Names, Test Backend, Family, Guests, Reset) to avoid dead ends */}
-
-            {/* Leaderboard Section */}
-            <div className="leaderboard-section" style={{ marginTop: '20px' }}>
-              <div className="section-title">Leaderboard</div>
+          <div className="sam-header-right">
+            {/* View Toggle */}
+            <div className="sam-view-toggle">
               <button
-                className="action-btn"
+                className={activeView === 'highscores' ? 'active' : 'inactive'}
+                onClick={() => setActiveView('highscores')}
+              >
+                ?? High Scores
+              </button>
+              <button
+                className={activeView === 'tournament' ? 'active' : 'inactive'}
+                onClick={() => setActiveView('tournament')}
+              >
+                ?? Tournament
+              </button>
+            </div>
+            {/* Resume Last Tournament */}
+            {tournamentList.length > 0 && (
+              <button
+                className="chat-toggle-btn"
                 onClick={async () => {
                   try {
-                    const result = await getLeaderboard({ game: gameFilter || null, limit: 10 })
-                    setLeaderboardData(result.scores || [])
-                    setScoresCached(!!result.cached)
-                    setPluginPaused(!!result.cached)
-                    addChatMessage('assistant', `Loaded ${result.scores.length} scores${result.cached ? ' (cached)' : ''}`)
-                  } catch (err) {
-                    setPluginPaused(true)
-                    addChatMessage('assistant', `Failed to load leaderboard (service paused).`)
+                    const last = tournamentList[0]
+                    if (!last?.id) return
+                    const srv = await getTournament(last.id)
+                    applyBackendTournament(srv, { silent: false })
+                    setActiveView('tournament')
+                  } catch {
+                    addChatMessage('assistant', 'Failed to resume last tournament')
                   }
                 }}
+                title="Resume Last Tournament"
               >
-                Refresh Leaderboard
+                ? Resume
               </button>
-              {/* Plugin paused banner (cached/offline) */}
-              {(pluginPaused || scoresCached || paused) && (
-                <div className="text-amber-400 text-sm" style={{ marginTop: '8px' }}>
-                  Plugin offline ‚Äî showing cached results
+            )}
+            {/* Chat Toggle */}
+            <button className="chat-toggle-btn" onClick={handleChatOpen}>
+              ?? Sam
+            </button>
+            {/* Sam Avatar */}
+            <div className="sam-avatar-container">
+              <div className="sam-avatar-img" style={{ backgroundImage: "url('/sam-avatar.jpeg')" }} />
+              <div className="sam-avatar-status" />
+            </div>
+          </div>
+        </header>
+
+        {/* Plugin Paused Banner */}
+        {(pluginPaused || scoresCached || paused) && (
+          <div className="scorekeeper-paused-banner">
+            ? Plugin offline ó showing cached results
+          </div>
+        )}
+
+        {/* ========== HIGH SCORES VIEW ========== */}
+        {activeView === 'highscores' && (
+          <div className="sam-main">
+            {/* Left Column: Leaderboard (60%) */}
+            <section className="sam-leaderboard glass-panel">
+              <div className="sam-leaderboard-header">
+                <h2>
+                  <span className="material-symbols-outlined">leaderboard</span>
+                  ALL-TIME LEGENDS
+                </h2>
+                <div className="sam-time-filters">
+                  <button className="inactive">Today</button>
+                  <button className="inactive">Weekly</button>
+                  <button className="active">All-Time</button>
                 </div>
-              )}
+              </div>
+              <div className="sam-leaderboard-body">
+                <table className="sam-leaderboard-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Player</th>
+                      <th>Score</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(leaderboardData || []).map((entry, idx) => {
+                      const playerName = entry.player || entry.bestPlayer || 'ó'
+                      const score = formatScoreValue(entry.score ?? entry.bestScore)
+                      const dateStr = entry.timestamp ? new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'ó'
+                      const gid = entry.gameId || entry.game_id
 
-              {/* Best/Last summary for selected game */}
-              {byGame && (
-                (() => {
-                  // Prefer normalized fields when provided by API
-                  const scoresArr = Array.isArray(byGame.scores) ? byGame.scores : []
-                  const bestEntryCalc = scoresArr.reduce((m, s) => (s.score > (m?.score ?? -Infinity) ? s : m), null)
-                  const bestScore = byGame.bestScore ?? (typeof bestEntryCalc?.score === 'number' ? bestEntryCalc.score : '')
-                  const bestPlayer = byGame.bestPlayer ?? (bestEntryCalc?.player || '')
-                  const bestIsProfile = Boolean(bestEntryCalc && (bestEntryCalc.player_source === 'profile' || bestEntryCalc.player_userId))
-                  const lastUpdated = byGame.lastUpdated ?? (() => {
-                    const last = scoresArr.reduce((m, s) => (new Date(s.timestamp || 0) > new Date(m?.timestamp || 0) ? s : m), null)
-                    return last?.timestamp ? new Date(last.timestamp).toLocaleString() : ''
-                  })()
-                  const bestScoreText = bestScore ? formatScoreValue(bestScore, '') : ''
-                  return (
-                    <div className="text-sm" style={{ marginTop: '8px' }}>
-                      <span className="font-medium">Best:</span> {bestScoreText} by {bestPlayer ?? ''}
-                      {bestPlayer && (
-                        <span style={{
-                          marginLeft: 8,
-                          fontSize: '10px',
-                          padding: '2px 6px',
-                          borderRadius: '10px',
-                          border: '1px solid rgba(200,255,0,0.3)',
-                          background: bestIsProfile ? 'rgba(200,255,0,0.12)' : 'rgba(148,163,184,0.15)',
-                          color: bestIsProfile ? '#c8ff00' : '#d1d5db'
-                        }}>
-                          {bestIsProfile ? 'Profile' : 'Guest'}
-                        </span>
-                      )}
-                      <span className="opacity-70">  updated {lastUpdated ?? ''}</span>
-                    </div>
-                  )
-                })()
-              )}
-
-              {leaderboardData.length > 0 && (
-                <>
-                  <table style={{ width: '100%', marginTop: '10px', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(200, 255, 0, 0.3)' }}>
-                        <th style={{ textAlign: 'left', padding: '5px' }}>Player</th>
-                        <th style={{ textAlign: 'left', padding: '5px' }}>Score</th>
-                        <th style={{ textAlign: 'left', padding: '5px' }}>Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {leaderboardData.map((entry, idx) => {
-                        const gid = entry.gameId || entry.game_id
-                        const clickable = Boolean(gid)
-                        const isProfile = Boolean(entry?.player_source === 'profile' || entry?.player_userId)
+                      // Rank 1 ó Gold
+                      if (idx === 0) {
                         return (
-                          <tr key={idx}
-                            onClick={() => { if (gid) fetchByGame(gid) }}
-                            style={{ cursor: clickable ? 'pointer' : 'default' }}
-                          >
-                            <td style={{ padding: '5px', whiteSpace: 'nowrap' }}>
-                              {entry.player || entry.bestPlayer || '‚Äî'}
-                              {(entry.player || entry.bestPlayer) && (
-                                <span style={{
-                                  marginLeft: 8,
-                                  fontSize: '10px',
-                                  padding: '2px 6px',
-                                  borderRadius: '10px',
-                                  border: '1px solid rgba(200,255,0,0.3)',
-                                  background: isProfile ? 'rgba(200,255,0,0.12)' : 'rgba(148,163,184,0.15)',
-                                  color: isProfile ? '#c8ff00' : '#d1d5db'
-                                }}>
-                                  {isProfile ? 'Profile' : 'Guest'}
-                                </span>
-                              )}
+                          <tr key={idx} className="sam-rank-row rank-1" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
+                            <td colSpan="4">
+                              <div className="rank-row-inner">
+                                <div className="rank-info-left">
+                                  <div className="rank-badge">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '1.125rem' }}>emoji_events</span>
+                                  </div>
+                                  <span className="rank-number">#1</span>
+                                  <div className="rank-player-section">
+                                    <span className="rank-player-name">{playerName}</span>
+                                    <span className="rank-tag">MVP</span>
+                                  </div>
+                                </div>
+                                <div className="rank-info-right">
+                                  <div className="rank-score-section">
+                                    <span className="rank-score">{score}</span>
+                                    <div className="rank-new-record">RECORD HOLDER</div>
+                                  </div>
+                                  <span className="rank-date">{dateStr}</span>
+                                </div>
+                              </div>
                             </td>
-                            <td style={{ padding: '5px' }}>{formatScoreValue(entry.score ?? entry.bestScore)}</td>
-                            <td style={{ padding: '5px' }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '‚Äî'}</td>
                           </tr>
                         )
-                      })}
-                    </tbody>
-                  </table>
-                  <div style={{ marginTop: 8, fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span>Legend:</span>
-                    <span style={{
-                      fontSize: '10px', padding: '2px 6px', borderRadius: '10px',
-                      border: '1px solid rgba(200,255,0,0.3)', background: 'rgba(200,255,0,0.12)', color: '#c8ff00'
-                    }}>Profile</span>
-                    <span>= linked to Vicky profile (eligible if consent)</span>
-                    <span style={{
-                      fontSize: '10px', padding: '2px 6px', borderRadius: '10px',
-                      border: '1px solid rgba(200,255,0,0.3)', background: 'rgba(148,163,184,0.15)', color: '#d1d5db'
-                    }}>Guest</span>
-                    <span>= temporary tournament name</span>
+                      }
+
+                      // Rank 2 ó Silver
+                      if (idx === 1) {
+                        return (
+                          <tr key={idx} className="sam-rank-row rank-2" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
+                            <td colSpan="4">
+                              <div className="rank-row-inner">
+                                <div className="rank-info-left">
+                                  <div className="rank-badge">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>military_tech</span>
+                                  </div>
+                                  <span className="rank-number">#2</span>
+                                  <div className="rank-player-section">
+                                    <span className="rank-player-name">{playerName}</span>
+                                  </div>
+                                </div>
+                                <div className="rank-info-right">
+                                  <div className="rank-score-section">
+                                    <span className="rank-score">{score}</span>
+                                  </div>
+                                  <span className="rank-date">{dateStr}</span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      }
+
+                      // Rank 3 ó Bronze
+                      if (idx === 2) {
+                        return (
+                          <tr key={idx} className="sam-rank-row rank-3" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
+                            <td colSpan="4">
+                              <div className="rank-row-inner">
+                                <div className="rank-info-left">
+                                  <div className="rank-badge">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>military_tech</span>
+                                  </div>
+                                  <span className="rank-number">#3</span>
+                                  <div className="rank-player-section">
+                                    <span className="rank-player-name">{playerName}</span>
+                                  </div>
+                                </div>
+                                <div className="rank-info-right">
+                                  <div className="rank-score-section">
+                                    <span className="rank-score">{score}</span>
+                                  </div>
+                                  <span className="rank-date">{dateStr}</span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      }
+
+                      // Standard rows (#4+)
+                      return (
+                        <tr key={idx} className="sam-rank-row rank-standard" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
+                          <td>#{idx + 1}</td>
+                          <td>{playerName}</td>
+                          <td>{score}</td>
+                          <td>{dateStr}</td>
+                        </tr>
+                      )
+                    })}
+                    {leaderboardData.length === 0 && (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--sam-text-muted)' }}>
+                          No scores recorded yet. Submit a score below to get started!
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* Right Column: Sidebar (40%) */}
+            <aside className="sam-sidebar">
+              {/* Personal Stats Card */}
+              <div className="sam-personal-stats glass-panel-highlight">
+                <div className="bg-icon">
+                  <span className="material-symbols-outlined">person</span>
+                </div>
+                <h3>
+                  <span className="material-symbols-outlined">badge</span>
+                  Personal Performance
+                </h3>
+                <div className="sam-stats-main">
+                  <div>
+                    <p className="stat-label">High Score</p>
+                    <p className="stat-value-large">
+                      {leaderboardData.length > 0 ? formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore) : 'ó'}
+                    </p>
                   </div>
-                </>
-              )}
+                  <div style={{ textAlign: 'right' }}>
+                    <p className="stat-label">Rank</p>
+                    <p className="stat-value-rank">#1</p>
+                  </div>
+                </div>
+                <div className="sam-progress-bar">
+                  <div className="fill" style={{ width: leaderboardData.length > 0 ? '100%' : '0%' }} />
+                </div>
+                <p className="sam-progress-label">
+                  {leaderboardData.length > 0 ? `${leaderboardData.length} scores tracked` : 'No data yet'}
+                </p>
+                <div className="sam-stats-grid">
+                  <div>
+                    <p className="stat-mini-label">Total Games</p>
+                    <p className="stat-mini-value">{leaderboardData.length}</p>
+                  </div>
+                  <div>
+                    <p className="stat-mini-label">Status</p>
+                    <p className="stat-mini-value stat-green">
+                      {pluginPaused ? 'Cached' : 'Live'} <span className="material-symbols-outlined" style={{ fontSize: '0.75rem', verticalAlign: 'middle' }}>{pluginPaused ? 'cloud_off' : 'arrow_upward'}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Records */}
+              <div className="sam-recent-records glass-panel">
+                <div className="sam-recent-records-header">
+                  <h3>
+                    <span className="material-symbols-outlined">new_releases</span>
+                    Recent Records
+                  </h3>
+                  <span className="live-label">LIVE FEED</span>
+                </div>
+                <div className="sam-recent-records-body">
+                  {(leaderboardData || []).slice(0, 5).map((entry, idx) => (
+                    <div key={idx} className="sam-record-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden', flex: 1 }}>
+                        <div className={`record-rank ${idx < 3 ? 'highlight' : 'standard'}`}>#{idx + 1}</div>
+                        <span className="record-name">{entry.player || entry.bestPlayer || 'ó'}</span>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span className="record-score">{formatScoreValue(entry.score ?? entry.bestScore)}</span>
+                        {idx === 0 && <span className="record-new">NEW!</span>}
+                      </div>
+                    </div>
+                  ))}
+                  {leaderboardData.length === 0 && (
+                    <div style={{ textAlign: 'center', color: 'var(--sam-text-dim)', fontSize: '0.8rem' }}>
+                      No recent records
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cabinet Analytics */}
+              <div className="sam-cabinet-analytics glass-panel">
+                <h3>Cabinet Analytics</h3>
+                <div className="sam-analytics-grid">
+                  <div className="sam-analytics-card">
+                    <div className="card-icon primary">
+                      <span className="material-symbols-outlined">joystick</span>
+                    </div>
+                    <p className="card-value">{leaderboardData.length}</p>
+                    <p className="card-label">Total Scores</p>
+                  </div>
+                  <div className="sam-analytics-card">
+                    <div className="card-icon secondary">
+                      <span className="material-symbols-outlined">schedule</span>
+                    </div>
+                    <p className="card-value">{tournamentList.length}</p>
+                    <p className="card-label">Tournaments</p>
+                  </div>
+                </div>
+                <div className="sam-cabinet-health">
+                  <div className="health-header">
+                    <span className="health-label">SYSTEM STATUS</span>
+                    <span className="health-value">{pluginPaused ? '? Cached' : '? Live'}</span>
+                  </div>
+                  <div className="health-bar">
+                    <div className="health-bar-fill" style={{ width: pluginPaused ? '50%' : '98%' }} />
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        {/* ========== TOURNAMENT VIEW ========== */}
+        {activeView === 'tournament' && (
+          <div className="sam-tournament-view">
+            {/* Left: Bracket Display */}
+            <div className="sam-bracket-display glass-panel">
+              <div className="bracket-header">
+                <h2>
+                  <span className="material-symbols-outlined">trophy</span>
+                  {tournament.name}
+                </h2>
+                <span style={{ fontSize: '0.75rem', color: 'var(--sam-text-muted)' }}>
+                  {tournament.status === 'active' ? '? Active' : tournament.status === 'completed' ? '? Completed' : '? Setup'}
+                </span>
+              </div>
+              <div className="sam-bracket-body">
+                {tournament.status === 'setup' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem', color: 'var(--sam-text-muted)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '4rem', color: 'var(--sam-primary)', opacity: 0.3 }}>emoji_events</span>
+                    <h2 style={{ margin: 0, color: 'white' }}>Ready to Create Tournament</h2>
+                    <p>Enter player names and click "Create Custom Bracket" to begin</p>
+                  </div>
+                ) : (
+                  <div className="bracket-grid">
+                    {tournament.bracket?.round1?.length > 0 && (
+                      <div className="round">
+                        <div className="round-label">ROUND 1</div>
+                        {tournament.bracket.round1.map((match) => (
+                          <BracketMatch key={match.id} match={match} roundType="round1" onPlayerClick={advancePlayer} />
+                        ))}
+                      </div>
+                    )}
+                    {tournament.bracket?.round2?.length > 0 && (
+                      <div className="round">
+                        <div className="round-label">ROUND 2</div>
+                        {tournament.bracket.round2.map((match) => (
+                          <BracketMatch key={match.id} match={match} roundType="round2" onPlayerClick={advancePlayer} />
+                        ))}
+                      </div>
+                    )}
+                    {tournament.bracket?.quarterfinals?.length > 0 && (
+                      <div className="round">
+                        <div className="round-label">QUARTERFINALS</div>
+                        {tournament.bracket.quarterfinals.map((match) => (
+                          <BracketMatch key={match.id} match={match} roundType="quarterfinals" onPlayerClick={advancePlayer} />
+                        ))}
+                      </div>
+                    )}
+                    {tournament.bracket?.semifinals?.length > 0 && (
+                      <div className="round">
+                        <div className="round-label">SEMIFINALS</div>
+                        {tournament.bracket.semifinals.map((match) => (
+                          <BracketMatch key={match.id} match={match} roundType="semifinals" onPlayerClick={advancePlayer} />
+                        ))}
+                      </div>
+                    )}
+                    {tournament.bracket?.finals?.length > 0 && (
+                      <div className="round">
+                        <div className="round-label">FINALS</div>
+                        <BracketMatch match={tournament.bracket.finals[0]} roundType="finals" onPlayerClick={advancePlayer} />
+                        <div className="tournament-winner-display">
+                          <div className="trophy-icon">??</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: tournament.winner ? '#ffd700' : 'var(--sam-text-muted)' }}>
+                            {tournament.winner ? tournament.winner.name : 'TBD'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Score Submission Form */}
-            <div className="score-submit-section" style={{ marginTop: '20px' }}>
-              <div className="section-title">Submit Score</div>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Right: Setup Panel */}
+            <div className="sam-setup-panel glass-panel">
+              <div className="section-title">Tournament Name</div>
+              <input
+                type="text"
+                className="player-input"
+                value={tournament.name}
+                onChange={(e) => setTournament(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Tournament Name"
+                style={{ marginBottom: '1rem' }}
+              />
+
+              <div className="section-title">Quick Start</div>
+              <div className="preset-buttons">
+                <button className="preset-btn" onClick={() => alert('Family Tournament preset ó Available soon')}>?? Family</button>
+                <button className="preset-btn" onClick={() => alert('Friends Night preset ó Available soon')}>?? Friends</button>
+                <button className="preset-btn" onClick={() => alert('Random Players ó Available soon')}>?? Random</button>
+                <button className="preset-btn" onClick={() => alert('Load Saved Group ó Available soon')}>?? Load Saved</button>
+              </div>
+
+              <div className="section-title">Player Count</div>
+              <div className="player-count-buttons">
+                {PLAYER_COUNTS.map(count => (
+                  <button
+                    key={count}
+                    className={`player-count-btn ${selectedPlayerCount === count ? 'selected' : ''}`}
+                    onClick={() => setSelectedPlayerCount(count)}
+                  >
+                    {count}P
+                  </button>
+                ))}
+              </div>
+
+              <div className="section-title" style={{ marginTop: '1rem' }}>Submit Score</div>
+              <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8rem' }}>
                   <input
                     type="checkbox"
                     checked={useProfileForScore}
@@ -1330,213 +1428,151 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     }}
                     disabled={!profileData}
                   />
-                  Use My Profile {profileData?.displayName ? `(${profileData.displayName})` : ''}
+                  Use Profile {profileData?.displayName ? `(${profileData.displayName})` : ''}
                 </label>
-                {!profileData && (
-                  <span style={{ color: '#f59e0b' }}>Set your name in Vicky to enable profile scoring</span>
-                )}
               </div>
-              <input
-                type="text"
-                className="player-input"
-                placeholder="Game"
-                value={scoreForm.game}
-                onChange={(e) => setScoreForm({ ...scoreForm, game: e.target.value })}
-                style={{ marginBottom: '5px' }}
-              />
-              <input
-                type="text"
-                className="player-input"
-                placeholder="Player Name"
-                value={useProfileForScore && profileData?.displayName ? profileData.displayName : scoreForm.player}
-                onChange={(e) => setScoreForm({ ...scoreForm, player: e.target.value })}
-                disabled={useProfileForScore && !!profileData?.displayName}
-                style={{ marginBottom: '5px' }}
-              />
-              <input
-                type="number"
-                className="player-input"
-                placeholder="Score"
-                value={scoreForm.score}
-                onChange={(e) => setScoreForm({ ...scoreForm, score: e.target.value })}
-                style={{ marginBottom: '10px' }}
-              />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  className="action-btn"
-                  onClick={async () => {
+              <input type="text" className="player-input" placeholder="Game" value={scoreForm.game} onChange={(e) => setScoreForm({ ...scoreForm, game: e.target.value })} />
+              <input type="text" className="player-input" placeholder="Player Name" value={useProfileForScore && profileData?.displayName ? profileData.displayName : scoreForm.player} onChange={(e) => setScoreForm({ ...scoreForm, player: e.target.value })} disabled={useProfileForScore && !!profileData?.displayName} />
+              <input type="number" className="player-input" placeholder="Score" value={scoreForm.score} onChange={(e) => setScoreForm({ ...scoreForm, score: e.target.value })} />
+              <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <button className="action-btn" onClick={async () => {
+                  try {
+                    const eligible = Boolean(consent?.accepted && (consent?.scopes || []).includes('leaderboard_public'))
+                    const payload = { ...scoreForm, ...(useProfileForScore && profileData ? { player: profileData.displayName, player_userId: profileData.userId, player_source: 'profile', publicLeaderboardEligible: eligible } : { player_source: 'guest', publicLeaderboardEligible: false }) }
+                    const result = await previewScoreSubmit(payload)
+                    setScorePreview(result)
+                    addChatMessage('assistant', 'Score preview ready!')
+                  } catch (err) { addChatMessage('assistant', `Preview failed: ${err.message}`) }
+                }} disabled={!scoreForm.game || !scoreForm.player || !scoreForm.score}>Preview</button>
+                <button className="action-btn" onClick={async () => {
+                  try {
+                    const eligible = Boolean(consent?.accepted && (consent?.scopes || []).includes('leaderboard_public'))
+                    const payload = { ...scoreForm, ...(useProfileForScore && profileData ? { player: profileData.displayName, player_userId: profileData.userId, player_source: 'profile', publicLeaderboardEligible: eligible } : { player_source: 'guest', publicLeaderboardEligible: false }) }
                     try {
-                      const eligible = Boolean(consent?.accepted && (consent?.scopes || []).includes('leaderboard_public'))
-                      const payload = {
-                        ...scoreForm,
-                        ...(useProfileForScore && profileData ? {
-                          player: profileData.displayName,
-                          player_userId: profileData.userId,
-                          player_source: 'profile',
-                          publicLeaderboardEligible: eligible
-                        } : {
-                          player_source: 'guest',
-                          publicLeaderboardEligible: false
-                        })
-                      }
-                      const result = await previewScoreSubmit(payload)
-                      setScorePreview(result)
-                      addChatMessage('assistant', 'Score preview ready!')
-                    } catch (err) {
-                      addChatMessage('assistant', `Preview failed: ${err.message}`)
-                    }
-                  }}
-                  disabled={!scoreForm.game || !scoreForm.player || !scoreForm.score}
-                >
-                  Preview
-                </button>
-                <button
-                  className="action-btn"
-                  onClick={async () => {
-                    try {
-                      const eligible = Boolean(consent?.accepted && (consent?.scopes || []).includes('leaderboard_public'))
-                      const payload = {
-                        ...scoreForm,
-                        ...(useProfileForScore && profileData ? {
-                          player: profileData.displayName,
-                          player_userId: profileData.userId,
-                          player_source: 'profile',
-                          publicLeaderboardEligible: eligible
-                        } : {
-                          player_source: 'guest',
-                          publicLeaderboardEligible: false
-                        })
-                      }
-                      // Try plugin-first submit if we can resolve a gameId
-                      let pluginOk = false
-                      try {
-                        const matches = await resolveGameByTitle(scoreForm.game)
-                        const first = Array.isArray(matches) && matches.length > 0 ? matches[0] : null
-                        if (first && first.id) {
-                          await submitScoreViaPlugin({ gameId: first.id, player: payload.player, score: Number(payload.score) })
-                          pluginOk = true
-                          addChatMessage('assistant', `Score submitted via LaunchBox plugin for ${payload.player}`)
-                        }
-                      } catch { /* ignore and fallback */ }
-
-                      // Always write locally (authoritative log)
-                      const result = await applyScoreSubmit(payload)
-
-                      // Store backup path for undo capability
-                      if (result.backup_path) {
-                        setLastBackup(result.backup_path)
-                        addChatMessage('assistant', `Score submitted for ${scoreForm.player}! (Backup: ${result.backup_path})`)
-                      } else {
-                        addChatMessage('assistant', `Score submitted for ${scoreForm.player}!`)
-                      }
-
-                      setScoreForm({ game: '', player: '', score: '' })
-                      setScorePreview(null)
-
-                      // Refresh leaderboard
-                      const leaderboard = await getLeaderboard({ limit: 10 })
-                      setLeaderboardData(leaderboard.scores || [])
-                      setScoresCached(!!leaderboard.cached)
-                      setPluginPaused(!!leaderboard.cached)
-                    } catch (err) {
-                      addChatMessage('assistant', `Submit failed: ${err.message}`)
-                    }
-                  }}
-                  disabled={!scorePreview}
-                >
-                  Apply
-                </button>
-                <button
-                  className="action-btn ghost-btn"
-                  onClick={undoLast}
-                  disabled={!lastBackup}
-                  style={{
-                    opacity: lastBackup ? 1 : 0.5,
-                    background: 'rgba(200, 255, 0, 0.05)',
-                    border: '1px solid rgba(200, 255, 0, 0.3)'
-                  }}
-                  title={lastBackup ? `Restore from: ${lastBackup}` : 'No backup available'}
-                >
-                  Undo Last {lastBackup && '‚úì'}
-                </button>
-                <button
-                  className="action-btn ghost-btn"
-                  onClick={restoreFromBackup}
-                  disabled={!lastBackup}
-                  style={{
-                    opacity: lastBackup ? 1 : 0.5,
-                    background: 'rgba(100, 200, 255, 0.05)',
-                    border: '1px solid rgba(100, 200, 255, 0.3)'
-                  }}
-                  title={lastBackup ? `Restore snapshot ${lastBackup.split('/').pop()}` : 'No backup available'}
-                >
-                  Restore from Backup
-                </button>
-                {lastBackup && (
-                  <div style={{ marginTop: '4px', fontSize: '10px', color: '#888', fontFamily: 'monospace' }}>
-                    Backup: {lastBackup.split('/').pop()}
-                  </div>
-                )}
+                      const matches = await resolveGameByTitle(scoreForm.game)
+                      const first = Array.isArray(matches) && matches.length > 0 ? matches[0] : null
+                      if (first && first.id) { await submitScoreViaPlugin({ gameId: first.id, player: payload.player, score: Number(payload.score) }); addChatMessage('assistant', `Score submitted via plugin for ${payload.player}`) }
+                    } catch { /* fallback */ }
+                    const result = await applyScoreSubmit(payload)
+                    if (result.backup_path) { setLastBackup(result.backup_path); addChatMessage('assistant', `Score submitted for ${scoreForm.player}!`) }
+                    else { addChatMessage('assistant', `Score submitted for ${scoreForm.player}!`) }
+                    setScoreForm({ game: '', player: '', score: '' })
+                    setScorePreview(null)
+                    const leaderboard = await getLeaderboard({ limit: 10 })
+                    setLeaderboardData(leaderboard.scores || [])
+                    setScoresCached(!!leaderboard.cached)
+                    setPluginPaused(!!leaderboard.cached)
+                  } catch (err) { addChatMessage('assistant', `Submit failed: ${err.message}`) }
+                }} disabled={!scorePreview}>Apply</button>
+                <button className="action-btn ghost-btn" onClick={undoLast} disabled={!lastBackup}>Undo</button>
               </div>
               {scorePreview && (
-                <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(200, 255, 0, 0.1)', borderRadius: '4px' }}>
-                  <pre style={{ fontSize: '12px', color: '#c8ff00' }}>{JSON.stringify(scorePreview, null, 2)}</pre>
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(13, 204, 242, 0.1)', borderRadius: '0.375rem' }}>
+                  <pre style={{ fontSize: '0.7rem', color: 'var(--sam-primary)', margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(scorePreview, null, 2)}</pre>
                 </div>
               )}
-            </div>
 
-            {/* Player Name Entry */}
-            <div className="player-entry">
-              <div className="section-title">Enter Player Names</div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-                <button
-                  className="action-btn"
-                  onClick={() => {
-                    if (!profileData?.displayName) return
-                    setPlayerNames(prev => {
-                      const copy = { ...prev }
-                      const names = [...copy[selectedPlayerCount]]
-                      const emptyIndex = names.findIndex(n => !n || n.startsWith('Player '))
-                      const idx = emptyIndex >= 0 ? emptyIndex : 0
-                      names[idx] = profileData.displayName
-                      copy[selectedPlayerCount] = names
-                      return copy
-                    })
-                  }}
-                  disabled={!profileData?.displayName}
-                  title={!profileData?.displayName ? 'Set your name in Vicky' : 'Add your profile name to the bracket'}
-                >
-                  Add Myself
-                </button>
-                {!profileData?.displayName && (
-                  <span style={{ color: '#f59e0b' }}>Set your name in Vicky to enable quick add</span>
-                )}
+              <div className="section-title" style={{ marginTop: '1rem' }}>Player Names</div>
+              <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.5rem' }}>
+                <button className="action-btn" onClick={() => {
+                  if (!profileData?.displayName) return
+                  setPlayerNames(prev => {
+                    const copy = { ...prev }
+                    const names = [...copy[selectedPlayerCount]]
+                    const emptyIndex = names.findIndex(n => !n || n.startsWith('Player '))
+                    const idx = emptyIndex >= 0 ? emptyIndex : 0
+                    names[idx] = profileData.displayName
+                    copy[selectedPlayerCount] = names
+                    return copy
+                  })
+                }} disabled={!profileData?.displayName}>Add Myself</button>
               </div>
               <div className="player-inputs">
                 {Array.from({ length: selectedPlayerCount }, (_, index) => (
-                  <input
-                    key={index}
-                    type="text"
-                    className="player-input"
-                    placeholder={`Player ${index + 1}`}
-                    value={playerNames[selectedPlayerCount][index] || ''}
-                    onChange={(e) => updatePlayerName(index, e.target.value)}
-                  />
+                  <input key={index} type="text" className="player-input" placeholder={`Player ${index + 1}`} value={playerNames[selectedPlayerCount][index] || ''} onChange={(e) => updatePlayerName(index, e.target.value)} />
                 ))}
+              </div>
+
+              <div className="create-bracket-section">
+                <button className="create-bracket-btn" onClick={createCustomBracket}>Create Custom Bracket</button>
+                <div className="players-entered">{(tournament.players?.length || 0)} players entered</div>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="create-bracket-section">
-            <button className="create-bracket-btn" onClick={createCustomBracket}>
-              Create Custom Bracket
-            </button>
-            {/* Removed Hide (no-op) to avoid dead ends */}
-            <div className="players-entered">
-              {(tournament.players?.length || 0)} players entered
-            </div>
-          </div>
-        </div>
+        {/* ========== FOOTER ó Quick Score Entry (High Scores view only) ========== */}
+        {activeView === 'highscores' && (
+          <footer className="sam-footer glass-panel">
+            <form className="sam-score-form" onSubmit={(e) => { e.preventDefault() }}>
+              <div className="sam-game-input">
+                <span className="material-symbols-outlined game-icon" style={{ fontSize: '1.25rem' }}>sports_esports</span>
+                <input type="text" placeholder="Game title..." value={scoreForm.game} onChange={(e) => setScoreForm({ ...scoreForm, game: e.target.value })} />
+              </div>
+              <div className="sam-player-select">
+                <span className="material-symbols-outlined select-icon">account_circle</span>
+                <select
+                  value={useProfileForScore && profileData?.displayName ? 'profile' : 'guest'}
+                  onChange={(e) => {
+                    const isProfile = e.target.value === 'profile'
+                    setUseProfileForScore(isProfile)
+                    if (isProfile && profileData?.displayName) {
+                      setScoreForm(prev => ({ ...prev, player: profileData.displayName }))
+                    }
+                  }}
+                >
+                  <option value="guest">Guest</option>
+                  {profileData?.displayName && <option value="profile">{profileData.displayName}</option>}
+                </select>
+              </div>
+              <div className="sam-score-input">
+                <span className="input-prefix">PTS:</span>
+                <input type="text" placeholder="00,000,000" value={scoreForm.score} onChange={(e) => setScoreForm({ ...scoreForm, score: e.target.value })} />
+              </div>
+              <button type="button" className="sam-undo-btn" onClick={undoLast} disabled={!lastBackup} title={lastBackup ? 'Undo last score' : 'No backup available'}>
+                <span className="material-symbols-outlined">undo</span>
+              </button>
+              <button
+                type="button"
+                className="sam-submit-btn"
+                disabled={!scoreForm.game || !scoreForm.score}
+                onClick={async () => {
+                  try {
+                    const eligible = Boolean(consent?.accepted && (consent?.scopes || []).includes('leaderboard_public'))
+                    const payload = {
+                      ...scoreForm,
+                      ...(useProfileForScore && profileData ? {
+                        player: profileData.displayName, player_userId: profileData.userId, player_source: 'profile', publicLeaderboardEligible: eligible
+                      } : { player_source: 'guest', publicLeaderboardEligible: false })
+                    }
+                    try {
+                      const matches = await resolveGameByTitle(scoreForm.game)
+                      const first = Array.isArray(matches) && matches.length > 0 ? matches[0] : null
+                      if (first && first.id) {
+                        await submitScoreViaPlugin({ gameId: first.id, player: payload.player, score: Number(payload.score) })
+                        addChatMessage('assistant', `Score submitted via plugin for ${payload.player}`)
+                      }
+                    } catch { /* fallback */ }
+                    const result = await applyScoreSubmit(payload)
+                    if (result?.backup_path) setLastBackup(result.backup_path)
+                    addChatMessage('assistant', `Score submitted for ${scoreForm.player || 'Guest'}!`)
+                    setScoreForm({ game: '', player: '', score: '' })
+                    setScorePreview(null)
+                    const leaderboard = await getLeaderboard({ limit: 10 })
+                    setLeaderboardData(leaderboard.scores || [])
+                    setScoresCached(!!leaderboard.cached)
+                    setPluginPaused(!!leaderboard.cached)
+                  } catch (err) {
+                    addChatMessage('assistant', `Submit failed: ${err.message}`)
+                  }
+                }}
+              >
+                <span>Log Score</span>
+                <span className="material-symbols-outlined">publish</span>
+              </button>
+            </form>
+          </footer>
+        )}
       </div>
 
       {/* Chat Sidebar */}
@@ -1546,47 +1582,33 @@ Current tournament context will be provided. Use it to give specific advice.`,
             <img src="/sam-avatar.jpeg" alt="Sam" className="chat-avatar" />
             <div className="chat-info">
               <h3>ScoreKeeper Sam</h3>
-              <div className="chat-status">‚Ä¢ Ready to assist</div>
+              <div className="chat-status">ï Ready to assist</div>
             </div>
-            <button
-              className="chat-close-btn"
-              onClick={handleChatClose}
-              aria-label="Close chat"
-            >
-              √ó
-            </button>
+            <button className="chat-close-btn" onClick={handleChatClose} aria-label="Close chat">◊</button>
           </div>
 
           <div className="welcome-message">
-            Welcome to Tournament Central! I'm your Tournament Commander, ready to manage competitions, create brackets, track scores, and display results on the big screen. Whether it's a casual match or a major championship, I've got you covered! What tournament can I help you set up today?
+            Welcome to ScoreKeeper Sam! I'm your Tournament Commander, ready to manage competitions, create brackets, and track scores. What can I help you with today?
           </div>
 
           <div className="chat-messages" ref={chatMessagesRef}>
             {chatMessages.map((message) => (
               <div key={message.id} className={`message ${message.type}`}>
-                <div className="message-avatar">
-                  {message.type === 'user' ? 'üë§' : 'ü§ñ'}
-                </div>
-                <div className="message-content">
-                  {message.content}
-                </div>
+                <div className="message-avatar">{message.type === 'user' ? '??' : '??'}</div>
+                <div className="message-content">{message.content}</div>
               </div>
             ))}
             {isProcessing && (
               <div className="message assistant">
-                <div className="message-avatar">ü§ñ</div>
-                <div className="message-content">
-                  Processing command...
-                </div>
+                <div className="message-avatar">??</div>
+                <div className="message-content">Processing command...</div>
               </div>
             )}
           </div>
 
           <div className="chat-input-area">
             <div className="input-container">
-              <button className="voice-btn" aria-label="Voice input">
-                üé§
-              </button>
+              <button className="voice-btn" aria-label="Voice input">??</button>
               <input
                 type="text"
                 className="chat-input"
@@ -1596,11 +1618,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 disabled={isProcessing}
               />
-              <button
-                className="execute-btn"
-                onClick={handleSendMessage}
-                disabled={isProcessing || !inputMessage.trim()}
-              >
+              <button className="execute-btn" onClick={handleSendMessage} disabled={isProcessing || !inputMessage.trim()}>
                 {isProcessing ? 'PROCESSING...' : 'EXECUTE'}
               </button>
             </div>

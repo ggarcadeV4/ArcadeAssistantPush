@@ -16,3 +16,9 @@
   - **Frontend Build**: `npm install` (291 pkgs) + `npx vite build` (v4.5.14, 225 modules, 1.80s) completed clean. Dist hashes: `Assistants-93ad8b5a.js`, `index-97209d6a.css`.
   - **Blocker**: Browser aggressively caches old JS bundles. Need full cache clear or incognito window to see new build. Gateway restart via `start-aa.bat` requires `.env` vars and is slow due to `Test-NetConnection`.
   - **Next**: Clear browser cache → verify grid renders → save 9 character PNGs to `frontend/public/characters/` → rebuild → verify pop-out effects.
+- **2026-02-17 (Evening)**: ScoreKeeper Sam Redesign + LED Blinky Fix — shipped to production A: drive.
+  - **ScoreKeeper Sam**: Full CSS rewrite (glassmorphism, neon-obsidian, medal effects), JSX restructure with `activeView` toggle (highscores/tournament), leaderboard-first default, quick score footer, personal stats sidebar.
+  - **LED Blinky Crash Fix**: `showToast` was defined at line 648 but referenced in `useCallback` dependency array at line 538 → TDZ `ReferenceError`. Moved `showToast` to top of component. Panel loads cleanly.
+  - **Infrastructure**: `start-aa.bat` now opens `/` (old-school dashboard) by default. Added dark bg to `.feature-hero` for transparent PNG fix. Build+deploy pipeline via robocopy to `A:\Arcade Assistant Local\frontend\dist`.
+  - **Decision**: Old frontend at `/` stays as default (better UX with dual buttons per card, Chuck preserved). New `/assistants` grid available for future expansion.
+  - **Open**: Sam voice (STT/TTS) non-functional in new chat sidebar — needs wiring. Tournament mode UI refinement. Live hardware test on basement cab pending.

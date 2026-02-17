@@ -291,6 +291,7 @@ export default function LaunchBoxPanel() {
   const [sortBy, setSortBy] = useState('lastPlayed')
   const [sortOrder, setSortOrder] = useState('asc')
   const [searchQuery, setSearchQuery] = useState('')
+  const [hoveredGame, setHoveredGame] = useState(null)
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [currentPage, setCurrentPage] = useState(1)
   const GAMES_PER_PAGE = 50 // Updated to a more reasonable page size
@@ -1971,8 +1972,8 @@ export default function LaunchBoxPanel() {
     launching: 'status-launching'
   }[loraState]), [loraState])
 
-  // Show loading state
-  if (loading) {
+  // Show loading state only on initial load (not when refetching for search/filter)
+  if (loading && games.length === 0) {
     return (
       <PanelShell
         title="LaunchBox LoRa"
@@ -2216,228 +2217,288 @@ export default function LaunchBoxPanel() {
 
       {/* Plugin offline banner intentionally omitted: Launches do not depend on plugin availability */}
 
-      {/* Main Content Area */}
+      {/* Main Content Area — Sidebar + Main */}
       <div className="lora-content">
-        {/* Import UI reverted */}
-        {/* Sub-Panel (Recent Games / Stats) */}
-        {subPanelExpanded && (
-          <div className="lora-subpanel">
-            {/* Tab Navigation */}
-            <div className="lora-tabs">
+        {/* Platform Sidebar */}
+        <nav className="lora-sidebar">
+          <div className="sidebar-header">
+            <span className="sidebar-title">Library</span>
+          </div>
+          <ul className="sidebar-nav">
+            <li>
               <button
-                onClick={setTabRecent}
-                className={`lora-tab ${activeTab === 'recent' ? 'active' : ''}`}
+                className={`sidebar-item ${platformFilter === 'All' ? 'active' : ''}`}
+                onClick={() => { setPlatformFilter('All'); setCurrentPage(1) }}
               >
-                <span className="tab-icon">🕐</span>
-                Recently Played
+                <span className="sidebar-icon">🎮</span>
+                <span className="sidebar-label">All Games</span>
+                <span className="sidebar-count">{totalGames}</span>
               </button>
-              <button
-                onClick={setTabStats}
-                className={`lora-tab ${activeTab === 'stats' ? 'active' : ''}`}
-              >
-                <span className="tab-icon">📊</span>
-                Quick Stats
-              </button>
-              <button
-                onClick={closeSubPanel}
-                className="lora-tab-close"
-                aria-label="Collapse panel"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="lora-tab-content">
-              {activeTab === 'recent' && (
-                <>
-                  {/* Filter and Sort Controls */}
-                  <div className="filter-controls">
-                    <div className="filter-group filter-search">
-                      <label htmlFor="search-games">Search:</label>
-                      <input
-                        id="search-games"
-                        ref={searchInputRef}
-                        type="text"
-                        value={searchQuery}
-                        onChange={handleSearchQueryChange}
-                        placeholder="Search by title..."
-                        className="filter-input"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="platform-filter">Platform:</label>
-                      <select
-                        id="platform-filter"
-                        value={platformFilter}
-                        onChange={handlePlatformFilterChange}
-                        className="filter-select"
-                      >
-                        {platformsForFilter.map(platform => (
-                          <option key={platform} value={platform}>{platform}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="genre-filter">Genre:</label>
-                      <select
-                        id="genre-filter"
-                        value={genreFilter}
-                        onChange={handleGenreFilterChange}
-                        className="filter-select"
-                      >
-                        {genresForFilter.map(genre => (
-                          <option key={genre} value={genre}>{genre}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="year-filter">Decade:</label>
-                      <select
-                        id="year-filter"
-                        value={yearFilter}
-                        onChange={handleYearFilterChange}
-                        className="filter-select"
-                      >
-                        {decades.map(decade => (
-                          <option key={decade} value={decade}>{decade}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="sort-by">Sort by:</label>
-                      <select
-                        id="sort-by"
-                        value={sortBy}
-                        onChange={handleSortByChange}
-                        className="filter-select"
-                      >
-                        <option value="title">Title (A-Z)</option>
-                        <option value="year">Year (Newest)</option>
-                      </select>
-                    </div>
-
-                    <div className="filter-results">
-                      Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total • {visibleGames.length} on this page
-                    </div>
-                    <div className="filter-actions">
-                      <button className="lb-refresh-btn" onClick={refreshLibrary} title="Revalidate library cache">
-                        Refresh Library
-                      </button>
-                      {cacheStatus && cacheStatus.last_loaded_at && ((Date.now() / 1000 - cacheStatus.last_loaded_at) > STALE_THRESHOLD_SECS) && (
-                        <span className="lb-stale-badge" title="Cache may be stale">stale?</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Games List */}
-                  <div className="recent-games-list">
-                    {visibleGames.map((game) => (
-                      <GameCard
-                        key={game.id}
-                        game={game}
-                        onLaunch={launchGame}
-                        onGameHover={(g) => blinkySelection.gameSelected(g.title, g.platform || 'MAME')}
-                        formatRelativeTime={formatRelativeTime}
-                        pluginAvailable={pluginAvailable}
-                        launchDisabled={!canLaunchHere(game) || isLockActive}
-                      />
-                    ))}
-                    {visibleGames.length === 0 && (
-                      <div className="no-games-message">
-                        No games match your filters. Try adjusting your selection.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="pagination-controls">
-                      <button
-                        onClick={goToPreviousPage}
-                        disabled={currentPage === 1}
-                        className="pagination-btn"
-                      >
-                        ← Previous
-                      </button>
-                      <span className="pagination-info">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <button
-                        onClick={() => goToNextPage(totalPages)}
-                        disabled={currentPage === totalPages}
-                        className="pagination-btn"
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'stats' && (
-                <div className="stats-grid">
-                  <div className="stat-card stat-total">
-                    <div className="stat-label">Total Games</div>
-                    <div className="stat-value">{displayStats.total_games || displayStats.totalGames}</div>
-                    <div className="stat-change">{displayStats.is_mock_data ? 'Mock Data' : displayStats.a_drive_status}</div>
-                  </div>
-                  <div className="stat-card stat-platforms">
-                    <div className="stat-label">Platforms</div>
-                    <div className="stat-value">{displayStats.platforms_count || displayStats.platforms}</div>
-                    <div className="stat-change">{displayStats.platforms_count || displayStats.platforms} platforms</div>
-                  </div>
-                  <div className="stat-card stat-most-played">
-                    <div className="stat-label">Genres</div>
-                    <div className="stat-value">{displayStats.genres_count || 0}</div>
-                    <div className="stat-change">{displayStats.genres_count || 0} genres</div>
-                  </div>
-                  <div className="stat-card stat-playtime">
-                    <div className="stat-label">XML Files Parsed</div>
-                    <div className="stat-value">{displayStats.xml_files_parsed || 0}</div>
-                    <div className="stat-change">{displayStats.is_mock_data ? 'Using mock data' : 'Real A: drive data'}</div>
-                  </div>
-                </div>
-              )}
+            </li>
+            {platforms.map(p => (
+              <li key={p}>
+                <button
+                  className={`sidebar-item ${platformFilter === p ? 'active' : ''}`}
+                  onClick={() => { setPlatformFilter(p); setCurrentPage(1) }}
+                >
+                  <span className="sidebar-icon">🕹️</span>
+                  <span className="sidebar-label">{p}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="sidebar-footer">
+            <div className="sidebar-status">
+              <span className={`sidebar-dot ${pluginAvailable ? 'online' : 'offline'}`} />
+              <span>{pluginAvailable ? '1/1 Board Connected' : 'No Board'}</span>
             </div>
           </div>
-        )}
+        </nav>
 
-        {/* Collapsed Toggle */}
-        {!subPanelExpanded && (
-          <button
-            onClick={toggleSubPanel}
-            className="lora-expand-btn"
-          >
-            Show Recent Games ▲
-          </button>
-        )}
+        {/* Main Panel */}
+        <div className="lora-main">
+          {/* Hero Section — Dynamic Preview */}
+          {games.length > 0 && (() => {
+            const featured = hoveredGame || games[0];
+            return (
+              <div className={`lora-hero ${hoveredGame ? 'hero-previewing' : ''}`}
+                onClick={() => launchGame(featured)}
+                style={{ backgroundImage: `url(${GATEWAY}/api/launchbox/image/${featured.id})`, backgroundSize: 'contain', backgroundPosition: 'right center', backgroundRepeat: 'no-repeat' }}
+              >
+                <div className="hero-overlay" />
+                <div className="hero-content">
+                  <span className="hero-tag">{hoveredGame ? 'Preview' : 'Last Session Active'}</span>
+                  <h2 className="hero-title">{featured.title}</h2>
+                  <p className="hero-meta">{featured.platform} • {featured.year || 'Unknown Year'}</p>
+                  <button className="hero-play-btn" onClick={(e) => { e.stopPropagation(); launchGame(featured) }}>
+                    ▶ {hoveredGame ? 'Launch' : 'Resume'}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
-        {/* Input Area */}
-        <div className="lora-input-area">
-          <input
-            type="text"
-            value={input}
-            onChange={handleInputChange}
-            onKeyPress={handleInputKeyPress}
-            placeholder="Ask LoRa about your games..."
-            className="lora-input"
-            disabled={isChatLoading}
-          />
-          <button
-            onClick={sendMessage}
-            className="lora-send-btn"
-            disabled={isChatLoading || !input.trim()}
-            aria-label="Send message"
-          >
-            ➤
-          </button>
-        </div>
+          {/* Sub-Panel (Recent Games / Stats) */}
+          {subPanelExpanded && (
+            <div className="lora-subpanel">
+              {/* Tab Navigation */}
+              <div className="lora-tabs">
+                <button
+                  onClick={setTabRecent}
+                  className={`lora-tab ${activeTab === 'recent' ? 'active' : ''}`}
+                >
+                  <span className="tab-icon">🕐</span>
+                  Recently Played
+                </button>
+                <button
+                  onClick={setTabStats}
+                  className={`lora-tab ${activeTab === 'stats' ? 'active' : ''}`}
+                >
+                  <span className="tab-icon">📊</span>
+                  Quick Stats
+                </button>
+                <button
+                  onClick={closeSubPanel}
+                  className="lora-tab-close"
+                  aria-label="Collapse panel"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="lora-tab-content">
+                {activeTab === 'recent' && (
+                  <>
+                    {/* Filter and Sort Controls */}
+                    <div className="filter-controls">
+                      <div className="filter-group filter-search">
+                        <label htmlFor="search-games">Search:</label>
+                        <input
+                          id="search-games"
+                          ref={searchInputRef}
+                          type="text"
+                          value={searchQuery}
+                          onChange={handleSearchQueryChange}
+                          placeholder="Search by title..."
+                          className="filter-input"
+                          autoComplete="off"
+                        />
+                      </div>
+
+                      <div className="filter-group">
+                        <label htmlFor="platform-filter">Platform:</label>
+                        <select
+                          id="platform-filter"
+                          value={platformFilter}
+                          onChange={handlePlatformFilterChange}
+                          className="filter-select"
+                        >
+                          {platformsForFilter.map(platform => (
+                            <option key={platform} value={platform}>{platform}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="filter-group">
+                        <label htmlFor="genre-filter">Genre:</label>
+                        <select
+                          id="genre-filter"
+                          value={genreFilter}
+                          onChange={handleGenreFilterChange}
+                          className="filter-select"
+                        >
+                          {genresForFilter.map(genre => (
+                            <option key={genre} value={genre}>{genre}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="filter-group">
+                        <label htmlFor="year-filter">Decade:</label>
+                        <select
+                          id="year-filter"
+                          value={yearFilter}
+                          onChange={handleYearFilterChange}
+                          className="filter-select"
+                        >
+                          {decades.map(decade => (
+                            <option key={decade} value={decade}>{decade}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="filter-group">
+                        <label htmlFor="sort-by">Sort by:</label>
+                        <select
+                          id="sort-by"
+                          value={sortBy}
+                          onChange={handleSortByChange}
+                          className="filter-select"
+                        >
+                          <option value="title">Title (A-Z)</option>
+                          <option value="year">Year (Newest)</option>
+                        </select>
+                      </div>
+
+                      <div className="filter-results">
+                        Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total • {visibleGames.length} on this page
+                      </div>
+                      <div className="filter-actions">
+                        <button className="lb-refresh-btn" onClick={refreshLibrary} title="Revalidate library cache">
+                          Refresh Library
+                        </button>
+                        {cacheStatus && cacheStatus.last_loaded_at && ((Date.now() / 1000 - cacheStatus.last_loaded_at) > STALE_THRESHOLD_SECS) && (
+                          <span className="lb-stale-badge" title="Cache may be stale">stale?</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Games Grid */}
+                    <div className="games-grid">
+                      {visibleGames.map((game) => (
+                        <div key={game.id} onClick={() => setHoveredGame(game)} className={`game-card-wrapper ${hoveredGame?.id === game.id ? 'selected' : ''}`}>
+                          <GameCard
+                            game={game}
+                            onLaunch={launchGame}
+                            onGameHover={(g) => blinkySelection.gameSelected(g.title, g.platform || 'MAME')}
+                            formatRelativeTime={formatRelativeTime}
+                            pluginAvailable={pluginAvailable}
+                            launchDisabled={!canLaunchHere(game) || isLockActive}
+                          />
+                        </div>
+                      ))}
+                      {visibleGames.length === 0 && (
+                        <div className="no-games-message">
+                          No games match your filters. Try adjusting your selection.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="pagination-controls">
+                        <button
+                          onClick={goToPreviousPage}
+                          disabled={currentPage === 1}
+                          className="pagination-btn"
+                        >
+                          ← Previous
+                        </button>
+                        <span className="pagination-info">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => goToNextPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                          className="pagination-btn"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {activeTab === 'stats' && (
+                  <div className="stats-grid">
+                    <div className="stat-card stat-total">
+                      <div className="stat-label">Total Games</div>
+                      <div className="stat-value">{displayStats.total_games || displayStats.totalGames}</div>
+                      <div className="stat-change">{displayStats.is_mock_data ? 'Mock Data' : displayStats.a_drive_status}</div>
+                    </div>
+                    <div className="stat-card stat-platforms">
+                      <div className="stat-label">Platforms</div>
+                      <div className="stat-value">{displayStats.platforms_count || displayStats.platforms}</div>
+                      <div className="stat-change">{displayStats.platforms_count || displayStats.platforms} platforms</div>
+                    </div>
+                    <div className="stat-card stat-most-played">
+                      <div className="stat-label">Genres</div>
+                      <div className="stat-value">{displayStats.genres_count || 0}</div>
+                      <div className="stat-change">{displayStats.genres_count || 0} genres</div>
+                    </div>
+                    <div className="stat-card stat-playtime">
+                      <div className="stat-label">XML Files Parsed</div>
+                      <div className="stat-value">{displayStats.xml_files_parsed || 0}</div>
+                      <div className="stat-change">{displayStats.is_mock_data ? 'Using mock data' : 'Real A: drive data'}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Collapsed Toggle */}
+          {!subPanelExpanded && (
+            <button
+              onClick={toggleSubPanel}
+              className="lora-expand-btn"
+            >
+              Show Recent Games ▲
+            </button>
+          )}
+
+          {/* Input Area */}
+          <div className="lora-input-area">
+            <input
+              type="text"
+              value={input}
+              onChange={handleInputChange}
+              onKeyPress={handleInputKeyPress}
+              placeholder="Ask LoRa about your games..."
+              className="lora-input"
+              disabled={isChatLoading}
+            />
+            <button
+              onClick={sendMessage}
+              className="lora-send-btn"
+              disabled={isChatLoading || !input.trim()}
+              aria-label="Send message"
+            >
+              ➤
+            </button>
+          </div>
+        </div>{/* end lora-main */}
       </div>
 
       {/* Sliding Chat Panel */}

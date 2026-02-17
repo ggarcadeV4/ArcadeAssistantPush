@@ -152,7 +152,7 @@ router.post('/shaders/revert', async (req, res) => {
 // (imports at top of file)
 
 const LAUNCHBOX_IMAGES_ROOT = 'A:/LaunchBox/Images';
-const IMAGE_TYPES = ['Box - Front', 'Screenshot - Game Title', 'Clear Logo', 'Fanart - Background'];
+const IMAGE_TYPES = ['Clear Logo', 'Box - Front', 'Screenshot - Game Title', 'Fanart - Background', 'Arcade - Marquee'];
 
 /**
  * GET /image/:uuid
@@ -165,7 +165,7 @@ router.get('/image/:uuid', async (req, res) => {
   try {
     // Step 1: Query FastAPI for game metadata by UUID
     const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
-    const gameResponse = await fetch(`${backendUrl}/api/launchbox/game/${uuid}`, {
+    const gameResponse = await fetch(`${backendUrl}/api/launchbox/games/${uuid}`, {
       headers: {
         'x-scope': 'state',
         'x-device-id': req.headers['x-device-id'] || 'unknown'
@@ -192,12 +192,13 @@ router.get('/image/:uuid', async (req, res) => {
     const safeTitle = title.replace(/[<>:"/\\|?*]/g, '_').trim();
 
     // Step 3: Search for image file across image types
+    // LaunchBox structure: Images/{Platform}/{ImageType}/{Title}-NN.ext
     for (const imageType of IMAGE_TYPES) {
       const candidates = [
-        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}.png`),
-        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}.jpg`),
-        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}-01.png`),
-        path.join(LAUNCHBOX_IMAGES_ROOT, imageType, platform, `${safeTitle}-01.jpg`)
+        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}.png`),
+        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}.jpg`),
+        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}-01.png`),
+        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}-01.jpg`)
       ];
 
       for (const imagePath of candidates) {
@@ -208,7 +209,7 @@ router.get('/image/:uuid', async (req, res) => {
       }
     }
 
-    // Step 4: Fallback - try platform root without image type folder
+    // Step 4: Fallback - try platform root directly
     const fallbackPaths = [
       path.join(LAUNCHBOX_IMAGES_ROOT, platform, `${safeTitle}.png`),
       path.join(LAUNCHBOX_IMAGES_ROOT, platform, `${safeTitle}.jpg`)

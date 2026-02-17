@@ -393,6 +393,11 @@ const ComingSoonTag = ({ text = 'Coming soon' }) => (
 const LEDBlinkyPanel = () => {
   const navigate = useNavigate()
 
+  // Toast helper — must be declared before any hooks that reference it
+  const showToast = useCallback((message, type = 'success') => {
+    console.log(`Toast [${type}]: ${message}`)
+  }, [])
+
   // Initialize Blinky chat hook for voice-guided calibration
   const blinkyChat = useBlinkyChat()
 
@@ -645,9 +650,7 @@ const LEDBlinkyPanel = () => {
   const activePatternName = engineHealth?.active_pattern || engineDiagnostics?.active_pattern || null
   const registryMessage = runtimeStatus?.registry?.message
 
-  const showToast = useCallback((message, type = 'success') => {
-    console.log(`Toast [${type}]: ${message}`)
-  }, [])
+  // showToast is now declared at top of component (before hooks that depend on it)
 
   const formatTimestampValue = (value) => {
     if (!value) return 'Never'

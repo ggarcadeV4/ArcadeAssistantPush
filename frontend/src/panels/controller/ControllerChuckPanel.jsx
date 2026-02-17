@@ -1413,6 +1413,7 @@ export default function ControllerChuckPanel() {
 
   // AI integration
   const [aiLoading, setAiLoading] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const [mapping, setMapping] = useState(null);
   const [pendingChanges, setPendingChanges] = useState({});
