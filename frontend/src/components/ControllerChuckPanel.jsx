@@ -13,6 +13,20 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import PanelShell from '../panels/_kit/PanelShell';
 import './ControllerChuckPanel.css';
 
+const CONTROLLER_API_BASE = '/api/local/controller';
+const DEVICE_ID = window?.AA_DEVICE_ID || 'controller_chuck_legacy';
+const STATE_HEADERS = {
+  'x-scope': 'state',
+  'x-panel': 'controller-chuck',
+  'x-device-id': DEVICE_ID,
+};
+const CONFIG_HEADERS = {
+  'Content-Type': 'application/json',
+  'x-scope': 'config',
+  'x-panel': 'controller-chuck',
+  'x-device-id': DEVICE_ID,
+};
+
 // WebSocket Manager - extracted outside component for performance
 class ControllerWebSocketManager {
   constructor() {
@@ -23,41 +37,7 @@ class ControllerWebSocketManager {
   }
 
   connect() {
-    if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) return;
-
-    this.isConnecting = true;
-    try {
-      this.ws = new WebSocket('ws://localhost:8787/controller/ws');
-
-      this.ws.onopen = () => {
-        this.isConnecting = false;
-        this.notifyListeners({ type: 'connected' });
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.notifyListeners(data);
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        this.notifyListeners({ type: 'error', error });
-      };
-
-      this.ws.onclose = () => {
-        this.isConnecting = false;
-        this.notifyListeners({ type: 'disconnected' });
-        this.scheduleReconnect();
-      };
-    } catch (error) {
-      this.isConnecting = false;
-      console.error('Failed to create WebSocket:', error);
-      this.scheduleReconnect();
-    }
+    this.notifyListeners({ type: 'connected' });
   }
 
   scheduleReconnect() {
@@ -130,23 +110,68 @@ function ControllerChuckPanel() {
   const testStartTime = useRef(null);
   const latencyTimer = useRef(null);
 
+  /**
+   * Show flash message
+   * @param {string} message - Message to display
+   * @param {string} type - 'success' or 'error'
+   */
+  const showFlash = useCallback((message, type) => {
+    setFlashMessage({ message, type });
+    setTimeout(() => setFlashMessage(null), 3000);
+  }, []);
+
   // Fetch initial devices
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const response = await fetch('/api/controller/devices');
-        if (response.ok) {
-          const data = await response.json();
-          setDevices(data);
+        const response = await fetch(`${CONTROLLER_API_BASE}/devices`, {
+          headers: STATE_HEADERS,
+        });
+        if (!response.ok) {
+          throw new Error(`Device scan failed (${response.status})`);
         }
+        const data = await response.json();
+        const nextDevices = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.controllers)
+            ? data.controllers
+            : [];
+        setDevices(nextDevices);
+        setWsConnected(true);
       } catch (error) {
         console.error('Failed to fetch devices:', error);
+        setWsConnected(false);
         showFlash('Failed to load controllers', 'error');
       }
     };
 
+    const fetchMapping = async () => {
+      try {
+        const response = await fetch(`${CONTROLLER_API_BASE}/mapping`, {
+          headers: STATE_HEADERS,
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        const rawMappings = data?.mapping?.mappings || {};
+        const nextMappings = {};
+        LOGICAL_BUTTONS.forEach((button) => {
+          const controlKey = `p1.${button.id}`;
+          const mappingEntry = rawMappings[controlKey];
+          if (mappingEntry && typeof mappingEntry.pin === 'number') {
+            nextMappings[button.id] = mappingEntry.pin;
+          }
+        });
+        setMappings(nextMappings);
+      } catch (error) {
+        console.error('Failed to fetch controller mapping:', error);
+      }
+    };
+
     fetchDevices();
-  }, []);
+    fetchMapping();
+  }, [showFlash]);
 
   // WebSocket connection
   useEffect(() => {
@@ -205,16 +230,6 @@ function ControllerChuckPanel() {
   }, []);
 
   /**
-   * Show flash message
-   * @param {string} message - Message to display
-   * @param {string} type - 'success' or 'error'
-   */
-  const showFlash = useCallback((message, type) => {
-    setFlashMessage({ message, type });
-    setTimeout(() => setFlashMessage(null), 3000);
-  }, []);
-
-  /**
    * Start diagnostics test
    */
   const startTest = useCallback(() => {
@@ -259,19 +274,28 @@ function ControllerChuckPanel() {
   const saveMapping = useCallback(async (logical, port) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/controller/map', {
+      const normalizedPort = Number.parseInt(port, 10);
+      if (!Number.isFinite(normalizedPort) || normalizedPort <= 0) {
+        showFlash('Invalid port number', 'error');
+        return;
+      }
+
+      const isDirection = logical === 'up' || logical === 'down' || logical === 'left' || logical === 'right';
+      const response = await fetch(`${CONTROLLER_API_BASE}/mapping/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: CONFIG_HEADERS,
         body: JSON.stringify({
-          user_id: 'dad',
-          session_id: 'session_123',
-          logical,
-          port
+          mappings: {
+            [`p1.${logical}`]: {
+              pin: normalizedPort,
+              type: isDirection ? 'joystick' : 'button'
+            }
+          }
         })
       });
 
       if (response.ok) {
-        setMappings(prev => ({ ...prev, [logical]: port }));
+        setMappings(prev => ({ ...prev, [logical]: normalizedPort }));
         showFlash('Mapping saved', 'success');
         setEditingButton(null);
       } else {
@@ -286,11 +310,16 @@ function ControllerChuckPanel() {
   }, [showFlash]);
 
   // Memoized device table rows
+  const formatHex = useCallback((value) => {
+    if (typeof value !== 'number') return '--';
+    return `0x${value.toString(16).toUpperCase()}`;
+  }, []);
+
   const deviceRows = useMemo(() => (
     devices.map(device => (
       <tr key={`${device.vid}_${device.pid}`}>
-        <td className="device-vid">0x{device.vid.toString(16).toUpperCase()}</td>
-        <td className="device-pid">0x{device.pid.toString(16).toUpperCase()}</td>
+        <td className="device-vid">{formatHex(device.vid)}</td>
+        <td className="device-pid">{formatHex(device.pid)}</td>
         <td className="device-name">{device.name || 'Unknown Device'}</td>
         <td className="device-status">
           <span className={`status-indicator ${device.status || 'connected'}`}>
@@ -299,7 +328,7 @@ function ControllerChuckPanel() {
         </td>
       </tr>
     ))
-  ), [devices]);
+  ), [devices, formatHex]);
 
   // Memoized button grid
   const buttonGrid = useMemo(() => (

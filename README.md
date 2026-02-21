@@ -97,6 +97,105 @@ When `/assistants` has no `?chat=dewey` param, the component renders an empty gr
 ---
 
 
+# **Session 2026-02-21 - Assistants UI Polish + Controller Chuck Interface Recovery**
+
+## Status
+
+✅ Complete for this session.
+
+## Executive Summary
+
+This session focused on two areas:
+
+1. **Assistants page visual polish** (card scale, avatar placement, readability, container accents)
+2. **Controller Chuck interface recovery** so `/assistants?agent=chuck` returns the intended, full-featured Chuck experience
+
+The Chuck route now points to the richer panel matching the requested layout (board visualization + button mappings + right-side chat), while alternate variants remain available via explicit aliases.
+
+---
+
+## What Was Accomplished
+
+### 1) Assistants Persona Card Refinement
+
+Updated the Assistants launcher cards for stronger visual hierarchy and readability:
+
+- Increased card sizing and layout balance
+- Repositioned persona avatar badge outside the hero image for a cleaner card silhouette
+- Added dedicated semantic text classes for improved typography/readability
+- Enhanced row container rim/accent styling with stronger depth and glow
+- Slightly widened overall card row presentation for better screen usage
+
+**Files:**
+- `frontend/src/index.css`
+- `frontend/src/components/Assistants.jsx`
+
+---
+
+### 2) Hotkey Overlay Path Verification (F9 flow)
+
+Verified existing legacy/global hotkey wiring and frontend overlay path:
+
+- Backend hotkey manager + WebSocket route
+- Gateway hotkey bridge forwarding events
+- Frontend hotkey overlay listener mounted globally
+- Feature-flag and emulator-guard gating confirmed
+
+**Files reviewed during validation:**
+- `backend/services/hotkey_manager.py`
+- `backend/routers/hotkey.py`
+- `gateway/ws/hotkey.js`
+- `frontend/src/components/HotkeyOverlay.jsx`
+- `frontend/src/App.jsx`
+- `backend/services/activity_guard.py`
+
+---
+
+### 3) Controller Chuck Routing + Interface Recovery
+
+Resolved multiple route/UI mismatches and restored the intended default UX:
+
+- Routed `?agent=chuck` and related Chuck aliases to the full **ControllerPanel** UI
+- Preserved alternate variants under explicit aliases for comparison/debugging
+- Updated legacy Chuck component backend integration to current API contract so it remains usable when called directly
+- Built frontend after each key routing phase to ensure no compile regressions
+
+**Current route behavior:**
+
+- **Primary (target UI):** `?agent=chuck`
+- **Legacy minimal UI:** `?agent=chuck-legacy`
+- **Redesign variant:** `?agent=chuck-redesign`
+
+**Files:**
+- `frontend/src/components/Assistants.jsx`
+- `frontend/src/components/ControllerChuckPanel.jsx`
+
+---
+
+## Validation Performed
+
+- `npm run build:frontend` (successful)
+
+No frontend build errors were introduced by this session’s changes.
+
+---
+
+## Quick Test URLs
+
+- `http://127.0.0.1:8787/assistants?agent=chuck`
+- `http://127.0.0.1:8787/assistants?agent=chuck-legacy`
+- `http://127.0.0.1:8787/assistants?agent=chuck-redesign`
+
+---
+
+## Notes for Next Session
+
+1. If desired, add a true legacy WebSocket compatibility bridge for old Chuck diagnostics event streaming.
+2. If desired, remove deprecated duplicate Chuck surfaces once final UX is locked.
+
+---
+
+# **Session 2026-02-05 - Day 6: LED Driver Revolution + Cinema Calibration + Visual Wizard Architecture**
 
 ## **Status: ✅ MISSION COMPLETE**
 

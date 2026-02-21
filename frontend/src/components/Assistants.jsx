@@ -7,7 +7,8 @@ import ErrorBoundary from './ErrorBoundary'
 // import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
 import GunnerPanel from './gunner/GunnerPanel'
 import ControllerPanel from '../panels/controller/ControllerPanel'
-import ControllerChuckPanel from '../panels/controller/ControllerChuckPanel'
+import ControllerChuckPanel from './ControllerChuckPanel'
+import ControllerChuckPanelRedesign from '../panels/controller/ControllerChuckPanel'
 import ConsoleWizardPanel from '../panels/console-wizard/ConsoleWizardPanel'
 import VoicePanel from '../panels/voice/VoicePanel'
 import SystemHealthPanel from '../panels/system-health/SystemHealthPanel'
@@ -115,24 +116,39 @@ export default function Assistants() {
     </>
   }
 
-  // If Controller Chuck (pin mapping) is requested
-  if (agent === 'chuck' || agent === 'controller-chuck' || agent === 'controller_chuck') {
-    return <>
-      {Badge}
-      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
-    </>
-  }
-
-  // If Controller agent is requested, always show the Controller Panel (diagnostics)
-  if (agent === 'controller') {
+  // Controller Chuck default interface (full board + mappings + chat)
+  if (
+    agent === 'chuck' ||
+    agent === 'controller-chuck' ||
+    agent === 'controller_chuck' ||
+    agent === 'controller' ||
+    agent === 'interface' ||
+    agent === 'arcade-interface'
+  ) {
     return <>
       {Badge}
       <ErrorBoundary><ControllerPanel /></ErrorBoundary>
     </>
   }
 
-  // Map generic interface keys to the Controller Panel layout
-  if (agent === 'interface' || agent === 'arcade-interface') {
+  // Legacy minimal Chuck panel remains available via explicit aliases
+  if (agent === 'chuck-legacy' || agent === 'controller-chuck-legacy') {
+    return <>
+      {Badge}
+      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
+    </>
+  }
+
+  // Redesigned Chuck panel remains available via explicit aliases
+  if (agent === 'chuck-redesign' || agent === 'controller-chuck-redesign') {
+    return <>
+      {Badge}
+      <ErrorBoundary><ControllerChuckPanelRedesign /></ErrorBoundary>
+    </>
+  }
+
+  // Diagnostics-focused variants remain available via explicit aliases
+  if (agent === 'controller-panel' || agent === 'controller-legacy' || agent === 'interface-legacy') {
     return <>
       {Badge}
       <ErrorBoundary><ControllerPanel /></ErrorBoundary>
