@@ -368,6 +368,17 @@ export async function stopLEDCalibration(payload) {
   return await res.json()
 }
 
+export async function escapeLEDCalibration(payload) {
+  const res = await fetch(`${BASE}/calibrate/escape`, {
+    method: 'POST',
+    headers: commonHeaders({ scope: 'config' }),
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Escape hatch failed' }))
+  return await res.json()
+}
+
 export async function getLEDEngineHealth() {
   const res = await fetch(`${BASE}/engine-health`, {
     method: 'GET',

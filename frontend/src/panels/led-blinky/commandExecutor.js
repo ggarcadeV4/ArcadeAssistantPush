@@ -8,7 +8,8 @@ import {
   assignLEDCalibration,
   flashLEDCalibration,
   stopLEDCalibration,
-  applyLEDProfile
+  applyLEDProfile,
+  escapeLEDCalibration
 } from '../../services/ledBlinkyClient'
 
 /**
@@ -329,21 +330,28 @@ export async function executeLEDCommand(command, context) {
         }
 
         const { action: escapeAction, custom_name } = command
-        if (escapeAction === 'skip') {
-          // Skip the current port — record it and move on
-          console.log('[CommandExecutor] Calibration escape: skipping port')
-          showToast?.('Skipped port', 'info')
-          return { status: 'success', escape_action: 'skip' }
-        }
-        if (escapeAction === 'assign_custom' && custom_name) {
-          // Assign a custom name to non-visual hardware (trackball, coin door, etc.)
-          console.log('[CommandExecutor] Calibration escape: assigning custom name:', custom_name)
-          showToast?.(`Assigned: ${custom_name}`, 'success')
-          return { status: 'success', escape_action: 'assign_custom', custom_name }
+        const escapePayload = {
+          token: calibrationToken,
+          action: escapeAction,
+          ...(custom_name && { custom_name })
         }
 
-        showToast?.('Invalid escape hatch action', 'warning')
-        return { status: 'error', reason: 'unknown_escape_action' }
+        try {
+          const result = await escapeLEDCalibration(escapePayload)
+          console.log('[CommandExecutor] Calibration escape result:', result)
+
+          if (escapeAction === 'skip') {
+            showToast?.('Skipped port', 'info')
+          } else if (escapeAction === 'assign_custom' && custom_name) {
+            showToast?.(`Assigned: ${custom_name}`, 'success')
+          }
+
+          return { status: 'success', escape_action: escapeAction, ...result }
+        } catch (err) {
+          console.error('[CommandExecutor] Escape hatch failed:', err)
+          showToast?.('Escape hatch failed', 'error')
+          return { status: 'error', reason: 'escape_failed', error: err }
+        }
       }
 
       default:
