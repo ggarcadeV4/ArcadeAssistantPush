@@ -30,3 +30,10 @@
   - **Phase 5 — Voice Commands**: Added 10 `LED_THEMES` (sunset through neon) + `apply_theme` command to `commandExecutor.js`. Extended `useBlinkyChat.js` system prompt with theme vocabulary, creative interpretation mapping, player-specific targeting.
   - **Build**: 227 modules, 0 errors, vite v4.5.14.
   - **Next**: Phase 6 (Gemini function calling), chat escape hatch (R-20), live hardware verification.
+
+- **2026-02-20 (Late Night)**: LED Blinky Chat UI + Gem Architecture  diagnosis and partial deployment.
+  - **Chat UI Refactor**: New slide-in chat drawer + large pulsing mic button implemented in `LEDBlinkyPanelNew.jsx` + `LEDBlinkyPanel.css` on dev (C:) repo. Mic button has `mic-pulse` animation when recording. Drawer shows full message history with AI/user bubbles, typing indicator, auto-scroll.  WARNING: UI change NOT yet synced to A: drive.
+  - **Chat Error Diagnosed**: Traced to deprecated model `claude-3-5-haiku-20241022` returning HTTP 404. Fixed to `claude-3-5-haiku-latest` in `gateway/adapters/anthropic.js` + `gateway/routes/launchboxAI.js`. Both synced to A: drive.
+  - **Gem Architecture Clarified**: Supabase Edge Functions (`anthropic-proxy`, `gemini-proxy`) are the AI proxy layer. API keys live in Supabase secrets. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PORT`, `FASTAPI_URL`, `AA_DRIVE_ROOT` all come from `A:\Arcade Assistant Local\.env` injected at boot. C: = dev repo, A: = golden drive production. Gateway must ALWAYS boot from A:.
+  - **Provider Switch**: `useBlinkyChat.js` changed `provider: 'claude'` to `provider: 'gemini'`. Gemini adapter defaults to `gemini-2.0-flash`. Synced to A:, frontend rebuilt successfully (4.41s, 0 errors).
+  - **Open**: New chat UI JSX/CSS not synced to A: drive. Blinky Gemini chat not yet confirmed. ElevenLabs TTS for Blinky voice not wired. C: to A: sync still manual.

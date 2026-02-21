@@ -155,7 +155,7 @@ Response: "Let's light it up! Neon colors across the whole cabinet! {"action": "
     console.log('[useBlinkyChat] Calling aiChat...')
     try {
       const body = await aiChat({
-        provider: 'claude',
+        provider: 'gemini',
         scope,
         messages: conversation,
         temperature: 0.3,

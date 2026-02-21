@@ -40,7 +40,7 @@ export default async function anthropicChat({ messages, temperature, max_tokens,
     .map(m => ({ role: m.role, content: m.content }));
 
   const body = {
-    model: process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022',
+    model: process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-latest',
     messages: userAssistant,
     system: sys,
     temperature: temperature ?? 0,

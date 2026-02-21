@@ -55,6 +55,7 @@ const LEDBlinkyPanel = () => {
     const [connectionStatus, setConnectionStatus] = useState('disconnected')
 
     // ─── Chat & Voice ────────────────────────────────────────────────
+    const [chatOpen, setChatOpen] = useState(false)
     const [chatInput, setChatInput] = useState('')
     const [chatMessages, setChatMessages] = useState([
         { type: 'ai', message: "Hey! I'm Blinky. Tell me what to do with the lights." }
@@ -62,6 +63,7 @@ const LEDBlinkyPanel = () => {
     const [isSending, setIsSending] = useState(false)
     const [isVoiceRecording, setIsVoiceRecording] = useState(false)
     const recognitionRef = useRef(null)
+    const chatEndRef = useRef(null)
 
     // ─── Command Context (bridges hooks → dispatch) ──────────────────
     const commandContext = {
@@ -114,6 +116,7 @@ const LEDBlinkyPanel = () => {
             const commands = result?.commands || []
 
             setChatMessages(prev => [...prev, { type: 'ai', message: response }])
+            setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
 
             if (commands.length > 0) {
                 console.log('[LEDBlinky] Executing', commands.length, 'commands')
@@ -378,8 +381,21 @@ const LEDBlinkyPanel = () => {
                     </div>
                 )}
 
-                {/* ── Chat Input ──────────────────────────── */}
+                {/* ── Chat Bar ──────────────────────────────── */}
                 <div className="led-panel__chat-bar">
+                    {/* Large mic button */}
+                    <button
+                        className={`led-panel__mic-btn ${isVoiceRecording ? 'led-panel__mic-btn--recording' : ''}`}
+                        onClick={toggleVoiceInput}
+                        title={isVoiceRecording ? 'Stop recording' : 'Talk to Blinky'}
+                    >
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V22H9v2h6v-2h-2v-1.06A9 9 0 0 0 21 12v-2h-2z" />
+                        </svg>
+                        {isVoiceRecording && <span className="led-panel__mic-label">Listening…</span>}
+                    </button>
+
                     <input
                         className="led-panel__chat-input"
                         placeholder="Ask Blinky..."
@@ -387,15 +403,7 @@ const LEDBlinkyPanel = () => {
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={handleChatKeyDown}
                         disabled={isSending}
-                        style={{ paddingRight: 92 }}
                     />
-                    <button
-                        className={`led-panel__voice-btn ${isVoiceRecording ? 'led-panel__voice-btn--active' : ''}`}
-                        onClick={toggleVoiceInput}
-                        title={isVoiceRecording ? 'Stop recording' : 'Voice input'}
-                    >
-                        🎙
-                    </button>
                     <button
                         className="led-panel__chat-send"
                         onClick={sendChatMessage}
@@ -403,6 +411,68 @@ const LEDBlinkyPanel = () => {
                         title="Send"
                     >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 2L11 13" />
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                        </svg>
+                    </button>
+
+                    {/* Toggle slide-in chat history */}
+                    <button
+                        className={`led-panel__chat-toggle ${chatOpen ? 'led-panel__chat-toggle--open' : ''}`}
+                        onClick={() => setChatOpen(o => !o)}
+                        title="Open chat history"
+                    >
+                        💬
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Slide-in Chat Drawer ───────────────────── */}
+            <div className={`led-panel__chat-drawer ${chatOpen ? 'led-panel__chat-drawer--open' : ''}`}>
+                <div className="led-panel__chat-drawer-header">
+                    <span>🤖 Blinky Chat</span>
+                    <button className="led-panel__chat-drawer-close" onClick={() => setChatOpen(false)}>✕</button>
+                </div>
+                <div className="led-panel__chat-drawer-messages">
+                    {chatMessages.map((msg, i) => (
+                        <div key={i} className={`led-panel__chat-msg led-panel__chat-msg--${msg.type}`}>
+                            {msg.type === 'ai' && <span className="led-panel__chat-msg-avatar">🤖</span>}
+                            <span className="led-panel__chat-msg-text">{msg.message}</span>
+                        </div>
+                    ))}
+                    {isSending && (
+                        <div className="led-panel__chat-msg led-panel__chat-msg--ai">
+                            <span className="led-panel__chat-msg-avatar">🤖</span>
+                            <span className="led-panel__chat-msg-text led-panel__chat-typing">●●●</span>
+                        </div>
+                    )}
+                    <div ref={chatEndRef} />
+                </div>
+                <div className="led-panel__chat-drawer-input">
+                    <button
+                        className={`led-panel__mic-btn led-panel__mic-btn--sm ${isVoiceRecording ? 'led-panel__mic-btn--recording' : ''}`}
+                        onClick={toggleVoiceInput}
+                        title={isVoiceRecording ? 'Stop' : 'Voice'}
+                    >
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V22H9v2h6v-2h-2v-1.06A9 9 0 0 0 21 12v-2h-2z" />
+                        </svg>
+                    </button>
+                    <input
+                        className="led-panel__chat-input"
+                        placeholder="Ask Blinky..."
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={handleChatKeyDown}
+                        disabled={isSending}
+                    />
+                    <button
+                        className="led-panel__chat-send"
+                        onClick={sendChatMessage}
+                        disabled={isSending || !chatInput.trim()}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M22 2L11 13" />
                             <path d="M22 2L15 22L11 13L2 9L22 2Z" />
                         </svg>
