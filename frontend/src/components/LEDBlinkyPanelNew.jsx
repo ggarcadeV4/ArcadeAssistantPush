@@ -6,6 +6,7 @@ import { useBlinkyChat } from '../panels/led-blinky/useBlinkyChat'
 import { executeLEDCommands } from '../panels/led-blinky/commandExecutor'
 import ArcadePanelPreview from './led-blinky/ArcadePanelPreview'
 import './led-blinky/ArcadePanelPreview.css'
+import './LEDBlinkyPanel.css'
 import { useLEDLearnWizard } from '../hooks/useLEDLearnWizard'
 import { useLEDCalibrationWizard } from '../hooks/useLEDCalibrationWizard'
 import WiringWizard from './WiringWizard'
@@ -1924,7 +1925,12 @@ const LEDBlinkyPanel = () => {
         await executeLEDCommands(commands, commandContext)
       }
 
-      // NOTE: No TTS for typed messages - only voice input speaks
+      // Speak the response for typed messages as well
+      try {
+        await speakAsBlinky(response)
+      } catch (ttsErr) {
+        console.warn('[LED Blinky Chat] TTS failed:', ttsErr)
+      }
     } catch (err) {
       console.error('[LED Blinky Chat] Error:', err)
       const errorMsg = 'Sorry, I encountered an error. Please try again.'

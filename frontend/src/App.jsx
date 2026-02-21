@@ -34,31 +34,47 @@ function App() {
   // Apply dark arcade theme to all pages
   const appClass = 'app theme-arcade'
 
+  // Dewey Concierge Mode: ?mode=overlay renders only the chat component
+  const params = new URLSearchParams(window.location.search)
+  const isOverlayMode = params.get('mode') === 'overlay'
+
+  if (isOverlayMode) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <div className={appClass} style={{ background: 'transparent' }}>
+          <ErrorBoundary>
+            <Home />
+          </ErrorBoundary>
+        </div>
+      </Suspense>
+    )
+  }
+
   return (
     <Suspense fallback={<PageLoader />}>
       <div className={appClass}>
-          <main>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<ErrorBoundary><Home /></ErrorBoundary>} />
-                <Route path="/mic-test" element={<ErrorBoundary><MicTest /></ErrorBoundary>} />
-                <Route path="/health" element={<Navigate to="/assistants?agent=health" replace />} />
-                <Route path="/config" element={<ErrorBoundary><ConfigManager /></ErrorBoundary>} />
-                <Route path="/assistants" element={<ErrorBoundary><Assistants /></ErrorBoundary>} />
-                {/* Console Wizard with Wiz - Step-by-step RetroArch configuration */}
-                <Route path="/controller-wizard" element={<ErrorBoundary><ConsoleWizardPanel /></ErrorBoundary>} />
-                <Route path="/console-wizard" element={<ErrorBoundary><ConsoleWizardPanel /></ErrorBoundary>} />
-                <Route path="/marquee" element={<ErrorBoundary><MarqueeDisplay /></ErrorBoundary>} />
-                <Route path="/marquee-v2" element={<ErrorBoundary><MarqueeDisplayV2 /></ErrorBoundary>} />
-                <Route path="/marquee-text" element={<ErrorBoundary><MarqueeText /></ErrorBoundary>} />
-                <Route path="/marquee-media" element={<ErrorBoundary><MarqueeMedia /></ErrorBoundary>} />
-              </Routes>
-            </Suspense>
-          </main>
-          {/* Global hotkey overlay (A key via backend hotkey manager) */}
-          <Suspense fallback={null}>
-            <HotkeyOverlay />
+        <main>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<ErrorBoundary><Home /></ErrorBoundary>} />
+              <Route path="/mic-test" element={<ErrorBoundary><MicTest /></ErrorBoundary>} />
+              <Route path="/health" element={<Navigate to="/assistants?agent=health" replace />} />
+              <Route path="/config" element={<ErrorBoundary><ConfigManager /></ErrorBoundary>} />
+              <Route path="/assistants" element={<ErrorBoundary><Assistants /></ErrorBoundary>} />
+              {/* Console Wizard with Wiz - Step-by-step RetroArch configuration */}
+              <Route path="/controller-wizard" element={<ErrorBoundary><ConsoleWizardPanel /></ErrorBoundary>} />
+              <Route path="/console-wizard" element={<ErrorBoundary><ConsoleWizardPanel /></ErrorBoundary>} />
+              <Route path="/marquee" element={<ErrorBoundary><MarqueeDisplay /></ErrorBoundary>} />
+              <Route path="/marquee-v2" element={<ErrorBoundary><MarqueeDisplayV2 /></ErrorBoundary>} />
+              <Route path="/marquee-text" element={<ErrorBoundary><MarqueeText /></ErrorBoundary>} />
+              <Route path="/marquee-media" element={<ErrorBoundary><MarqueeMedia /></ErrorBoundary>} />
+            </Routes>
           </Suspense>
+        </main>
+        {/* Global hotkey overlay (A key via backend hotkey manager) */}
+        <Suspense fallback={null}>
+          <HotkeyOverlay />
+        </Suspense>
       </div>
     </Suspense>
   )

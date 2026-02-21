@@ -164,6 +164,8 @@ print("DEBUG: Importing escalation router...")
 from backend.routers import escalation as escalation_router
 print("DEBUG: Importing wizard_router...")
 from backend.routers import wizard_router
+print("DEBUG: Importing game_lifecycle router...")
+from backend.routers import game_lifecycle
 print("DEBUG: Skipping blinky patterns import (lazy load)...")
 # LAZY IMPORT: blinky patterns cause blocking during import
 # from backend.routers import blinky as blinky_patterns
@@ -599,6 +601,7 @@ app.include_router(model_router_router.router)  # Smart AI model routing
 app.include_router(escalation_router.router)  # AI escalation to Fleet Manager
 app.include_router(wizard_router.router)  # Controller Wizard real-time input stream
 app.include_router(tournament_router.router)  # Tournament mode plugin integration for Sam
+app.include_router(game_lifecycle.router)  # Game lifecycle: Playnite start/stop → LEDBlinky Cinema Logic
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

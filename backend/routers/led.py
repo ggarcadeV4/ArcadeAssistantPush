@@ -217,6 +217,13 @@ class LEDCalibrationStopPayload(BaseModel):
     token: str
 
 
+class LEDCalibrationEscapePayload(BaseModel):
+    """Payload for calibration escape hatch (R-20)."""
+    token: str
+    action: str = Field(..., description="'skip' or 'assign_custom'")
+    custom_name: Optional[str] = Field(default=None, description="Hardware name if action is assign_custom")
+
+
 class LEDGameProfileBindingPayload(BaseModel):
     game_id: str = Field(..., min_length=1)
     profile_name: str = Field(..., min_length=1)
@@ -558,49 +565,25 @@ async def _flash_led_channel(
     color: str,
     duration_ms: int,
 ) -> None:
-    """Flash an LED channel using LEDBlinky.exe CLI.
-    
-    Uses Command 14 (Set Port): LEDBlinky.exe 14 port,intensity
-    Intensity range: 0-48 (0=off, 48=full brightness)
+    """Flash an LED channel using BlinkyProcessManager (non-blocking).
+
+    Delegates to BlinkyProcessManager.flash_port() which uses
+    asyncio.create_subprocess_exec internally. If LEDBlinky.exe is
+    missing, logs a warning gracefully (simulation mode fallback).
     """
-    import subprocess
-    
-    # Channel is 1-based from API
     port = int(channel)
-    intensity = 48  # Max brightness for visibility during calibration
-    
-    logger.info(f"[Calibration] Flashing channel {channel} for {duration_ms}ms via LEDBlinky CLI")
-    
+    logger.info(f"[Calibration] Flashing channel {channel} for {duration_ms}ms via BlinkyProcessManager")
+
     try:
-        # Turn LED ON
-        subprocess.run(
-            ["C:\\LEDBlinky\\LEDBlinky.exe", "14", f"{port},{intensity}"],
-            timeout=2,
-            capture_output=True
-        )
-        logger.info(f"[Calibration] Channel {channel} ON")
-        
-        # Schedule turn off after duration
-        async def _clear() -> None:
-            await asyncio.sleep(duration_ms / 1000.0)
-            try:
-                subprocess.run(
-                    ["C:\\LEDBlinky\\LEDBlinky.exe", "14", f"{port},0"],
-                    timeout=2,
-                    capture_output=True
-                )
-                logger.info(f"[Calibration] Channel {channel} OFF")
-            except Exception as e:
-                logger.warning(f"[Calibration] Failed to turn off channel {channel}: {e}")
-        
-        asyncio.create_task(_clear())
-        
-    except FileNotFoundError:
-        logger.error("[Calibration] LEDBlinky.exe not found at C:\\LEDBlinky\\")
-    except subprocess.TimeoutExpired:
-        logger.error("[Calibration] LEDBlinky.exe command timed out")
+        blinky = BlinkyProcessManager.get_instance()
+        if not blinky.is_available:
+            logger.warning("[Calibration] LEDBlinky.exe not available — simulation mode")
+            return
+        await blinky.flash_port(port, intensity=48, duration_ms=duration_ms)
+        logger.info(f"[Calibration] Channel {channel} flash complete")
     except Exception as e:
         logger.error(f"[Calibration] LED flash failed: {e}")
+
 
 
 @router.post("/calibrate/flash")
@@ -653,6 +636,43 @@ async def stop_led_calibration(request: Request, payload: LEDCalibrationStopPayl
     if not session:
         raise HTTPException(status_code=404, detail="Calibration session not found")
     return {"status": "stopped", "token": payload.token}
+
+
+@router.post("/calibrate/escape")
+async def calibrate_escape_hatch(
+    request: Request,
+    payload: LEDCalibrationEscapePayload,
+) -> Dict[str, Any]:
+    """Handle calibration escape hatch (R-20).
+
+    When a port blinks during calibration but doesn't match any button
+    on the UI visualizer (e.g., coin door, trackball, spinner ring),
+    the user can skip it or assign a custom hardware name.
+    """
+    require_scope(request, "config")
+    _active_calibration_session(request.app.state, payload.token)
+
+    if payload.action == "skip":
+        result = LEDCalibrationService.skip_port()
+        logger.info("[Calibration] Escape hatch: skipped port")
+        return {"status": "skipped", **result}
+    elif payload.action == "assign_custom":
+        if not payload.custom_name:
+            raise HTTPException(
+                status_code=422,
+                detail="custom_name is required when action is 'assign_custom'",
+            )
+        result = LEDCalibrationService.confirm_mapping(
+            logical_id=payload.custom_name,
+            description=f"Custom hardware: {payload.custom_name}",
+        )
+        logger.info(f"[Calibration] Escape hatch: assigned custom name '{payload.custom_name}'")
+        return {"status": "assigned", "custom_name": payload.custom_name, **result}
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid escape action: {payload.action}. Use 'skip' or 'assign_custom'.",
+        )
 
 
 @router.post("/profile/preview", response_model=LEDPreviewResponse)

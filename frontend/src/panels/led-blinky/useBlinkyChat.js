@@ -2,51 +2,82 @@ import { useState, useCallback, useRef } from 'react'
 import { chat as aiChat } from '../../services/aiClient'
 
 /**
- * Parse LED commands from AI response text
- * Commands are JSON objects like: {"action": "start_calibration"}
- * @param {string} text - AI response text
- * @returns {Array<Object>} - Array of command objects
+ * Gemini Tool Schemas for LED Blinky
+ * These are passed as `tools` to the Gemini adapter for native function calling.
+ * Gemini returns structured `tool_use` blocks instead of JSON-in-text.
  */
-function parseLEDCommands(text) {
-  if (!text) return []
-
-  const commands = []
-  const jsonRegex = /\{[^{}]*"action"[^{}]*\}/g
-  const matches = text.match(jsonRegex)
-
-  if (matches) {
-    for (const match of matches) {
-      try {
-        const cmd = JSON.parse(match)
-        if (cmd.action) {
-          commands.push(cmd)
+const BLINKY_TOOLS = [
+  {
+    name: 'set_button_color',
+    description: 'Changes the color of specific arcade buttons or groups of buttons.',
+    parameters: {
+      type: 'object',
+      properties: {
+        buttons: {
+          type: 'array',
+          items: { type: 'string' },
+          description: "List of logical buttons (e.g., 'p1.button1', 'p2.start') or player groups (e.g., 'player1', 'all')."
+        },
+        color: {
+          type: 'string',
+          description: "The hex color code to apply (e.g., '#FF0000' for red)."
         }
-      } catch (err) {
-        console.warn('[useBlinkyChat] Failed to parse command:', match, err)
-      }
+      },
+      required: ['buttons', 'color']
+    }
+  },
+  {
+    name: 'apply_theme',
+    description: 'Applies a predefined lighting theme to the entire control panel.',
+    parameters: {
+      type: 'object',
+      properties: {
+        theme_name: {
+          type: 'string',
+          description: "The theme to apply (e.g., 'cyberpunk', 'sunset', 'christmas', 'fire_and_ice')."
+        }
+      },
+      required: ['theme_name']
+    }
+  },
+  {
+    name: 'start_calibration',
+    description: 'Starts the LED hardware calibration wizard.',
+    parameters: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'calibration_escape_hatch',
+    description: "Used during calibration when a port blinks but the user cannot click a matching button on the UI. Allows skipping or naming custom hardware.",
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['skip', 'assign_custom'],
+          description: "Whether to 'skip' the port or 'assign_custom' name to it."
+        },
+        custom_name: {
+          type: 'string',
+          description: "If action is 'assign_custom', the name the user gave the hardware (e.g., 'trackball', 'coin door')."
+        }
+      },
+      required: ['action']
     }
   }
+]
 
-  return commands
-}
-
-export function useBlinkyChat() {
-  const SYSTEM_PROMPT = `You are Elodie Blink, the LED lighting assistant for Arcade Assistant cabinets.
+const SYSTEM_PROMPT = `You are Elodie Blink, the LED lighting assistant for Arcade Assistant cabinets.
 
 Your PRIMARY job is helping users with:
-- LED button color customization (changing colors via voice commands)
+- LED button color customization (changing colors via voice or text commands)
 - LED wiring and channel mapping
 - LED calibration workflows (starting sessions, assigning channels, flashing LEDs)
 - LED diagnostics and troubleshooting
 - Managing LED configuration files and game-specific profiles
-
-IMPORTANT CAPABILITIES:
-1. You CAN modify LED colors through voice commands
-2. LED profiles are stored as JSON at configs/ledblinky/profiles/
-3. You can save/load profiles: default.json or game-specific (e.g., street_fighter_3.json)
-4. You can create per-game LED profiles with custom button colors
-5. Profiles sync through preview/apply workflow with automatic backups
-6. Game bindings stored in configs/ledblinky/game_profiles.json
+- Applying predefined lighting themes
 
 HARDWARE CONTROL:
 - You CAN control physical LED hardware (LED-Wiz, Pac-LED64, GroovyGameGear, Ultimarc)
@@ -54,74 +85,25 @@ HARDWARE CONTROL:
 - You CAN flash LEDs for testing and identification
 - Works in real mode (actual hardware) or mock mode (testing)
 
-WHEN USERS ASK TO CHANGE BUTTON COLORS:
-1. Use the set_button_color command
-2. Parse button numbers from their request (e.g., "buttons 1 through 6" = "1-6")
-3. Parse color names (purple, red, blue, etc.) or hex codes
-4. Optionally associate with a game for per-game profiles
-
-AVAILABLE COMMANDS (include these as JSON in your response when needed):
-- {"action": "set_button_color", "buttons": "1-6", "color": "purple"} - Set buttons 1-6 to purple
-- {"action": "set_button_color", "buttons": "1,2,3", "color": "#FF0000"} - Set specific buttons to red
-- {"action": "set_button_color", "buttons": ["p1.button1", "p1.button2"], "color": "blue"} - Set named buttons
-- {"action": "set_button_color", "buttons": "1-6", "color": "purple", "game": "Street Fighter 3"} - Per-game colors
-- {"action": "set_button_color", "buttons": "1-8", "color": "cyan", "player": 2} - For player 2 buttons
-- {"action": "start_calibration"} - Begin a calibration session
-- {"action": "assign_channel", "logical_button": "p1.button1", "device_id": "ledwiz_1", "channel": 7} - Assign a channel
-- {"action": "flash_channel", "device_id": "ledwiz_1", "channel": 7, "duration_ms": 300} - Flash an LED for identification
-- {"action": "flash_button", "logical_button": "p1.button1"} - Flash a mapped button
-- {"action": "stop_calibration"} - End calibration session
+IMPORTANT: You have native function calling tools available. When a user asks you to change colors, apply themes, or start calibration, call the appropriate tool directly. Do NOT embed JSON in your text responses.
 
 SUPPORTED COLOR NAMES:
 red, green, blue, yellow, purple, violet, magenta, pink, orange, cyan, white, black, lime, teal, aqua, gold, silver, crimson, coral, turquoise
 
-THEME COMMANDS:
-You can apply curated multi-color themes that distribute colors across all buttons automatically.
-Available themes: sunset, ocean, fire, ice, christmas, halloween, retro, vaporwave, forest, neon
-- {"action": "apply_theme", "theme": "sunset"} - Apply sunset gradient to all players
-- {"action": "apply_theme", "theme": "ocean", "player": 2} - Apply ocean theme to Player 2 only
-- {"action": "apply_theme", "theme": "christmas", "game": "Holiday Special"} - Per-game theme
+AVAILABLE THEMES:
+sunset, ocean, cyberpunk, christmas, fire_and_ice, retro, neon, forest, vaporwave, electric
 
-PLAYER TARGETING:
-When users say "player 1" or "player 2", use the "player" field:
-- {"action": "set_button_color", "buttons": "1-6", "color": "red", "player": 2} - Player 2 buttons red
-- {"action": "apply_theme", "theme": "fire", "player": 1} - Fire theme on Player 1 only
+CALIBRATION ESCAPE HATCH:
+During calibration, if a hardware port blinks but there is no matching button on the UI visualizer (e.g., a coin door light, trackball LED, or spinner ring), the user can say "skip that one" or "that's the trackball." Use the calibration_escape_hatch tool to record it appropriately.
 
-CREATIVE INTERPRETATION:
-When users use creative/evocative language, map it to the closest theme:
-- "sunset vibes", "warm colors", "like a sunset" → sunset theme
-- "ocean feel", "underwater", "beach" → ocean theme
-- "make it hot", "flames", "lava" → fire theme
-- "frozen", "cool colors", "winter" → ice theme
-- "holiday", "festive", "merry christmas" → christmas theme
-- "spooky", "halloween mode" → halloween theme
-- "80s arcade", "classic arcade" → retro theme
-- "aesthetic", "lo-fi", "synthwave" → vaporwave theme
-- "nature", "jungle", "trees" → forest theme
-- "bright", "glow", "rave" → neon theme
+PLAYER BUTTON NAMING:
+- Player 1 buttons: p1.button1, p1.button2, ... p1.button8, p1.start
+- Player 2 buttons: p2.button1, p2.button2, ... p2.button8, p2.start
+- Groups: "player1" (all P1), "player2" (all P2), "all" (everything)
 
-Keep responses concise (2-3 sentences) and actionable. You have full access to the Arcade Assistant's safe file modification system.
+Keep responses concise (2-3 sentences) and actionable. Always respond conversationally alongside any tool calls so TTS can speak your reply.`
 
-EXAMPLES:
-User: "Make buttons 1 through 6 purple"
-Response: "I'll set buttons 1-6 to purple for you! {"action": "set_button_color", "buttons": "1-6", "color": "purple"}"
-
-User: "For Street Fighter, I want red buttons"
-Response: "Setting all 6 buttons to red for Street Fighter! {"action": "set_button_color", "buttons": "1-6", "color": "red", "game": "Street Fighter"}"
-
-User: "Make button 1 cyan and button 2 gold"
-Response: "I'll set those colors for you! {"action": "set_button_color", "buttons": "1", "color": "cyan"} {"action": "set_button_color", "buttons": "2", "color": "gold"}"
-
-User: "Give me sunset vibes"
-Response: "Bringing the sunset! Warm oranges, golds, and pinks across your whole panel. {"action": "apply_theme", "theme": "sunset"}"
-
-User: "Make player 2 look like the ocean"
-Response: "Diving in! Ocean blues and teals for Player 2. {"action": "apply_theme", "theme": "ocean", "player": 2}"
-
-User: "Go full rave mode"
-Response: "Let's light it up! Neon colors across the whole cabinet! {"action": "apply_theme", "theme": "neon"}"
-`
-
+export function useBlinkyChat() {
   const historyRef = useRef([])
   const [state, setState] = useState({
     loading: false,
@@ -152,7 +134,7 @@ Response: "Let's light it up! Neon colors across the whole cabinet! {"action": "
       ...historyRef.current
     ]
 
-    console.log('[useBlinkyChat] Calling aiChat...')
+    console.log('[useBlinkyChat] Calling aiChat with Gemini + native tools...')
     try {
       const body = await aiChat({
         provider: 'gemini',
@@ -160,18 +142,36 @@ Response: "Let's light it up! Neon colors across the whole cabinet! {"action": "
         messages: conversation,
         temperature: 0.3,
         max_tokens: 300,
+        tools: BLINKY_TOOLS,
         metadata: { panel: 'led-blinky', character: 'blinky' }
       })
-      const assistantContent = body?.message?.content || 'I did not receive a response.'
-      console.log('[useBlinkyChat] Received response:', assistantContent.substring(0, 50) + '...')
 
-      // Parse any LED commands from the response
-      const commands = parseLEDCommands(assistantContent)
+      // --- Native Tool Call Parsing ---
+      // The Gemini adapter returns a `content` array with typed blocks:
+      //   [{ type: 'text', text: '...' }, { type: 'tool_use', name: '...', input: {...} }]
+      // When there are no tool calls, the response falls back to body.message.content (string)
+      const contentArray = body.content || []
+      const toolCalls = contentArray.filter(c => c.type === 'tool_use')
+      const textBlock = contentArray.find(c => c.type === 'text')
+
+      // Convert native tool calls → command format for commandExecutor
+      const commands = toolCalls.map(tc => ({
+        action: tc.name,
+        ...tc.input
+      }))
+
+      // Text reply for display and TTS
+      // Priority: text block from content array > message.content string > fallback
+      const textReply = textBlock?.text
+        || (typeof body?.message?.content === 'string' ? body.message.content : '')
+        || 'Done!'
+
       if (commands.length > 0) {
-        console.log('[useBlinkyChat] Parsed commands:', commands)
+        console.log('[useBlinkyChat] Native tool calls:', commands)
       }
+      console.log('[useBlinkyChat] Text reply:', textReply.substring(0, 80) + '...')
 
-      const assistantMessage = { role: 'assistant', content: assistantContent }
+      const assistantMessage = { role: 'assistant', content: textReply }
       historyRef.current = [...historyRef.current, assistantMessage]
       console.log('[useBlinkyChat] History now has', historyRef.current.length, 'messages')
       setState({
@@ -181,8 +181,8 @@ Response: "Let's light it up! Neon colors across the whole cabinet! {"action": "
         history: historyRef.current
       })
 
-      // Return both response and commands
-      return { ...body, commands }
+      // Return both text reply (for TTS) and commands (for executor)
+      return { ...body, commands, textReply }
     } catch (err) {
       setState({
         loading: false,
