@@ -321,7 +321,8 @@ def test_mapping_apply_dry_run_and_backup_logging(tmp_path):
     assert "device_id" not in serialized_written
 
     # Verify log entry was written
-    log_file = drive_root / "logs" / "changes.jsonl"
+    # Golden Drive contract: logs move to .aa/logs/led/changes.jsonl
+    log_file = drive_root / ".aa" / "logs" / "led" / "changes.jsonl"
     assert log_file.exists()
     last_entry = json.loads(log_file.read_text().strip().splitlines()[-1])
     assert last_entry["action"] == "mapping_apply"

@@ -13,8 +13,9 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from urllib.parse import quote
 
+import asyncio
 from fastapi import APIRouter, HTTPException, Request, Query
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.routers.content_manager import _load_content_paths  # reuse existing path loader
 from backend.services.launchbox_parser import parser
@@ -75,36 +76,45 @@ def get_default_marquee_config(drive_root: Path) -> Dict[str, Any]:
     }
 
 
-def load_marquee_config(request: Optional[Request]) -> Dict[str, Any]:
+async def load_marquee_config(request: Optional[Request]) -> Dict[str, Any]:
     drive_root = _drive_root(request)
     target = _config_path(request)
-    data = None
-    try:
-        if target.exists():
-            data = json.loads(target.read_text(encoding="utf-8"))
-    except Exception:
+
+    def _do_load():
         data = None
+        try:
+            if target.exists():
+                data = json.loads(target.read_text(encoding="utf-8"))
+        except Exception:
+            data = None
+        return data
+
+    data = await asyncio.to_thread(_do_load)
 
     if not isinstance(data, dict):
         data = get_default_marquee_config(drive_root)
-        save_marquee_config(data, request, allow_backup=False)
+        await save_marquee_config(data, request, allow_backup=False)
     return data
 
 
-def save_marquee_config(cfg: Dict[str, Any], request: Optional[Request], allow_backup: bool = True) -> None:
+async def save_marquee_config(cfg: Dict[str, Any], request: Optional[Request], allow_backup: bool = True) -> None:
     target = _config_path(request)
     drive_root = _drive_root(request)
-    target.parent.mkdir(parents=True, exist_ok=True)
 
-    if allow_backup and target.exists():
-        backup_dir = drive_root / ".aa" / "backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = Path(target.name).stem + "_backup"
-        shutil.copy2(target, backup_dir / f"{timestamp}.json")
+    def _do_save():
+        target.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp = target.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    tmp.replace(target)
+        if allow_backup and target.exists():
+            backup_dir = drive_root / ".aa" / "backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = Path(target.name).stem + "_backup"
+            shutil.copy2(target, backup_dir / f"{timestamp}.json")
+
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        tmp.replace(target)
+
+    await asyncio.to_thread(_do_save)
 
 
 # -----------------------------------------------------------------------------
@@ -128,7 +138,8 @@ class MarqueeBehavior(BaseModel):
     use_video_if_available: bool = True
     fallback_mode: str = Field("system", description="system|global|black")
 
-    @validator("fallback_mode")
+    @field_validator("fallback_mode")
+    @classmethod
     def validate_mode(cls, v: str) -> str:
         allowed = {"system", "global", "black"}
         if v not in allowed:
@@ -155,7 +166,7 @@ class MarqueeConfig(BaseModel):
 
 @router.get("/config")
 async def get_config(request: Request):
-    cfg = load_marquee_config(request)
+    cfg = await load_marquee_config(request)
     return cfg
 
 
@@ -163,7 +174,7 @@ async def get_config(request: Request):
 async def post_config(payload: MarqueeConfig, request: Request):
     cfg = payload.model_dump()
     try:
-        save_marquee_config(cfg, request)
+        await save_marquee_config(cfg, request)
         return {"ok": True, "config": cfg}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save marquee config: {e}")
@@ -171,7 +182,7 @@ async def post_config(payload: MarqueeConfig, request: Request):
 
 @router.post("/test-image")
 async def test_image(request: Request):
-    cfg = load_marquee_config(request)
+    cfg = await load_marquee_config(request)
     images_root = (cfg.get("paths") or {}).get("images_root")
     exists = bool(images_root) and Path(images_root).exists()
     return {
@@ -183,7 +194,7 @@ async def test_image(request: Request):
 
 @router.post("/test-video")
 async def test_video(request: Request):
-    cfg = load_marquee_config(request)
+    cfg = await load_marquee_config(request)
     videos_root = (cfg.get("paths") or {}).get("videos_root")
     exists = bool(videos_root) and Path(videos_root).exists()
     return {
@@ -1019,14 +1030,16 @@ class MarqueeMessagePayload(BaseModel):
     source: Optional[str] = Field(None, description="Source module/component (optional)")
     sticky: bool = Field(False, description="If true, message persists until manually cleared")
 
-    @validator("type")
+    @field_validator("type")
+    @classmethod
     def validate_type(cls, v: str) -> str:
         allowed = {"message", "alert"}
         if v not in allowed:
             raise ValueError(f"type must be one of {sorted(allowed)}")
         return v
 
-    @validator("severity")
+    @field_validator("severity")
+    @classmethod
     def validate_severity(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None

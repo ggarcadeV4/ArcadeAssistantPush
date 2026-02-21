@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -309,26 +310,30 @@ class MappingApplyResponse(BaseModel):
 
 
 # Utility functions
-def log_controller_change(request: Request, drive_root: Path, action: str, details: Dict[str, Any], backup_path: Optional[Path] = None):
+async def log_controller_change(request: Request, drive_root: Path, action: str, details: Dict[str, Any], backup_path: Optional[Path] = None):
     """Log Controller Chuck changes to changes.jsonl"""
     log_file = drive_root / ".aa" / "logs" / "changes.jsonl"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    device = request.headers.get('x-device-id', 'unknown') if hasattr(request, 'headers') else 'unknown'
-    panel = request.headers.get('x-panel', 'controller') if hasattr(request, 'headers') else 'controller'
+    def _do_log():
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "scope": "controller",
-        "action": action,
-        "details": details,
-        "backup_path": str(backup_path) if backup_path else None,
-        "device": device,
-        "panel": panel,
-    }
+        device = request.headers.get('x-device-id', 'unknown') if hasattr(request, 'headers') else 'unknown'
+        panel = request.headers.get('x-panel', 'controller') if hasattr(request, 'headers') else 'controller'
 
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(log_entry) + "\n")
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "scope": "controller",
+            "action": action,
+            "details": details,
+            "backup_path": str(backup_path) if backup_path else None,
+            "device": device,
+            "panel": panel,
+        }
+
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry) + "\n")
+
+    await asyncio.to_thread(_do_log)
 
 
 def _teach_event_log_path(drive_root: Path) -> Path:
@@ -337,13 +342,15 @@ def _teach_event_log_path(drive_root: Path) -> Path:
     return path
 
 
-def _record_teach_event(drive_root: Path, event: InputEvent) -> None:
+async def _record_teach_event(drive_root: Path, event: InputEvent) -> None:
     """Append detected events so Teach Wizard can render real data."""
     try:
         payload = _serialize_input_event(event)
         payload["raw_timestamp"] = event.timestamp
-        with open(_teach_event_log_path(drive_root), "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload) + "\n")
+        def _do_record():
+            with open(_teach_event_log_path(drive_root), "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload) + "\n")
+        await asyncio.to_thread(_do_record)
     except Exception:  # pragma: no cover - best-effort logging only
         logger.debug("Failed to persist teach event", exc_info=True)
 
@@ -2139,7 +2146,7 @@ async def detect_input_event(
 
     global _latest_input_event
     _latest_input_event = event
-    _record_teach_event(drive_root, event)
+    await _record_teach_event(drive_root, event)
     logger.info(
         "Input detection manual event: key=%s pin=%s control=%s",
         event.keycode,

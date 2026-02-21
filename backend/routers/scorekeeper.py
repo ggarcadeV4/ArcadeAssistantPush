@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Query, Body
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import os
@@ -89,17 +89,15 @@ class ScorekeeperRestoreRequest(BaseModel):
     )
     dry_run: Optional[bool] = None
 
-    @root_validator(skip_on_failure=True)
-    def validate_target(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        backup_path = values.get("backup_path")
-        strategy = values.get("strategy")
-        if not backup_path and not strategy:
+    @model_validator(mode="after")
+    def validate_target(self) -> "ScorekeeperRestoreRequest":
+        if not self.backup_path and not self.strategy:
             raise ValueError("Provide either backup_path or strategy.")
-        if backup_path and strategy:
+        if self.backup_path and self.strategy:
             raise ValueError("Specify backup_path or strategy, not both.")
-        if strategy and strategy != "last":
+        if self.strategy and self.strategy != "last":
             raise ValueError("Unsupported strategy. Allowed: 'last'.")
-        return values
+        return self
 
 class ScorekeeperUndoRequest(BaseModel):
     """Optional payload for undo (allows forcing dry-run)."""
@@ -174,46 +172,50 @@ def _resolve_frontend_source(request: Request, runtime_state: Dict[str, Any], is
             return frontend
     return 'unknown'
 
-def list_tournaments(drive_root: Path) -> List[Dict[str, Any]]:
-    tdir = get_scorekeeper_dir(drive_root) / "tournaments"
-    if not tdir.exists():
-        return []
-    items: List[Dict[str, Any]] = []
-    for p in tdir.glob("*.json"):
-        try:
-            with open(p, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                items.append({
-                    "id": data.get("id") or p.stem,
-                    "name": data.get("name", p.stem),
-                    "status": data.get("status", "unknown"),
-                    "player_count": data.get("player_count"),
-                    "created_at": data.get("created_at"),
-                    "path": str(p.relative_to(drive_root))
-                })
-        except Exception:
-            continue
-    # Sort newest first by created_at
-    def _ts(x):
-        try:
-            return datetime.fromisoformat(x.get("created_at") or "1970-01-01T00:00:00")
-        except Exception:
-            return datetime(1970,1,1)
-    items.sort(key=_ts, reverse=True)
-    return items
+async def list_tournaments(drive_root: Path) -> List[Dict[str, Any]]:
+    def _do_list():
+        tdir = get_scorekeeper_dir(drive_root) / "tournaments"
+        if not tdir.exists():
+            return []
+        items: List[Dict[str, Any]] = []
+        for p in tdir.glob("*.json"):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    items.append({
+                        "id": data.get("id") or p.stem,
+                        "name": data.get("name", p.stem),
+                        "status": data.get("status", "unknown"),
+                        "player_count": data.get("player_count"),
+                        "created_at": data.get("created_at"),
+                        "path": str(p.relative_to(drive_root))
+                    })
+            except Exception:
+                continue
+        # Sort newest first by created_at
+        def _ts(x):
+            try:
+                return datetime.fromisoformat(x.get("created_at") or "1970-01-01T00:00:00")
+            except Exception:
+                return datetime(1970, 1, 1)
+        items.sort(key=_ts, reverse=True)
+        return items
+    return await asyncio.to_thread(_do_list)
 
-def read_scores(scores_file: Path) -> List[Dict[str, Any]]:
+async def read_scores(scores_file: Path) -> List[Dict[str, Any]]:
     """Read all scores from scores.jsonl"""
-    if not scores_file.exists():
-        return []
+    def _do_read():
+        if not scores_file.exists():
+            return []
 
-    scores = []
-    with open(scores_file, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                scores.append(json.loads(line))
-    return scores
+        scores = []
+        with open(scores_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    scores.append(json.loads(line))
+        return scores
+    return await asyncio.to_thread(_do_read)
 
 
 def _normalize_game_name(value: Optional[str]) -> str:
@@ -234,7 +236,7 @@ def get_high_scores_index_file(drive_root: Path) -> Path:
     return get_scorekeeper_dir(drive_root) / "high_scores_index.json"
 
 
-def build_high_scores_index(drive_root: Path, top_n: int = 10) -> Dict[str, Any]:
+async def build_high_scores_index(drive_root: Path, top_n: int = 10) -> Dict[str, Any]:
     """
     Build the high scores index from scores.jsonl.
     
@@ -249,7 +251,7 @@ def build_high_scores_index(drive_root: Path, top_n: int = 10) -> Dict[str, Any]
         The high scores index dictionary
     """
     scores_file = get_scores_file(drive_root)
-    all_scores = read_scores(scores_file)
+    all_scores = await read_scores(scores_file)
     
     # Group scores by game title
     # Key: game_title (string), Value: list of score entries
@@ -313,7 +315,7 @@ def build_high_scores_index(drive_root: Path, top_n: int = 10) -> Dict[str, Any]
     }
 
 
-def save_high_scores_index(drive_root: Path, index: Dict[str, Any]) -> Path:
+async def save_high_scores_index(drive_root: Path, index: Dict[str, Any]) -> Path:
     """
     Save the high scores index to disk.
     
@@ -324,19 +326,29 @@ def save_high_scores_index(drive_root: Path, index: Dict[str, Any]) -> Path:
     Returns:
         The path where the index was saved
     """
-    index_file = get_high_scores_index_file(drive_root)
-    index_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    tmp = index_file.with_suffix(".tmp")
-    with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump(index, f, indent=2)
-    tmp.replace(index_file)
-    
+    def _do_save():
+        index_file = get_high_scores_index_file(drive_root)
+        index_file.parent.mkdir(parents=True, exist_ok=True)
+
+        tmp = index_file.with_suffix(".tmp")
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2)
+        tmp.replace(index_file)
+        return index_file
+
+    index_file = await asyncio.to_thread(_do_save)
     logger.info("high_scores_index_saved", path=str(index_file), game_count=len(index.get("games", [])))
     return index_file
 
 
-def load_high_scores_index(drive_root: Path, regenerate_if_stale: bool = True) -> Dict[str, Any]:
+async def regenerate_high_scores_index(drive_root: Path) -> Dict[str, Any]:
+    """Helper to rebuild and save the index."""
+    index = await build_high_scores_index(drive_root)
+    await save_high_scores_index(drive_root, index)
+    return index
+
+
+async def load_high_scores_index(drive_root: Path, regenerate_if_stale: bool = True) -> Dict[str, Any]:
     """
     Load the high scores index, optionally regenerating if stale.
     
@@ -369,20 +381,22 @@ def load_high_scores_index(drive_root: Path, regenerate_if_stale: bool = True) -
             logger.info("high_scores_index_stale", action="will_rebuild")
     
     if needs_rebuild and regenerate_if_stale:
-        index = build_high_scores_index(drive_root)
-        save_high_scores_index(drive_root, index)
+        index = await build_high_scores_index(drive_root)
+        await save_high_scores_index(drive_root, index)
         return index
     
     # Load existing index
     if index_file.exists():
         try:
-            with open(index_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            def _do_load():
+                with open(index_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return await asyncio.to_thread(_do_load)
         except Exception as e:
             logger.warning("high_scores_index_load_failed", error=str(e))
             # Fall back to rebuilding
-            index = build_high_scores_index(drive_root)
-            save_high_scores_index(drive_root, index)
+            index = await build_high_scores_index(drive_root)
+            await save_high_scores_index(drive_root, index)
             return index
     
     # No scores at all - return empty index
@@ -660,7 +674,7 @@ async def get_cabinet_high_scores(request: Request):
     """
     try:
         drive_root = request.app.state.drive_root
-        index = load_high_scores_index(drive_root, regenerate_if_stale=True)
+        index = await load_high_scores_index(drive_root, regenerate_if_stale=True)
         
         return {
             "status": "ok",
@@ -686,7 +700,7 @@ async def get_game_high_scores(
     """
     try:
         drive_root = request.app.state.drive_root
-        index = load_high_scores_index(drive_root, regenerate_if_stale=True)
+        index = await load_high_scores_index(drive_root, regenerate_if_stale=True)
         games = index.get("games", []) or []
 
         def _match(g: Dict[str, Any]) -> bool:
@@ -730,7 +744,7 @@ async def get_scores_by_game(request: Request):
     """
     try:
         drive_root = request.app.state.drive_root
-        index = load_high_scores_index(drive_root, regenerate_if_stale=True)
+        index = await load_high_scores_index(drive_root, regenerate_if_stale=True)
         
         # Return the games array directly for frontend compatibility
         games = index.get("games", [])
@@ -872,7 +886,7 @@ async def restore_scorekeeper_state(request: Request, payload: ScorekeeperRestor
 async def list_tournaments_route(request: Request):
     try:
         drive_root = request.app.state.drive_root
-        items = list_tournaments(drive_root)
+        items = await list_tournaments(drive_root)
         return {"count": len(items), "tournaments": items}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -888,7 +902,7 @@ async def get_leaderboard(
         scores_file = get_scores_file(drive_root)
 
         # Read all scores
-        all_scores = read_scores(scores_file)
+        all_scores = await read_scores(scores_file)
 
         # Filter by game if specified (case/punctuation insensitive)
         if game:
@@ -923,8 +937,10 @@ async def preview_score_submit(request: Request, score_data: ScoreSubmit):
         # Read current content
         current_content = ""
         if scores_file.exists():
-            with open(scores_file, 'r', encoding='utf-8') as f:
-                current_content = f.read()
+            def _do_read():
+                with open(scores_file, 'r', encoding='utf-8') as f:
+                    return f.read()
+            current_content = await asyncio.to_thread(_do_read)
 
         # Create new entry
         new_entry = {
@@ -1066,8 +1082,10 @@ async def apply_score_submit(request: Request, score_data: ScoreSubmit):
             entry["publicLeaderboardEligible"] = score_data.publicLeaderboardEligible
 
         # Append to file
-        with open(scores_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(entry) + '\n')
+        def _do_append():
+            with open(scores_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry) + '\n')
+        await asyncio.to_thread(_do_append)
 
         # ========================================
         # SUPABASE MIRROR (best-effort, non-blocking)
@@ -1219,8 +1237,10 @@ async def _apply_tournament_create_impl(
     }
 
     # Write tournament file
-    with open(tournament_file, 'w', encoding='utf-8') as f:
-        json.dump(tournament, f, indent=2)
+    def _do_write():
+        with open(tournament_file, 'w', encoding='utf-8') as f:
+            json.dump(tournament, f, indent=2)
+    await asyncio.to_thread(_do_write)
 
     # Log change
     log_details = {
@@ -1277,16 +1297,17 @@ async def get_tournament(request: Request, tournament_id: str):
         drive_root = request.app.state.drive_root
         tournament_file = get_tournament_file(drive_root, tournament_id)
 
-        if not tournament_file.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Tournament not found: {tournament_id}"
-            )
+        def _do_get():
+            if not tournament_file.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Tournament not found: {tournament_id}"
+                )
 
-        with open(tournament_file, 'r', encoding='utf-8') as f:
-            tournament = json.load(f)
+            with open(tournament_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
 
-        return tournament
+        return await asyncio.to_thread(_do_get)
 
     except HTTPException:
         raise
@@ -1300,16 +1321,19 @@ async def preview_tournament_report(request: Request, report_data: TournamentRep
         drive_root = request.app.state.drive_root
         tournament_file = get_tournament_file(drive_root, report_data.tournament_id)
 
-        if not tournament_file.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Tournament not found: {report_data.tournament_id}"
-            )
+        def _do_read():
+            if not tournament_file.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Tournament not found: {report_data.tournament_id}"
+                )
 
-        # Read current tournament
-        with open(tournament_file, 'r', encoding='utf-8') as f:
-            old_content = f.read()
-            tournament = json.loads(old_content)
+            # Read current tournament
+            with open(tournament_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                return content, json.loads(content)
+
+        old_content, tournament = await asyncio.to_thread(_do_read)
 
         # Find and update match
         if report_data.match_index >= len(tournament["matches"]):
@@ -1396,8 +1420,10 @@ async def apply_tournament_report(request: Request, report_data: TournamentRepor
             file_backup_path = create_backup(tournament_file, drive_root)
 
         # Read current tournament
-        with open(tournament_file, 'r', encoding='utf-8') as f:
-            tournament = json.load(f)
+        def _do_read():
+            with open(tournament_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        tournament = await asyncio.to_thread(_do_read)
 
         # Find and update match
         if report_data.match_index >= len(tournament["matches"]):
@@ -1436,8 +1462,10 @@ async def apply_tournament_report(request: Request, report_data: TournamentRepor
                 next_match["status"] = "pending"
 
         # Write updated tournament
-        with open(tournament_file, 'w', encoding='utf-8') as f:
-            json.dump(tournament, f, indent=2)
+        def _do_write():
+            with open(tournament_file, 'w', encoding='utf-8') as f:
+                json.dump(tournament, f, indent=2)
+        await asyncio.to_thread(_do_write)
 
         # Log change
         log_scorekeeper_change(
@@ -3114,8 +3142,8 @@ async def get_player_championship_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/highscores/{game}")
-async def get_game_highscores(
+@router.get("/highscores/legacy/{game}")
+async def get_game_highscores_legacy(
     request: Request,
     game: str,
     limit: int = Query(10, description="Number of scores to return")
@@ -3129,28 +3157,35 @@ async def get_game_highscores(
         drive_root = request.app.state.drive_root
         scores_file = get_scores_file(drive_root)
         
-        if not scores_file.exists():
-            return {
-                "game": game,
-                "highscores": [],
-                "total_scores": 0
-            }
-        
-        # Load all scores for this game
-        game_lower = game.lower()
-        scores = []
-        
-        with open(scores_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                    if entry.get("game", "").lower() == game_lower:
-                        scores.append(entry)
-                except json.JSONDecodeError:
-                    continue
+        def _do_read():
+            if not scores_file.exists():
+                return {
+                    "game": game,
+                    "highscores": [],
+                    "total_scores": 0
+                }
+
+            # Load all scores for this game
+            game_lower = game.lower()
+            scores_list = []
+
+            with open(scores_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        if entry.get("game", "").lower() == game_lower:
+                            scores_list.append(entry)
+                    except json.JSONDecodeError:
+                        continue
+            return scores_list
+
+        scores_result = await asyncio.to_thread(_do_read)
+        if isinstance(scores_result, dict):
+            return scores_result
+        scores = scores_result
         
         # Sort by score descending
         scores.sort(key=lambda x: x.get("score", 0), reverse=True)
@@ -3262,7 +3297,7 @@ async def sync_mame_hiscores(request: Request):
                 synced_count += len(entries)
 
             try:
-                regenerate_high_scores_index(drive_root)
+                await regenerate_high_scores_index(drive_root)
             except Exception:
                 pass
 
@@ -3315,7 +3350,7 @@ async def sync_mame_hiscores(request: Request):
         if fallback_scores:
             watcher.save_scores(fallback_scores)
             try:
-                regenerate_high_scores_index(drive_root)
+                await regenerate_high_scores_index(drive_root)
             except Exception:
                 pass
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from pathlib import Path
 from typing import Dict, Any, Optional
+import asyncio
 import json
 from datetime import datetime
 
@@ -50,11 +51,13 @@ async def preview_config_changes(request: Request, preview_req: PreviewRequest):
             validate_file_extension(target_path, preview_req.emulator, policies)
 
         # Read current content
-        if target_path.exists():
-            with open(target_path, 'r', encoding='utf-8') as f:
-                current_content = f.read()
-        else:
-            current_content = ""
+        def _do_read():
+            if target_path.exists():
+                with open(target_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            return ""
+
+        current_content = await asyncio.to_thread(_do_read)
 
         # Apply patch to create new content
         if preview_req.emulator:
@@ -129,13 +132,16 @@ async def apply_config_changes(request: Request, apply_req: ApplyRequest):
         filtered_patch = filter_allowed_keys(apply_req.patch, apply_req.emulator, policies)
 
         # Read current content
-        if target_path.exists():
-            with open(target_path, 'r', encoding='utf-8') as f:
-                current_content = f.read()
-        else:
-            current_content = ""
-            # Ensure parent directory exists
-            target_path.parent.mkdir(parents=True, exist_ok=True)
+        def _do_read():
+            if target_path.exists():
+                with open(target_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            else:
+                # Ensure parent directory exists
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                return ""
+
+        current_content = await asyncio.to_thread(_do_read)
 
         # Apply patch
         new_lines = current_content.splitlines() if current_content else []
@@ -175,11 +181,14 @@ async def apply_config_changes(request: Request, apply_req: ApplyRequest):
                 backup_path = create_backup(target_path, drive_root)
 
             # Write new content
-            with open(target_path, 'w', encoding='utf-8') as f:
-                f.write(new_content)
+            def _do_write():
+                with open(target_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+
+            await asyncio.to_thread(_do_write)
 
             # Log change (enriched)
-            log_change(request, drive_root, apply_req.target_file, "config", filtered_patch, backup_path, result="applied", ops_count=len(filtered_patch))
+            await log_change(request, drive_root, apply_req.target_file, "config", filtered_patch, backup_path, result="applied", ops_count=len(filtered_patch))
 
         return {
             "status": "applied" if not effective_dry else "preview",
@@ -265,7 +274,7 @@ async def restore_config(request: Request, restore_req: RestoreRequest):
         restore_from_backup(backup_path, target_path)
 
         # Log restore
-        log_change(request, drive_root, restore_req.target_file, "restore",
+        await log_change(request, drive_root, restore_req.target_file, "restore",
                   {"backup_path": str(backup_path)}, None, result="restored")
 
         return {
@@ -279,25 +288,30 @@ async def restore_config(request: Request, restore_req: RestoreRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def log_change(request: Request, drive_root: Path, target_file: str, scope: str, patch: Dict[str, Any], backup_path: Optional[Path], result: Optional[str] = None, duration_ms: Optional[float] = None, ops_count: Optional[int] = None):
+async def log_change(request: Request, drive_root: Path, target_file: str, scope: str, patch: Dict[str, Any], backup_path: Optional[Path], result: Optional[str] = None, duration_ms: Optional[float] = None, ops_count: Optional[int] = None):
     """Log change to changes.jsonl with enriched metadata"""
 
     log_file = drive_root / ".aa" / "logs" / "changes.jsonl"
-    device = request.headers.get('x-device-id', '') if hasattr(request, 'headers') else ''
-    panel = request.headers.get('x-panel', '') if hasattr(request, 'headers') else ''
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "target_file": target_file,
-        "scope": scope,
-        "patch_keys": list(patch.keys()) if isinstance(patch, dict) else [],
-        "backup_path": str(backup_path) if backup_path else None,
-        "device": device,
-        "panel": panel,
-        "result": result,
-        "duration_ms": duration_ms,
-        "ops_count": ops_count,
-    }
 
-    # Append to log file
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(log_entry) + "\n")
+    def _do_log():
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        device = request.headers.get('x-device-id', '') if hasattr(request, 'headers') else ''
+        panel = request.headers.get('x-panel', '') if hasattr(request, 'headers') else ''
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "target_file": target_file,
+            "scope": scope,
+            "patch_keys": list(patch.keys()) if isinstance(patch, dict) else [],
+            "backup_path": str(backup_path) if backup_path else None,
+            "device": device,
+            "panel": panel,
+            "result": result,
+            "duration_ms": duration_ms,
+            "ops_count": ops_count,
+        }
+
+        # Append to log file
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry) + "\n")
+
+    await asyncio.to_thread(_do_log)

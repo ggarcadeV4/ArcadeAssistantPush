@@ -4,26 +4,26 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field, validator, model_validator
-import os, asyncio
-from ..services.supabase_client import send_telemetry as sb_send_telemetry
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..services.blinky_service import BlinkyProcessManager, BlinkyService
+from ..services.launchbox_parser import parser
+from ..services.led_calibration_service import LEDCalibrationService
 from ..services.led_engine import get_led_engine
 from ..services.led_engine.led_channel_mapping_service import LEDChannelMappingService
 from ..services.led_engine.state import LEDChannelAssignment
 from ..services.led_engine.ws_protocol import InvalidLEDMessage, parse_ws_message
 from ..services.led_game_profiles import LEDGameProfileStore
 from ..services.led_mapping_service import LEDMappingService
-from ..services.launchbox_parser import parser
 from ..services.policies import require_scope
-from ..services.blinky_service import BlinkyService
-from ..services.led_calibration_service import LEDCalibrationService
+from ..services.supabase_client import send_telemetry as sb_send_telemetry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -60,14 +60,14 @@ def _remove_ws_client(app_state, connection_id: str) -> None:
 
 
 class LEDButtonSetting(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     color: str = Field(..., description="Hex color code such as #FFAA00")
     pattern: Optional[str] = Field(default=None, description="Optional animation pattern")
     brightness: Optional[int] = Field(default=None, ge=0, le=100)
 
-    class Config:
-        extra = "allow"
-
-    @validator("color")
+    @field_validator("color")
+    @classmethod
     def validate_color(cls, value: str) -> str:
         if not isinstance(value, str) or not value.strip():
             raise ValueError("color must be a non-empty string")
@@ -82,7 +82,8 @@ class LEDProfilePayload(BaseModel):
     animation: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    @validator("buttons")
+    @field_validator("buttons")
+    @classmethod
     def validate_buttons(cls, value: Dict[str, LEDButtonSetting]) -> Dict[str, LEDButtonSetting]:
         if not value:
             raise ValueError("buttons payload cannot be empty")
@@ -308,7 +309,7 @@ def _build_channel_document(
     return working
 
 
-def _log_profile_event(
+async def _log_profile_event(
     request: Request,
     action: str,
     target_file: str,
@@ -320,27 +321,31 @@ def _log_profile_event(
 ) -> None:
     drive_root = request.app.state.drive_root
     log_file = drive_root / ".aa" / "logs" / "led" / "changes.jsonl"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "scope": "led_profile",
-        "action": action,
-        "status": status,
-        "target_file": target_file,
-        "backup_path": backup_path,
-        "profile_name": profile_name,
-        "profile_scope": scope,
-        "total_channels": total_channels,
-        "device": request.headers.get("x-device-id", "unknown"),
-        "panel": request.headers.get("x-panel", "unknown"),
-    }
+    def _do_log():
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(log_file, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry) + "\n")
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "scope": "led_profile",
+            "action": action,
+            "status": status,
+            "target_file": target_file,
+            "backup_path": backup_path,
+            "profile_name": profile_name,
+            "profile_scope": scope,
+            "total_channels": total_channels,
+            "device": request.headers.get("x-device-id", "unknown"),
+            "panel": request.headers.get("x-panel", "unknown"),
+        }
+
+        with open(log_file, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry) + "\n")
+
+    await asyncio.to_thread(_do_log)
 
 
-def _log_binding_event(
+async def _log_binding_event(
     request: Request,
     action: str,
     game_id: str,
@@ -349,21 +354,25 @@ def _log_binding_event(
 ) -> None:
     drive_root = request.app.state.drive_root
     log_file = drive_root / ".aa" / "logs" / "led" / "changes.jsonl"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "scope": "led_game_profile",
-        "action": action,
-        "game_id": game_id,
-        "payload": payload,
-        "backup_path": backup_path,
-        "device": request.headers.get("x-device-id", "unknown"),
-        "panel": request.headers.get("x-panel", "unknown"),
-    }
+    def _do_log():
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(log_file, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry) + "\n")
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "scope": "led_game_profile",
+            "action": action,
+            "game_id": game_id,
+            "payload": payload,
+            "backup_path": backup_path,
+            "device": request.headers.get("x-device-id", "unknown"),
+            "panel": request.headers.get("x-panel", "unknown"),
+        }
+
+        with open(log_file, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry) + "\n")
+
+    await asyncio.to_thread(_do_log)
 
 
 async def _resolve_game_metadata(game_id: str) -> Dict[str, Any]:
@@ -682,7 +691,7 @@ async def preview_led_profile(request: Request, payload: LEDProfilePayload) -> D
     preview_result = service.preview(payload.dict())
     preview = preview_result.response
 
-    _log_profile_event(
+    await _log_profile_event(
         request,
         action="led_profile_preview",
         status="preview",
@@ -723,7 +732,7 @@ async def apply_led_profile(request: Request, payload: LEDProfileApplyRequest) -
     )
 
     status = write_result["status"]
-    _log_profile_event(
+    await _log_profile_event(
         request,
         action="led_profile_apply",
         status=status,
@@ -1032,7 +1041,7 @@ async def apply_led_game_profile(
     )
     backup_path = record.pop("backup_path", None)
 
-    _log_binding_event(
+    await _log_binding_event(
         request,
         action="bind_game_profile",
         game_id=game["id"],
@@ -1059,7 +1068,7 @@ async def delete_led_game_profile(request: Request, game_id: str) -> Dict[str, A
     require_scope(request, "config")
     store = _binding_store_from_request(request)
     backup_path = store.delete_binding(game_id)
-    _log_binding_event(
+    await _log_binding_event(
         request,
         action="unbind_game_profile",
         game_id=game_id,
@@ -1967,7 +1976,6 @@ async def blinky_set_game(request: Request, game_name: str) -> Dict[str, Any]:
 # These endpoints implement the "Blinky Bridge" pattern with throttling
 # for UI scrolling events and immediate execution for game launches.
 
-from ..services.blinky_service import BlinkyProcessManager
 
 class GameSelectionPayload(BaseModel):
     """Payload for game selection (debounced).

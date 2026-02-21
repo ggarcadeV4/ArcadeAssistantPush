@@ -23,9 +23,9 @@ from fastapi.testclient import TestClient
 
 # Test imports
 from backend.routers.scorekeeper import (
-    get_launchbox_highscores,
-    launchbox_autosubmit,
-    LaunchBoxAutoSubmit,
+    get_game_highscores,
+    game_autosubmit,
+    GameAutoSubmit,
     get_scorekeeper_dir,
     get_scores_file,
 )
@@ -129,7 +129,7 @@ class TestModelValidation:
 
     def test_tournament_config_duplicate_players(self):
         """Test duplicate player removal with warning."""
-        with pytest.warns(None):  # Should log warning but not fail
+        if True:  # Should log warning but not fail
             config = TournamentConfig(
                 name="Duplicate Test",
                 players=["Alice", "Bob", "Alice", "Charlie", "Bob"],
@@ -145,7 +145,7 @@ class TestModelValidation:
         assert valid.mode == "casual"
 
         # Invalid mode defaults to casual
-        with pytest.warns(None):
+        if True:
             invalid = SeedingMode(mode="invalid_mode")
             assert invalid.mode == "casual"
 
@@ -187,7 +187,7 @@ class TestHighscoresEndpoint:
             json.dump(mock_highscores_data, f)
 
         with patch('os.getenv', return_value=str(tmp_path)):
-            result = await get_launchbox_highscores(mock_request, "game-123", limit=10)
+            result = await get_game_highscores(mock_request, "game-123", limit=10)
 
         assert result["game_id"] == "game-123"
         assert result["game_title"] == "Pac-Man"
@@ -206,7 +206,7 @@ class TestHighscoresEndpoint:
             json.dump(mock_highscores_data, f)
 
         with patch('os.getenv', return_value=str(tmp_path)):
-            result = await get_launchbox_highscores(mock_request, "game-123", limit=2)
+            result = await get_game_highscores(mock_request, "game-123", limit=2)
 
         assert len(result["scores"]) == 2
         assert result["total_count"] == 3  # Total still shows all scores
@@ -215,7 +215,7 @@ class TestHighscoresEndpoint:
     async def test_get_highscores_file_not_found(self, mock_request, tmp_path):
         """Test graceful handling when HighScores.json missing."""
         with patch('os.getenv', return_value=str(tmp_path)):
-            result = await get_launchbox_highscores(mock_request, "game-999", limit=10)
+            result = await get_game_highscores(mock_request, "game-999", limit=10)
 
         assert result["game_id"] == "game-999"
         assert result["game_title"] == "Unknown"
@@ -233,7 +233,7 @@ class TestHighscoresEndpoint:
 
         with patch('os.getenv', return_value=str(tmp_path)):
             with pytest.raises(HTTPException) as exc_info:
-                await get_launchbox_highscores(mock_request, "game-123", limit=10)
+                await get_game_highscores(mock_request, "game-123", limit=10)
 
         assert exc_info.value.status_code == 500
         assert "parse" in str(exc_info.value.detail).lower()
@@ -247,7 +247,7 @@ class TestHighscoresEndpoint:
             json.dump(mock_highscores_data, f)
 
         with patch('os.getenv', return_value=str(tmp_path)):
-            result = await get_launchbox_highscores(mock_request, "game-999", limit=10)
+            result = await get_game_highscores(mock_request, "game-999", limit=10)
 
         assert result["game_id"] == "game-999"
         assert result["game_title"] == "Unknown"
@@ -263,7 +263,7 @@ class TestAutoSubmitEndpoint:
     @pytest.mark.asyncio
     async def test_autosubmit_success(self, mock_request, temp_scores_dir):
         """Test successful score auto-submission."""
-        submit_data = LaunchBoxAutoSubmit(
+        submit_data = GameAutoSubmit(
             game_id="game-123",
             game_title="Pac-Man",
             player="Alice",
@@ -273,7 +273,7 @@ class TestAutoSubmitEndpoint:
         )
 
         with patch('os.getenv', return_value=str(temp_scores_dir.parent.parent)):
-            result = await launchbox_autosubmit(mock_request, submit_data)
+            result = await game_autosubmit(mock_request, submit_data)
 
         assert result["status"] == "submitted"
         assert result["game_id"] == "game-123"
@@ -289,13 +289,13 @@ class TestAutoSubmitEndpoint:
             entry = json.loads(f.readline())
             assert entry["game_id"] == "game-123"
             assert entry["player"] == "Alice"
-            assert entry["source"] == "launchbox_autosubmit"
+            assert entry["source"] == "game_autosubmit"
 
     @pytest.mark.asyncio
     async def test_autosubmit_leaderboard_rank(self, mock_request, temp_scores_dir):
         """Test leaderboard rank calculation with multiple scores."""
         # Submit first score
-        submit1 = LaunchBoxAutoSubmit(
+        submit1 = GameAutoSubmit(
             game_id="game-123",
             game_title="Pac-Man",
             player="Alice",
@@ -303,23 +303,23 @@ class TestAutoSubmitEndpoint:
         )
 
         with patch('os.getenv', return_value=str(temp_scores_dir.parent.parent)):
-            result1 = await launchbox_autosubmit(mock_request, submit1)
+            result1 = await game_autosubmit(mock_request, submit1)
             assert result1["leaderboard_rank"] == 1
 
             # Submit higher score
-            submit2 = LaunchBoxAutoSubmit(
+            submit2 = GameAutoSubmit(
                 game_id="game-123",
                 game_title="Pac-Man",
                 player="Bob",
                 score=75000
             )
-            result2 = await launchbox_autosubmit(mock_request, submit2)
+            result2 = await game_autosubmit(mock_request, submit2)
             assert result2["leaderboard_rank"] == 1  # Bob is now #1
 
     @pytest.mark.asyncio
     async def test_autosubmit_tournament_detection(self, mock_request, temp_scores_dir):
         """Test tournament score detection (manual match update still required)."""
-        submit_data = LaunchBoxAutoSubmit(
+        submit_data = GameAutoSubmit(
             game_id="game-123",
             game_title="Pac-Man",
             player="Alice",
@@ -328,13 +328,13 @@ class TestAutoSubmitEndpoint:
         )
 
         with patch('os.getenv', return_value=str(temp_scores_dir.parent.parent)):
-            with patch('routers.scorekeeper.get_tournament_config') as mock_config:
+            with patch('backend.routers.scorekeeper.get_tournament_config') as mock_config:
                 # Mock tournament config with no active tournament
                 mock_config_instance = Mock()
                 mock_config_instance.resume_tournament = AsyncMock(return_value=None)
                 mock_config.return_value = mock_config_instance
 
-                result = await launchbox_autosubmit(mock_request, submit_data)
+                result = await game_autosubmit(mock_request, submit_data)
 
                 assert result["tournament_match_updated"] is False
                 # Score still logged even if tournament update fails
@@ -370,7 +370,7 @@ class TestPerformanceAndEdgeCases:
         with patch('os.getenv', return_value=str(tmp_path)):
             import time
             start = time.time()
-            result = await get_launchbox_highscores(mock_request, "game-500", limit=10)
+            result = await get_game_highscores(mock_request, "game-500", limit=10)
             duration = time.time() - start
 
         # Should complete quickly even with large file
@@ -382,14 +382,14 @@ class TestPerformanceAndEdgeCases:
     async def test_concurrent_autosubmits(self, mock_request, temp_scores_dir):
         """Test concurrent score submissions don't corrupt JSONL."""
         async def submit_score(player, score):
-            submit_data = LaunchBoxAutoSubmit(
+            submit_data = GameAutoSubmit(
                 game_id="game-123",
                 game_title="Pac-Man",
                 player=player,
                 score=score
             )
             with patch('os.getenv', return_value=str(temp_scores_dir.parent.parent)):
-                return await launchbox_autosubmit(mock_request, submit_data)
+                return await game_autosubmit(mock_request, submit_data)
 
         # Submit 10 scores concurrently
         tasks = [submit_score(f"Player{i}", i * 1000) for i in range(10)]
@@ -430,7 +430,7 @@ class TestEndToEndIntegration:
         scores_dir.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Auto-submit new high score
-        submit_data = LaunchBoxAutoSubmit(
+        submit_data = GameAutoSubmit(
             game_id="game-123",
             game_title="Pac-Man",
             player="Zoe",
@@ -438,7 +438,7 @@ class TestEndToEndIntegration:
         )
 
         with patch('os.getenv', return_value=str(tmp_path)):
-            submit_result = await launchbox_autosubmit(mock_request, submit_data)
+            submit_result = await game_autosubmit(mock_request, submit_data)
             assert submit_result["status"] == "submitted"
             assert submit_result["leaderboard_rank"] == 1
 
