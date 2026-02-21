@@ -37,10 +37,24 @@ const COLOR_NAME_MAP = {
   turquoise: '#40E0D0'
 }
 
+// ─── Theme Vocabulary (creative color interpretations) ────────────
+const LED_THEMES = {
+  sunset: ['#FF4500', '#FF6347', '#FF8C00', '#FFD700', '#FF69B4', '#DA70D6'],
+  ocean: ['#006994', '#0077BE', '#00CED1', '#20B2AA', '#48D1CC', '#7FFFD4'],
+  fire: ['#FF0000', '#FF4500', '#FF6600', '#FF8800', '#FFAA00', '#FFD700'],
+  ice: ['#E0FFFF', '#B0E0E6', '#87CEEB', '#ADD8E6', '#00BFFF', '#1E90FF'],
+  christmas: ['#B22222', '#228B22', '#FF0000', '#00FF00', '#FFD700', '#FFFFFF'],
+  halloween: ['#FF6600', '#800080', '#FF4500', '#9400D3', '#FF8C00', '#4B0082'],
+  retro: ['#FF0090', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'],
+  vaporwave: ['#FF71CE', '#B967FF', '#01CDFE', '#05FFA1', '#FFFB96', '#FF6B6B'],
+  forest: ['#228B22', '#006400', '#32CD32', '#8FBC8F', '#90EE90', '#2E8B57'],
+  neon: ['#FF00FF', '#00FF00', '#00FFFF', '#FFFF00', '#FF0080', '#8000FF'],
+}
+
 /**
  * Parse a color value - accepts hex codes or color names
- * @param {string} color - Color name or hex code
- * @returns {string} - Hex color code
+ * @param { string } color - Color name or hex code
+ * @returns { string } - Hex color code
  */
 function parseColor(color) {
   if (!color) return '#FFFFFF'
@@ -277,6 +291,48 @@ export async function executeLEDCommand(command, context) {
         console.log('[CommandExecutor] Button colors applied:', result)
 
         return { status: 'success', result, buttons: parsedButtons, color: hexColor }
+      }
+
+      case 'apply_theme': {
+        const { theme, player, game } = command
+        const themeName = (theme || '').toLowerCase().trim()
+        const themeColors = LED_THEMES[themeName]
+
+        if (!themeColors) {
+          const available = Object.keys(LED_THEMES).join(', ')
+          showToast?.(`Unknown theme "${theme}". Available: ${available}`, 'error')
+          return { status: 'error', reason: 'unknown_theme' }
+        }
+
+        // Build button mapping — distribute theme colors across buttons
+        const buttonMapping = {}
+        const players = player ? [player] : [1, 2, 3, 4]
+
+        for (const p of players) {
+          const btnCount = p <= 2 ? 8 : 4
+          for (let i = 1; i <= btnCount; i++) {
+            buttonMapping[`p${p}.button${i}`] = { color: themeColors[(i - 1) % themeColors.length] }
+          }
+          buttonMapping[`p${p}.start`] = { color: themeColors[0] }
+          buttonMapping[`p${p}.coin`] = { color: themeColors[themeColors.length - 1] }
+        }
+
+        const resolvedProfileName = game || 'default'
+        const scope = game ? 'game' : 'default'
+
+        const profilePayload = {
+          scope,
+          game: game || null,
+          profile_name: resolvedProfileName,
+          buttons: buttonMapping
+        }
+
+        console.log('[CommandExecutor] Applying theme:', themeName, profilePayload)
+        const result = await applyLEDProfile(profilePayload)
+        const target = player ? `Player ${player}` : 'All players'
+        showToast?.(`${target}: ${themeName} theme applied!`, 'success')
+
+        return { status: 'success', result, theme: themeName }
       }
 
       default:

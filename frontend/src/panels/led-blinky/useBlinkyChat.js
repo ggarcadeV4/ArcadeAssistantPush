@@ -75,6 +75,31 @@ AVAILABLE COMMANDS (include these as JSON in your response when needed):
 SUPPORTED COLOR NAMES:
 red, green, blue, yellow, purple, violet, magenta, pink, orange, cyan, white, black, lime, teal, aqua, gold, silver, crimson, coral, turquoise
 
+THEME COMMANDS:
+You can apply curated multi-color themes that distribute colors across all buttons automatically.
+Available themes: sunset, ocean, fire, ice, christmas, halloween, retro, vaporwave, forest, neon
+- {"action": "apply_theme", "theme": "sunset"} - Apply sunset gradient to all players
+- {"action": "apply_theme", "theme": "ocean", "player": 2} - Apply ocean theme to Player 2 only
+- {"action": "apply_theme", "theme": "christmas", "game": "Holiday Special"} - Per-game theme
+
+PLAYER TARGETING:
+When users say "player 1" or "player 2", use the "player" field:
+- {"action": "set_button_color", "buttons": "1-6", "color": "red", "player": 2} - Player 2 buttons red
+- {"action": "apply_theme", "theme": "fire", "player": 1} - Fire theme on Player 1 only
+
+CREATIVE INTERPRETATION:
+When users use creative/evocative language, map it to the closest theme:
+- "sunset vibes", "warm colors", "like a sunset" → sunset theme
+- "ocean feel", "underwater", "beach" → ocean theme
+- "make it hot", "flames", "lava" → fire theme
+- "frozen", "cool colors", "winter" → ice theme
+- "holiday", "festive", "merry christmas" → christmas theme
+- "spooky", "halloween mode" → halloween theme
+- "80s arcade", "classic arcade" → retro theme
+- "aesthetic", "lo-fi", "synthwave" → vaporwave theme
+- "nature", "jungle", "trees" → forest theme
+- "bright", "glow", "rave" → neon theme
+
 Keep responses concise (2-3 sentences) and actionable. You have full access to the Arcade Assistant's safe file modification system.
 
 EXAMPLES:
@@ -86,6 +111,15 @@ Response: "Setting all 6 buttons to red for Street Fighter! {"action": "set_butt
 
 User: "Make button 1 cyan and button 2 gold"
 Response: "I'll set those colors for you! {"action": "set_button_color", "buttons": "1", "color": "cyan"} {"action": "set_button_color", "buttons": "2", "color": "gold"}"
+
+User: "Give me sunset vibes"
+Response: "Bringing the sunset! Warm oranges, golds, and pinks across your whole panel. {"action": "apply_theme", "theme": "sunset"}"
+
+User: "Make player 2 look like the ocean"
+Response: "Diving in! Ocean blues and teals for Player 2. {"action": "apply_theme", "theme": "ocean", "player": 2}"
+
+User: "Go full rave mode"
+Response: "Let's light it up! Neon colors across the whole cabinet! {"action": "apply_theme", "theme": "neon"}"
 `
 
   const historyRef = useRef([])

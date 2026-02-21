@@ -22,3 +22,11 @@
   - **Infrastructure**: `start-aa.bat` now opens `/` (old-school dashboard) by default. Added dark bg to `.feature-hero` for transparent PNG fix. Build+deploy pipeline via robocopy to `A:\Arcade Assistant Local\frontend\dist`.
   - **Decision**: Old frontend at `/` stays as default (better UX with dual buttons per card, Chuck preserved). New `/assistants` grid available for future expansion.
   - **Open**: Sam voice (STT/TTS) non-functional in new chat sidebar — needs wiring. Tournament mode UI refinement. Live hardware test on basement cab pending.
+- **2026-02-20 (Evening)**: LED Blinky Panel Refactor — 5 phases complete, 5500→510 line rewrite.
+  - **Phase 1 — Core Panel**: Rewrote `LEDBlinkyPanel.jsx` → `LEDBlinkyPanelNew.jsx` (510 lines). Created `ButtonVisualizer.jsx` (CSS-based, 4 modes), `UserProfileSelector.jsx`, `LEDBlinkyPanel.css` (dark neon arcade aesthetic). Single-view architecture, no tabs.
+  - **Phase 2 — State Machine**: Extracted `useLEDPanelState.js` hook — idle/active/calibration/design modes with transitions, animation presets, and mode-aware button click dispatch.
+  - **Phase 3 — Calibration Wizard**: Integrated existing `useLEDCalibrationWizard` (blink-click-map) + `useLEDCalibrationSession` (AI global helpers) into panel state. Progress bar, skip button, mapped/skipped counters.
+  - **Phase 4 — Design Mode**: Created `useDesignMode.js` (brush/paint/fill/clear + localStorage profiles) + `ColorPalette.jsx` (12 arcade swatches with glow, profile dropdown). `resolvedColors` merges custom colors over idle defaults.
+  - **Phase 5 — Voice Commands**: Added 10 `LED_THEMES` (sunset through neon) + `apply_theme` command to `commandExecutor.js`. Extended `useBlinkyChat.js` system prompt with theme vocabulary, creative interpretation mapping, player-specific targeting.
+  - **Build**: 227 modules, 0 errors, vite v4.5.14.
+  - **Next**: Phase 6 (Gemini function calling), chat escape hatch (R-20), live hardware verification.

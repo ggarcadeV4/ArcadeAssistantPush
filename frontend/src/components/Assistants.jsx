@@ -1,6 +1,6 @@
 import React, { useEffect, useState, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import LEDBlinkyPanel from './LEDBlinkyPanel'
+import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelNew'
 import ErrorBoundary from './ErrorBoundary'
 import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
 import ControllerPanel from '../panels/controller/ControllerPanel'

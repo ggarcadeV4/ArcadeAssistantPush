@@ -1,0 +1,559 @@
+/* LEDBlinkyPanel.css — Single-view panel styling */
+/* Matches the dark neon arcade aesthetic from the mockups */
+
+.led-panel {
+    background: linear-gradient(180deg, #0d0f1a 0%, #080a12 100%);
+    border-radius: 16px;
+    border: 1px solid #1e293b;
+    padding: 24px;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* ─── Header ──────────────────────────────────── */
+.led-panel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.led-panel__title-group {
+    flex: 1;
+}
+
+.led-panel__title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #f1f5f9;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+}
+
+.led-panel__status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid;
+}
+
+.led-panel__status-badge--idle {
+    background: rgba(147, 51, 234, 0.12);
+    border-color: #9333ea50;
+    color: #c4b5fd;
+}
+
+.led-panel__status-badge--active {
+    background: rgba(14, 165, 233, 0.12);
+    border-color: #0ea5e950;
+    color: #7dd3fc;
+}
+
+.led-panel__status-badge--calibration {
+    background: rgba(234, 179, 8, 0.12);
+    border-color: #eab30850;
+    color: #fde047;
+    animation: pulse-badge 2s ease-in-out infinite;
+}
+
+.led-panel__status-badge--design {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: #10b98150;
+    color: #6ee7b7;
+}
+
+.led-panel__status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: status-pulse 2s ease-in-out infinite;
+}
+
+.led-panel__status-dot--idle {
+    background: #9333ea;
+}
+
+.led-panel__status-dot--active {
+    background: #0ea5e9;
+}
+
+.led-panel__status-dot--calibration {
+    background: #eab308;
+}
+
+.led-panel__status-dot--design {
+    background: #10b981;
+}
+
+/* ─── Controls Row ────────────────────────────── */
+.led-panel__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+}
+
+.led-panel__control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.led-panel__control-label {
+    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.led-panel__select {
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    color: #e5e7eb;
+    font-size: 13px;
+    padding: 6px 12px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.led-panel__select:focus {
+    border-color: #0ea5e9;
+}
+
+/* Brightness slider */
+.led-panel__brightness {
+    margin-left: auto;
+}
+
+.led-panel__slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 4px;
+    background: #374151;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.led-panel__slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0ea5e9;
+    box-shadow: 0 0 8px #0ea5e940;
+    cursor: pointer;
+}
+
+.led-panel__brightness-value {
+    color: #0ea5e9;
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 32px;
+    text-align: right;
+}
+
+/* ─── Footer ──────────────────────────────────── */
+.led-panel__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.led-panel__footer-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.led-panel__profile-label {
+    color: #9ca3af;
+    font-weight: 600;
+}
+
+.led-panel__profile-name {
+    color: #0ea5e9;
+    font-weight: 700;
+}
+
+.led-panel__playtime {
+    color: #4b5563;
+    font-size: 12px;
+    margin-left: auto;
+}
+
+/* ─── Chat Input ──────────────────────────────── */
+.led-panel__chat-bar {
+    position: relative;
+    width: 100%;
+}
+
+.led-panel__chat-input {
+    width: 100%;
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 12px;
+    padding: 12px 52px 12px 16px;
+    color: #e5e7eb;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.led-panel__chat-input:focus {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 2px #0ea5e920;
+}
+
+.led-panel__chat-input::placeholder {
+    color: #6b7280;
+}
+
+.led-panel__chat-send {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #0ea5e9;
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    color: white;
+}
+
+.led-panel__chat-send:hover {
+    background: #0284c7;
+}
+
+.led-panel__chat-send:disabled {
+    background: #374151;
+    cursor: not-allowed;
+}
+
+.led-panel__voice-btn {
+    position: absolute;
+    right: 52px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.led-panel__voice-btn:hover {
+    color: #0ea5e9;
+}
+
+.led-panel__voice-btn--active {
+    color: #ef4444;
+    animation: pulse-voice 1s ease-in-out infinite;
+}
+
+/* ─── Animation Preset Buttons ────────────────── */
+.led-panel__presets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.led-panel__preset-btn {
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: #d1d5db;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.led-panel__preset-btn:hover {
+    border-color: #9333ea;
+    color: #c4b5fd;
+    background: rgba(147, 51, 234, 0.08);
+}
+
+.led-panel__preset-btn--active {
+    border-color: #9333ea;
+    color: #c4b5fd;
+    background: rgba(147, 51, 234, 0.15);
+}
+
+/* ─── Calibration Overlay ─────────────────────── */
+.led-panel__calibration-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px;
+    background: rgba(234, 179, 8, 0.08);
+    border: 1px solid #eab30830;
+    border-radius: 10px;
+}
+
+.led-panel__calibration-progress {
+    flex: 1;
+    height: 6px;
+    background: #1f2937;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.led-panel__calibration-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #eab308, #f59e0b);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.led-panel__calibration-text {
+    color: #fde047;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ─── Blinking animation for calibration ──────── */
+.led-btn--blinking {
+    animation: blink-led 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes blink-led {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    to {
+        opacity: 0.3;
+        transform: scale(0.92);
+    }
+}
+
+@keyframes pulse-badge {
+
+    0%,
+    100% {
+        box-shadow: 0 0 4px rgba(234, 179, 8, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 12px rgba(234, 179, 8, 0.4);
+    }
+}
+
+@keyframes status-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+@keyframes pulse-voice {
+
+    0%,
+    100% {
+        transform: translateY(-50%) scale(1);
+    }
+
+    50% {
+        transform: translateY(-50%) scale(1.15);
+    }
+}
+
+/* ─── Color Palette (Design Mode) ─────────────── */
+.color-palette {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(16, 185, 129, 0.06);
+    border: 1px solid #10b98125;
+    border-radius: 10px;
+}
+
+.color-palette__swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.color-palette__swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.color-palette__swatch:hover {
+    transform: scale(1.15);
+    border-color: #6b7280;
+}
+
+.color-palette__swatch--active {
+    border-color: #ffffff;
+    transform: scale(1.15);
+}
+
+.color-palette__check {
+    color: #000;
+    font-size: 14px;
+    font-weight: 900;
+    text-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+}
+
+.color-palette__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.color-palette__action-btn {
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    padding: 5px 12px;
+    color: #d1d5db;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.color-palette__action-btn:hover {
+    border-color: #10b981;
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.color-palette__action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.color-palette__profile-menu {
+    position: relative;
+    margin-left: auto;
+}
+
+.color-palette__dropdown {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    min-width: 200px;
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 20;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+
+.color-palette__dropdown-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.color-palette__profile-input {
+    flex: 1;
+    background: #0d1117;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: #e5e7eb;
+    font-size: 12px;
+    outline: none;
+}
+
+.color-palette__profile-input:focus {
+    border-color: #10b981;
+}
+
+.color-palette__dropdown-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: #d1d5db;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+}
+
+.color-palette__dropdown-btn--load {
+    flex: 1;
+}
+
+.color-palette__dropdown-btn--load:hover,
+.color-palette__dropdown-btn--active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #6ee7b7;
+}
+
+.color-palette__dropdown-btn--save {
+    background: #10b981;
+    color: #fff;
+    font-weight: 600;
+}
+
+.color-palette__dropdown-btn--save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.color-palette__dropdown-btn--delete {
+    color: #6b7280;
+    font-size: 14px;
+    padding: 4px 6px;
+}
+
+.color-palette__dropdown-btn--delete:hover {
+    color: #ef4444;
+}
+
+.color-palette__dropdown-empty {
+    color: #6b7280;
+    font-size: 12px;
+    padding: 6px 8px;
+    text-align: center;
+}
