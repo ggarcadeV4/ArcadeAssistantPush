@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import os
+import httpx
 import asyncio
 import base64
 import json
@@ -33,6 +34,27 @@ from ..services.player_tendencies import (
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+# Gateway broadcast URL for real-time WebSocket push
+GATEWAY_BROADCAST_URL = "http://localhost:8787/api/scorekeeper/broadcast"
+
+
+def _broadcast_score_update(game: str, entry: dict, source: str = "scorekeeper_submit"):
+    """Non-blocking broadcast to Gateway WebSocket for instantaneous leaderboard updates."""
+    try:
+        httpx.post(
+            GATEWAY_BROADCAST_URL,
+            json={
+                "type": "score_updated",
+                "game": game,
+                "entry": entry,
+                "source": source
+            },
+            timeout=2.0
+        )
+        logger.debug("broadcast_score_sent", game=game, source=source)
+    except Exception as e:
+        logger.warning("broadcast_score_failed", error=str(e))
 
 # Pydantic models
 class ScoreSubmit(BaseModel):
@@ -1112,6 +1134,12 @@ async def apply_score_submit(request: Request, score_data: ScoreSubmit):
             # Best-effort only; ignore failures
             pass
 
+        # Broadcast to Gateway for real-time leaderboard push
+        try:
+            await asyncio.to_thread(_broadcast_score_update, game_title, entry, "scorekeeper_submit")
+        except Exception:
+            pass  # Best-effort; don't fail the request
+
         # Log change
         log_scorekeeper_change(
             request, drive_root, "score_submit",
@@ -1998,6 +2026,12 @@ async def game_autosubmit(request: Request, submit_data: GameAutoSubmit):
                    player=submit_data.player,
                    score=submit_data.score,
                    tournament_id=submit_data.tournament_id)
+
+        # Broadcast to Gateway for real-time leaderboard push
+        try:
+            await asyncio.to_thread(_broadcast_score_update, game_title, score_entry, "game_autosubmit")
+        except Exception:
+            pass  # Best-effort; don't fail the request
 
         # Calculate leaderboard rank
         leaderboard_rank = None

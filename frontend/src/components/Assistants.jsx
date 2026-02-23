@@ -1,8 +1,11 @@
 import React, { useEffect, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import LEDBlinkyPanel from './LEDBlinkyPanelNew'
+// CIRCULAR DEPENDENCY FIX: Use React.lazy to break TDZ error (same pattern as LaunchBox)
+const LEDBlinkyPanel = React.lazy(() => import('./led-blinky/LEDBlinkyPanelNew'))
 import ErrorBoundary from './ErrorBoundary'
-import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
+// Old monolithic panel (preserved for rollback):
+// import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
+import GunnerPanel from './gunner/GunnerPanel'
 import ControllerPanel from '../panels/controller/ControllerPanel'
 import ControllerChuckPanel from '../panels/controller/ControllerChuckPanel'
 import ConsoleWizardPanel from '../panels/console-wizard/ConsoleWizardPanel'
@@ -106,10 +109,9 @@ export default function Assistants() {
 
   // If Light Guns agent is requested, render the Light Guns Panel
   if (agent === 'lightguns' || agent === 'light-guns' || agent === 'gunner') {
-    const showProfiles = searchParams.get('profiles') === '1'
     return <>
       {Badge}
-      <ErrorBoundary><LightGunsPanel showProfilesSection={showProfiles} /></ErrorBoundary>
+      <ErrorBoundary><GunnerPanel /></ErrorBoundary>
     </>
   }
 
