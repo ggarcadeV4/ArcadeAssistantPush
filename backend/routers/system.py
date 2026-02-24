@@ -103,3 +103,15 @@ async def system_metrics() -> Dict[str, Any]:
 
     metrics = await run_in_threadpool(_collect_system_metrics)
     return metrics
+
+
+@router.get("/identity")
+async def system_identity(request: Request) -> Dict[str, Any]:
+    """Return machine identity: MAC address, drive root, hostname.
+    
+    Used for licensing prep and cabinet identification.
+    """
+    from backend.services.identity_service import get_identity
+
+    drive_root = getattr(request.app.state, "drive_root", None)
+    return get_identity(drive_root=drive_root)

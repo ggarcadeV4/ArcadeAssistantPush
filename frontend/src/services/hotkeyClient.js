@@ -6,6 +6,8 @@ class HotkeyWebSocketClient {
     this.ws = null
     this.listeners = new Set()
     this._reconnectTimer = null
+    this._backoff = 2000
+    this._maxBackoff = 30000
     const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
     const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8787'
     const scheme = isSecure ? 'wss' : 'ws'
@@ -19,13 +21,13 @@ class HotkeyWebSocketClient {
     try {
       this.ws = new WebSocket(this._url)
     } catch (err) {
-      console.error('[Hotkey WS] Failed to create WebSocket:', err)
+      console.warn('[Hotkey WS] Connection failed, retrying...')
       this._scheduleReconnect()
       return
     }
 
     this.ws.onopen = () => {
-      // console.log('[Hotkey WS] Connected')
+      this._backoff = 2000 // reset on success
       this._notify({ type: 'connected' })
     }
     this.ws.onmessage = (event) => {
@@ -33,15 +35,13 @@ class HotkeyWebSocketClient {
         const data = JSON.parse(event.data)
         this._notify(data)
       } catch (e) {
-        console.error('[Hotkey WS] Message parse error:', e)
+        console.warn('[Hotkey WS] Message parse error:', e)
       }
     }
-    this.ws.onerror = (e) => {
-      console.error('[Hotkey WS] Error:', e)
-      this._notify({ type: 'error', message: 'hotkey_ws_error' })
+    this.ws.onerror = () => {
+      // Silently handled — onclose triggers reconnect
     }
     this.ws.onclose = () => {
-      // console.log('[Hotkey WS] Disconnected')
       this._notify({ type: 'disconnected' })
       this._scheduleReconnect()
     }
@@ -52,7 +52,8 @@ class HotkeyWebSocketClient {
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null
       this.connect()
-    }, 2000)
+    }, this._backoff)
+    this._backoff = Math.min(this._backoff * 2, this._maxBackoff)
   }
 
   _notify(payload) {

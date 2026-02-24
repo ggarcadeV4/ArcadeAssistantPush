@@ -17,11 +17,21 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from backend.constants.paths import Paths
+
 logger = logging.getLogger("led_engine.subprocess_control")
 
-# Path to LEDBlinky installation
-LEDBLINKY_PATH = Path("C:/LEDBlinky")
-LEDWIZ_DLL_32 = LEDBLINKY_PATH / "ledwiz.dll"
+# Lazy resolution — Paths.Tools.LEDBlinky.root() requires AA_DRIVE_ROOT,
+# which may not be set at import time, so we defer until first use.
+_cached_blinky_root: Optional[Path] = None
+
+
+def _blinky_root() -> Path:
+    """Resolve and cache the LEDBlinky root path on first call."""
+    global _cached_blinky_root
+    if _cached_blinky_root is None:
+        _cached_blinky_root = Paths.Tools.LEDBlinky.root()
+    return _cached_blinky_root
 
 
 class LEDSubprocessControl:
@@ -36,12 +46,13 @@ class LEDSubprocessControl:
         
     def _get_helper_script(self) -> str:
         """Generate a Python 32-bit script that controls the LED."""
-        return '''
+        blinky_root = str(_blinky_root()).replace('\\', '\\\\')
+        return f'''
 import ctypes
 import sys
 import os
 
-os.chdir(r"C:\\LEDBlinky")
+os.chdir(r"{blinky_root}")
 dll = ctypes.CDLL("ledwiz.dll")
 dll.LWZ_REGISTER(None, None)
 
@@ -66,7 +77,7 @@ elif command == "channel_on":
 elif command == "channel_off":
     dll.LWZ_SBA(1, 0, 0, 0, 0, 2, 0, 0)
     
-print(f"Done: {command}")
+print(f"Done: {{command}}")
 '''
     
     async def all_on(self) -> bool:
@@ -89,8 +100,8 @@ print(f"Done: {command}")
         """Call the LED helper via subprocess."""
         script = self._get_helper_script()
         
-        # Write temp script
-        temp_script = Path("C:/LEDBlinky/led_helper_temp.py")
+        # Write temp script to LEDBlinky directory
+        temp_script = _blinky_root() / "led_helper_temp.py"
         temp_script.write_text(script)
         
         try:
@@ -112,7 +123,7 @@ print(f"Done: {command}")
                 capture_output=True,
                 text=True,
                 timeout=5,
-                cwd="C:/LEDBlinky"
+                cwd=str(_blinky_root())
             )
             
             if result.returncode == 0:

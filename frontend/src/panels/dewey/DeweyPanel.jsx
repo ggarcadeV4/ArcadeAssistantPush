@@ -4,6 +4,7 @@ import './DeweyPanel.css'
 import { chat as aiChat } from '../../services/aiClient'
 import { speakAsDewey, stopSpeaking, isSpeaking } from '../../services/ttsClient'
 import { useProfileContext } from '../../context/ProfileContext'
+import { useGemSpeech } from '../../hooks/useGemSpeech'
 import { getHeadlines } from '../../services/newsClient'
 import TriviaExperience from './trivia/TriviaExperience'
 import GamingNews from './news/GamingNews'
@@ -171,6 +172,34 @@ const buildHandoffSummary = (text = '', opts = {}) => {
   return summary
 }
 
+/**
+ * Parse a DEWEY_MEDIA JSON payload from the AI response.
+ * Convention: <!--DEWEY_MEDIA:{...}-->
+ * Returns { cleanText, gallery, lore }
+ */
+const parseMediaPayload = (rawText) => {
+  const result = { cleanText: rawText, gallery: null, lore: null }
+  if (!rawText) return result
+
+  const mediaRegex = /<!--DEWEY_MEDIA:(\{[\s\S]*?})-->/
+  const match = rawText.match(mediaRegex)
+  if (!match) return result
+
+  try {
+    const payload = JSON.parse(match[1])
+    result.cleanText = rawText.replace(match[0], '').trim()
+    if (Array.isArray(payload.gallery) && payload.gallery.length > 0) {
+      result.gallery = payload.gallery
+    }
+    if (payload.lore && payload.lore.title && payload.lore.body) {
+      result.lore = payload.lore
+    }
+  } catch (err) {
+    console.warn('Failed to parse DEWEY_MEDIA payload:', err)
+  }
+  return result
+}
+
 const buildSystemPrompt = (user) => {
   const prefs = user?.preferences || {}
   const preferenceLines = []
@@ -190,7 +219,7 @@ const buildSystemPrompt = (user) => {
     : 'No saved preferences yet - ask quick follow-ups to learn their tastes.'
 
   return [
-    'You are Dewey, the upbeat AI concierge for G&G Arcade.',
+    'You are Dewey, the upbeat AI concierge and Arcade Historian for G&G Arcade.',
     'Your job is to QUICKLY route users to the right specialist - do not ask qualifying questions.',
     `Current user: ${user?.name || 'Guest'}. ${preferenceSummary}`,
     AGENT_SUMMARY,
@@ -200,10 +229,22 @@ const buildSystemPrompt = (user) => {
     '- DO NOT ask follow-up questions - let the specialists handle details',
     '- The UI will automatically show specialist chips based on keywords in the user message',
     '- For gaming chat, news, or trivia, respond normally with 2-3 sentences',
+    '',
+    '=== ARCADE HISTORIAN MEDIA MODE ===',
+    'When the user asks about a specific arcade game, era, or gaming history topic, you MUST append a structured JSON block to your response using this exact format:',
+    '<!--DEWEY_MEDIA:{"gallery":[{"title":"GAME NAME","maker":"Publisher","year":"1980","genre":"Genre","description":"One-sentence description.","badges":["Tag1","Year"],"image":"/arcade-gallery/placeholder.jpg"}],"lore":{"title":"Era or Topic Title","body":"2-3 sentence historical context."}}-->',
+    'Rules for DEWEY_MEDIA:',
+    '- Include 1-3 gallery items when discussing specific games',
+    '- Include a lore block when discussing eras, history, or cultural impact',
+    '- The JSON must be valid. Use double quotes for keys and string values',
+    '- Place the <!--DEWEY_MEDIA:...--> block at the END of your response, after visible text',
+    '- Do NOT include the JSON block for non-gaming topics, technical support, or greetings',
+    '- For image field, use "/arcade-gallery/" + lowercase-kebab-case game name + ".jpg"',
+    '',
     'Examples:',
     '- User: "my button is broken" → "That sounds like a controller issue! Click the Controller Chuck chip below and he\'ll help you troubleshoot."',
     '- User: "light gun not working" → "Gunner can help with that! Click his chip below to get your gun calibrated."',
-    '- User: "recommend a game" → [Give normal recommendation response]'
+    '- User: "tell me about pac-man" → "Pac-Man changed everything! Toru Iwatani\'s 1980 masterpiece shifted arcades from shooters to mass appeal.\n<!--DEWEY_MEDIA:{"gallery":[{"title":"PAC-MAN","maker":"Namco","year":"1980","genre":"Maze Chase","description":"The yellow pie-chart that ate the world.","badges":["Iconic","1980"],"image":"/arcade-gallery/pac-man.jpg"}],"lore":{"title":"The Golden Age: 1978-1983","body":"The Golden Age saw arcades transform from novelty to cultural phenomenon, driven by hits like Space Invaders, Pac-Man, and Donkey Kong."}}-->"'
   ].join('\n')
 }
 
@@ -225,112 +266,50 @@ const buildClaudeMessages = ({ history, systemPrompt, userText }) => {
 }
 
 export default function DeweyPanel() {
-  // Get shared profile from context
+  // Get shared profile from context (reactive tenancy)
   const { profile: sharedProfile } = useProfileContext()
   const navigate = useNavigate()
 
   // State management
   const [triviaMode, setTriviaMode] = useState(false)
   const [newsMode, setNewsMode] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
   const [isDeweyResponding, setIsDeweyResponding] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [messages, setMessages] = useState([
     {
       role: 'dewey',
-      text: "Hey there! I'm Dewey, your gaming companion. ??<br><br>I can chat about gaming culture, recommend games based on your interests, share the latest gaming news, and tell you all about G&G Arcade!<br><br>What would you like to talk about today?",
+      text: "Hey there! I'm Dewey, your gaming companion. 🎮<br><br>I can chat about gaming culture, recommend games based on your interests, share the latest gaming news, and tell you all about G&G Arcade!<br><br>What would you like to talk about today?",
       timestamp: new Date()
     }
   ])
   const [input, setInput] = useState('')
-  const [currentUser, setCurrentUser] = useState({
-    id: 'guest',
-    name: 'Guest',
-    preferences: {
-      genres: [],
-      franchises: [],
-      keywords: []
-    }
-  })
   const [showTypingIndicator, setShowTypingIndicator] = useState(false)
-  const [speechSupported, setSpeechSupported] = useState(true)
-  const [hasMicrophone, setHasMicrophone] = useState(true)
-  const [micDetectionReady, setMicDetectionReady] = useState(false)
   const [recommendedPanels, setRecommendedPanels] = useState([])
   const [handoffText, setHandoffText] = useState('')
+
+  // Media Stage state
+  const [galleryItems, setGalleryItems] = useState([])
+  const [activeCardIndex, setActiveCardIndex] = useState(0)
+  const [loreText, setLoreText] = useState(null)
 
   // Refs
   const messagesContainerRef = useRef(null)
   const inputRef = useRef(null)
   const messagesRef = useRef(messages)
-  const recognitionRef = useRef(null)
-  const lastTranscriptRef = useRef('')
-  const processingTranscriptRef = useRef(false)
-  const micStatusAlertsRef = useRef({
-    unsupportedNotified: false,
-    lastMicAvailable: true
-  })
-  const micAccessGrantedRef = useRef(false)
-  const micAccessRequestRef = useRef(null)
 
-  // User data (TODO: Load from Supabase)
-  const userData = {
-    guest: { id: 'guest', name: 'Guest', preferences: { genres: [], franchises: [], keywords: [] } },
-    dad: {
-      id: 'dad',
-      name: 'Dad',
-      preferences: {
-        genres: ['fighting', 'arcade', 'shmup'],
-        franchises: ['Street Fighter', 'Mortal Kombat'],
-        keywords: ['FGC', 'competitive']
-      }
-    },
-    mom: { id: 'mom', name: 'Mom', preferences: { genres: ['puzzle', 'casual'], franchises: [], keywords: [] } },
-    tim: {
-      id: 'tim',
-      name: 'Tim',
-      preferences: {
-        genres: ['fps', 'action'],
-        franchises: ['Call of Duty', 'Rainbow Six'],
-        keywords: ['multiplayer', 'competitive']
-      }
-    },
-    sarah: { id: 'sarah', name: 'Sarah', preferences: { genres: ['rpg', 'adventure'], franchises: ['Zelda', 'Pokemon'], keywords: [] } }
-  }
-
-  const userOptions = useMemo(() => {
-    const base = [
-      { id: 'guest', label: '👤 Guest' },
-      { id: 'dad', label: '👤 Dad' },
-      { id: 'mom', label: '👤 Mom' },
-      { id: 'tim', label: '👤 Tim' },
-      { id: 'sarah', label: '👤 Sarah' }
-    ]
-    const sharedId = sharedProfile?.userId
-    const sharedName = sharedProfile?.displayName
-    if (sharedId && sharedName && !base.some(opt => opt.id === sharedId)) {
-      base.unshift({ id: sharedId, label: `👤 ${sharedName} (Vicky)` })
+  // ProfileContext-driven identity (no hardcoded user map)
+  const currentUser = useMemo(() => ({
+    id: sharedProfile?.userId || 'guest',
+    name: sharedProfile?.displayName || 'Guest',
+    preferences: {
+      genres: sharedProfile?.preferences?.genres || [],
+      franchises: sharedProfile?.preferences?.franchises || [],
+      keywords: sharedProfile?.preferences?.keywords || []
     }
-    return base
-  }, [sharedProfile])
+  }), [sharedProfile])
 
   const systemPrompt = useMemo(() => buildSystemPrompt(currentUser), [currentUser])
-
-  // Sync shared profile to currentUser
-  useEffect(() => {
-    if (sharedProfile?.displayName) {
-      setCurrentUser({
-        id: sharedProfile.userId || 'guest',
-        name: sharedProfile.displayName || 'Guest',
-        preferences: {
-          genres: sharedProfile.preferences?.genres || [],
-          franchises: sharedProfile.preferences?.franchises || [],
-          keywords: sharedProfile.preferences?.keywords || []
-        }
-      })
-    }
-  }, [sharedProfile])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -345,55 +324,6 @@ export default function DeweyPanel() {
       inputRef.current.focus()
     }
   }, [])
-
-  // User Profile Management
-  const switchUser = (event) => {
-    const selectedValue = event.target.value
-
-    if (selectedValue === 'new') {
-      createNewProfile()
-      // Reset to current user after modal closes
-      event.target.value = currentUser.id
-      return
-    }
-
-    loadUserProfile(selectedValue)
-  }
-
-  const loadUserProfile = (userId) => {
-    // TODO: Replace with actual Supabase call
-    let user = userData[userId]
-    if (!user && sharedProfile?.userId === userId) {
-      user = {
-        id: sharedProfile.userId || 'guest',
-        name: sharedProfile.displayName || 'Guest',
-        preferences: {
-          genres: sharedProfile.preferences?.genres || [],
-          franchises: sharedProfile.preferences?.franchises || [],
-          keywords: sharedProfile.preferences?.keywords || []
-        }
-      }
-    }
-    if (!user) {
-      user = userData.guest
-    }
-    setCurrentUser(user)
-
-    // Welcome message for user
-    if (userId !== 'guest') {
-      addSystemMessage(`Welcome back, ${user.name}! Your preferences have been loaded.`)
-    }
-  }
-
-  const createNewProfile = () => {
-    // TODO: Implement profile creation modal/flow
-    const profileName = prompt('Enter profile name:')
-
-    if (profileName && profileName.trim()) {
-      // TODO: Save to Supabase
-      alert(`Profile "${profileName}" would be created and saved to Supabase.\n\n(Integrate with your Supabase database)`)
-    }
-  }
 
   // Add System Message (for notifications)
   const pushMessage = (message) => {
@@ -426,67 +356,63 @@ export default function DeweyPanel() {
     })
   }
 
-  // Detect available microphones so we can warn users if none are present
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
-      return
+  // ========================================
+  // useGemSpeech — Gem Architecture STT
+  // ========================================
+  const handleGemTranscript = useCallback((text) => {
+    if (text.trim() && !isDeweyResponding) {
+      addMessage(text, 'user')
+      setInput('')
+      deweyRespond(text)
     }
+  }, [isDeweyResponding])
 
-    let cancelled = false
-    const mediaDevices = navigator.mediaDevices
+  const {
+    isRecording, wsConnected, lastTranscript, warning: speechWarning,
+    toggleMic, startRecording, stopRecording
+  } = useGemSpeech({
+    panelName: 'dewey',
+    autoStopEnabled: true,
+    onTranscript: handleGemTranscript
+  })
 
-    const detectMicrophones = async () => {
-      try {
-        const devices = await mediaDevices.enumerateDevices()
-        if (cancelled) return
-        const hasAudioInput = devices.some(device => device.kind === 'audioinput')
-        setHasMicrophone(hasAudioInput)
-        setMicDetectionReady(true)
-      } catch (error) {
-        if (cancelled) return
-        console.warn('Microphone detection failed:', error)
-        setMicDetectionReady(false)
+  // ========================================
+  // HANDOFF LISTENERS (Inbound Events)
+  // ========================================
+  useEffect(() => {
+    const handleTranscriptForward = (e) => {
+      const { transcript, source } = e.detail || {}
+      if (transcript) {
+        addSystemMessage(`[${source || 'Panel'}] forwarded: "${transcript}"`)
+        deweyRespond(transcript, { forwarded_by: source })
       }
     }
 
-    detectMicrophones()
-
-    const handleDeviceChange = () => detectMicrophones()
-
-    if (typeof mediaDevices.addEventListener === 'function') {
-      mediaDevices.addEventListener('devicechange', handleDeviceChange)
-    } else if ('ondevicechange' in mediaDevices) {
-      mediaDevices.ondevicechange = handleDeviceChange
+    const handleSessionBriefing = (e) => {
+      const { summary, source } = e.detail || {}
+      if (summary) {
+        addSystemMessage(`Session briefing from ${source || 'system'}: ${summary}`)
+      }
     }
+
+    window.addEventListener('transcript_forward', handleTranscriptForward)
+    window.addEventListener('session_briefing', handleSessionBriefing)
 
     return () => {
-      cancelled = true
-      if (typeof mediaDevices.removeEventListener === 'function') {
-        mediaDevices.removeEventListener('devicechange', handleDeviceChange)
-      } else if ('ondevicechange' in mediaDevices) {
-        mediaDevices.ondevicechange = null
-      }
+      window.removeEventListener('transcript_forward', handleTranscriptForward)
+      window.removeEventListener('session_briefing', handleSessionBriefing)
     }
   }, [])
 
-  // Surface a one-time warning if the browser does not expose speech recognition
+  // Check URL params for handoff context on mount
   useEffect(() => {
-    if (!speechSupported && !micStatusAlertsRef.current.unsupportedNotified) {
-      addSystemMessage('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.')
-      micStatusAlertsRef.current.unsupportedNotified = true
+    const params = new URLSearchParams(window.location.search)
+    const context = params.get('context')
+    if (context) {
+      addSystemMessage(`Handoff context received`)
+      deweyRespond(decodeURIComponent(context), { source: 'handoff' })
     }
-  }, [speechSupported])
-
-  // Let the user know when no microphones are detected (and only when the state changes)
-  useEffect(() => {
-    if (!micDetectionReady) return
-
-    const previouslyAvailable = micStatusAlertsRef.current.lastMicAvailable
-    if (previouslyAvailable && !hasMicrophone) {
-      addSystemMessage('No microphone detected. Please connect a microphone to use voice input.')
-    }
-    micStatusAlertsRef.current.lastMicAvailable = hasMicrophone
-  }, [micDetectionReady, hasMicrophone])
+  }, [])
 
   // Send Message Function
   const sendMessage = () => {
@@ -561,26 +487,34 @@ export default function DeweyPanel() {
         }
       })
 
-      const reply = response?.message?.content || response?.response || ''
+      const rawReply = response?.message?.content || response?.response || ''
       const nextRecommendations = getPanelRecommendationsFromText(trimmed)
-      
+
+      // Parse gallery / lore media payload from AI response
+      const { cleanText: reply, gallery, lore } = parseMediaPayload(rawReply)
+
+      // Populate media stage state
+      if (gallery) {
+        setGalleryItems(gallery)
+        setActiveCardIndex(0)
+      }
+      if (lore) {
+        setLoreText(lore)
+      }
+
       // Update recommendations and context
       if (nextRecommendations.length > 0) {
-        // New recommendations found - update them
         setRecommendedPanels(nextRecommendations)
-
-        // Build concise summary from the user's last message:
-        // last two sentences, capped at ~200 characters.
         const summary = buildHandoffSummary(trimmed, { maxChars: 200, maxSentences: 2 })
         if (summary) setHandoffText(summary)
       }
-      // If no new recommendations, keep existing ones (don't clear unless user changes topic)
+
       const formatted = formatAssistantResponse(
         reply || "I'm still reaching out to the arcade braintrust. Mind rephrasing that?"
       )
       addMessage(formatted, 'dewey')
 
-      // Speak the response if voice is enabled
+      // Speak the response if voice is enabled (use clean text, not raw)
       if (voiceEnabled && reply) {
         const plainTextReply = htmlToPlainText(reply)
         speakAsDewey(plainTextReply).catch(err => {
@@ -609,86 +543,6 @@ export default function DeweyPanel() {
     }
   }
 
-  const initializeSpeechRecognition = () => {
-    if (typeof window === 'undefined') return null
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setSpeechSupported(false)
-      return null
-    }
-
-    try {
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
-      recognition.maxAlternatives = 1
-
-      recognition.onresult = (event) => {
-        const result = event.results[event.results.length - 1]
-        const transcript = result[0].transcript
-
-        if (!result.isFinal) {
-          console.log('?? Interim:', transcript)
-          setInput(transcript)
-          return
-        }
-
-        console.log('?? Final Transcribed:', transcript)
-
-        if (processingTranscriptRef.current || transcript === lastTranscriptRef.current) {
-          console.log('?? Duplicate transcript ignored')
-          return
-        }
-
-        processingTranscriptRef.current = true
-        lastTranscriptRef.current = transcript
-        setInput(transcript)
-        setIsRecording(false)
-
-        setTimeout(() => {
-          if (transcript.trim()) {
-            addMessage(transcript, 'user')
-            setInput('')
-            deweyRespond(transcript).finally(() => {
-              setTimeout(() => {
-                processingTranscriptRef.current = false
-              }, 1000)
-            })
-          } else {
-            processingTranscriptRef.current = false
-          }
-        }, 100)
-      }
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error)
-        setIsRecording(false)
-        processingTranscriptRef.current = false
-
-        if (event.error === 'not-allowed') {
-          addSystemMessage('Microphone permission denied. Please allow microphone access.')
-        } else if (event.error === 'no-speech') {
-          addSystemMessage('No speech detected. Please try again.')
-        } else if (event.error !== 'aborted') {
-          addSystemMessage(`Speech recognition error: ${event.error}`)
-        }
-      }
-
-      recognition.onend = () => {
-        setIsRecording(false)
-      }
-
-      recognitionRef.current = recognition
-      setSpeechSupported(true)
-      return recognition
-    } catch (error) {
-      console.error('Failed to initialize speech recognition:', error)
-      setSpeechSupported(false)
-      return null
-    }
-  }
-
   // Handle Enter Key
   const handleKeyPress = (event) => {
     if (event.key === 'Enter' && !isDeweyResponding) {
@@ -696,58 +550,12 @@ export default function DeweyPanel() {
     }
   }
 
-  // Initialize Web Speech API
+  // Cleanup TTS on unmount
   useEffect(() => {
-    initializeSpeechRecognition()
     return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort()
-        } catch {}
-      }
-      // Ensure any ongoing speech is stopped when leaving the panel
-      try { stopSpeaking() } catch {}
+      try { stopSpeaking() } catch { }
     }
   }, [])
-
-  // Voice Input with Recording State
-  const startVoice = () => {
-    if (!isRecording) {
-      // Stop any ongoing TTS so mic capture is not fighting playback
-      try { stopSpeaking() } catch {}
-      const recognitionInstance = recognitionRef.current || initializeSpeechRecognition()
-
-      if (!recognitionInstance) {
-        if (!micStatusAlertsRef.current.unsupportedNotified) {
-          addSystemMessage('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.')
-          micStatusAlertsRef.current.unsupportedNotified = true
-        }
-        setIsRecording(false)
-        return
-      }
-
-      setIsRecording(true)
-      console.log('?? Recording started...')
-
-      try {
-        recognitionInstance.start()
-      } catch (error) {
-        console.error('Failed to start recognition:', error)
-        setIsRecording(false)
-        addSystemMessage('Failed to start voice recognition. Please try again.')
-      }
-    } else {
-      stopRecording()
-    }
-  }
-
-  const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-    }
-    setIsRecording(false)
-    console.log('?? Recording stopped')
-  }
 
   // Quick Action Functions
   const triggerQuickAction = (promptText, metadata) => {
@@ -847,11 +655,10 @@ export default function DeweyPanel() {
   }
 
   const defaultInputHint = 'Press Enter to send ��� Use quick buttons for common requests'
+  const speechSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices
   const micStatusMessage = !speechSupported
     ? 'Voice input is not supported in this browser.'
-    : (micDetectionReady && !hasMicrophone)
-      ? 'No microphone detected. Connect a microphone to use voice input.'
-      : ''
+    : ''
   const micButtonTitle = micStatusMessage || (isRecording ? 'Stop voice input' : 'Start voice input')
   const inputHintText = micStatusMessage || defaultInputHint
   const shouldShowHandoff = recommendedPanels.length > 0 && Boolean(handoffText)
@@ -868,231 +675,280 @@ export default function DeweyPanel() {
           onExit={() => setNewsMode(false)}
         />
       ) : (
-        <div className="panel-container">
-          {/* Header with User Selection */}
-          <div className="header">
-          <div className={`avatar ${isDeweyResponding ? 'speaking' : ''}`}>
-            <img src="/dewey-avatar.jpeg" alt="Dewey" className="avatar-img" />
-          </div>
-          <div className="header-info">
-            <div className="header-title">
-              <h1>Dewey</h1>
-              <span className="status-dot"></span>
-            </div>
-            <div className="subtitle">Your Gaming Companion</div>
-          </div>
-          <div className="user-selector-wrapper">
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#88c0ff' }}>
-              Chat Profile
-            </span>
-            <button
-              className={`voice-toggle-btn ${voiceEnabled ? 'active' : 'muted'}`}
-              onClick={() => {
-                if (voiceEnabled) {
-                  stopSpeaking()
-                }
-                setVoiceEnabled(!voiceEnabled)
-              }}
-              title={voiceEnabled ? 'Voice enabled - Click to mute' : 'Voice muted - Click to enable'}
-            >
-              <img
-                src="/dewey-voice-profile.png"
-                alt="Voice preference"
-                className="voice-toggle-icon"
-              />
-            </button>
-            <select className="user-selector" value={currentUser.id} onChange={switchUser} aria-label="Select chat profile">
-              {userOptions.map(option => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-              <option value="new" style={{ borderTop: '1px solid #00d4ff' }}>? Create New Profile</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Info Bar */}
-        <div className="info-bar">
-          <span>?? Gaming Chat Mode</span>
-          <span>Online & Ready</span>
-        </div>
-
-        {/* Chat Messages Area */}
-        <div className="chat-messages" ref={messagesContainerRef}>
-          {messages.map((msg, idx) => {
-            if (msg.role === 'system') {
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    background: 'rgba(0, 212, 255, 0.05)',
-                    border: '1px solid rgba(0, 212, 255, 0.2)',
-                    borderRadius: '8px',
-                    padding: '10px 14px',
-                    fontSize: '12px',
-                    color: '#88c0ff',
-                    textAlign: 'center',
-                    margin: '10px auto',
-                    maxWidth: '80%'
-                  }}
-                >
-                  {msg.text}
+        <>
+          {/* === FLOATING HEADER (Identity Pinned) === */}
+          <header className="dewey-header-float">
+            <div className="dewey-header-pill">
+              <div className="identity-section">
+                <div className="identity-avatar">
+                  <img src="/dewey-avatar.jpeg" alt="Dewey" />
                 </div>
-              )
-            }
-
-            const msgClassNames = ['message', msg.role]
-            if (msg.isError) msgClassNames.push('error')
-
-            return (
-              <div key={idx} className={msgClassNames.join(' ')} aria-live="polite">
-                <span dangerouslySetInnerHTML={{ __html: msg.text }}></span>
-                <div className="message-time">{formatTime(msg.timestamp)}</div>
+                <span className="identity-label">Identity Pinned</span>
               </div>
-            )
-          })}
-
-          {isLoading && (
-            <div className="message dewey loading">
-              <div className="message-content">
-                <span className="typing-indicator">Dewey is thinking...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Typing Indicator */}
-          {showTypingIndicator && (
-            <div className="typing-indicator">
-              <div className="typing-dot"></div>
-              <div className="typing-dot"></div>
-              <div className="typing-dot"></div>
-            </div>
-          )}
-        </div>
-
-        {shouldShowHandoff && (
-          <div className="handoff-section">
-            <div className="handoff-title">Dewey suggests these helpers:</div>
-            <div className="handoff-subtitle">
-              When you open one, you can tell them:
-            </div>
-            <div className="handoff-quote">
-              {handoffText}
-            </div>
-            <div className="handoff-chips" role="list">
-              {recommendedPanels.map(panel => (
+              <div className="session-section">
+                <div className="session-info">
+                  <span className="session-label">Historian Session</span>
+                  <span className="session-user">{currentUser.name}</span>
+                </div>
                 <button
-                  key={panel.id}
-                  type="button"
-                  className="handoff-chip"
-                  onClick={() => handleOpenPanel(panel)}
+                  className="settings-btn"
+                  onClick={() => {
+                    if (voiceEnabled) stopSpeaking()
+                    setVoiceEnabled(!voiceEnabled)
+                  }}
+                  title={voiceEnabled ? 'Voice enabled' : 'Voice muted'}
                 >
-                  {panel.label}
+                  <span className="material-symbols-outlined">
+                    {voiceEnabled ? 'volume_up' : 'volume_off'}
+                  </span>
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
-        )}
+          </header>
 
-        {/* Quick Action Buttons */}
-        <div className="quick-actions">
-          <button className="quick-btn" onClick={getNewsHeadlines}>
-            <div className="btn-icon-container">
-              <img
-                src="/dewey-news.png"
-                alt="Arcade news"
-                className="btn-icon-image"
-              />
+          {/* === MAIN CANVAS === */}
+          <main className="dewey-main">
+            <div className="dewey-canvas" ref={messagesContainerRef}>
+
+              {/* Gallery Carousel (shown when galleryItems exist) */}
+              {galleryItems.length > 0 && (
+                <div className="gallery-row">
+                  {/* Left Side Card */}
+                  {galleryItems[activeCardIndex - 1] && (
+                    <div
+                      className="gallery-card-side"
+                      onClick={() => setActiveCardIndex(activeCardIndex - 1)}
+                    >
+                      <span className="card-year">{galleryItems[activeCardIndex - 1].year}</span>
+                      <div className="card-image-wrap">
+                        <img src={galleryItems[activeCardIndex - 1].image} alt={galleryItems[activeCardIndex - 1].title} />
+                        <div className="card-meta">
+                          <h3>{galleryItems[activeCardIndex - 1].title}</h3>
+                          <p>{galleryItems[activeCardIndex - 1].maker}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active (Center) Card */}
+                  {galleryItems[activeCardIndex] && (
+                    <div className="gallery-card-active">
+                      <div className="card-badges">
+                        {galleryItems[activeCardIndex].badges?.map((badge, i) => (
+                          <span key={i} className={`badge ${i === 0 ? 'badge-primary' : 'badge-secondary'}`}>
+                            {badge}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="card-image-wrap">
+                        <img src={galleryItems[activeCardIndex].image} alt={galleryItems[activeCardIndex].title} />
+                        <div className="card-footer">
+                          <h2>{galleryItems[activeCardIndex].title}</h2>
+                          <div className="card-meta-row">
+                            <span className="card-maker">{galleryItems[activeCardIndex].maker}</span>
+                            <span className="dot-sep"></span>
+                            <span className="card-genre">{galleryItems[activeCardIndex].genre}</span>
+                          </div>
+                          <p className="card-desc">{galleryItems[activeCardIndex].description}</p>
+                          <div className="card-actions">
+                            <button className="inspect-btn">Inspect</button>
+                            <button className="fav-btn">
+                              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>favorite</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="card-inner-glow"></div>
+                    </div>
+                  )}
+
+                  {/* Right Side Card */}
+                  {galleryItems[activeCardIndex + 1] && (
+                    <div
+                      className="gallery-card-side"
+                      onClick={() => setActiveCardIndex(activeCardIndex + 1)}
+                    >
+                      <span className="card-year">{galleryItems[activeCardIndex + 1].year}</span>
+                      <div className="card-image-wrap">
+                        <img src={galleryItems[activeCardIndex + 1].image} alt={galleryItems[activeCardIndex + 1].title} />
+                        <div className="card-meta">
+                          <h3>{galleryItems[activeCardIndex + 1].title}</h3>
+                          <p>{galleryItems[activeCardIndex + 1].maker}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Era Analysis / Lore Text */}
+              {loreText && (
+                <div className="era-analysis">
+                  <h3 className="era-title">{loreText.title}</h3>
+                  <p className="era-body">{loreText.body}</p>
+                </div>
+              )}
+
+              {/* Chat Messages */}
+              <div className="dewey-chat-messages">
+                {messages.map((msg, idx) => {
+                  if (msg.role === 'system') {
+                    return <div key={idx} className="system-msg">{msg.text}</div>
+                  }
+
+                  const msgClassNames = ['message', msg.role]
+                  if (msg.isError) msgClassNames.push('error')
+
+                  return (
+                    <div key={idx} className={msgClassNames.join(' ')} aria-live="polite">
+                      <span dangerouslySetInnerHTML={{ __html: msg.text }}></span>
+                      <div className="message-time">{formatTime(msg.timestamp)}</div>
+                    </div>
+                  )
+                })}
+
+                {isLoading && (
+                  <div className="message dewey loading">
+                    <div className="message-content">
+                      <span className="typing-indicator">Dewey is thinking...</span>
+                    </div>
+                  </div>
+                )}
+
+                {showTypingIndicator && (
+                  <div className="typing-indicator">
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                  </div>
+                )}
+              </div>
+
+              {/* Handoff Section */}
+              {shouldShowHandoff && (
+                <div className="dewey-handoff">
+                  <div className="handoff-title">Dewey suggests these helpers:</div>
+                  <div className="handoff-subtitle">When you open one, you can tell them:</div>
+                  <div className="handoff-quote">{handoffText}</div>
+                  <div className="handoff-chips" role="list">
+                    {recommendedPanels.map(panel => (
+                      <button
+                        key={panel.id}
+                        type="button"
+                        className="handoff-chip"
+                        onClick={() => handleOpenPanel(panel)}
+                      >
+                        {panel.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* === INTERACTION HUB === */}
+              <div className="dewey-hub">
+                <div className="dewey-hub-inner">
+
+                  {/* Dewey Branding */}
+                  <div className="dewey-branding">
+                    <div className="dewey-orb avatar-glow-layers">
+                      <img src="/dewey-avatar.jpeg" alt="Dewey" />
+                    </div>
+                    <div className="branding-text">
+                      <p className="branding-sub">Archive System Online</p>
+                      <h2 className="branding-title">Dewey: The Arcade Historian</h2>
+                    </div>
+                  </div>
+
+                  {/* Glass Pill Input */}
+                  <div className="dewey-input-container">
+                    <div className="dewey-input-glow">
+                      <div className="dewey-input-bar">
+                        <div className="input-left">
+                          <span className="material-symbols-outlined voice-icon">graphic_eq</span>
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            className="chat-input"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            placeholder="Tell me about the first arcade hit."
+                            autoComplete="off"
+                            disabled={isDeweyResponding}
+                          />
+                        </div>
+                        <div className="input-right">
+                          <button
+                            className="voice-status"
+                            onClick={toggleMic}
+                            title={isRecording ? 'Stop recording' : 'Start voice input'}
+                            type="button"
+                          >
+                            <div className={`voice-dot ${isRecording ? 'recording' : wsConnected ? '' : 'inactive'}`}></div>
+                            <span className={`voice-label ${isRecording ? 'recording' : wsConnected ? '' : 'inactive'}`}>
+                              {isRecording ? 'Recording' : wsConnected ? 'Active' : 'Offline'}
+                            </span>
+                          </button>
+                          <button
+                            className="send-btn"
+                            onClick={sendMessage}
+                            title="Send Message"
+                            disabled={isDeweyResponding || !input.trim()}
+                          >
+                            <span className="material-symbols-outlined">send</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {speechWarning && <div className="dewey-speech-warning">{speechWarning}</div>}
+                  </div>
+
+                  {/* Quick Action Pills */}
+                  <div className="dewey-pills">
+                    <button className="pill-starter" onClick={getNewsHeadlines}>
+                      <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '14px' }}>newspaper</span>
+                      <span className="pill-label">Gaming News</span>
+                    </button>
+                    <button className="pill-starter" onClick={getRecommendations}>
+                      <span className="material-symbols-outlined" style={{ color: 'var(--secondary)', fontSize: '14px' }}>auto_awesome</span>
+                      <span className="pill-label">Recommended</span>
+                    </button>
+                    <button className="pill-starter" onClick={aboutArcade}>
+                      <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '14px' }}>sports_esports</span>
+                      <span className="pill-label">G&G Arcade</span>
+                    </button>
+                    <button className="pill-starter" onClick={getGameTrivia}>
+                      <span className="material-symbols-outlined" style={{ color: 'var(--secondary)', fontSize: '14px' }}>psychology</span>
+                      <span className="pill-label">Trivia</span>
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+
             </div>
-            <div className="btn-label">News</div>
-          </button>
+          </main>
 
-          <button className="quick-btn" onClick={getRecommendations}>
-            <div className="btn-icon-container">
-              <img
-                src="/dewey-recommend.png"
-                alt="Game recommendations"
-                className="btn-icon-image"
-              />
+          {/* === TELEMETRY FOOTER === */}
+          <footer className="dewey-footer">
+            <div className="dewey-footer-inner">
+              <div className="status-group">
+                <div className="status-item">
+                  <span className="status-dot-primary"></span>
+                  <span>{wsConnected ? 'Sub-Space Link Active' : 'Link Standby'}</span>
+                </div>
+                <div className="status-item">
+                  <span className="status-dot-secondary"></span>
+                  <span>Archive Ready</span>
+                </div>
+              </div>
+              <div className="status-group">
+                <span>Protocol 9.04.1</span>
+              </div>
             </div>
-            <div className="btn-label">Recommend</div>
-          </button>
-
-          <button className="quick-btn" onClick={aboutArcade}>
-            <div className="btn-icon-container">
-              <img
-                src="/dewey-arcade.png"
-                alt="G&G Arcade status"
-                className="btn-icon-image"
-              />
-            </div>
-            <div className="btn-label" aria-hidden="true"></div>
-          </button>
-
-          <button className="quick-btn" onClick={getGameTrivia}>
-            <div className="btn-icon-container">
-              <img
-                src="/dewey-trivia.png"
-                alt="Gaming trivia"
-                className="btn-icon-image"
-              />
-            </div>
-            <div className="btn-label">Trivia</div>
-          </button>
-
-          <button className="quick-btn" onClick={showPreferences}>
-            <div className="btn-icon-container">
-              <img
-                src="/dewey-preferences.png"
-                alt="Profile preferences"
-                className="btn-icon-image"
-              />
-            </div>
-            <div className="btn-label">Preferences</div>
-          </button>
-        </div>
-
-        {/* Input Area */}
-        <div className="input-area">
-          <div className="input-wrapper">
-            <button
-              className={`mic-btn ${isRecording ? 'recording' : ''}`}
-              onClick={startVoice}
-              title={micButtonTitle}
-              aria-label={micButtonTitle}
-              aria-pressed={isRecording}
-              type="button"
-              disabled={isDeweyResponding || !speechSupported}
-            >
-              <img
-                src="/dewey-mic.png"
-                alt=""
-                aria-hidden="true"
-                className="mic-icon"
-              />
-            </button>
-            <input
-              ref={inputRef}
-              type="text"
-              className="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask Dewey anything about gaming..."
-              autoComplete="off"
-              disabled={isDeweyResponding}
-            />
-            <button
-              className="send-btn"
-              onClick={sendMessage}
-              title="Send Message"
-              disabled={isDeweyResponding || !input.trim()}
-            >
-              ?
-            </button>
-          </div>
-          <div className="input-hint">{inputHintText}</div>
-        </div>
-        </div>
+          </footer>
+        </>
       )}
     </div>
   )

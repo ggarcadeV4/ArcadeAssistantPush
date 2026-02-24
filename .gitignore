@@ -35,6 +35,7 @@
 # ---------------------------
 .env
 .env.backup
+.env.production
 .env.win
 .env.wsl
 # Keep these template files:
@@ -123,6 +124,7 @@ pytest_cov.txt
 # IDE & Editor
 # ---------------------------
 .vscode/settings.json
+.vscode/mcp.json
 .idea/
 *.swp
 *.swo

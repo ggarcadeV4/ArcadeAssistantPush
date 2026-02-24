@@ -33,6 +33,8 @@ import os
 from pathlib import Path
 from typing import List, Optional, Sequence
 
+from backend.constants.paths import Paths
+
 logger = logging.getLogger("led_engine.ledwiz_dll")
 
 
@@ -60,16 +62,17 @@ class LEDWizDLL:
         """
         # Try multiple possible locations for the DLL
         # Note: We need the 64-bit DLL (ledwiz64.dll) for 64-bit Python
+        blinky_root = Paths.Tools.LEDBlinky.root()
         search_paths = [
-            Path("C:/LEDBlinky/LWCloneU2/ledwiz64.dll"),  # 64-bit version (preferred)
-            Path("C:/LEDBlinky/LWCloneU2/ledwiz.dll"),    # 32-bit version from LWCloneU2
+            blinky_root / "LWCloneU2" / "ledwiz64.dll",  # 64-bit version (preferred)
+            blinky_root / "LWCloneU2" / "ledwiz.dll",    # 32-bit version from LWCloneU2
             Path("LEDWiz64.dll"),
             Path("ledwiz64.dll"),
             Path("LEDWiz.dll"),
             Path("ledwiz.dll"),
-            Path("C:/LEDBlinky/LEDWiz64.dll"),
-            Path("C:/LEDBlinky/LEDWiz.dll"),
-            Path("C:/LEDBlinky/ledwiz.dll"),
+            blinky_root / "LEDWiz64.dll",
+            blinky_root / "LEDWiz.dll",
+            blinky_root / "ledwiz.dll",
             Path(os.environ.get("LEDBLINKY_PATH", "")) / "ledwiz64.dll",
         ]
         

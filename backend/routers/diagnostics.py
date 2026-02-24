@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from .controller import get_latest_input_event
+from .chuck_hardware import get_latest_input_event
 
 router = APIRouter()
 

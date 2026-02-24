@@ -10,7 +10,9 @@
 **Status**: Awaiting visual confirmation after user machine restart.
 **Next**: Visually verify panel renders correctly. Then build Phase 2: Calibration tab, Profiles tab, Retro Modes tab, voice controls integration, live `gunnerClient.js` API wiring.
 
-## 2026-02-23 | Infrastructure & VUI Milestone
-**Net Progress**: Fixed consent save 403 (added `.aa/`-prefixed sanctioned paths to manifest). Integrated `httpx` broadcast into `scorekeeper.py` REST endpoints (`apply_score_submit`, `game_autosubmit`) for instantaneous WebSocket leaderboard push. Built Vicky Voice phase indicator bridges (`isSpeaking` state, `currentPhase` badge: 🎤→🧠→🔊→💤). Extracted `useGemSpeech` hook. 237 modules, 0 errors.
-**Next**: End-to-end test consent UI flow, verify real-time score broadcast with ScoreKeeper panel, Gunner Phase 2.
+## 2026-02-23 | Infrastructure & VUI Milestone + Dewey V2.5 Transplant
+**Net Progress (AM)**: Fixed consent save 403 (added `.aa/`-prefixed sanctioned paths to manifest). Integrated `httpx` broadcast into `scorekeeper.py` REST endpoints (`apply_score_submit`, `game_autosubmit`) for instantaneous WebSocket leaderboard push. Built Vicky Voice phase indicator bridges (`isSpeaking` state, `currentPhase` badge: 🎤→🧠→🔊→💤). Extracted `useGemSpeech` hook. 237 modules, 0 errors.
+**Net Progress (PM)**: Transplanted Dewey Arcade Historian V2.5 design (1,100+ lines Tailwind→vanilla CSS, JSX restructure). Fixed `speechSupported` undefined bug. Diagnosed stale build issue (C: vs A: drive split). Created `scripts/clean-start.ps1` for zombie port cleanup + rebuild + deploy. Implemented WS exponential backoff in `ProfileContext.jsx` and `hotkeyClient.js` (2s→30s cap). Added `[App]` diagnostic banner to `App.jsx`. Root-caused "blue screen" to empty `personas = []` array in `Assistants.jsx` when `/assistants` has no query param.
+**Status**: Dewey V2.5 renders correctly via `?chat=dewey`. WS console spam eliminated.
+**Next**: Populate `personas[]` array in `Assistants.jsx` so `/assistants` shows agent selection grid. End-to-end consent UI flow test. Gunner Phase 2.
 

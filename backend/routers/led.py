@@ -1448,7 +1448,7 @@ def _get_led_input_detection_service(request: Request):
     """
     from pathlib import Path
     # Import Controller's input detection service to reuse the same pynput listener
-    from .controller import _get_input_detection_service as get_controller_service
+    from .chuck_hardware import get_input_detection_service as get_controller_service
     
     # Reuse Controller's input detection service (same pynput listener)
     try:

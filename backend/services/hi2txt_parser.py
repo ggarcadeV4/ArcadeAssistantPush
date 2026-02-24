@@ -52,7 +52,8 @@ class Hi2txtParser:
     
     def __init__(self, drive_root: Optional[str] = None):
         if not drive_root:
-            drive_root = os.getenv("AA_DRIVE_ROOT", r"A:\\")
+            from backend.constants.drive_root import get_drive_root
+            drive_root = str(get_drive_root(allow_cwd_fallback=True))
         self.drive_root = Path(drive_root)
         
         # Standard paths
@@ -73,10 +74,9 @@ class Hi2txtParser:
         if self.hi2txt_path.exists():
             return self.hi2txt_path
         
-        # Try alternate locations
+        # Try alternate locations (all relative to drive root)
         alternates = [
             self.drive_root / "LaunchBox" / "Tools" / "hi2txt.exe",
-            Path("C:/hi2txt/hi2txt.exe"),
         ]
         for alt in alternates:
             if alt.exists():

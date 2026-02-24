@@ -79,10 +79,11 @@ class BlinkyProcessManager:
     
     def _migrate_settings_ini(self) -> None:
         """
-        P0 Priority: Migrate Settings.ini paths from C:\\ to A:\\.
+        P0 Priority: Migrate Settings.ini paths to current drive root.
         
-        LEDBlinky stores paths like Colors_ini=C:\\LEDBlinky\\colors.ini.
-        If the config points to C:\\, we auto-fix it to A:\\.
+        LEDBlinky stores absolute paths like Colors_ini=C:\\LEDBlinky\\colors.ini.
+        This method reads the INI, detects any path values pointing to a different
+        drive or directory, and rewrites them to match Paths.Tools.LEDBlinky.root().
         Creates a backup before modifying.
         """
         settings_path = self.working_directory / "Settings.ini"
@@ -93,35 +94,53 @@ class BlinkyProcessManager:
             return
         
         try:
+            import configparser
+            import re
+            
+            correct_root = str(Paths.Tools.LEDBlinky.root())
+            correct_root_bs = correct_root.replace("/", "\\")  # Backslash variant
+            correct_root_fs = correct_root.replace("\\", "/")  # Forward-slash variant
+            
             content = settings_path.read_text(encoding='utf-8', errors='replace')
             
-            # Check if migration is needed
-            if 'C:\\LEDBlinky' not in content and 'C:/LEDBlinky' not in content:
-                logger.debug("[BlinkyProcessManager] Settings.ini already migrated or no C:\\ paths")
+            # Detect any drive-letter paths that DON'T already point to the correct root
+            # Pattern matches C:\...\LEDBlinky, D:\LEDBlinky, etc.
+            drive_path_pattern = re.compile(
+                r'[A-Za-z]:[/\\](?:[^=\r\n]*[/\\])?LEDBlinky(?=[/\\]|$)',
+                re.IGNORECASE
+            )
+            
+            stale_paths = [
+                m.group() for m in drive_path_pattern.finditer(content)
+                if not m.group().replace("/", "\\").lower().startswith(correct_root_bs.lower())
+            ]
+            
+            if not stale_paths:
+                logger.debug("[BlinkyProcessManager] Settings.ini paths already correct")
                 self._config_migrated = True
                 return
             
-            # Create backup
+            # Create backup before modifying
             backup_path = settings_path.with_suffix('.ini.bak')
             if not backup_path.exists():
                 backup_path.write_text(content, encoding='utf-8')
                 logger.info(f"[BlinkyProcessManager] Backed up Settings.ini to {backup_path}")
             
-            # Replace C:\LEDBlinky paths with A:\Tools\LEDBlinky
+            # Replace all stale LEDBlinky root paths with correct root
             new_content = content
-            replacements = [
-                ('C:\\LEDBlinky\\', 'A:\\Tools\\LEDBlinky\\'),
-                ('C:/LEDBlinky/', 'A:/Tools/LEDBlinky/'),
-                ('C:\\LEDBlinky', 'A:\\Tools\\LEDBlinky'),
-                ('C:/LEDBlinky', 'A:/Tools/LEDBlinky'),
-            ]
-            
-            for old, new in replacements:
-                new_content = new_content.replace(old, new)
+            for stale in sorted(set(stale_paths), key=len, reverse=True):
+                # Determine if stale path used forward or back slashes
+                if "/" in stale:
+                    new_content = new_content.replace(stale, correct_root_fs)
+                else:
+                    new_content = new_content.replace(stale, correct_root_bs)
             
             if new_content != content:
                 settings_path.write_text(new_content, encoding='utf-8')
-                logger.info("[BlinkyProcessManager] Migrated Settings.ini paths from C:\\ to A:\\")
+                logger.info(
+                    f"[BlinkyProcessManager] Migrated Settings.ini paths to {correct_root} "
+                    f"(fixed {len(stale_paths)} stale reference(s))"
+                )
                 self._config_migrated = True
             else:
                 logger.debug("[BlinkyProcessManager] No path changes needed in Settings.ini")

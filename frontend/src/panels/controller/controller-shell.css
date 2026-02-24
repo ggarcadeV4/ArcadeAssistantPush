@@ -1,0 +1,68 @@
+/* controller-shell.css — Smart Shell view-switcher tabs */
+
+.controller-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ── Tab Bar ── */
+.controller-shell-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px 0;
+    background: var(--bg-surface, #1a1a2e);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    flex-shrink: 0;
+}
+
+.controller-shell-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 24px 8px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--text-muted, #8b8ba7);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px 8px 0 0;
+    font-family: inherit;
+}
+
+.controller-shell-tab:hover {
+    color: var(--text-primary, #e0e0ff);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.controller-shell-tab.active {
+    color: var(--accent-primary, #6c63ff);
+    border-bottom-color: var(--accent-primary, #6c63ff);
+    background: rgba(108, 99, 255, 0.06);
+}
+
+.controller-shell-tab-label {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.controller-shell-tab-subtitle {
+    font-size: 11px;
+    opacity: 0.7;
+    font-weight: 400;
+}
+
+.controller-shell-tab.active .controller-shell-tab-subtitle {
+    opacity: 0.9;
+}
+
+/* ── Content Area ── */
+.controller-shell-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}

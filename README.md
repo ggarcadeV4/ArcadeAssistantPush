@@ -1,4 +1,102 @@
-# **Session 2026-02-05 - Day 6: LED Driver Revolution + Cinema Calibration + Visual Wizard Architecture**
+# **Session 2026-02-23 (Evening) - Dewey Historian V2.5 Transplant + Network Integrity Fix**
+
+## **Status: ✅ COMPLETE**
+
+### **Executive Summary**
+
+**The Design:** Transplanted the Arcade Historian V2.5 design into the Dewey panel — complete CSS conversion from Tailwind to vanilla (1,100+ lines), JSX restructured with semantic HTML, floating header, branding orb, glass-pill input, pill actions, and telemetry footer.
+
+**The Bug:** `speechSupported is not defined` — the `useGemSpeech` hook doesn't export this variable. Fixed with safe fallback constants.
+
+**The Stale Build:** Gateway on A: drive was serving old JS bundles while builds targeted C: drive. Fixed by deploying `dist/` from C: → A: after each build.
+
+**The Blue Screen:** `/assistants` without `?chat=dewey` renders an empty persona grid (`const personas = []`). The dark `#0a0e1a` background = "blue screen." Not a crash — just an empty page.
+
+**The Infrastructure:** Full network audit confirmed all pipes are healthy: CORS allows `127.0.0.1`, WS URLs bind dynamically via `window.location`, WS server accepts connections, gateway HTTP returns 200.
+
+---
+
+## **What Was Accomplished**
+
+### **1) Dewey V2.5 Design Transplant**
+**Files:** `DeweyPanel.jsx`, `DeweyPanel.css`
+
+- Converted 1,100+ lines of Tailwind CSS → vanilla CSS
+- Restructured JSX with semantic HTML and V2.5 layout
+- Fixed `speechSupported is not defined` runtime error (safe fallback constants)
+
+### **2) Stale Build Diagnosis & Fix**
+- Identified C: drive (dev) vs A: drive (runtime) environment split
+- Gateway (PID on A: drive) was serving old bundles while `npm run build` targeted C: drive
+- Implemented build → copy-to-A: deployment workflow
+
+### **3) Network Integrity Fix**
+Full audit of the frontend-to-gateway pipes:
+
+| Layer | Status |
+|---|---|
+| CORS (`127.0.0.1:8787`) | ✅ Listed in allowedOrigins |
+| WS URL Binding | ✅ Dynamic via `window.location` |
+| WS Upgrade (`/ws/session`, `/ws/hotkey`) | ✅ Connected from Node.js |
+| HTTP Health | ✅ 200, FastAPI connected |
+
+### **4) WS Exponential Backoff**
+**Files:** `ProfileContext.jsx`, `hotkeyClient.js`
+
+- Reconnect backoff: 2s → 4s → 8s → 16s → 30s cap (was fixed 2s)
+- Silenced `console.error` spam → `console.warn`
+
+### **5) Process Ghosting Script**
+**File:** `scripts/clean-start.ps1`
+
+Kills zombie port 8787 processes, rebuilds frontend, copies dist to A: drive, restarts gateway.
+
+### **6) Diagnostic Banner**
+**File:** `App.jsx`
+
+Added `[App] React tree mounted at ...` console log — confirmed React initializes on the "blue screen."
+
+### **7) Root Cause: Blue Screen = Empty Personas**
+**File:** `Assistants.jsx` line 24: `const personas = []`
+
+When `/assistants` has no `?chat=dewey` param, the component renders an empty grid over the dark background. **The "blue screen" was always the app working correctly — just with nothing to display.**
+
+---
+
+## **Files Created**
+| File | Purpose |
+|------|---------|
+| `scripts/clean-start.ps1` | Kill zombies + rebuild + deploy + restart |
+
+## **Files Modified**
+| File | Changes |
+|------|---------|
+| `frontend/src/panels/dewey/DeweyPanel.jsx` | V2.5 design + `speechSupported` fix |
+| `frontend/src/panels/dewey/DeweyPanel.css` | 1,100+ lines Tailwind → vanilla CSS |
+| `frontend/src/context/ProfileContext.jsx` | WS exponential backoff |
+| `frontend/src/services/hotkeyClient.js` | WS exponential backoff + error silencing |
+| `frontend/src/App.jsx` | Diagnostic `[App]` mount banner |
+
+---
+
+## **Key Discovery: Dual-Drive Architecture**
+- **C: drive** (`C:\Users\Dad's PC\Desktop\AI-Hub`) = development workspace (code edits, builds)
+- **A: drive** (`A:\Arcade Assistant Local`) = runtime environment (gateway serves from here)
+- Build output **must be copied from C: → A:** after each `npm run build`
+- Use `scripts/clean-start.ps1` to automate this
+
+---
+
+## **Correct URLs**
+| URL | What it shows |
+|-----|---------------|
+| `http://127.0.0.1:8787/` | Home page with feature cards |
+| `http://127.0.0.1:8787/assistants?chat=dewey` | Dewey V2.5 panel |
+| `http://127.0.0.1:8787/assistants` | ⚠️ Empty blue page (personas = []) |
+
+---
+
+
 
 ## **Status: ✅ MISSION COMPLETE**
 

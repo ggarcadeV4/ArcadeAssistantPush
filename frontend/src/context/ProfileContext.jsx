@@ -5,8 +5,8 @@ const ProfileContext = createContext({
   profile: null,
   loading: true,
   error: null,
-  refreshProfile: async () => {},
-  setProfileSnapshot: () => {}
+  refreshProfile: async () => { },
+  setProfileSnapshot: () => { }
 })
 
 export function ProfileProvider({ children }) {
@@ -64,7 +64,7 @@ export function ProfileProvider({ children }) {
   }, [refreshProfile])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return () => {}
+    if (typeof window === 'undefined') return () => { }
 
     const base = window.location.port === '5173'
       ? 'http://localhost:8787'
@@ -72,6 +72,8 @@ export function ProfileProvider({ children }) {
     const wsUrl = base.replace(/^http/, 'ws') + '/ws/session'
 
     let alive = true
+    let backoff = 2000
+    const MAX_BACKOFF = 30000
 
     const connect = () => {
       if (!alive) return
@@ -79,25 +81,32 @@ export function ProfileProvider({ children }) {
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
+        ws.onopen = () => {
+          backoff = 2000 // reset on successful connection
+        }
+
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data || '{}')
             if (msg.type === 'profile_updated' || msg.type === 'session_started' || msg.type === 'session_ended') {
               refreshProfile()
             }
-          } catch {}
+          } catch { }
         }
 
         ws.onclose = () => {
           if (!alive) return
-          reconnectRef.current = setTimeout(connect, 2000)
+          reconnectRef.current = setTimeout(connect, backoff)
+          backoff = Math.min(backoff * 2, MAX_BACKOFF)
         }
 
         ws.onerror = () => {
-          try { ws.close() } catch {}
+          // Silently close — onclose handles reconnect
+          try { ws.close() } catch { }
         }
       } catch {
-        reconnectRef.current = setTimeout(connect, 2000)
+        reconnectRef.current = setTimeout(connect, backoff)
+        backoff = Math.min(backoff * 2, MAX_BACKOFF)
       }
     }
 
@@ -110,7 +119,7 @@ export function ProfileProvider({ children }) {
         reconnectRef.current = null
       }
       if (wsRef.current) {
-        try { wsRef.current.close() } catch {}
+        try { wsRef.current.close() } catch { }
         wsRef.current = null
       }
     }

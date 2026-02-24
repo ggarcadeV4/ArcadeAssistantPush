@@ -94,6 +94,8 @@ print("DEBUG: Importing shutdown_manager...")
 from backend.shutdown_manager import cleanup_resources
 print("DEBUG: Importing routers...")
 from backend.routers import health, config_ops, session_log, emulator_mame, emulator_retroarch, screen_capture, claude_api, launchbox, frontend_log, scorekeeper, led_blinky, led, drive_map, routing_policy, controller, system, hardware, console, dewey, gaming_news, sessions
+from backend.routers import chuck_hardware
+from backend.routers import wizard_mapping
 from backend.routers import emulator_status as emulator_status_router
 print("DEBUG: All basic routers imported")
 print("DEBUG: Importing profile router...")
@@ -564,6 +566,8 @@ app.include_router(aa_launch.router)  # Universal launcher endpoint
 app.include_router(launchbox_ps2.router)
 app.include_router(system.router)
 app.include_router(controller.router, prefix="/api/local/controller", tags=["controller"])
+app.include_router(chuck_hardware.router, prefix="/api/local/controller", tags=["controller-hardware"])  # Phase 2: Hardware split
+app.include_router(wizard_mapping.router, prefix="/api/local/controller", tags=["controller-wizard"])  # Phase 2: Wizard/Mapping split
 app.include_router(hardware.router, prefix="/api/hardware", tags=["hardware"])
 app.include_router(hardware.router, prefix="/api/local/hardware", tags=["hardware"])  # Also mount at /api/local for ControllerChuckPanel
 app.include_router(console.router, prefix="/api/local/console", tags=["console"])

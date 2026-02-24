@@ -31,6 +31,7 @@ const PageLoader = () => (
 
 function App() {
   const location = useLocation()
+  console.log('[App] React tree mounted at', window.location.href, '| route:', location.pathname)
   // Apply dark arcade theme to all pages
   const appClass = 'app theme-arcade'
 
