@@ -878,7 +878,7 @@ const MAMEConfigModal = memo(({ show, preview, onApply, onCancel }) => {
             onClick={onApply}
             disabled={!isValid}
           >
-            Apply Config
+            Hot-Swap Apply
           </button>
         </div>
       </div>
@@ -2277,7 +2277,7 @@ export default function ControllerChuckPanel() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/mame-config/apply`, {
+      const response = await fetch(`${API_BASE}/mame-config/hot-swap`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2285,19 +2285,19 @@ export default function ControllerChuckPanel() {
         }
       });
 
-      if (!response.ok) throw new Error('Failed to apply MAME config');
+      if (!response.ok) throw new Error('Failed to apply MAME hot-swap config');
 
       const data = await response.json();
       setShowMameModal(false);
       setMamePreview(null);
 
       addMessage(
-        `MAME config written! ${data.summary.port_count} ports for ${data.summary.player_count} players. Backup: ${data.backup_path || 'none'}`,
+        `🔴 Live session active! ${data.summary.port_count} ports for ${data.summary.player_count} players. MAME flag: ${data.mame_flag}`,
         'assistant'
       );
     } catch (error) {
-      console.error('MAME apply error:', error);
-      addMessage('MAME config apply failed: ' + error.message, 'error');
+      console.error('MAME hot-swap error:', error);
+      addMessage('MAME hot-swap failed: ' + error.message, 'error');
     }
   }, [mamePreview, addMessage]);
 

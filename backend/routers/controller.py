@@ -58,6 +58,11 @@ from ..services.mame_config_generator import (
     get_mame_config_summary,
     validate_mame_config,
 )
+from ..services.mame_hot_swap import (
+    write_ephemeral_config,
+    clear_ephemeral_config,
+    get_ephemeral_status,
+)
 from ..services.controller_shared import log_controller_change
 
 # Board detection – used by GET /mapping for real-time status
@@ -1377,3 +1382,100 @@ async def validate_existing_mame_config(request: Request):
     except Exception as e:
         logger.error(f"MAME config validation error: {e}")
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
+# =============================================================================
+# MAME Hot-Swap — Ephemeral Controller Config (Phase 3)
+# =============================================================================
+
+
+@router.post("/mame-config/hot-swap")
+async def hot_swap_mame_config(request: Request):
+    """Write ephemeral MAME controller config for live session.
+
+    Generates live_session.cfg in MAME's ctrlr/ directory instead of
+    overwriting default.cfg.  MAME reads it via -ctrlr live_session.
+
+    Returns:
+        Ephemeral config status with summary and MAME flag.
+    """
+    try:
+        require_scope(request, "config")
+
+        drive_root = request.app.state.drive_root
+        mapping_file = drive_root / "config" / "mappings" / "controls.json"
+
+        if not mapping_file.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="Mapping file not found at config/mappings/controls.json",
+            )
+
+        with open(mapping_file, "r", encoding="utf-8") as f:
+            mapping_data = json.load(f)
+
+        result = write_ephemeral_config(mapping_data, drive_root)
+
+        # Log the change
+        log_controller_change(
+            request, drive_root, "mame_hot_swap_write",
+            {
+                "action": "write_ephemeral_config",
+                "profile": result["profile_name"],
+                "port_count": result["summary"].get("port_count", 0),
+                "player_count": result["summary"].get("player_count", 0),
+                "source": "config/mappings/controls.json",
+            },
+        )
+
+        return result
+
+    except (MAMEConfigError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Hot-swap write error: {e}")
+        raise HTTPException(status_code=500, detail=f"Hot-swap failed: {str(e)}")
+
+
+@router.delete("/mame-config/hot-swap")
+async def clear_hot_swap_config(request: Request):
+    """Remove the ephemeral MAME controller config.
+
+    Safe to call even if no ephemeral config exists.
+    """
+    try:
+        require_scope(request, "config")
+        drive_root = request.app.state.drive_root
+
+        result = clear_ephemeral_config(drive_root)
+
+        if result["was_active"]:
+            log_controller_change(
+                request, drive_root, "mame_hot_swap_clear",
+                {"action": "clear_ephemeral_config"},
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Hot-swap clear error: {e}")
+        raise HTTPException(status_code=500, detail=f"Clear failed: {str(e)}")
+
+
+@router.get("/mame-config/hot-swap/status")
+async def hot_swap_status(request: Request):
+    """Check if an ephemeral MAME config is active.
+
+    Returns:
+        Status with active flag, summary, and MAME launch flag.
+    """
+    try:
+        drive_root = request.app.state.drive_root
+        return get_ephemeral_status(drive_root)
+    except Exception as e:
+        logger.error(f"Hot-swap status error: {e}")
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
