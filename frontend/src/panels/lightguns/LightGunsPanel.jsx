@@ -125,6 +125,13 @@ const resolveDeviceId = () => {
   return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
 }
 
+const formatProfileTimestamp = (value) => {
+  if (!value) return 'Never'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return date.toLocaleDateString()
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -143,6 +150,44 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
     { value: 'right', label: 'Right-handed' },
     { value: 'left', label: 'Left-handed' }
   ]
+  const GUNNER_TABS = useMemo(
+    () => [
+      { id: 'devices', label: '[Devices]' },
+      { id: 'calibration', label: '[Calibration]' },
+      { id: 'profiles', label: '[Profiles]' },
+      { id: 'retro-modes', label: '[Retro Modes]' }
+    ],
+    []
+  )
+  const RETRO_ENGINES = useMemo(
+    () => [
+      {
+        id: 'arcade-cabinet',
+        name: 'Arcade Cabinet',
+        status: 'online',
+        description: 'Balanced mode for mixed CRT/LCD cabinets with low-latency sync.'
+      },
+      {
+        id: 'mame-native',
+        name: 'MAME Native',
+        status: 'stable',
+        description: 'Native border and timing presets tuned for classic MAME titles.'
+      },
+      {
+        id: 'batocera-core',
+        name: 'Batocera Core',
+        status: 'testing',
+        description: 'Fast-launch profile for Batocera frontends and mixed emulator stacks.'
+      },
+      {
+        id: 'technoparrot',
+        name: 'TeknoParrot',
+        status: 'beta',
+        description: 'Experimental recoil and sensitivity map for modern arcade shooters.'
+      }
+    ],
+    []
+  )
   const AVATAR_CANDIDATES = [
     '/gunner-avatar.jpeg',
     '/lightguns-avatar.png',
@@ -150,6 +195,7 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
     '/lightguns-avatar.jpeg'
   ] // place your preferred image under frontend/public
   const [chatOpen, setChatOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState(showProfilesSection ? 'profiles' : 'devices')
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState(() => {
     // Don't show default greeting if coming from Dewey handoff
@@ -173,6 +219,13 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
   const [toast, setToast] = useState(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [selectedRetroEngineId, setSelectedRetroEngineId] = useState('arcade-cabinet')
+  const [retroSettings, setRetroSettings] = useState({
+    sensitivity: 68,
+    smoothing: 42,
+    recoil: 55,
+    profile: 'crt-15khz'
+  })
   const streamAbortRef = useRef(null)
   const targetRef = useRef(null)
   const handoffProcessedRef = useRef(null)
@@ -186,11 +239,20 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
   // Auto-scroll to profiles section if requested via URL param
   useEffect(() => {
     if (showProfilesSection && profilesSectionRef.current) {
+      setActiveTab('profiles')
       setTimeout(() => {
         profilesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 300) // Short delay to allow render
     }
   }, [showProfilesSection])
+
+  useEffect(() => {
+    if (activeTab !== 'profiles' || !profilesSectionRef.current) return
+    const timer = setTimeout(() => {
+      profilesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [activeTab])
 
   // Calibration state machine
   const [calibState, dispatch] = useReducer(calibReducer, initialCalibState)
@@ -275,6 +337,12 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
     () => devices.find(device => String(device.id) === String(selectedDeviceId)),
     [devices, selectedDeviceId]
   )
+  const selectedRetroEngine = useMemo(
+    () => RETRO_ENGINES.find(engine => engine.id === selectedRetroEngineId) ?? RETRO_ENGINES[0],
+    [RETRO_ENGINES, selectedRetroEngineId]
+  )
+  const calibrationProgress = Math.round((calibState.points.length / 9) * 100)
+  const profileSignal = profileSelection ? 76 : 24
 
   const fetchProfileList = useCallback(async () => {
     setProfileStatus('loading')
@@ -511,6 +579,17 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
     setCustomProfileName(event.target.value)
   }, [])
 
+  const handleProfileCardSelect = useCallback((game) => {
+    setProfileSelection(game)
+  }, [])
+
+  const handleRetroSettingChange = useCallback((key, value) => {
+    setRetroSettings(prev => ({
+      ...prev,
+      [key]: value
+    }))
+  }, [])
+
   const sendChat = useCallback(async (text) => {
     const trimmed = text.trim()
     if (!trimmed) return
@@ -643,22 +722,79 @@ You have full access to the Arcade Assistant's safe file modification system.`
   }
 
   return (
-    <PanelShell title="Light Gun Calibration & Chat" status="online">
-      <div className="panel-container">
+    <PanelShell title="GUNNER: RETRO SHOOTER CONTROL CENTER" status="online">
+      <div className="panel-container gunner-retro-shell">
         <div className={`main-panel ${chatOpen ? 'chat-open' : ''}`}>
+          <div className="gunner-scanlines" aria-hidden="true" />
+
+          <header className="gunner-retro-header" data-purpose="header">
+            <div className="gunner-retro-header-top">
+              <h1 className="gunner-retro-title">
+                <span>GUNNER:</span>
+                <span>RETRO SHOOTER</span>
+                <span>CONTROL CENTER</span>
+              </h1>
+              <div className="gunner-retro-dots" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+            <div className="gunner-retro-meta">
+              <span>Cabinet: <strong>{deviceId}</strong></span>
+              <span className="divider">|</span>
+              <span>
+                Fleet Status:{' '}
+                <strong className={devices.length > 0 ? 'online' : 'offline'}>
+                  {devices.length > 0 ? 'Connected' : 'Offline'}
+                </strong>
+              </span>
+            </div>
+          </header>
+
+          <nav className="gunner-retro-nav" data-purpose="navigation" aria-label="Gunner sections">
+            {GUNNER_TABS.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`gunner-retro-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          <section className="gunner-retro-alert" data-purpose="alert-system" role="status" aria-live="polite">
+            <span className="icon">⚠</span>
+            <span>Critical Alert: Gun 2P low battery (20%)</span>
+          </section>
+
           <div className="panel-header">
             <div className="panel-title">
               {/* Panel avatar (optional). Put file at frontend/public/lightguns-avatar.(png|jpg|jpeg) */}
               <AvatarImg alt="Light Guns Avatar" className="panel-avatar" />
               <div className="title-text">
-                <h1>Light Gun Calibration</h1>
-                <p>Configure and calibrate light gun hardware</p>
+                <h1>
+                  {activeTab === 'retro-modes'
+                    ? 'Retro Engine Selection'
+                    : activeTab === 'profiles'
+                      ? 'Profiles Management'
+                      : 'Calibration Operations'}
+                </h1>
+                <p>
+                  {activeTab === 'retro-modes'
+                    ? 'Tune arcade engine profiles, sensitivity curves, and recoil behavior.'
+                    : activeTab === 'profiles'
+                      ? 'Manage saved shooter profiles, loadouts, and cabinet-specific presets.'
+                      : 'Cyber-calibrate your light guns, profiles, and live targeting stack'}
+                </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="panel-header-actions">
               <button className="chat-toggle" onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen} aria-controls="chat-panel">
                 <span>💬</span>
-                <span>{chatOpen ? 'Close Chat' : 'Ask Gunner'}</span>
+                <span>{chatOpen ? 'Close Chat' : 'Open Chat'}</span>
               </button>
             </div>
           </div>
@@ -669,213 +805,456 @@ You have full access to the Arcade Assistant's safe file modification system.`
             </div>
           )}
 
-          <div className="content-grid">
-            <section className="calibration-section">
-              <div className="section-title">
-                <span>🎯</span>
-                <span>Calibration Wizard</span>
-              </div>
-              <div className="wizard-steps">
-                <div className="wizard-step completed">
-                  <div className="step-info">
-                    <span className="step-number completed">1</span>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Hardware Detection</div>
-                      <div style={{ fontSize: 12, color: 'var(--lightgun-text-secondary)' }}>Found: Sinden Light Gun</div>
-                    </div>
-                  </div>
-                  <span className="step-status completed">Complete</span>
+          {activeTab === 'retro-modes' ? (
+            <div className="gunner-engine-layout" data-purpose="content-grid">
+              <section className="calibration-section">
+                <div className="section-title">
+                  <span>🕹️</span>
+                  <span>Engine Matrix</span>
                 </div>
-                <div className="wizard-step active">
-                  <div className="step-info">
-                    <span className="step-number active">2</span>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Display Setup</div>
-                      <div className="text-sm" style={{ color: 'var(--lightgun-text-secondary)' }}>Monitor: CRT 27" 15kHz</div>
-                    </div>
-                  </div>
-                  <span className="step-status active">In Progress</span>
+
+                <div className="gunner-engine-grid">
+                  {RETRO_ENGINES.map(engine => (
+                    <button
+                      key={engine.id}
+                      type="button"
+                      className={`gunner-engine-card ${selectedRetroEngineId === engine.id ? 'active' : ''}`}
+                      onClick={() => setSelectedRetroEngineId(engine.id)}
+                    >
+                      <span className={`engine-dot ${engine.status}`} aria-hidden="true" />
+                      <h4>{engine.name}</h4>
+                      <p>{engine.description}</p>
+                    </button>
+                  ))}
                 </div>
-                <div className="wizard-step">
-                  <div className="step-info">
-                    <span className="step-number">3</span>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>9-Point Calibration</div>
-                      <div className="text-sm" style={{ color: 'var(--lightgun-text-secondary)' }}>Accuracy test</div>
-                    </div>
-                  </div>
-                  <span className="step-status">Pending</span>
+              </section>
+
+              <section className="calibration-section">
+                <div className="section-title">
+                  <span>⚙️</span>
+                  <span>Mode Controls</span>
                 </div>
-                <div className="wizard-step">
-                  <div className="step-info">
-                    <span className="step-number">4</span>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>Profile Save</div>
-                      <div className="text-sm" style={{ color: 'var(--lightgun-text-secondary)' }}>Store settings</div>
-                    </div>
-                  </div>
-                  <span className="step-status">Pending</span>
+
+                <div className="gunner-engine-meta">
+                  <h3>{selectedRetroEngine.name}</h3>
+                  <span className={`engine-chip ${selectedRetroEngine.status}`}>{selectedRetroEngine.status}</span>
                 </div>
-              </div>
-              <div
-                className="target-display"
-                ref={targetRef}
-                role="button"
-                tabIndex={0}
-                onClick={handleTargetClick}
-                onKeyDown={handleTargetKeyDown}
-                aria-label="Calibration target area"
-              >
-                <div className="crosshair" aria-hidden="true" />
-                <div className="accuracy-text">{statusBanner || 'Click center target to continue'}</div>
-              </div>
-              <div className="action-buttons" style={{ marginTop: 20 }}>
-                <button
-                  className="action-btn primary"
-                  onClick={handleStartCalib}
-                  disabled={loading || calibState.status === 'calibrating'}
-                >
-                  {calibState.status === 'calibrating' ? `Calibrating (${calibState.currentPoint}/9)` : 'Start Calibration'}
-                </button>
-                <button
-                  className="action-btn secondary"
-                  onClick={handleSkipStep}
-                  disabled={calibState.status !== 'calibrating'}
-                >
-                  Skip Step
-                </button>
-                <button
-                  className="action-btn secondary"
-                  onClick={() => dispatch({ type: 'RESET' })}
-                  disabled={calibState.status === 'idle'}
-                >
-                  Reset
-                </button>
-              </div>
-              {calibState.error && (
-                <div style={{ color: 'var(--lightgun-error, #ef4444)', marginTop: 12, fontSize: 14 }}>
-                  ⚠ {calibState.error}
-                </div>
-              )}
-            </section>
-            <section className="calibration-section">
-              <h3 style={{ marginBottom: 8, color: 'var(--lightgun-text-primary)', textShadow: '0 0 8px var(--lightgun-glow-primary)' }}>Tools & Status</h3>
-              <ul className="text-sm" style={{ lineHeight: 1.8, color: 'var(--lightgun-text-secondary)', gap: 8, display: 'flex', flexDirection: 'column' }}>
-                <li>• Connection: <span style={{ color: devices.length > 0 ? 'var(--lightgun-online, #10b981)' : 'var(--lightgun-offline, #ef4444)' }}>
-                  {devices.length > 0 ? 'Online' : 'Offline'}
-                </span></li>
-                <li>
-                  • Device:
-                  <select className="lightgun-select" value={selectedDeviceId} onChange={handleDeviceChange} aria-label="Select light gun device">
-                    {devices.map(device => (
-                      <option key={device.id} value={device.id}>{device.name || device.id}</option>
-                    ))}
+                <p className="gunner-engine-description">{selectedRetroEngine.description}</p>
+
+                <label className="gunner-slider-row">
+                  <span>Sensitivity</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={retroSettings.sensitivity}
+                    onChange={event => handleRetroSettingChange('sensitivity', Number(event.target.value))}
+                  />
+                  <strong>{retroSettings.sensitivity}%</strong>
+                </label>
+
+                <label className="gunner-slider-row">
+                  <span>Smoothing</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={retroSettings.smoothing}
+                    onChange={event => handleRetroSettingChange('smoothing', Number(event.target.value))}
+                  />
+                  <strong>{retroSettings.smoothing}%</strong>
+                </label>
+
+                <label className="gunner-slider-row">
+                  <span>Recoil Boost</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={retroSettings.recoil}
+                    onChange={event => handleRetroSettingChange('recoil', Number(event.target.value))}
+                  />
+                  <strong>{retroSettings.recoil}%</strong>
+                </label>
+
+                <div className="gunner-profile-select-row">
+                  <span>Display Profile</span>
+                  <select
+                    className="lightgun-select"
+                    value={retroSettings.profile}
+                    onChange={event => handleRetroSettingChange('profile', event.target.value)}
+                  >
+                    <option value="crt-15khz">CRT 15kHz</option>
+                    <option value="lcd-low-latency">LCD Low Latency</option>
+                    <option value="projector-wide">Projector Wide</option>
                   </select>
-                  <button type="button" className="inline-refresh" onClick={fetchDevices} disabled={loading} aria-label="Refresh device list">↻</button>
-                </li>
-                <li>
-                  • Gun Type:
-                  <select className="lightgun-select" value={gunType} onChange={handleGunTypeChange} aria-label="Select gun type">
-                    {GUN_TYPES.map(type => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
-                    ))}
-                  </select>
-                </li>
-                <li>
-                  • Handedness:
-                  <select className="lightgun-select" value={handedness} onChange={e => setHandedness(e.target.value)} aria-label="Select handedness">
-                    {HAND_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </li>
-                <li>• Calib Status: {calibState.status === 'done' ? 'Complete' : calibState.status === 'calibrating' ? `In progress (${calibState.currentPoint}/9)` : calibState.status === 'error' ? `Error: ${calibState.error}` : 'Not started'}</li>
-              </ul>
-              <div className="section-title" style={{ marginTop: 12 }} ref={profilesSectionRef}>
-                <span>🗂️</span>
-                <span>Gun Profiles</span>
-              </div>
-              <div className="profile-list">
-                <div className="profile-item active">
-                  <div className="profile-info" style={{ width: '100%' }}>
-                    <div className="profile-name">Saved Profiles</div>
-                    <div className="profile-details">
-                      <select className="lightgun-select" value={profileSelection} onChange={handleProfileSelectChange} disabled={profileStatus === 'loading'} aria-label="Select saved profile">
-                        <option value="">Select profile</option>
-                        {profileOptions.map(profile => (
-                          <option key={profile.game} value={profile.game}>
-                            {profile.game} {profile.created_at ? `(${new Date(profile.created_at).toLocaleDateString()})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <button className="action-btn secondary" onClick={handleLoadProfile} disabled={profileStatus === 'loading' || !profileSelection}>
-                    {profileStatus === 'loading' ? 'Loading…' : 'Load'}
+                </div>
+
+                <div className="action-buttons" style={{ marginTop: 16 }}>
+                  <button
+                    className="action-btn primary"
+                    onClick={() => setToast({ type: 'success', text: `${selectedRetroEngine.name} mode applied.` })}
+                  >
+                    Apply Retro Mode
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={() => {
+                      setRetroSettings({ sensitivity: 68, smoothing: 42, recoil: 55, profile: 'crt-15khz' })
+                      setToast({ type: 'warning', text: 'Retro mode settings reset to defaults.' })
+                    }}
+                  >
+                    Reset Defaults
                   </button>
                 </div>
-                <div className="profile-item">
-                  <div className="profile-info" style={{ width: '100%' }}>
-                    <div className="profile-name">New Profile Name</div>
-                    <div className="profile-details">
-                      <input className="lightgun-input" value={customProfileName} onChange={handleCustomProfileChange} placeholder="e.g. time-crisis" aria-label="New profile name" />
-                    </div>
-                  </div>
-                  <button className="action-btn secondary" onClick={fetchProfileList} title="Refresh profile list">
-                    ↻
-                  </button>
+              </section>
+            </div>
+          ) : activeTab === 'profiles' ? (
+            <div className="gunner-profiles-layout" data-purpose="profiles-grid">
+              <aside className="calibration-section gunner-profiles-list-column">
+                <div className="section-title" ref={profilesSectionRef}>
+                  <span>🎮</span>
+                  <span>Profile List</span>
                 </div>
-                <div className="profile-item">
-                  <div className="profile-info">
-                    <div className="profile-name">Profile Preview</div>
-                    <div className="profile-details">
-                      {profileDetails ? (
-                        <>
-                          <div>Game: {profileDetails.game}</div>
-                          <div>Points: {profileDetails.points?.length || 0}</div>
-                        </>
-                      ) : (
-                        <span>No profile loaded yet</span>
-                      )}
+                <p className="gunner-profiles-subtitle">Select and stage shooter profiles for your cabinet.</p>
+
+                <div className="gunner-profiles-cards">
+                  {profileOptions.length === 0 ? (
+                    <div className="gunner-profile-empty">
+                      No saved profiles yet. Run calibration and save your first profile.
                     </div>
+                  ) : (
+                    profileOptions.map(profile => (
+                      <button
+                        key={profile.game}
+                        type="button"
+                        className={`gunner-profile-card ${profileSelection === profile.game ? 'active' : ''}`}
+                        onClick={() => handleProfileCardSelect(profile.game)}
+                      >
+                        <span className="gunner-profile-card-icon" aria-hidden="true">🔫</span>
+                        <h3>{profile.game}</h3>
+                        <p>Last Played: {formatProfileTimestamp(profile.updated_at || profile.created_at)}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </aside>
+
+              <section className="calibration-section gunner-profiles-manager-column">
+                <div className="section-title">
+                  <span>🧩</span>
+                  <span>Profile Manager</span>
+                </div>
+
+                <div className="gunner-profiles-manager-meta">
+                  <span>[MAC: {deviceId}]</span>
+                  <span>[Fleet Profiles: {profileOptions.length}]</span>
+                </div>
+
+                <div className="gunner-profiles-form-row">
+                  <label htmlFor="gunner-profile-select">Saved Profile</label>
+                  <div className="gunner-profiles-inline-actions">
+                    <select
+                      id="gunner-profile-select"
+                      className="lightgun-select"
+                      value={profileSelection}
+                      onChange={handleProfileSelectChange}
+                      disabled={profileStatus === 'loading'}
+                      aria-label="Select saved profile"
+                    >
+                      <option value="">Select profile</option>
+                      {profileOptions.map(profile => (
+                        <option key={profile.game} value={profile.game}>
+                          {profile.game} {profile.created_at ? `(${new Date(profile.created_at).toLocaleDateString()})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="action-btn secondary"
+                      onClick={handleLoadProfile}
+                      disabled={profileStatus === 'loading' || !profileSelection}
+                    >
+                      {profileStatus === 'loading' ? 'Loading…' : 'Load'}
+                    </button>
                   </div>
                 </div>
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ color: 'var(--lightgun-primary)', marginBottom: 10, fontSize: 16 }}>Current Settings</h3>
-                <div style={{ background: 'rgba(30, 41, 59, 0.6)', padding: 15, borderRadius: 8, fontFamily: 'monospace', fontSize: 12, border: '1px solid var(--lightgun-secondary)', color: 'var(--lightgun-text-primary)' }}>
-                  <div>Device: {selectedDevice?.name || 'N/A'}</div>
-                  <div>Points Captured: {calibState.points.length}</div>
-                  <div>Accuracy: {calibrationResult?.accuracy ? `${(calibrationResult.accuracy * 100).toFixed(1)}%` : '—'}</div>
-                  <div>Mode: {gunType}</div>
+
+                <div className="gunner-profiles-form-row">
+                  <label htmlFor="gunner-profile-name">New Profile Name</label>
+                  <div className="gunner-profiles-inline-actions">
+                    <input
+                      id="gunner-profile-name"
+                      className="lightgun-input"
+                      value={customProfileName}
+                      onChange={handleCustomProfileChange}
+                      placeholder="e.g. time-crisis, house-of-dead"
+                      aria-label="New profile name"
+                    />
+                    <button
+                      type="button"
+                      className="action-btn secondary"
+                      onClick={fetchProfileList}
+                      title="Refresh profile list"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                <div className="gunner-profiles-preview">
+                  <h3>Profile Preview</h3>
+                  {profileDetails ? (
+                    <div className="gunner-profiles-preview-grid">
+                      <div>Game: {profileDetails.game}</div>
+                      <div>Points: {profileDetails.points?.length || 0}</div>
+                      <div>Device: {selectedDevice?.name || 'N/A'}</div>
+                      <div>
+                        Accuracy: {calibrationResult?.accuracy ? `${(calibrationResult.accuracy * 100).toFixed(1)}%` : '—'}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="gunner-profiles-preview-empty">Load a profile to inspect saved data.</p>
+                  )}
+                </div>
+
+                <div className="gunner-profiles-status-card">
+                  <div>Selected Profile: {profileSelection || 'None'}</div>
+                  <div>Live Points Captured: {calibState.points.length}</div>
+                  <div>Current Mode: {gunType}</div>
                   <div>Status: {streaming ? 'Streaming' : (statusBanner || 'Idle')}</div>
                 </div>
-              </div>
-              <div className="action-buttons">
-                <button
-                  className="action-btn primary"
-                  onClick={handleSaveProfile}
-                  disabled={calibState.points.length !== 9 || savingProfile}
+
+                <div className="action-buttons" style={{ marginTop: 16 }}>
+                  <button
+                    className="action-btn primary"
+                    onClick={handleSaveProfile}
+                    disabled={calibState.points.length !== 9 || savingProfile}
+                  >
+                    {savingProfile ? 'Saving…' : 'Save Profile'}
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={handleLoadProfile}
+                    disabled={profileStatus === 'loading' || !profileSelection}
+                  >
+                    Apply Selected
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={handleTestAccuracy}
+                    disabled={calibState.points.length !== 9 && !(profileDetails?.points?.length === 9)}
+                  >
+                    Test Accuracy
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={handleReset}
+                    disabled={calibState.status === 'idle'}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <div className="content-grid gunner-calibration-layout">
+              <section className="calibration-section gunner-calibration-hud">
+                <div className="section-title">
+                  <span>🎯</span>
+                  <span>Calibration Combat Deck</span>
+                </div>
+
+                <div className="gunner-health-grid">
+                  <article className="gunner-health-card player-one">
+                    <div className="gunner-health-head">
+                      <h3>1P Gun: {selectedDevice?.name || 'No Device Detected'}</h3>
+                      <span>{calibState.status === 'calibrating' ? 'tracking' : 'stable'}</span>
+                    </div>
+                    <p>{devices.length > 0 ? 'Online / Active' : 'Offline / Standby'}</p>
+                    <div className="gunner-health-meter" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={calibrationProgress}>
+                      <span style={{ width: `${Math.max(calibrationProgress, 6)}%` }} />
+                    </div>
+                    <strong>{calibrationProgress}%</strong>
+                  </article>
+
+                  <article className="gunner-health-card player-two">
+                    <div className="gunner-health-head">
+                      <h3>2P Link: {profileSelection || 'Unassigned'}</h3>
+                      <span>{profileSelection ? 'connected' : 'low batt'}</span>
+                    </div>
+                    <p>{profileSelection ? 'Connected / Ready' : 'Select a profile to sync'}</p>
+                    <div className="gunner-health-meter" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={profileSignal}>
+                      <span style={{ width: `${profileSignal}%` }} />
+                    </div>
+                    <strong>{profileSignal}%</strong>
+                  </article>
+                </div>
+
+                <div className="gunner-calibration-grid">
+                  <article className="gunner-mini-panel">
+                    <h4>Sensor Grid Analytics</h4>
+                    <div className="gunner-mini-stats">
+                      <div><span>TL Signal</span><strong>{calibState.points[0] ? 'Locked' : 'Awaiting'}</strong></div>
+                      <div><span>TR Signal</span><strong>{calibState.points[2] ? 'Locked' : 'Awaiting'}</strong></div>
+                      <div><span>BL Signal</span><strong>{calibState.points[6] ? 'Locked' : 'Awaiting'}</strong></div>
+                      <div><span>BR Signal</span><strong>{calibState.points[8] ? 'Locked' : 'Awaiting'}</strong></div>
+                    </div>
+                    <p className="gunner-mini-footnote">Active Monitoring • Latency: {streaming ? 'Live stream' : 'Idle'}</p>
+                  </article>
+
+                  <article className="gunner-mini-panel">
+                    <h4>Connection Matrix</h4>
+                    <div className="gunner-connection-map">
+                      <span className="endpoint">GUN {selectedDeviceId ? '(1P)' : '(--)'}</span>
+                      <span className="matrix-node">IR ARRAY</span>
+                      <span className="endpoint">{profileSelection ? 'USR + HUD' : 'NO PROFILE'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="action-btn secondary gunner-scan-btn"
+                      onClick={fetchDevices}
+                      disabled={loading}
+                    >
+                      {loading ? 'Scanning…' : 'Scan Hardware'}
+                    </button>
+                  </article>
+                </div>
+
+                <div
+                  className="target-display gunner-target-display-hud"
+                  ref={targetRef}
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleTargetClick}
+                  onKeyDown={handleTargetKeyDown}
+                  aria-label="Calibration target area"
                 >
-                  {savingProfile ? 'Saving…' : 'Save Profile'}
-                </button>
-                <button
-                  className="action-btn secondary"
-                  onClick={handleReset}
-                  disabled={calibState.status === 'idle'}
-                >
-                  Reset
-                </button>
-                <button
-                  className="action-btn secondary"
-                  onClick={handleTestAccuracy}
-                  disabled={calibState.points.length !== 9}
-                >
-                  Test Accuracy
-                </button>
-              </div>
-            </section>
-          </div>
+                  <div className="crosshair" aria-hidden="true" />
+                  <div className="accuracy-text">{statusBanner || 'Click center target to continue'}</div>
+                </div>
+
+                <div className="action-buttons" style={{ marginTop: 20 }}>
+                  <button
+                    className="action-btn primary"
+                    onClick={handleStartCalib}
+                    disabled={loading || calibState.status === 'calibrating'}
+                  >
+                    {calibState.status === 'calibrating' ? `Calibrating (${calibState.currentPoint}/9)` : 'Start Calibration'}
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={handleSkipStep}
+                    disabled={calibState.status !== 'calibrating'}
+                  >
+                    Skip Step
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={() => dispatch({ type: 'RESET' })}
+                    disabled={calibState.status === 'idle'}
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                {calibState.error && (
+                  <div className="gunner-calibration-error">⚠ {calibState.error}</div>
+                )}
+              </section>
+
+              <section className="calibration-section gunner-calibration-console">
+                <div className="section-title">
+                  <span>🧠</span>
+                  <span>Command Console</span>
+                </div>
+
+                <div className="gunner-console-list">
+                  <div className="gunner-console-row">
+                    <span>Connection</span>
+                    <strong className={devices.length > 0 ? 'online' : 'offline'}>{devices.length > 0 ? 'Online' : 'Offline'}</strong>
+                  </div>
+
+                  <div className="gunner-console-row">
+                    <span>Device</span>
+                    <div className="gunner-console-controls">
+                      <select className="lightgun-select" value={selectedDeviceId} onChange={handleDeviceChange} aria-label="Select light gun device">
+                        {devices.map(device => (
+                          <option key={device.id} value={device.id}>{device.name || device.id}</option>
+                        ))}
+                      </select>
+                      <button type="button" className="inline-refresh" onClick={fetchDevices} disabled={loading} aria-label="Refresh device list">↻</button>
+                    </div>
+                  </div>
+
+                  <div className="gunner-console-row">
+                    <span>Gun Type</span>
+                    <select className="lightgun-select" value={gunType} onChange={handleGunTypeChange} aria-label="Select gun type">
+                      {GUN_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="gunner-console-row">
+                    <span>Handedness</span>
+                    <select className="lightgun-select" value={handedness} onChange={e => setHandedness(e.target.value)} aria-label="Select handedness">
+                      {HAND_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="gunner-console-row">
+                    <span>Calib Status</span>
+                    <strong>
+                      {calibState.status === 'done'
+                        ? 'Complete'
+                        : calibState.status === 'calibrating'
+                          ? `In Progress (${calibState.currentPoint}/9)`
+                          : calibState.status === 'error'
+                            ? `Error: ${calibState.error}`
+                            : 'Not Started'}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="section-title gunner-profile-ops-title">
+                  <span>🗂️</span>
+                  <span>Profile Ops</span>
+                </div>
+                <div className="gunner-profiles-status-card">
+                  <div>Selected Profile: {profileSelection || 'None'}</div>
+                  <div>Saved Profiles: {profileOptions.length}</div>
+                  <div>Points Captured: {calibState.points.length}</div>
+                  <div>Accuracy: {calibrationResult?.accuracy ? `${(calibrationResult.accuracy * 100).toFixed(1)}%` : '—'}</div>
+                  <div>Status: {streaming ? 'Streaming' : (statusBanner || 'Idle')}</div>
+                </div>
+                <div className="action-buttons" style={{ marginTop: 12 }}>
+                  <button
+                    className="action-btn secondary"
+                    onClick={() => setActiveTab('profiles')}
+                  >
+                    Open Profiles Tab
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={handleLoadProfile}
+                    disabled={profileStatus === 'loading' || !profileSelection}
+                  >
+                    {profileStatus === 'loading' ? 'Loading…' : 'Load Selected'}
+                  </button>
+                  <button
+                    className="action-btn secondary"
+                    onClick={handleTestAccuracy}
+                    disabled={calibState.points.length !== 9 && !(profileDetails?.points?.length === 9)}
+                  >
+                    Test Accuracy
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
         </div>
 
         <aside id="chat-panel" className={`chat-panel ${chatOpen ? 'open' : ''}`} aria-label="Light guns chat">

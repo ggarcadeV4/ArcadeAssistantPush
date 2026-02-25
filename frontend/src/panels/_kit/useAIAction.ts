@@ -25,7 +25,7 @@ export function useAIAction(panel: string = 'default', deviceId = 'demo_001'): A
     setIsLoading(true)
     try {
       const result = await chat({
-        provider: 'claude',
+        provider: 'gemini',
         messages,
         metadata: { panel, envelope },
         scope: 'state',
@@ -59,7 +59,7 @@ export function useAIAction(panel: string = 'default', deviceId = 'demo_001'): A
       })
 
       const result = await chat({
-        provider: 'claude',
+        provider: 'gemini',
         messages,
         metadata: {
           panel,

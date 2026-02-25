@@ -1845,3 +1845,27 @@
   color: var(--sam-secondary);
   margin-bottom: 0.5rem;
 }
+
+
+/* === Voice Button States === */
+.voice-btn.listening {
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+.voice-btn.speaking {
+  background: rgba(13, 204, 242, 0.25) !important;
+  border-color: rgba(13, 204, 242, 0.6) !important;
+  animation: speaker-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+@keyframes speaker-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(13, 204, 242, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(13, 204, 242, 0); }
+}

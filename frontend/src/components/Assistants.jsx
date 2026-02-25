@@ -1,7 +1,6 @@
 import React, { useEffect, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-// CIRCULAR DEPENDENCY FIX: Use React.lazy to break TDZ error (same pattern as LaunchBox)
-const LEDBlinkyPanel = React.lazy(() => import('./led-blinky/LEDBlinkyPanelNew'))
+import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelNew'
 import ErrorBoundary from './ErrorBoundary'
 // Old monolithic panel (preserved for rollback):
 // import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
@@ -22,7 +21,80 @@ import CabinetHighScoresPanel from '../panels/scorekeeper/CabinetHighScoresPanel
 import { stopSpeaking } from '../services/ttsClient'
 
 // Dewey is accessed directly via /assistants?agent=dewey, not from the personas grid
-const personas = []
+const personas = [
+  {
+    id: 'launchbox',
+    name: 'LaunchBox LoRa',
+    role: 'AI Agent: LoRa',
+    summary: 'Launch retro titles, manage playlists, and import content sources.',
+    hero: '/lora-hero.png',
+    avatar: '/lora-avatar.jpeg'
+  },
+  {
+    id: 'dewey',
+    name: 'Dewey AI Assistant',
+    role: 'AI Agent: Dewey',
+    summary: 'Ask questions, browse manuals, and get step-by-step repair help.',
+    hero: '/dewey-hero.png',
+    avatar: '/dewey-avatar.jpeg'
+  },
+  {
+    id: 'scorekeeper',
+    name: 'Historian / Scorekeeper',
+    role: 'AI Agent: Scores',
+    summary: 'Track high scores, manage tournaments, and archive run histories.',
+    hero: '/sam-hero.png',
+    avatar: '/sam-avatar.jpeg'
+  },
+  {
+    id: 'voice',
+    name: 'Voice Assistant',
+    role: 'AI Agent: Voice',
+    summary: 'Hands-free control, speech input, and text-to-speech.',
+    hero: '/voice-hero.png',
+    avatar: '/vicky-avatar.jpeg'
+  },
+  {
+    id: 'interface',
+    name: 'Arcade Interface',
+    role: 'Control Panel',
+    summary: 'Unified arcade controls, overlays, and quick actions.',
+    hero: '/chuck-hero.png',
+    avatar: '/chuck-avatar.jpeg'
+  },
+  {
+    id: 'controller-wizard',
+    name: 'Console Controller Wizard',
+    role: 'AI Agent: Controls',
+    summary: 'Emulator profiles and console controller mapping (NES/SNES/etc).',
+    hero: '/wiz-hero.png',
+    avatar: '/wiz-avatar.jpeg'
+  },
+  {
+    id: 'led',
+    name: 'LED Blinky',
+    role: 'Lighting',
+    summary: 'Game-aware button lighting and effects integrated with LaunchBox/MAME.',
+    hero: '/led-hero.png',
+    avatar: '/led-avatar.jpeg'
+  },
+  {
+    id: 'lightguns',
+    name: 'Light Guns',
+    role: 'Calibration',
+    summary: 'Sinden/Gun4IR setup, auto-calibration, and CRT-friendly profiles.',
+    hero: '/lightguns-hero.png',
+    avatar: '/gunner-avatar.jpeg'
+  },
+  {
+    id: 'health',
+    name: 'System Health Integration',
+    role: 'System',
+    summary: 'Monitor drives, builds, emulators, and configs in real-time.',
+    hero: '/doc-hero.png',
+    avatar: '/doc-avatar.jpeg'
+  }
+]
 
 function chunk(arr, size) {
   const out = []
@@ -56,7 +128,11 @@ function PersonaCard({ p }) {
       </div>
       <div className="persona-actions">
         <button className="btn btn-primary" onClick={handleLaunchPanel} aria-label={`Launch ${p.name} panel`}>Launch Panel</button>
-        <button className="btn btn-success" onClick={handleChatWithAI} aria-label={`Chat with ${p.name}`}>Chat with AI</button>
+        {p.id === 'scorekeeper' ? (
+          <button className="btn btn-success" onClick={() => navigate('/assistants?agent=scorekeeper&action=highscores')} aria-label="View High Scores">View High Scores</button>
+        ) : (
+          <button className="btn btn-success" onClick={handleChatWithAI} aria-label={`Chat with ${p.name}`}>Chat with AI</button>
+        )}
       </div>
     </div>
   )
@@ -231,10 +307,11 @@ export default function Assistants() {
 
   // Otherwise render the normal assistants grid
   const rows = chunk(personas, 3)
+  const rowThemes = ['row-blue', 'row-green', 'row-purple']
   return (
     <div className="assistants-page">
       {rows.map((row, idx) => (
-        <section className="persona-section" key={idx}>
+        <section className={`persona-section ${rowThemes[idx] || ''}`} key={idx}>
           <div className="container">
             <div className="persona-grid">
               {row.map(p => (

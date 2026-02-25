@@ -346,142 +346,337 @@ main {
 /* LightGuns Panel styles - Enhanced with outer panel color matching */
 :root {
   /* Light Gun Panel Color Scheme - Matches outer panel */
-  --lightgun-primary: #ec4899;
-  --lightgun-secondary: #8b5cf6;
-  --lightgun-background: #0f172a;
-  --lightgun-surface: #1e293b;
-  --lightgun-success: #10b981;
-  --lightgun-warning: #f59e0b;
-  --lightgun-online: #22d3ee;
+  --lightgun-primary: #ff00ff;
+  --lightgun-secondary: #00ffff;
+  --lightgun-background: #050510;
+  --lightgun-surface: #0a0a1f;
+  --lightgun-success: #00ff66;
+  --lightgun-warning: #ffcc00;
+  --lightgun-online: #00ff66;
 
   /* Enhanced text contrast for accessibility - Improved readability */
   --lightgun-text-primary: #ffffff;
-  --lightgun-text-secondary: #e2e8f0;
-  --lightgun-text-muted: #cbd5e1;
+  --lightgun-text-secondary: #cbd5e1;
+  --lightgun-text-muted: #94a3b8;
 
   /* Glow effects to match outer panel */
-  --lightgun-glow-primary: rgba(236, 72, 153, 0.5);
-  --lightgun-glow-secondary: rgba(139, 92, 246, 0.3);
-  --lightgun-glow-success: rgba(16, 185, 129, 0.4);
-  --lightgun-glow-online: rgba(34, 211, 238, 0.4);
+  --lightgun-glow-primary: rgba(255, 0, 255, 0.5);
+  --lightgun-glow-secondary: rgba(0, 255, 255, 0.35);
+  --lightgun-glow-success: rgba(0, 255, 102, 0.35);
+  --lightgun-glow-online: rgba(0, 255, 102, 0.35);
 
   /* Focus indicators */
-  --lightgun-focus-ring: 0 0 0 2px var(--lightgun-primary), 0 0 8px var(--lightgun-glow-primary);
+  --lightgun-focus-ring: 0 0 0 2px var(--lightgun-secondary), 0 0 8px var(--lightgun-glow-secondary);
 }
 
-.panel-container {
+.gunner-retro-shell.panel-container {
   display: flex;
   height: 100vh;
   position: relative;
-  background: var(--lightgun-background);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(0, 255, 255, 0.12), transparent 32%),
+    radial-gradient(circle at 88% 8%, rgba(255, 0, 255, 0.11), transparent 34%),
+    linear-gradient(135deg, #03030a 0%, #070712 45%, #0a0a1f 100%);
 }
 
-.main-panel {
+.gunner-retro-shell .gunner-scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.16;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 2px,
+    rgba(0, 0, 0, 0.5) 2px,
+    rgba(0, 0, 0, 0.5) 3px
+  );
+}
+
+.gunner-retro-shell .main-panel>*:not(.gunner-scanlines) {
+  position: relative;
+  z-index: 1;
+}
+
+.gunner-retro-shell .gunner-retro-header {
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  background: rgba(5, 5, 16, 0.92);
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.2);
+  padding: 16px 20px;
+  margin-bottom: 14px;
+}
+
+.gunner-retro-shell .gunner-retro-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.gunner-retro-shell .gunner-retro-title {
+  margin: 0;
+  font-family: "Orbitron", "Segoe UI", sans-serif;
+  font-size: clamp(1.25rem, 2.2vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5ch;
+}
+
+.gunner-retro-shell .gunner-retro-title span:nth-child(1),
+.gunner-retro-shell .gunner-retro-title span:nth-child(3) {
+  color: var(--lightgun-secondary);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+}
+
+.gunner-retro-shell .gunner-retro-title span:nth-child(2) {
+  color: var(--lightgun-primary);
+  text-shadow: 0 0 10px rgba(255, 0, 255, 0.7);
+}
+
+.gunner-retro-shell .gunner-retro-dots {
+  display: inline-flex;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.gunner-retro-shell .gunner-retro-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.gunner-retro-shell .gunner-retro-dots span:nth-child(1) {
+  color: var(--lightgun-primary);
+  background: var(--lightgun-primary);
+}
+
+.gunner-retro-shell .gunner-retro-dots span:nth-child(2) {
+  color: var(--lightgun-secondary);
+  background: var(--lightgun-secondary);
+}
+
+.gunner-retro-shell .gunner-retro-dots span:nth-child(3) {
+  color: var(--lightgun-success);
+  background: var(--lightgun-success);
+}
+
+.gunner-retro-shell .gunner-retro-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--lightgun-text-secondary);
+  font-family: "Share Tech Mono", "Consolas", monospace;
+}
+
+.gunner-retro-shell .gunner-retro-meta strong {
+  color: var(--lightgun-secondary);
+}
+
+.gunner-retro-shell .gunner-retro-meta .online {
+  color: var(--lightgun-success);
+  text-shadow: 0 0 8px var(--lightgun-glow-success);
+}
+
+.gunner-retro-shell .gunner-retro-meta .offline {
+  color: #ff4d4d;
+}
+
+.gunner-retro-shell .gunner-retro-meta .divider {
+  opacity: 0.5;
+}
+
+.gunner-retro-shell .gunner-retro-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.gunner-retro-shell .gunner-retro-nav-btn {
+  background: rgba(10, 10, 31, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #a8b7ce;
+  padding: 8px 14px;
+  font-family: "Orbitron", "Segoe UI", sans-serif;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gunner-retro-shell .gunner-retro-nav-btn:hover {
+  border-color: var(--lightgun-secondary);
+  color: var(--lightgun-secondary);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
+}
+
+.gunner-retro-shell .gunner-retro-nav-btn.active {
+  border: 1px solid var(--lightgun-primary);
+  color: var(--lightgun-text-primary);
+  box-shadow: 0 0 14px rgba(255, 0, 255, 0.35);
+}
+
+.gunner-retro-shell .gunner-retro-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Orbitron", "Segoe UI", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+  color: #111827;
+  font-weight: 800;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 204, 0, 0.6);
+  margin-bottom: 16px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(251, 191, 36, 0.95),
+    rgba(251, 191, 36, 0.95) 10px,
+    rgba(217, 119, 6, 0.95) 10px,
+    rgba(217, 119, 6, 0.95) 20px
+  );
+}
+
+.gunner-retro-shell .gunner-retro-alert .icon {
+  font-size: 15px;
+}
+
+.gunner-retro-shell .main-panel {
   flex: 1;
   padding: 30px;
+  overflow-y: auto;
   transition: margin-right 0.3s ease;
 }
 
-.main-panel.chat-open {
+.gunner-retro-shell .main-panel.chat-open {
   margin-right: 400px;
 }
 
-.panel-header {
+.gunner-retro-shell .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid var(--lightgun-primary);
-  box-shadow: 0 2px 8px var(--lightgun-glow-primary);
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 255, 255, 0.26);
+  background: rgba(10, 10, 31, 0.6);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.12);
 }
 
-.panel-title {
+.gunner-retro-shell .panel-title {
   display: flex;
   align-items: center;
   gap: 15px;
+  flex: 1 1 420px;
+  min-width: 0;
 }
 
-.gun-icon {
+.gunner-retro-shell .title-text {
+  min-width: 0;
+}
+
+.gunner-retro-shell .gun-icon {
   font-size: 32px;
   color: var(--lightgun-primary);
   filter: drop-shadow(0 0 6px var(--lightgun-glow-primary));
 }
 
-.title-text h1 {
-  font-size: 28px;
+.gunner-retro-shell .title-text h1 {
+  font-family: "Orbitron", "Segoe UI", sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--lightgun-text-primary);
   margin-bottom: 5px;
 }
 
-.title-text p {
+.gunner-retro-shell .title-text p {
   color: var(--lightgun-text-secondary);
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
-.chat-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 400px;
-  height: 100vh;
-  background: var(--lightgun-surface);
-  border-left: 2px solid var(--lightgun-primary);
-  padding: 16px;
-  overflow: auto;
-  box-shadow: -4px 0 16px var(--lightgun-glow-primary);
+.gunner-retro-shell .panel-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
 }
 
-.chat-drawer h3 {
-  color: var(--lightgun-primary);
-  margin-bottom: 8px;
-}
-
-/* Chat toggle button - Enhanced with accessibility */
-.chat-toggle {
+.gunner-retro-shell .chat-toggle {
+  display: flex;
   background: rgba(236, 72, 153, 0.2);
   border: 1px solid rgba(236, 72, 153, 0.5);
   padding: 10px 16px;
+  min-height: 40px;
   border-radius: 4px;
   color: var(--lightgun-text-primary);
   cursor: pointer;
   font-weight: 500;
   font-size: 13px;
-  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 0.5rem;
   transition: all 0.3s ease;
+  width: max-content;
+  width: fit-content;
+  max-width: 100%;
   white-space: nowrap;
+  flex-wrap: nowrap;
   flex-shrink: 0;
 }
 
-.chat-toggle:hover {
+.gunner-retro-shell .chat-toggle span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.gunner-retro-shell .chat-toggle:hover {
   background: rgba(236, 72, 153, 0.3);
   border-color: var(--lightgun-primary);
   box-shadow: 0 0 12px var(--lightgun-glow-primary);
 }
 
-.chat-toggle:focus {
+.gunner-retro-shell .chat-toggle:focus {
   outline: none;
   box-shadow: var(--lightgun-focus-ring);
 }
 
-/* Content grid - Enhanced with better contrast and glow effects */
-.content-grid {
+.gunner-retro-shell .content-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 30px;
-  height: calc(100vh - 140px);
-  overflow-y: auto;
+  min-height: 0;
 }
 
-.calibration-section {
+.gunner-retro-shell .gunner-engine-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.gunner-retro-shell .gunner-engine-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gunner-retro-shell .calibration-section {
   background: rgba(30, 41, 59, 0.6);
   border-radius: 15px;
-  backdrop-filter: blur(8px);
-}
-
-.calibration-section {
   padding: 25px;
   border: 1px solid var(--lightgun-primary);
   box-shadow: 0 0 16px var(--lightgun-glow-primary);
@@ -489,7 +684,7 @@ main {
   max-height: 100%;
 }
 
-.section-title {
+.gunner-retro-shell .section-title {
   font-size: 20px;
   color: var(--lightgun-primary);
   margin-bottom: 20px;
@@ -499,133 +694,120 @@ main {
   text-shadow: 0 0 8px var(--lightgun-glow-primary);
 }
 
-.wizard-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  margin-bottom: 25px;
+.gunner-retro-shell .gunner-engine-card {
+  text-align: left;
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  background: rgba(10, 10, 31, 0.65);
+  border-radius: 10px;
+  padding: 14px;
+  min-height: 150px;
+  color: var(--lightgun-text-primary);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.wizard-step {
-  background: rgba(30, 41, 59, 0.5);
-  padding: 15px;
-  border-radius: 10px;
-  border-left: 4px solid var(--lightgun-primary);
+.gunner-retro-shell .gunner-engine-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--lightgun-secondary);
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.2);
+}
+
+.gunner-retro-shell .gunner-engine-card.active {
+  border-color: var(--lightgun-primary);
+  box-shadow: 0 0 18px rgba(255, 0, 255, 0.3);
+}
+
+.gunner-retro-shell .engine-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.gunner-retro-shell .engine-dot.online,
+.gunner-retro-shell .engine-chip.online {
+  color: #4ade80;
+}
+
+.gunner-retro-shell .engine-dot.stable,
+.gunner-retro-shell .engine-chip.stable {
+  color: #22d3ee;
+}
+
+.gunner-retro-shell .engine-dot.testing,
+.gunner-retro-shell .engine-chip.testing {
+  color: #f59e0b;
+}
+
+.gunner-retro-shell .engine-dot.beta,
+.gunner-retro-shell .engine-chip.beta {
+  color: #f472b6;
+}
+
+.gunner-retro-shell .engine-dot.online,
+.gunner-retro-shell .engine-dot.stable,
+.gunner-retro-shell .engine-dot.testing,
+.gunner-retro-shell .engine-dot.beta {
+  background: currentColor;
+}
+
+.gunner-retro-shell .gunner-engine-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: all 0.3s ease;
-  color: var(--lightgun-text-primary);
+  gap: 12px;
 }
 
-.wizard-step:hover {
-  background: rgba(30, 41, 59, 0.7);
+.gunner-retro-shell .engine-chip {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.wizard-step.completed {
-  border-left-color: var(--lightgun-success);
-  background: rgba(16, 185, 129, 0.1);
-  box-shadow: 0 0 8px var(--lightgun-glow-success);
+.gunner-retro-shell .gunner-engine-description {
+  margin: 10px 0 16px;
+  color: var(--lightgun-text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
-.wizard-step.active {
-  border-left-color: var(--lightgun-warning);
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.step-info {
-  display: flex;
+.gunner-retro-shell .gunner-slider-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 52px;
   align-items: center;
   gap: 10px;
+  margin-bottom: 12px;
+  color: var(--lightgun-text-secondary);
+  font-size: 13px;
 }
 
-.step-number {
-  background: var(--lightgun-primary);
+.gunner-retro-shell .gunner-slider-row strong {
   color: var(--lightgun-text-primary);
-  width: 25px;
-  height: 25px;
-  border-radius: 50%;
-  display: flex;
+  text-align: right;
+  font-family: "Share Tech Mono", "Consolas", monospace;
+}
+
+.gunner-retro-shell .gunner-slider-row input[type='range'] {
+  width: 100%;
+  accent-color: #00ffff;
+}
+
+.gunner-retro-shell .gunner-profile-select-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
   align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  box-shadow: 0 0 6px var(--lightgun-glow-primary);
+  gap: 10px;
+  margin-top: 6px;
+  margin-bottom: 12px;
+  color: var(--lightgun-text-secondary);
+  font-size: 13px;
 }
 
-.step-number.completed {
-  background: var(--lightgun-success);
-  box-shadow: 0 0 6px var(--lightgun-glow-success);
-}
-
-.step-number.active {
-  background: var(--lightgun-warning);
-}
-
-.step-status {
-  font-size: 12px;
-  color: var(--lightgun-primary);
-  font-weight: 600;
-}
-
-.step-status.completed {
-  color: var(--lightgun-success);
-}
-
-.step-status.active {
-  color: var(--lightgun-warning);
-}
-
-/* Profile manager - Enhanced with accessibility and focus states */
-.profile-list {
-  margin-bottom: 20px;
-}
-
-.profile-item {
-  background: rgba(30, 41, 59, 0.5);
-  padding: 12px 15px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-
-.profile-item:hover {
-  background: rgba(236, 72, 153, 0.1);
-  border-color: var(--lightgun-primary);
-}
-
-.profile-item:focus {
-  outline: none;
-  box-shadow: var(--lightgun-focus-ring);
-}
-
-.profile-item.active {
-  background: rgba(236, 72, 153, 0.2);
-  border: 1px solid var(--lightgun-primary);
-  box-shadow: 0 0 12px var(--lightgun-glow-primary);
-}
-
-.profile-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.profile-name {
-  font-weight: 600;
-  color: var(--lightgun-text-primary);
-}
-
-.profile-details {
-  font-size: 12px;
-  color: var(--lightgun-text-muted);
-}
-
-.lightgun-select {
+.gunner-retro-shell .lightgun-select {
   margin-left: 8px;
   background: #0f172a;
   border: 1px solid var(--lightgun-secondary);
@@ -635,7 +817,7 @@ main {
   font-size: 12px;
 }
 
-.lightgun-input {
+.gunner-retro-shell .lightgun-input {
   width: 100%;
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid var(--lightgun-secondary);
@@ -645,7 +827,7 @@ main {
   font-size: 12px;
 }
 
-.inline-refresh {
+.gunner-retro-shell .inline-refresh {
   margin-left: 8px;
   border: 1px solid var(--lightgun-secondary);
   background: transparent;
@@ -656,19 +838,13 @@ main {
   font-size: 12px;
 }
 
-.inline-refresh:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Action buttons - Enhanced with accessibility and glow effects */
-.action-buttons {
+.gunner-retro-shell .action-buttons {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.action-btn {
+.gunner-retro-shell .action-btn {
   padding: 10px 16px;
   border: none;
   border-radius: 6px;
@@ -679,39 +855,343 @@ main {
   min-width: 120px;
 }
 
-.action-btn:focus {
-  outline: none;
-  box-shadow: var(--lightgun-focus-ring);
-}
-
-.action-btn.primary {
+.gunner-retro-shell .action-btn.primary {
   background: linear-gradient(135deg, var(--lightgun-primary), #db2777);
   color: var(--lightgun-text-primary);
   box-shadow: 0 0 8px var(--lightgun-glow-primary);
 }
 
-.action-btn.secondary {
+.gunner-retro-shell .action-btn.secondary {
   background: rgba(30, 41, 59, 0.4);
   color: var(--lightgun-text-primary);
   border: 1px solid var(--lightgun-secondary);
 }
 
-.action-btn:hover {
+.gunner-retro-shell .action-btn:hover {
   transform: translateY(-2px);
 }
 
-.action-btn.primary:hover {
-  box-shadow: 0 4px 16px var(--lightgun-glow-primary);
+.gunner-retro-shell .target-display {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid var(--lightgun-secondary);
+  min-height: 180px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.action-btn.secondary:hover {
-  background: rgba(139, 92, 246, 0.1);
+.gunner-retro-shell .crosshair {
+  width: 40px;
+  height: 40px;
+  position: relative;
+}
+
+.gunner-retro-shell .crosshair::before,
+.gunner-retro-shell .crosshair::after {
+  content: '';
+  position: absolute;
+  background: var(--lightgun-primary);
+  box-shadow: 0 0 6px var(--lightgun-glow-primary);
+}
+
+.gunner-retro-shell .crosshair::before {
+  width: 2px;
+  height: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.gunner-retro-shell .crosshair::after {
+  width: 40px;
+  height: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.gunner-retro-shell .accuracy-text {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--lightgun-text-secondary);
+}
+
+.gunner-retro-shell .gunner-profiles-layout,
+.gunner-retro-shell .gunner-calibration-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.gunner-retro-shell .gunner-profiles-subtitle {
+  margin: -8px 0 14px;
+  color: var(--lightgun-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.gunner-retro-shell .gunner-profiles-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gunner-retro-shell .gunner-profile-card {
+  width: 100%;
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  background: rgba(10, 10, 31, 0.65);
+  border-radius: 10px;
+  padding: 12px 14px;
   color: var(--lightgun-text-primary);
-  border-color: var(--lightgun-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-/* Sliding chat panel - Enhanced with outer panel styling */
-.chat-panel {
+.gunner-retro-shell .gunner-profile-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--lightgun-secondary);
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.22);
+}
+
+.gunner-retro-shell .gunner-profile-card.active {
+  border-color: var(--lightgun-primary);
+  box-shadow: 0 0 16px rgba(255, 0, 255, 0.25);
+  background: rgba(255, 0, 255, 0.08);
+}
+
+.gunner-retro-shell .gunner-profile-card-icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
+}
+
+.gunner-retro-shell .gunner-profile-card h3 {
+  margin: 0 0 5px;
+  font-family: "Orbitron", "Segoe UI", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gunner-retro-shell .gunner-profile-card p {
+  margin: 0;
+  color: var(--lightgun-text-secondary);
+  font-size: 12px;
+}
+
+.gunner-retro-shell .gunner-profile-empty {
+  border: 1px dashed rgba(0, 255, 255, 0.28);
+  border-radius: 10px;
+  padding: 16px;
+  color: var(--lightgun-text-secondary);
+  background: rgba(10, 10, 31, 0.45);
+  font-size: 13px;
+}
+
+.gunner-retro-shell .gunner-profiles-manager-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: var(--lightgun-secondary);
+  font-size: 12px;
+  font-family: "Share Tech Mono", "Consolas", monospace;
+}
+
+.gunner-retro-shell .gunner-profiles-form-row {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.gunner-retro-shell .gunner-profiles-form-row label {
+  color: var(--lightgun-text-secondary);
+  font-size: 13px;
+}
+
+.gunner-retro-shell .gunner-profiles-inline-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.gunner-retro-shell .gunner-profiles-inline-actions .lightgun-select {
+  margin-left: 0;
+  width: 100%;
+  min-height: 36px;
+}
+
+.gunner-retro-shell .gunner-profiles-inline-actions .action-btn.secondary {
+  min-width: 104px;
+  flex: 0 0 auto;
+}
+
+.gunner-retro-shell .gunner-profiles-preview {
+  margin-top: 4px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  background: rgba(10, 10, 31, 0.5);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.gunner-retro-shell .gunner-profiles-preview h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lightgun-primary);
+}
+
+.gunner-retro-shell .gunner-profiles-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  font-size: 12px;
+  color: var(--lightgun-text-secondary);
+}
+
+.gunner-retro-shell .gunner-profiles-preview-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lightgun-text-secondary);
+}
+
+.gunner-retro-shell .gunner-profiles-status-card {
+  border: 1px solid rgba(0, 255, 255, 0.24);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.55);
+  display: grid;
+  gap: 6px;
+  color: var(--lightgun-text-secondary);
+  font-family: "Share Tech Mono", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.gunner-retro-shell .gunner-calibration-hud,
+.gunner-retro-shell .gunner-calibration-console {
+  display: grid;
+  gap: 14px;
+}
+
+.gunner-retro-shell .gunner-health-grid,
+.gunner-retro-shell .gunner-calibration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gunner-retro-shell .gunner-health-card,
+.gunner-retro-shell .gunner-mini-panel {
+  border: 1px solid rgba(0, 255, 255, 0.24);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(10, 10, 31, 0.52);
+}
+
+.gunner-retro-shell .gunner-health-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.gunner-retro-shell .gunner-health-meter {
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  background: rgba(15, 23, 42, 0.75);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.gunner-retro-shell .gunner-health-meter span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #00ffff, #22d3ee);
+}
+
+.gunner-retro-shell .gunner-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gunner-retro-shell .gunner-mini-stats div {
+  border: 1px solid rgba(0, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.gunner-retro-shell .gunner-mini-footnote {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--lightgun-text-secondary);
+}
+
+.gunner-retro-shell .gunner-connection-map {
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.gunner-retro-shell .gunner-console-list {
+  display: grid;
+  gap: 10px;
+}
+
+.gunner-retro-shell .gunner-console-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: var(--lightgun-text-secondary);
+  font-size: 12px;
+}
+
+.gunner-retro-shell .gunner-console-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.gunner-retro-shell .gunner-target-display-hud {
+  min-height: 190px;
+}
+
+.gunner-retro-shell .gunner-profile-ops-title {
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.gunner-retro-shell .gunner-calibration-error {
+  color: var(--lightgun-error, #ef4444);
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.gunner-retro-shell .chat-panel {
   position: fixed;
   top: 0;
   right: -400px;
@@ -726,11 +1206,11 @@ main {
   box-shadow: -8px 0 32px var(--lightgun-glow-primary);
 }
 
-.chat-panel.open {
+.gunner-retro-shell .chat-panel.open {
   right: 0;
 }
 
-.chat-header {
+.gunner-retro-shell .chat-header {
   padding: 20px;
   border-bottom: 1px solid var(--lightgun-primary);
   display: flex;
@@ -738,11 +1218,9 @@ main {
   color: var(--lightgun-primary);
   background: rgba(139, 92, 246, 0.1);
   gap: 16px;
-  position: relative;
-  z-index: 1;
 }
 
-.gunner-info {
+.gunner-retro-shell .gunner-info {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -750,20 +1228,8 @@ main {
   min-width: 0;
 }
 
-.gunner-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--lightgun-primary), #db2777);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  box-shadow: 0 0 12px var(--lightgun-glow-primary);
-  flex-shrink: 0;
-}
-
-.gunner-avatar-img {
+.gunner-retro-shell .gunner-avatar-img,
+.gunner-retro-shell .panel-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -773,75 +1239,22 @@ main {
   flex-shrink: 0;
 }
 
-.panel-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid var(--lightgun-primary);
-  box-shadow: 0 0 8px var(--lightgun-glow-primary);
-}
-
-.gunner-details {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 6px;
-  flex: 1;
-}
-
-.gunner-details h3 {
+.gunner-retro-shell .gunner-details h3 {
   color: var(--lightgun-text-primary);
   font-size: 16px;
-  white-space: nowrap;
   margin: 0;
 }
 
-.gunner-role-badge {
+.gunner-retro-shell .gunner-role-badge {
   color: var(--lightgun-text-primary);
   font-size: 12px;
   background: rgba(236, 72, 153, 0.25);
   border: 1px solid rgba(236, 72, 153, 0.5);
   border-radius: 999px;
   padding: 4px 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  line-height: 1.3;
-  word-break: break-word;
 }
 
-.close-chat {
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(236, 72, 153, 0.6);
-  color: var(--lightgun-text-primary);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 6px 12px;
-  transition: all 0.2s ease;
-  line-height: 1.2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  box-shadow: 0 0 8px rgba(236, 72, 153, 0.35);
-}
-
-.close-chat:hover {
-  color: var(--lightgun-primary);
-  border-color: var(--lightgun-primary);
-  box-shadow: 0 0 10px var(--lightgun-glow-primary);
-}
-
-.close-chat:focus {
-  outline: none;
-  box-shadow: var(--lightgun-focus-ring);
-}
-
-.close-chat-icon {
+.gunner-retro-shell .close-chat-icon {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -850,30 +1263,10 @@ main {
   color: var(--lightgun-text-primary);
   cursor: pointer;
   font-size: 24px;
-  font-weight: 300;
   line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  padding: 0;
-  margin-right: 12px;
 }
 
-.close-chat-icon:hover {
-  background: rgba(236, 72, 153, 0.3);
-  border-color: var(--lightgun-primary);
-  transform: rotate(90deg);
-  box-shadow: 0 0 12px var(--lightgun-glow-primary);
-}
-
-.close-chat-icon:focus {
-  outline: none;
-  box-shadow: var(--lightgun-focus-ring);
-}
-
-.chat-messages {
+.gunner-retro-shell .chat-messages {
   flex: 1;
   padding: 20px;
   overflow-y: auto;
@@ -882,14 +1275,14 @@ main {
   gap: 15px;
 }
 
-.message {
+.gunner-retro-shell .message {
   max-width: 85%;
   padding: 12px 16px;
   border-radius: 15px;
   word-wrap: break-word;
 }
 
-.message.ai {
+.gunner-retro-shell .message.ai {
   background: rgba(236, 72, 153, 0.2);
   color: var(--lightgun-text-primary);
   align-self: flex-start;
@@ -897,7 +1290,7 @@ main {
   border: 1px solid var(--lightgun-primary);
 }
 
-.message.user {
+.gunner-retro-shell .message.user {
   background: rgba(139, 92, 246, 0.2);
   color: var(--lightgun-text-primary);
   align-self: flex-end;
@@ -905,13 +1298,19 @@ main {
   border: 1px solid var(--lightgun-secondary);
 }
 
-.chat-input-container {
+.gunner-retro-shell .chat-input-container {
   padding: 20px;
   border-top: 1px solid var(--lightgun-primary);
   background: rgba(139, 92, 246, 0.05);
 }
 
-.chat-input {
+.gunner-retro-shell .chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gunner-retro-shell .chat-input {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--lightgun-primary);
@@ -919,62 +1318,9 @@ main {
   background: rgba(30, 41, 59, 0.4);
   color: var(--lightgun-text-primary);
   font-size: 14px;
-  outline: none;
-  transition: all 0.3s ease;
 }
 
-.chat-input::placeholder {
-  color: var(--lightgun-text-secondary);
-}
-
-.chat-input:focus {
-  border-color: var(--lightgun-primary);
-  box-shadow: var(--lightgun-focus-ring);
-}
-
-.chat-input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mic-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--lightgun-primary);
-  background: rgba(30, 41, 59, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.mic-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px var(--lightgun-glow-primary);
-}
-
-.mic-btn:focus {
-  outline: none;
-  box-shadow: var(--lightgun-focus-ring);
-}
-
-.mic-btn.recording {
-  border-color: var(--lightgun-primary);
-  box-shadow: 0 0 0 2px var(--lightgun-glow-primary), 0 0 20px var(--lightgun-glow-primary);
-  animation: pulse-glow 2s infinite;
-}
-
-.mic-btn img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 4px var(--lightgun-glow-primary));
-}
-
-.send-btn {
+.gunner-retro-shell .send-btn {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -984,29 +1330,94 @@ main {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
   color: var(--lightgun-text-primary);
   font-size: 18px;
-  box-shadow: 0 0 8px var(--lightgun-glow-primary);
 }
 
-.send-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px var(--lightgun-glow-primary);
+@media (max-width: 1024px) {
+  .gunner-retro-shell .main-panel.chat-open {
+    margin-right: 0;
+  }
+
+  .gunner-retro-shell .content-grid,
+  .gunner-retro-shell .gunner-engine-layout,
+  .gunner-retro-shell .gunner-profiles-layout,
+  .gunner-retro-shell .gunner-calibration-layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .gunner-retro-shell .gunner-health-grid,
+  .gunner-retro-shell .gunner-calibration-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gunner-retro-shell .chat-panel {
+    width: min(420px, 100vw);
+  }
 }
 
-.send-btn:focus {
-  outline: none;
-  box-shadow: var(--lightgun-focus-ring);
-}
+@media (max-width: 768px) {
+  .gunner-retro-shell .main-panel {
+    padding: 16px;
+  }
 
-.send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  .gunner-retro-shell .gunner-slider-row,
+  .gunner-retro-shell .gunner-profile-select-row {
+    grid-template-columns: 1fr;
+  }
+
+  .gunner-retro-shell .gunner-profiles-inline-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .gunner-retro-shell .gunner-profiles-inline-actions .action-btn.secondary {
+    width: 100%;
+  }
+
+  .gunner-retro-shell .gunner-profiles-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gunner-retro-shell .gunner-console-row,
+  .gunner-retro-shell .gunner-console-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .gunner-retro-shell .gunner-slider-row strong {
+    text-align: left;
+  }
+
+  .gunner-retro-shell .panel-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .gunner-retro-shell .chat-toggle {
+    width: max-content;
+    width: fit-content;
+  }
+
+  .gunner-retro-shell .chat-panel,
+  .gunner-retro-shell .chat-panel.open {
+    right: 0;
+    width: 100vw;
+  }
+
+  .gunner-retro-shell .chat-panel {
+    top: auto;
+    bottom: -100vh;
+    height: 72vh;
+    transition: bottom 0.3s ease;
+  }
+
+  .gunner-retro-shell .chat-panel.open {
+    bottom: 0;
+  }
 }
 
 @keyframes pulse-glow {
-
   0%,
   100% {
     box-shadow: 0 0 0 2px var(--lightgun-glow-primary), 0 0 20px var(--lightgun-glow-primary);
@@ -1799,7 +2210,7 @@ main {
 .persona-hero {
   position: relative;
   border-radius: 12px;
-  overflow: hidden;
+  z-index: 1;
 }
 
 .persona-hero-img {
@@ -1807,28 +2218,133 @@ main {
   height: 220px;
   object-fit: cover;
   display: block;
+  border-radius: 12px;
 }
 
 .persona-avatar {
   position: absolute;
   left: 16px;
-  bottom: -24px;
-  width: 64px;
-  height: 64px;
+  bottom: -28px;
+  width: 78px;
+  height: 78px;
   border-radius: 50%;
   border: 4px solid var(--card-bg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
   background: var(--card-bg);
+  z-index: 10;
+  object-fit: cover;
 }
 
 .persona-body {
-  padding-top: 32px;
+  padding-top: 36px;
+}
+
+.persona-body h3 {
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.persona-body .text-sm[aria-label="role"] {
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.persona-body p.text-sm {
+  font-weight: 500;
+  color: #d1d5db;
+  line-height: 1.5;
 }
 
 .persona-actions {
   margin-top: auto;
   display: flex;
   gap: 0.5rem;
+}
+
+/* ─── Persona Row Contextual Theming ──────────────────────────────── */
+/* Row 1: System Tools — Accent Blue */
+.persona-section.row-blue {
+  --row-accent: #3b82f6;
+  --row-accent-hover: #2563eb;
+  --row-accent-light: #60a5fa;
+  --btn-grad-start: #22d3ee;
+  --btn-grad-end: #3b82f6;
+}
+
+/* Row 2: Assistants — Accent Green */
+.persona-section.row-green {
+  --row-accent: #10b981;
+  --row-accent-hover: #059669;
+  --row-accent-light: #34d399;
+  --btn-grad-start: #a3e635;
+  --btn-grad-end: #22c55e;
+}
+
+/* Row 3: Core Ops — Accent Purple */
+.persona-section.row-purple {
+  --row-accent: #8b5cf6;
+  --row-accent-hover: #7c3aed;
+  --row-accent-light: #a78bfa;
+  --btn-grad-start: #c084fc;
+  --btn-grad-end: #8b5cf6;
+}
+
+/* Themed "Launch Panel" button (btn-primary) */
+.persona-section[class*="row-"] .persona-actions .btn-primary {
+  background: linear-gradient(135deg, var(--btn-grad-start), var(--btn-grad-end));
+  border: 1px solid color-mix(in srgb, var(--row-accent) 60%, transparent);
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.persona-section[class*="row-"] .persona-actions .btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--row-accent) 45%, transparent);
+}
+
+.persona-section[class*="row-"] .persona-actions .btn-primary:focus-visible {
+  outline: 2px solid var(--row-accent-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--row-accent) 35%, transparent);
+}
+
+/* Themed "Chat with AI" button (btn-success) */
+.persona-section[class*="row-"] .persona-actions .btn-success {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--row-accent) 50%, transparent);
+  color: var(--row-accent-light);
+  transition: all 0.2s ease;
+}
+
+.persona-section[class*="row-"] .persona-actions .btn-success:hover {
+  background: color-mix(in srgb, var(--row-accent) 12%, transparent);
+  border-color: var(--row-accent);
+  color: #fff;
+}
+
+.persona-section[class*="row-"] .persona-actions .btn-success:focus-visible {
+  outline: 2px solid var(--row-accent-light);
+  outline-offset: 2px;
+}
+
+/* Persona card border glow inherits row theme */
+.persona-section[class*="row-"] .persona-card {
+  border-color: color-mix(in srgb, var(--row-accent) 30%, transparent);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.persona-section[class*="row-"] .persona-card:hover {
+  border-color: color-mix(in srgb, var(--row-accent) 55%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--row-accent) 20%, transparent);
+}
+
+/* Sync button glow on card hover */
+.persona-section[class*="row-"] .persona-card:hover .btn-primary {
+  filter: brightness(1.08);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--row-accent) 40%, transparent);
 }
 
 /* Feature row: larger, well-defined panels */

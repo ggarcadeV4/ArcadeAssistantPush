@@ -50,6 +50,7 @@ import { setupScorekeeperWebSocket } from './ws/scorekeeper.js';
 import sessionBroadcastRoutes from './routes/sessionBroadcast.js';
 import { setupSessionWebSocket } from './ws/session.js';
 import cabinetRoutes from './routes/cabinet.js';
+import deweySearchRoutes from './routes/deweySearch.js';
 
 async function createServer() {
   try {
@@ -166,6 +167,7 @@ async function createServer() {
     app.use('/api', profileRoutes); // /api/profile/* and /api/consent/*
     app.use('/api/launchbox', launchboxProxyRoutes);  // Data proxy
     app.use('/api/cabinet', cabinetRoutes);  // Cabinet config + Wiring Wizard (Phase 5.5)
+    app.use('/api/dewey/search', deweySearchRoutes);  // Dewey Historian internet-backed lore search
 
     // Serve LaunchBox images (for frontend image requests)
     // Frontend requests: /api/launchbox/image/{uuid}
@@ -180,13 +182,39 @@ async function createServer() {
 
     // Serve frontend static files (AFTER API routes)
     const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+    const isProduction = process.env.NODE_ENV === 'production';
     if (fs.existsSync(frontendDist)) {
       app.use(express.static(frontendDist, {
         setHeaders: (res, filePath) => {
-          if (path.basename(filePath) === 'index.html') {
+          const fileName = path.basename(filePath);
+          const extension = path.extname(filePath).toLowerCase();
+          const normalizedPath = filePath.replace(/\\/g, '/');
+          const isHashedAsset = /\/assets\/.+\.[a-f0-9]{8}\.(js|css)$/.test(normalizedPath);
+
+          if (fileName === 'index.html') {
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
+            return;
+          }
+
+          // Dev ergonomics: avoid stale bundles while iterating locally.
+          if (!isProduction) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+            return;
+          }
+
+          // Production: cache immutable hashed bundles aggressively.
+          if (isHashedAsset) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            return;
+          }
+
+          // Production fallback for other static files.
+          if (extension === '.js' || extension === '.css' || extension === '.map') {
+            res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
           }
         }
       }));

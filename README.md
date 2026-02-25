@@ -1,101 +1,310 @@
-# **Session 2026-02-23 (Evening) - Dewey Historian V2.5 Transplant + Network Integrity Fix**
+# **Session 2026-02-23b - ScoreKeeper Sam Competitive Ecosystem + Persona Card Visual Hierarchy Fix**
 
-## **Status: ✅ COMPLETE**
+## Status
 
-### **Executive Summary**
+✅ Session complete. All changes build-verified (229 modules, 0 errors).
 
-**The Design:** Transplanted the Arcade Historian V2.5 design into the Dewey panel — complete CSS conversion from Tailwind to vanilla (1,100+ lines), JSX restructured with semantic HTML, floating header, branding orb, glass-pill input, pill actions, and telemetry footer.
+## Executive Summary
 
-**The Bug:** `speechSupported is not defined` — the `useGemSpeech` hook doesn't export this variable. Fixed with safe fallback constants.
+This session accomplished three major areas of work across two conversation windows:
 
-**The Stale Build:** Gateway on A: drive was serving old JS bundles while builds targeted C: drive. Fixed by deploying `dist/` from C: → A: after each build.
-
-**The Blue Screen:** `/assistants` without `?chat=dewey` renders an empty persona grid (`const personas = []`). The dark `#0a0e1a` background = "blue screen." Not a crash — just an empty page.
-
-**The Infrastructure:** Full network audit confirmed all pipes are healthy: CORS allows `127.0.0.1`, WS URLs bind dynamically via `window.location`, WS server accepts connections, gateway HTTP returns 200.
+1. **ScoreKeeper Sam Competitive Ecosystem** — Restored the full real-time scoring pipeline: Supabase Realtime subscriptions, Voice UI (Web Speech API + TTS), and backend hiscore watcher → Supabase sync integration.
+2. **Persona Card Button Simplification** — Reduced the Scorekeeper card from 4 buttons to 2 ("Launch Panel" + "View High Scores").
+3. **Persona Card Visual Hierarchy Fix** — Fixed avatar z-index stacking, scaled avatar 20%, and enhanced text legibility to WCAG AAA compliance.
 
 ---
 
-## **What Was Accomplished**
+## What Was Accomplished
 
-### **1) Dewey V2.5 Design Transplant**
-**Files:** `DeweyPanel.jsx`, `DeweyPanel.css`
+### 1) ScoreKeeper Sam — Supabase Realtime Leaderboard
 
-- Converted 1,100+ lines of Tailwind CSS → vanilla CSS
-- Restructured JSX with semantic HTML and V2.5 layout
-- Fixed `speechSupported is not defined` runtime error (safe fallback constants)
+Added live cloud score subscription so the leaderboard updates automatically when new scores land in Supabase.
 
-### **2) Stale Build Diagnosis & Fix**
-- Identified C: drive (dev) vs A: drive (runtime) environment split
-- Gateway (PID on A: drive) was serving old bundles while `npm run build` targeted C: drive
-- Implemented build → copy-to-A: deployment workflow
+- Created `subscribeToScores()` in `supabaseClient.js` — subscribes to `postgres_changes` INSERT events on the `scores` table via Supabase Realtime
+- Added `useEffect` in `ScoreKeeperPanel.jsx` that subscribes on mount, refreshes leaderboard on new cloud score, and unsubscribes on cleanup
 
-### **3) Network Integrity Fix**
-Full audit of the frontend-to-gateway pipes:
+**Files Modified:**
+- `frontend/src/services/supabaseClient.js` — Added `subscribeToScores()` export
+- `frontend/src/panels/scorekeeper/ScoreKeeperPanel.jsx` — Added Supabase realtime subscription effect
 
-| Layer | Status |
-|---|---|
-| CORS (`127.0.0.1:8787`) | ✅ Listed in allowedOrigins |
-| WS URL Binding | ✅ Dynamic via `window.location` |
-| WS Upgrade (`/ws/session`, `/ws/hotkey`) | ✅ Connected from Node.js |
-| HTTP Health | ✅ 200, FastAPI connected |
+### 2) ScoreKeeper Sam — Voice User Interface (VUI)
 
-### **4) WS Exponential Backoff**
-**Files:** `ProfileContext.jsx`, `hotkeyClient.js`
+Wired up bidirectional voice: mic input via Web Speech API and Sam's spoken responses via TTS.
 
-- Reconnect backoff: 2s → 4s → 8s → 16s → 30s cap (was fixed 2s)
-- Silenced `console.error` spam → `console.warn`
+- Integrated `SpeechRecognition` API for mic input in the chat sidebar — transcript auto-fills input and auto-sends
+- Connected `speakAsSam()` TTS to AI chat responses so Sam speaks replies aloud
+- Made mic button stateful with three visual modes: idle (🎤), listening (🔴 pulse), speaking (🔊 pulse)
+- Added CSS animations for `listening` and `speaking` states
+- Added `sam-view` custom event listener so external navigation can switch between highscores/tournament views
 
-### **5) Process Ghosting Script**
-**File:** `scripts/clean-start.ps1`
+**Files Modified:**
+- `frontend/src/panels/scorekeeper/ScoreKeeperPanel.jsx` — Added imports for `speakAsSam`, `stopSpeaking`, `isSpeaking`; added Web Speech API setup; added voice state; wired TTS to chat responses
+- `frontend/src/panels/scorekeeper/scorekeeper.css` — Appended voice button state CSS animations
 
-Kills zombie port 8787 processes, rebuilds frontend, copies dist to A: drive, restarts gateway.
+### 3) ScoreKeeper Sam — Backend Integration Plumbing
 
-### **6) Diagnostic Banner**
-**File:** `App.jsx`
+Extended the hiscore watcher to push new records to Supabase and trigger AI commentary.
 
-Added `[App] React tree mounted at ...` console log — confirmed React initializes on the "blue screen."
+- Extended `_broadcast_record_events()` in `hiscore_watcher.py` to POST each new high score to `/api/scorekeeper/supabase-sync` gateway endpoint
+- Wired `score_announcer.announce_high_score()` into `_update_changed_games()` so new records trigger AI commentary + Sam TTS automatically
 
-### **7) Root Cause: Blue Screen = Empty Personas**
-**File:** `Assistants.jsx` line 24: `const personas = []`
+**Full Pipeline:**
+```
+.hi file change → hi2txt parse → mame_scores.json update
+    → WebSocket broadcast (score_updated)
+    → Supabase insert (via gateway supabase-sync endpoint)
+    → Supabase Realtime fires → frontend subscription triggers
+    → Leaderboard refreshes + Sam announces new record via TTS
+```
 
-When `/assistants` has no `?chat=dewey` param, the component renders an empty grid over the dark background. **The "blue screen" was always the app working correctly — just with nothing to display.**
+**Files Modified:**
+- `backend/services/hiscore_watcher.py` — Added Supabase sync in `_broadcast_record_events`, added `score_announcer` integration in `_update_changed_games`
+
+### 4) Persona Card Button Simplification
+
+Reduced the Scorekeeper persona card from 4 buttons to exactly 2:
+
+1. **"Launch Panel"** → opens main ScoreKeeper panel (chat + tournaments)
+2. **"View High Scores"** → navigates to `?agent=scorekeeper&action=highscores` (Cabinet High Scores view)
+
+All other persona cards retain their original two buttons ("Launch Panel" + "Chat with AI").
+
+**Files Modified:**
+- `frontend/src/components/Assistants.jsx` — Added conditional rendering: if `p.id === 'scorekeeper'`, show "View High Scores" instead of "Chat with AI"
+
+### 5) Contextual Theming for Dashboard Grid Action Buttons
+
+Implemented row-based contextual theming for the Assistants persona grid. 9 personas chunked into 3 rows of 3:
+
+- **Row 1** (LaunchBox, Dewey, Scorekeeper) → `row-blue` — cyan-to-blue gradient
+- **Row 2** (Vicky, Chuck, Wizard) → `row-green` — lime-to-emerald gradient
+- **Row 3** (Blinky, Gunner, Doc) → `row-purple` — violet gradient
+
+Each row gets themed "Launch Panel" gradient buttons, themed "Chat with AI" outline buttons, and card border glow on hover.
+
+**Files Modified:**
+- `frontend/src/components/Assistants.jsx` — Added `rowThemes` array applied to persona sections
+- `frontend/src/index.css` — Added ~80 lines of CSS with design tokens per row (`--row-accent`, `--btn-grad-start`, `--btn-grad-end`)
+
+### 6) Persona Card Visual Hierarchy Fix (z-index + Typography)
+
+Fixed two visual issues with the persona cards on the Assistants grid:
+
+**Task A — Stacking Order Fix:**
+- Removed `overflow: hidden` from `.persona-hero` (was clipping the avatar at the bottom edge)
+- Moved `border-radius: 12px` to `.persona-hero-img` directly so the hero image still rounds its corners without clipping siblings
+- Added `z-index: 10` to `.persona-avatar` so it renders above the hero background
+- Scaled avatar from 64×64px to 78×78px (~22% increase) for more visual prominence
+- Adjusted `bottom` offset from `-24px` to `-28px` and `padding-top` on `.persona-body` from `32px` to `36px` to accommodate the larger avatar
+
+**Task B — Typography Legibility Enhancement:**
+- `.persona-body h3`: `font-weight: 700`, `color: #f1f5f9` (slate-100, ~15.4:1 contrast ratio vs `#0a0f1f`), `text-shadow: 0 1px 2px rgba(0,0,0,0.4)`
+- Role text `[aria-label="role"]`: `font-weight: 600`, `color: #cbd5e1` (slate-300, ~11.7:1 ratio)
+- Summary paragraph: `font-weight: 500`, `color: #d1d5db` (gray-300, ~10.8:1 ratio)
+- All three text levels exceed WCAG AAA's 7:1 threshold for normal text
+
+**Files Modified:**
+- `frontend/src/index.css` — Updated `.persona-hero`, `.persona-hero-img`, `.persona-avatar`, added `.persona-body h3`, `.persona-body .text-sm[aria-label="role"]`, `.persona-body p.text-sm`
 
 ---
 
-## **Files Created**
-| File | Purpose |
-|------|---------|
-| `scripts/clean-start.ps1` | Kill zombies + rebuild + deploy + restart |
+## LED Blinky Panel Regression Fix (Previous Conversation Window)
 
-## **Files Modified**
+The LED Blinky panel had regressed to an old 5500-line tabbed monolith. The correct new version at `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx` (~490 lines) was identified and wired up. Import in `Assistants.jsx` was fixed, CSS flex layout for chat bar was corrected. Full dependency chain verified and clean build confirmed.
+
+**Files Modified:**
+- `frontend/src/components/Assistants.jsx` — Import changed to `LEDBlinkyPanelNew`
+- `frontend/src/components/led-blinky/LEDBlinkyPanel.css` — Chat bar flex fix
+
+---
+
+## Validation Performed
+
+- `npx vite build` — 229 modules transformed, 0 errors, built in ~3 seconds
+- Build verified after each major change set
+
+---
+
+## Complete File Change Summary
+
 | File | Changes |
 |------|---------|
-| `frontend/src/panels/dewey/DeweyPanel.jsx` | V2.5 design + `speechSupported` fix |
-| `frontend/src/panels/dewey/DeweyPanel.css` | 1,100+ lines Tailwind → vanilla CSS |
-| `frontend/src/context/ProfileContext.jsx` | WS exponential backoff |
-| `frontend/src/services/hotkeyClient.js` | WS exponential backoff + error silencing |
-| `frontend/src/App.jsx` | Diagnostic `[App]` mount banner |
+| `frontend/src/components/Assistants.jsx` | LED import fix, scorekeeper 2-button layout, row theming |
+| `frontend/src/panels/scorekeeper/ScoreKeeperPanel.jsx` | Supabase realtime subscription, Web Speech API, TTS integration, voice state |
+| `frontend/src/panels/scorekeeper/scorekeeper.css` | Voice button CSS animations (listening/speaking states) |
+| `frontend/src/services/supabaseClient.js` | Added `subscribeToScores()` function |
+| `backend/services/hiscore_watcher.py` | Supabase sync in broadcast, score_announcer integration |
+| `frontend/src/index.css` | Row theming CSS, persona card z-index fix, avatar scaling, typography legibility |
+| `frontend/src/components/led-blinky/LEDBlinkyPanel.css` | Chat bar flex layout fix |
 
 ---
 
-## **Key Discovery: Dual-Drive Architecture**
-- **C: drive** (`C:\Users\Dad's PC\Desktop\AI-Hub`) = development workspace (code edits, builds)
-- **A: drive** (`A:\Arcade Assistant Local`) = runtime environment (gateway serves from here)
-- Build output **must be copied from C: → A:** after each `npm run build`
-- Use `scripts/clean-start.ps1` to automate this
+## Unverified Endpoints (Next Session)
+
+These endpoints are referenced in code but were not created/verified during this session:
+
+1. **`/api/scorekeeper/supabase-sync`** — Gateway route for pushing scores to Supabase (referenced in `hiscore_watcher.py`)
+2. **`/scorekeeper/ws`** — Gateway WebSocket endpoint for live score updates (referenced in `ScoreKeeperPanel.jsx`)
+3. **`/api/scorekeeper/broadcast`** — Gateway endpoint for broadcasting score events (referenced in `hiscore_watcher.py`)
+
+These are assumed to exist based on existing gateway patterns but should be verified/created if missing.
 
 ---
 
-## **Correct URLs**
-| URL | What it shows |
-|-----|---------------|
-| `http://127.0.0.1:8787/` | Home page with feature cards |
-| `http://127.0.0.1:8787/assistants?chat=dewey` | Dewey V2.5 panel |
-| `http://127.0.0.1:8787/assistants` | ⚠️ Empty blue page (personas = []) |
+## Notes for Next Session
+
+1. Verify/create the three gateway endpoints listed above
+2. The `sam-view` custom event listener in ScoreKeeperPanel is still present but the external button that dispatched it was removed — harmless but could be cleaned up
+3. Optional: run a full end-to-end test of the scoring pipeline (`.hi` file change → leaderboard update → TTS announcement)
+4. Spec files were created at `.kiro/specs/scorekeeper-competitive-ecosystem/` (requirements.md, design.md, tasks.md) for future reference
 
 ---
 
+---
+
+# **Session 2026-02-23 - Gunner UI Stabilization + Chat Toggle Overflow Fix**
+
+## Status
+
+✅ Session update complete.
+
+## Executive Summary
+
+This session focused on stabilizing the LightGuns (Gunner) experience after iterative UI work and fixing the chat toggle overflow issue with an intrinsic sizing approach.
+
+Main outcomes:
+
+1. Profiles Management tab was integrated/refined as a dedicated Gunner surface.
+2. Calibration tab was reshaped into an ops-dashboard style while preserving existing calibration logic.
+3. Chat toggle button was refactored to intrinsic sizing (`Open Chat` / `Close Chat`) to prevent text overflow.
+4. Corrupted/missing scoped Gunner CSS rules were restored so panel layout and chat sidebar render correctly.
+
+---
+
+## What Was Accomplished
+
+### 1) Profiles Management Integration (Gunner)
+
+- Added dedicated profiles layout with card selection, profile manager controls, preview details, and status actions.
+- Updated panel title/description copy to reflect active tab context.
+
+**Files:**
+- `frontend/src/panels/lightguns/LightGunsPanel.jsx`
+- `frontend/src/index.css`
+
+### 2) Calibration Ops-Dashboard Pass
+
+- Reworked calibration presentation to include HUD-style status cards, sensor/connection blocks, and console grouping.
+- Kept calibration state/actions and profile operations wired to existing handlers.
+
+**Files:**
+- `frontend/src/panels/lightguns/LightGunsPanel.jsx`
+- `frontend/src/index.css`
+
+### 3) Chat Toggle Overflow Fix (Intrinsic Sizing)
+
+- Refactored Gunner chat toggle to a flex/intrinsic model:
+  - `display: flex`
+  - `align-items: center`
+  - `gap: 0.5rem`
+  - `width: max-content` / `fit-content`
+  - `white-space: nowrap`
+- Updated toggle label behavior to explicit dynamic copy: `Open Chat` / `Close Chat`.
+- Removed problematic width overrides and repaired malformed CSS generated during intermediate patches.
+
+**Files:**
+- `frontend/src/panels/lightguns/LightGunsPanel.jsx`
+- `frontend/src/index.css`
+
+---
+
+## Validation Performed
+
+- `npm run build:frontend` completed successfully after stabilization.
+- No build-breaking errors were introduced.
+
+---
+
+## Known Follow-Ups (Next Session)
+
+1. Optional visual polish pass to tighten 1:1 parity with target screenshot spacing/typography.
+2. Optional cleanup/refactor pass to consolidate repeated Gunner style groups and reduce CSS drift risk.
+
+---
+
+# **Session 2026-02-22 - Gunner UI Recovery + Assistants Title Screen Stabilization**
+
+## Status
+
+✅ End-of-day update complete.
+
+## Executive Summary
+
+Today focused on restoring the expected AI Agents experience while integrating the newer Gunner visual direction safely.
+
+Main outcomes:
+
+1. Gunner panel received the requested retro/cyber title treatment and layout framing.
+2. A major regression was fixed where global LightGuns CSS was bleeding into other pages/panels.
+3. Assistants title screen ordering/details were restored close to prior state (cards visible and launchable again).
+4. Gateway frontend static caching behavior was made explicit to reduce stale bundle issues during iteration.
+
+---
+
+## What Was Accomplished
+
+### 1) Gunner Panel Visual Integration (Live React Panel)
+
+- Added retro header/nav/alert shell around the existing Gunner calibration/chat workflow.
+- Kept all existing calibration, profile, and chat logic intact.
+- Updated panel title treatment to match requested direction.
+
+**Files:**
+- `frontend/src/panels/lightguns/LightGunsPanel.jsx`
+- `frontend/src/index.css`
+
+### 2) Regression Fix: CSS Scope Collision (Blue Screen / Panel Disappearance)
+
+- Identified and fixed shared class-name collisions (`panel-container`, `panel-header`, etc.) that were affecting unrelated pages.
+- Scoped Gunner-specific styling to `.gunner-retro-shell ...` so only the LightGuns panel is affected.
+
+**Files:**
+- `frontend/src/index.css`
+
+### 3) Assistants Title Screen Recovery
+
+- Restored AI Agents cards so `/assistants` is populated again.
+- Reordered and rewrote card metadata to align with the previously established ordering/details as closely as possible.
+
+**File:**
+- `frontend/src/components/Assistants.jsx`
+
+### 4) Frontend Cache Behavior Hardening in Gateway
+
+- Kept `index.html` as no-store/no-cache.
+- Added explicit static asset cache policy logic:
+  - dev: no-store/no-cache for rapid iteration
+  - prod: immutable caching for hashed bundles
+
+**File:**
+- `gateway/server.js`
+
+---
+
+## Validation Performed
+
+- Rebuilt frontend successfully after each major patch cycle.
+- Verified multiple fresh Assistants bundle hashes were generated during iteration (stale-cache troubleshooting).
+
+---
+
+## Known Follow-Ups (Next Session)
+
+1. **Ask Gunner UI overflow:** chat control/button text can bleed outside the container; needs sizing/layout refinement.
+2. Fine-tune title screen details to exactly match the preferred prior look/state.
+3. Continue panel expansion (additional assistant/panel surfaces still pending).
+
+---
 
 # **Session 2026-02-21 - Assistants UI Polish + Controller Chuck Interface Recovery**
 

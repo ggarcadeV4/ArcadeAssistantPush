@@ -153,6 +153,7 @@ TEMP_*.txt
 # Test Artifacts
 # ---------------------------
 .pytest_cache/
+.hypothesis/
 htmlcov/
 .coverage
 coverage.xml

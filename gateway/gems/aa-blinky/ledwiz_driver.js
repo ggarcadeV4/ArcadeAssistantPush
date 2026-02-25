@@ -69,22 +69,52 @@ class LEDWizShimClient {
         this.connected = false;
         this._lastWriteTime = 0;
         this._lastFrame = new Array(CHANNEL_COUNT_INTERNAL).fill(0);
+        this._connectAttempts = 0;
+        this._maxConnectAttempts = 10;
+        this._backoff = 2000;
+        this._maxBackoff = 60000;
+        this._backoffTimer = null;
+        this._connecting = false;
+        this._silenced = false;
     }
 
     connect() {
         if (this.connected) return Promise.resolve(true);
+        if (this._connecting) return Promise.resolve(false);
+
+        // If we've exceeded max attempts, go silent until next explicit command
+        if (this._silenced) return Promise.resolve(false);
+        if (this._connectAttempts >= this._maxConnectAttempts) {
+            if (!this._silenced) {
+                console.log(`[aa-blinky] LED shim not available after ${this._connectAttempts} attempts. Will retry on next command.`);
+                this._silenced = true;
+            }
+            return Promise.resolve(false);
+        }
+
+        this._connecting = true;
+        this._connectAttempts++;
 
         return new Promise((resolve) => {
-            console.log(`[aa-blinky] Connecting to shim pipe: ${PIPE_NAME}`);
+            if (this._connectAttempts <= 2) {
+                console.log(`[aa-blinky] Connecting to shim pipe: ${PIPE_NAME} (attempt ${this._connectAttempts})`);
+            }
             this.client = net.connect(PIPE_NAME, () => {
                 console.log('[aa-blinky] Connected to LED-Wiz Shim');
                 this.connected = true;
+                this._connecting = false;
+                this._connectAttempts = 0;
+                this._backoff = 2000;
+                this._silenced = false;
                 resolve(true);
             });
 
             this.client.on('error', (err) => {
-                console.error('[aa-blinky] Shim pipe error:', err.message);
+                if (this._connectAttempts <= 2) {
+                    console.warn(`[aa-blinky] Shim pipe unavailable: ${err.message} (attempt ${this._connectAttempts}/${this._maxConnectAttempts})`);
+                }
                 this.connected = false;
+                this._connecting = false;
                 this.client = null;
                 resolve(false);
             });
@@ -92,6 +122,7 @@ class LEDWizShimClient {
             this.client.on('end', () => {
                 console.log('[aa-blinky] Shim pipe disconnected');
                 this.connected = false;
+                this._connecting = false;
                 this.client = null;
             });
         });
@@ -99,6 +130,12 @@ class LEDWizShimClient {
 
     sendCommand(cmd) {
         if (!this.connected) {
+            // Reset silenced state on explicit command so user actions can retry
+            if (this._silenced) {
+                this._silenced = false;
+                this._connectAttempts = 0;
+                this._backoff = 2000;
+            }
             this.connect().then(success => {
                 if (success) this._write(cmd);
             });

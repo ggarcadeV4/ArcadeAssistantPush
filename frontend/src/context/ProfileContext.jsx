@@ -66,10 +66,11 @@ export function ProfileProvider({ children }) {
   useEffect(() => {
     if (typeof window === 'undefined') return () => { }
 
-    const base = window.location.port === '5173'
-      ? 'http://localhost:8787'
-      : window.location.origin
-    const wsUrl = base.replace(/^http/, 'ws') + '/ws/session'
+    // Dynamic URL: use window.location.host to avoid 127.0.0.1 vs localhost mismatch
+    const isSecure = window.location.protocol === 'https:'
+    const host = window.location.port === '5173' ? 'localhost:8787' : window.location.host
+    const scheme = isSecure ? 'wss' : 'ws'
+    const wsUrl = `${scheme}://${host}/ws/session`
 
     let alive = true
     let backoff = 2000
@@ -82,7 +83,7 @@ export function ProfileProvider({ children }) {
         wsRef.current = ws
 
         ws.onopen = () => {
-          backoff = 2000 // reset on successful connection
+          backoff = 2000
         }
 
         ws.onmessage = (event) => {

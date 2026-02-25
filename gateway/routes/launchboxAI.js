@@ -899,7 +899,7 @@ async function callClaudeAPI(systemPrompt, messages) {
   }
 
   // Claude fallback section (only reached if Gemini fails or Claude is forced)
-  const modelToUse = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-latest';
+  const modelToUse = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022';
   const forceDirect = ['1', 'true', 'yes', 'on'].includes(String(process.env.LAUNCHBOX_FORCE_DIRECT || '').trim().toLowerCase());
 
   console.log('[LaunchBox AI] Claude fallback - Using model:', modelToUse);

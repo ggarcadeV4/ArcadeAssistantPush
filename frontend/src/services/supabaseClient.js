@@ -43,3 +43,33 @@ export const logChatHistory = async ({ panel_id, role, content, metadata = {}, s
         console.error('[Supabase] Error logging chat history:', err);
     }
 };
+
+/**
+ * Subscribe to realtime inserts on the Supabase 'scores' table.
+ * Returns the channel so the caller can unsubscribe on cleanup.
+ *
+ * @param {(payload: object) => void} onInsert - callback fired with the new row
+ * @returns {object|null} Supabase RealtimeChannel (call .unsubscribe() to stop)
+ */
+export const subscribeToScores = (onInsert) => {
+    if (!supabase) {
+        console.warn('[Supabase] No client — skipping realtime scores subscription');
+        return null;
+    }
+
+    const channel = supabase
+        .channel('public:scores')
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'scores' },
+            (payload) => {
+                console.log('[Supabase] Realtime score insert:', payload.new);
+                if (typeof onInsert === 'function') onInsert(payload.new);
+            }
+        )
+        .subscribe((status) => {
+            console.log('[Supabase] Realtime scores channel status:', status);
+        });
+
+    return channel;
+};

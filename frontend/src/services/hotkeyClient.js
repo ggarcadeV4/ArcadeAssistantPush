@@ -9,7 +9,10 @@ class HotkeyWebSocketClient {
     this._backoff = 2000
     this._maxBackoff = 30000
     const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
-    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8787'
+    // Dynamic URL: use window.location.host to avoid 127.0.0.1 vs localhost mismatch
+    const host = typeof window !== 'undefined'
+      ? (window.location.port === '5173' ? 'localhost:8787' : window.location.host)
+      : 'localhost:8787'
     const scheme = isSecure ? 'wss' : 'ws'
     this._url = `${scheme}://${host}/ws/hotkey`
   }
@@ -27,7 +30,8 @@ class HotkeyWebSocketClient {
     }
 
     this.ws.onopen = () => {
-      this._backoff = 2000 // reset on success
+      // console.log('[Hotkey WS] Connected')
+      this._backoff = 2000
       this._notify({ type: 'connected' })
     }
     this.ws.onmessage = (event) => {

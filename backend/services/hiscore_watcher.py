@@ -493,7 +493,7 @@ class HiscoreWatcher:
         }
 
     def _broadcast_record_events(self, record_events: list) -> None:
-        """Send score_record events to the ScoreKeeper WS bridge."""
+        """Send score_record events to the ScoreKeeper WS bridge and Supabase."""
         if not record_events:
             return
         try:
@@ -508,6 +508,26 @@ class HiscoreWatcher:
             )
         except Exception as e:
             logger.warning("broadcast_failed", error=str(e))
+
+        # Also push each record to Supabase scores table via gateway
+        for record in record_events:
+            try:
+                httpx.post(
+                    "http://localhost:8787/api/scorekeeper/supabase-sync",
+                    json={
+                        "game_id": record.get("rom", "unknown"),
+                        "player": record.get("player", "???"),
+                        "score": record.get("score", 0),
+                        "meta": {
+                            "source": "hiscore_watcher",
+                            "previous_top": record.get("previous_top", 0),
+                            "timestamp": record.get("timestamp")
+                        }
+                    },
+                    timeout=3.0
+                )
+            except Exception as e:
+                logger.debug("supabase_sync_failed", rom=record.get("rom"), error=str(e))
     
     def _check_for_changes(self) -> Set[str]:
         """Check which .hi files have changed since last check."""
@@ -579,6 +599,34 @@ class HiscoreWatcher:
             logger.warning("broadcast_failed", error=str(e))
 
         self._broadcast_record_events(record_events)
+
+        # Trigger AI commentary for new high scores (fire-and-forget)
+        for event in record_events:
+            try:
+                from .score_announcer import announce_high_score
+                import asyncio
+                rom = event.get("rom", "")
+                rom_mapping = self._get_rom_mapping()
+                game_name = rom_mapping.get(rom, {}).get("game_title", rom)
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(announce_high_score(
+                        game_name=game_name,
+                        score=event.get("score", 0),
+                        initials=event.get("player", "???"),
+                        rank=1,
+                        speak=True
+                    ))
+                else:
+                    asyncio.run(announce_high_score(
+                        game_name=game_name,
+                        score=event.get("score", 0),
+                        initials=event.get("player", "???"),
+                        rank=1,
+                        speak=True
+                    ))
+            except Exception as e:
+                logger.debug("score_announcer_failed", rom=event.get("rom"), error=str(e))
     
     def _watch_loop(self):
         """Main watch loop - runs in background thread."""

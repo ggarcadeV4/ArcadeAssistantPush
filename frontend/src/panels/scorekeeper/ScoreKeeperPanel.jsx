@@ -2,8 +2,10 @@
 import { useAIAction } from '../_kit'
 import { getLeaderboard, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper } from '../../services/scorekeeperClient'
 import { useLocation } from 'react-router-dom'
-import { getConsent } from '../../services/profileClient'
+import { getConsent, getProfile } from '../../services/profileClient'
 import { useProfileContext } from '../../context/ProfileContext'
+import { subscribeToScores } from '../../services/supabaseClient'
+import { speakAsSam, stopSpeaking, isSpeaking } from '../../services/ttsClient'
 import './scorekeeper.css'
 
 // Constants
@@ -16,7 +18,7 @@ const ROUND_KEY_MAP = {
   32: ['round1', 'round2', 'quarterfinals', 'semifinals', 'finals']
 }
 
-function formatScoreValue(value, fallback = '—') {
+function formatScoreValue(value, fallback = '�') {
   if (value === '' || value === null || value === undefined) return fallback
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? n.toLocaleString() : fallback
@@ -263,6 +265,7 @@ export default function ScoreKeeperPanel() {
   const location = useLocation()
   const searchParams = new URLSearchParams(location.search)
   const bigBoard = searchParams.get('display') === 'bigboard'
+  const { profile: sharedProfile } = useProfileContext()
   // Tournament State Management
   const [selectedPlayerCount, setSelectedPlayerCount] = useState(8)
   const [playerNames, setPlayerNames] = useState({
@@ -326,6 +329,11 @@ export default function ScoreKeeperPanel() {
 
   // Undo state for tracking last backup
   const [lastBackup, setLastBackup] = useState(null)
+
+  // Voice / Speech Recognition state
+  const [isListening, setIsListening] = useState(false)
+  const [isSamSpeaking, setIsSamSpeaking] = useState(false)
+  const recognitionRef = useRef(null)
 
   // Refs
   const chatMessagesRef = useRef(null)
@@ -440,7 +448,16 @@ export default function ScoreKeeperPanel() {
           const c = await getConsent()
           setConsent(c?.consent || { accepted: false, scopes: [] })
         } catch { /* ignore */ }
-        // Profile now provided by useProfileContext() - live broadcast, no one-shot fetch
+        // Legacy profile fetch as fallback (reactive sync via useEffect below)
+        try {
+          const p = await getProfile()
+          const prof = p?.profile || null
+          if (prof && prof.displayName) {
+            setProfileData(prof)
+            setUseProfileForScore(true)
+            setScoreForm(prev => ({ ...prev, player: prev.player || prof.displayName }))
+          }
+        } catch { /* ignore */ }
         // List tournaments (for Resume Last)
         try {
           const lt = await listTournaments()
@@ -466,6 +483,21 @@ export default function ScoreKeeperPanel() {
       }
     })()
   }, [])
+
+  // Reactive profile sync: when Vicky or another panel updates the profile, Sam knows immediately
+  useEffect(() => {
+    if (sharedProfile?.displayName) {
+      setProfileData(prev => ({
+        ...prev,
+        displayName: sharedProfile.displayName,
+        initials: sharedProfile.initials || '',
+        userId: sharedProfile.userId || 'guest'
+      }))
+      setUseProfileForScore(true)
+      setScoreForm(prev => ({ ...prev, player: sharedProfile.displayName }))
+      console.log('[ScoreKeeper] Profile synced from context:', sharedProfile.displayName)
+    }
+  }, [sharedProfile])
 
   async function fetchByGame(gameId) {
     try {
@@ -529,6 +561,87 @@ export default function ScoreKeeperPanel() {
       }
     }
   }, [])
+
+  // Supabase Realtime subscription for cloud score inserts
+  useEffect(() => {
+    const channel = subscribeToScores((newRow) => {
+      // When a new score lands in Supabase, refresh the local leaderboard
+      (async () => {
+        try {
+          const result = await getLeaderboard({ limit: 10 })
+          setLeaderboardData(result.scores || [])
+          setScoresCached(!!result.cached)
+          setPluginPaused(!!result.cached)
+        } catch { /* ignore */ }
+      })()
+    })
+
+    return () => {
+      if (channel) {
+        try { channel.unsubscribe() } catch { /* ignore */ }
+      }
+    }
+  }, [])
+
+  // Initialize Web Speech API recognition
+  useEffect(() => {
+    // Listen for external view-switch events (from persona card buttons)
+    const handleViewSwitch = (e) => {
+      if (e.detail === 'tournament') setActiveView('tournament')
+      else if (e.detail === 'highscores') setActiveView('highscores')
+    }
+    window.addEventListener('sam-view', handleViewSwitch)
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript
+      if (transcript) {
+        setInputMessage(transcript)
+        // Auto-send after a short delay so user sees the transcript
+        setTimeout(() => {
+          setInputMessage(prev => {
+            if (prev === transcript) {
+              // Trigger send via ref callback
+              document.querySelector('.panel-chat-sidebar .execute-btn')?.click()
+            }
+            return prev
+          })
+        }, 400)
+      }
+    }
+
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+
+    recognitionRef.current = recognition
+
+    return () => {
+      window.removeEventListener('sam-view', handleViewSwitch)
+      try { recognition.abort() } catch { /* ignore */ }
+    }
+  }, [])
+
+  const toggleListening = useCallback(() => {
+    const recognition = recognitionRef.current
+    if (!recognition) return
+
+    if (isListening) {
+      recognition.abort()
+      setIsListening(false)
+    } else {
+      try {
+        recognition.start()
+        setIsListening(true)
+      } catch { /* already started */ }
+    }
+  }, [isListening])
 
   // Initialize bracket on component mount
   useEffect(() => {
@@ -847,8 +960,11 @@ export default function ScoreKeeperPanel() {
     }
   }, [selectedPlayerCount, createCustomBracket, addChatMessage, generateBracket, playerNames])
 
+  const sendGuardRef = useRef(false)
   const handleSendMessage = useCallback(async () => {
     if (!inputMessage.trim() || isProcessing || isLoading) return
+    if (sendGuardRef.current) return
+    sendGuardRef.current = true
 
     const userMessage = inputMessage.trim()
     setInputMessage('')
@@ -910,6 +1026,12 @@ Current tournament context will be provided. Use it to give specific advice.`,
 
       addChatMessage('assistant', responseText)
 
+      // Speak the response as Sam (fire-and-forget)
+      setIsSamSpeaking(true)
+      speakAsSam(responseText)
+        .catch(() => {})
+        .finally(() => setIsSamSpeaking(false))
+
       // Check if AI suggested an action and execute it
       const lowerResponse = responseText.toLowerCase()
       if (lowerResponse.includes('create') && (lowerResponse.includes('tournament') || lowerResponse.includes('bracket'))) {
@@ -929,6 +1051,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
       setAiStatus(`AI Error: ${errorMsg}`)
     } finally {
       setIsProcessing(false)
+      setTimeout(() => { sendGuardRef.current = false }, 500)
     }
   }, [inputMessage, isProcessing, isLoading, addChatMessage, executeAction, tournament, selectedPlayerCount, leaderboardData])
 
@@ -943,7 +1066,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ fontSize: 48 }}>??</div>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#c8ff00' }}>ScoreKeeper Sam — Big Board</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#c8ff00' }}>ScoreKeeper Sam � Big Board</div>
               <div style={{ color: '#9ca3af' }}>Live leaderboard (read-only)</div>
             </div>
           </div>
@@ -964,7 +1087,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
                     <td style={{ padding: 12 }}>
-                      {entry.player || entry.bestPlayer || '—'}
+                      {entry.player || entry.bestPlayer || '�'}
                       {(entry.player || entry.bestPlayer) && (
                         <span style={{
                           marginLeft: 8,
@@ -978,7 +1101,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                       )}
                     </td>
                     <td style={{ padding: 12 }}>{formatScoreValue(entry.score ?? entry.bestScore)}</td>
-                    <td style={{ padding: 12 }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '—'}</td>
+                    <td style={{ padding: 12 }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '�'}</td>
                   </tr>
                 )
               })}
@@ -1061,7 +1184,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
         {/* Plugin Paused Banner */}
         {(pluginPaused || scoresCached || paused) && (
           <div className="scorekeeper-paused-banner">
-            ? Plugin offline — showing cached results
+            ? Plugin offline � showing cached results
           </div>
         )}
 
@@ -1093,12 +1216,12 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   </thead>
                   <tbody>
                     {(leaderboardData || []).map((entry, idx) => {
-                      const playerName = entry.player || entry.bestPlayer || '—'
+                      const playerName = entry.player || entry.bestPlayer || '�'
                       const score = formatScoreValue(entry.score ?? entry.bestScore)
-                      const dateStr = entry.timestamp ? new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'
+                      const dateStr = entry.timestamp ? new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '�'
                       const gid = entry.gameId || entry.game_id
 
-                      // Rank 1 — Gold
+                      // Rank 1 � Gold
                       if (idx === 0) {
                         return (
                           <tr key={idx} className="sam-rank-row rank-1" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
@@ -1127,7 +1250,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                         )
                       }
 
-                      // Rank 2 — Silver
+                      // Rank 2 � Silver
                       if (idx === 1) {
                         return (
                           <tr key={idx} className="sam-rank-row rank-2" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
@@ -1154,7 +1277,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                         )
                       }
 
-                      // Rank 3 — Bronze
+                      // Rank 3 � Bronze
                       if (idx === 2) {
                         return (
                           <tr key={idx} className="sam-rank-row rank-3" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
@@ -1218,7 +1341,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   <div>
                     <p className="stat-label">High Score</p>
                     <p className="stat-value-large">
-                      {leaderboardData.length > 0 ? formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore) : '—'}
+                      {leaderboardData.length > 0 ? formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore) : '�'}
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1260,7 +1383,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     <div key={idx} className="sam-record-item">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden', flex: 1 }}>
                         <div className={`record-rank ${idx < 3 ? 'highlight' : 'standard'}`}>#{idx + 1}</div>
-                        <span className="record-name">{entry.player || entry.bestPlayer || '—'}</span>
+                        <span className="record-name">{entry.player || entry.bestPlayer || '�'}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span className="record-score">{formatScoreValue(entry.score ?? entry.bestScore)}</span>
@@ -1395,10 +1518,10 @@ Current tournament context will be provided. Use it to give specific advice.`,
 
               <div className="section-title">Quick Start</div>
               <div className="preset-buttons">
-                <button className="preset-btn" onClick={() => alert('Family Tournament preset — Available soon')}>?? Family</button>
-                <button className="preset-btn" onClick={() => alert('Friends Night preset — Available soon')}>?? Friends</button>
-                <button className="preset-btn" onClick={() => alert('Random Players — Available soon')}>?? Random</button>
-                <button className="preset-btn" onClick={() => alert('Load Saved Group — Available soon')}>?? Load Saved</button>
+                <button className="preset-btn" onClick={() => alert('Family Tournament preset � Available soon')}>?? Family</button>
+                <button className="preset-btn" onClick={() => alert('Friends Night preset � Available soon')}>?? Friends</button>
+                <button className="preset-btn" onClick={() => alert('Random Players � Available soon')}>?? Random</button>
+                <button className="preset-btn" onClick={() => alert('Load Saved Group � Available soon')}>?? Load Saved</button>
               </div>
 
               <div className="section-title">Player Count</div>
@@ -1502,7 +1625,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
           </div>
         )}
 
-        {/* ========== FOOTER — Quick Score Entry (High Scores view only) ========== */}
+        {/* ========== FOOTER � Quick Score Entry (High Scores view only) ========== */}
         {activeView === 'highscores' && (
           <footer className="sam-footer glass-panel">
             <form className="sam-score-form" onSubmit={(e) => { e.preventDefault() }}>
@@ -1583,9 +1706,9 @@ Current tournament context will be provided. Use it to give specific advice.`,
             <img src="/sam-avatar.jpeg" alt="Sam" className="chat-avatar" />
             <div className="chat-info">
               <h3>ScoreKeeper Sam</h3>
-              <div className="chat-status">• Ready to assist</div>
+              <div className="chat-status">� Ready to assist</div>
             </div>
-            <button className="chat-close-btn" onClick={handleChatClose} aria-label="Close chat">×</button>
+            <button className="chat-close-btn" onClick={handleChatClose} aria-label="Close chat">�</button>
           </div>
 
           <div className="welcome-message">
@@ -1609,7 +1732,14 @@ Current tournament context will be provided. Use it to give specific advice.`,
 
           <div className="chat-input-area">
             <div className="input-container">
-              <button className="voice-btn" aria-label="Voice input">??</button>
+              <button
+                className={`voice-btn ${isListening ? 'listening' : ''} ${isSamSpeaking ? 'speaking' : ''}`}
+                aria-label={isListening ? 'Stop listening' : 'Voice input'}
+                onClick={isListening ? toggleListening : isSamSpeaking ? () => { stopSpeaking(); setIsSamSpeaking(false) } : toggleListening}
+                title={isListening ? 'Listening... click to stop' : isSamSpeaking ? 'Sam is speaking... click to stop' : 'Click to speak'}
+              >
+                {isListening ? '??' : isSamSpeaking ? '??' : '??'}
+              </button>
               <input
                 type="text"
                 className="chat-input"
