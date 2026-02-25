@@ -9,7 +9,9 @@
 import { getClient } from './supabase_client.js';
 
 // Cache configuration
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// PAUSED: TTL extended to 24 hours until first customer (was 5 minutes)
+// To restore original polling frequency, change back to: 5 * 60 * 1000
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (no customers yet)
 const configCache = new Map();
 
 // Default configuration (fallback when Supabase unavailable)

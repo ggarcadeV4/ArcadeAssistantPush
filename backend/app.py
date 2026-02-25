@@ -233,33 +233,31 @@ async def lifespan(app: FastAPI):
                 print(f"Session manager initialized at {state_dir}")
                 print(f"Leaderboard service initialized with {launches_file}")
                 
-                # Initialize Hiscore Watcher for ScoreKeeper Sam (all MAME variants)
-                try:
-                    from backend.services.hiscore_watcher import initialize_hiscore_watcher
-                    from backend.constants.a_drive_paths import LaunchBoxPaths
-                    scores_file = state_dir / "scores.jsonl"
-                    high_scores_index = state_dir / "high_scores_index.json"
-                    
-                    # Watch ALL MAME directories for high scores
-                    mame_dirs = [
-                        LaunchBoxPaths.EMULATORS_ROOT / "MAME Gamepad",
-                        LaunchBoxPaths.EMULATORS_ROOT / "MAME",
-                    ]
-                    
-                    watchers_started = 0
-                    for mame_root in mame_dirs:
-                        if (mame_root / "hiscore").exists() or (mame_root / "hi").exists():
-                            try:
-                                await initialize_hiscore_watcher(mame_root, scores_file, high_scores_index)
-                                print(f"Hiscore watcher initialized for {mame_root}")
-                                watchers_started += 1
-                            except Exception as we:
-                                print(f"WARNING: Hiscore watcher for {mame_root} failed: {we}")
-                    
-                    if watchers_started == 0:
-                        print("WARNING: No MAME hiscore directories found")
-                except Exception as e:
-                    print(f"WARNING: Hiscore watcher initialization failed: {e}")
+                # PAUSED: Hiscore Watcher disabled until first customer
+                # To re-enable, uncomment the block below
+                # try:
+                #     from backend.services.hiscore_watcher import initialize_hiscore_watcher
+                #     from backend.constants.a_drive_paths import LaunchBoxPaths
+                #     scores_file = state_dir / "scores.jsonl"
+                #     high_scores_index = state_dir / "high_scores_index.json"
+                #     mame_dirs = [
+                #         LaunchBoxPaths.EMULATORS_ROOT / "MAME Gamepad",
+                #         LaunchBoxPaths.EMULATORS_ROOT / "MAME",
+                #     ]
+                #     watchers_started = 0
+                #     for mame_root in mame_dirs:
+                #         if (mame_root / "hiscore").exists() or (mame_root / "hi").exists():
+                #             try:
+                #                 await initialize_hiscore_watcher(mame_root, scores_file, high_scores_index)
+                #                 print(f"Hiscore watcher initialized for {mame_root}")
+                #                 watchers_started += 1
+                #             except Exception as we:
+                #                 print(f"WARNING: Hiscore watcher for {mame_root} failed: {we}")
+                #     if watchers_started == 0:
+                #         print("WARNING: No MAME hiscore directories found")
+                # except Exception as e:
+                #     print(f"WARNING: Hiscore watcher initialization failed: {e}")
+                print("INFO: Hiscore watcher PAUSED (no customers yet)")
                 
                 # Initialize AI Vision Score Service
                 try:
@@ -273,14 +271,16 @@ async def lifespan(app: FastAPI):
                 except Exception as e:
                     print(f"WARNING: Vision score service initialization failed: {e}")
                 
-                # Initialize Lua Score Watcher (watches mame_scores.json from Lua plugin)
-                try:
-                    from backend.services.hiscore_watcher import initialize_lua_score_watcher
-                    lua_scores_json = state_dir / "mame_scores.json"
-                    await initialize_lua_score_watcher(lua_scores_json)
-                    print(f"Lua score watcher initialized for {lua_scores_json}")
-                except Exception as e:
-                    print(f"WARNING: Lua score watcher initialization failed: {e}")
+                # PAUSED: Lua Score Watcher disabled until first customer
+                # To re-enable, uncomment the block below
+                # try:
+                #     from backend.services.hiscore_watcher import initialize_lua_score_watcher
+                #     lua_scores_json = state_dir / "mame_scores.json"
+                #     await initialize_lua_score_watcher(lua_scores_json)
+                #     print(f"Lua score watcher initialized for {lua_scores_json}")
+                # except Exception as e:
+                #     print(f"WARNING: Lua score watcher initialization failed: {e}")
+                print("INFO: Lua score watcher PAUSED (no customers yet)")
                 
                 # Initialize Game Lifecycle Service (tracks game processes for Vision fallback)
                 try:
@@ -290,14 +290,16 @@ async def lifespan(app: FastAPI):
                 except Exception as e:
                     print(f"WARNING: Game lifecycle service initialization failed: {e}")
                 
-                # Start Match Watcher for Tournament Mode (Sam's Tournament Eyes)
-                try:
-                    from backend.services.match_watcher import start_match_watcher
-                    match_watcher = start_match_watcher(str(drive_root))
-                    app.state.match_watcher = match_watcher
-                    print(f"Match watcher started, watching: {match_watcher.results_path}")
-                except Exception as e:
-                    print(f"WARNING: Match watcher initialization failed: {e}")
+                # PAUSED: Match Watcher disabled until first customer
+                # To re-enable, uncomment the block below
+                # try:
+                #     from backend.services.match_watcher import start_match_watcher
+                #     match_watcher = start_match_watcher(str(drive_root))
+                #     app.state.match_watcher = match_watcher
+                #     print(f"Match watcher started, watching: {match_watcher.results_path}")
+                # except Exception as e:
+                #     print(f"WARNING: Match watcher initialization failed: {e}")
+                print("INFO: Match watcher PAUSED (no customers yet)")
             else:
                 print("WARNING: Session/Leaderboard services not initialized (no drive root)")
         except Exception as e:
@@ -441,35 +443,35 @@ async def lifespan(app: FastAPI):
                     f.write(json.dumps(record) + "\n")
         except Exception as e:
             print(f"WARNING: Failed to write startup timing: {e}")
-        # Cabinet self-registration and heartbeat (best-effort, non-blocking)
-        try:
-            from backend.services.cabinet_registration import register_cabinet_async
-            from backend.services.heartbeat import start_heartbeat_task
+        # PAUSED: Cabinet self-registration and heartbeat disabled until first customer
+        # To re-enable, uncomment the block below
+        # try:
+        #     from backend.services.cabinet_registration import register_cabinet_async
+        #     from backend.services.heartbeat import start_heartbeat_task
+        #     try:
+        #         reg_result = await register_cabinet_async()
+        #         if reg_result.get('success'):
+        #             print(f"Cabinet registered: device_id={reg_result.get('device_id')}, mac={reg_result.get('mac')}")
+        #         else:
+        #             print(f"Cabinet registration skipped: {reg_result.get('error', 'unknown')}")
+        #         print(f"Cabinet status: {reg_result.get('status', 'unknown')}")
+        #     except Exception as reg_err:
+        #         print(f"WARNING: Cabinet registration failed (non-fatal): {reg_err}")
+        #     app.state._hb_task = start_heartbeat_task()
+        #     print("Heartbeat loop started (30s interval)")
+        # except Exception as he_init:
+        #     print(f"WARNING: Cabinet registration/heartbeat not started: {he_init}")
+        print("INFO: Cabinet heartbeat PAUSED (no customers yet)")
 
-            # Step 1: Auto-register cabinet with Supabase (silent, background)
-            try:
-                reg_result = await register_cabinet_async()
-                if reg_result.get('success'):
-                    print(f"Cabinet registered: device_id={reg_result.get('device_id')}, mac={reg_result.get('mac')}")
-                else:
-                    print(f"Cabinet registration skipped: {reg_result.get('error', 'unknown')}")
-                print(f"Cabinet status: {reg_result.get('status', 'unknown')}")
-            except Exception as reg_err:
-                print(f"WARNING: Cabinet registration failed (non-fatal): {reg_err}")
-
-            # Step 2: Start 30-second heartbeat loop
-            app.state._hb_task = start_heartbeat_task()
-            print("Heartbeat loop started (30s interval)")
-        except Exception as he_init:
-            print(f"WARNING: Cabinet registration/heartbeat not started: {he_init}")
-
-        # Start Dewey's auto-trivia scheduler (self-updating trivia from news)
-        try:
-            from backend.services.dewey.trivia_scheduler import start_trivia_scheduler
-            start_trivia_scheduler()
-            print("Trivia auto-update scheduler started")
-        except Exception as trivia_err:
-            print(f"WARNING: Trivia scheduler not started: {trivia_err}")
+        # PAUSED: Dewey's auto-trivia scheduler disabled until first customer
+        # To re-enable, uncomment the block below
+        # try:
+        #     from backend.services.dewey.trivia_scheduler import start_trivia_scheduler
+        #     start_trivia_scheduler()
+        #     print("Trivia auto-update scheduler started")
+        # except Exception as trivia_err:
+        #     print(f"WARNING: Trivia scheduler not started: {trivia_err}")
+        print("INFO: Trivia auto-update scheduler PAUSED (no customers yet)")
 
     except Exception as e:
         print(f"Failed to start FastAPI backend: {e}")
