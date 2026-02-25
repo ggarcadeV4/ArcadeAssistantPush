@@ -100,6 +100,9 @@ class GameLauncher:
     - Efficient method dispatch with early returns
     """
 
+    # Stderr trap: last result for remediation loop access
+    _last_trap_result: Optional[Dict[str, Any]] = None
+
     def __init__(self):
         """Initialize launcher and load emulator configurations."""
         # Load emulator config eagerly to avoid repeated lazy imports
@@ -885,6 +888,112 @@ class GameLauncher:
             "command": " ".join(command),
         }
 
+    # ── Stderr Trap: 1.5s Watchdog ──────────────────────────────────────
+
+    @staticmethod
+    def _launch_with_stderr_trap(
+        command: List[str],
+        cwd: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Launch a subprocess with stderr capture and a 1.5s watchdog.
+
+        Wraps ``subprocess.Popen`` with ``stdout=PIPE, stderr=PIPE``.
+        After 1.5 seconds:
+        - If the process is still running → launch is healthy, release pipes.
+        - If the process exited with code 0 → clean exit.
+        - If the process exited with non-zero code → capture up to 4 KB stderr.
+
+        Returns a ``StderrTrapResult`` dict:
+            success (bool), command (str), return_code (int|None),
+            stderr (str, ≤4 KB), timestamp (str ISO 8601).
+        """
+        from datetime import datetime, timezone
+
+        WATCHDOG_SECONDS = 1.5
+        MAX_STDERR_BYTES = 4096
+        cmd_str = " ".join(command)
+        ts = datetime.now(timezone.utc).isoformat()
+
+        logger.info("[StderrTrap] Launching: %s", cmd_str[:120])
+
+        try:
+            proc = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+        except OSError as exc:
+            logger.error("[StderrTrap] Popen failed: %s", exc)
+            return {
+                "success": False,
+                "command": cmd_str,
+                "return_code": -1,
+                "stderr": str(exc),
+                "timestamp": ts,
+            }
+
+        # Wait up to 1.5s for early crash
+        try:
+            proc.wait(timeout=WATCHDOG_SECONDS)
+        except subprocess.TimeoutExpired:
+            # Process still running after watchdog window → healthy launch
+            logger.info(
+                "[StderrTrap] Process PID %d still running after %.1fs — launch OK",
+                proc.pid, WATCHDOG_SECONDS,
+            )
+            # Release pipes in a background thread so they don't block
+            def _drain():
+                try:
+                    proc.stdout.close()
+                    proc.stderr.close()
+                except Exception:
+                    pass
+            threading.Thread(target=_drain, daemon=True).start()
+            return {
+                "success": True,
+                "command": cmd_str,
+                "return_code": None,
+                "stderr": "",
+                "timestamp": ts,
+                "pid": proc.pid,
+            }
+
+        # Process exited within 1.5s
+        exit_code = proc.returncode
+        if exit_code == 0:
+            logger.info("[StderrTrap] Process exited cleanly (code 0)")
+            return {
+                "success": True,
+                "command": cmd_str,
+                "return_code": 0,
+                "stderr": "",
+                "timestamp": ts,
+            }
+
+        # Non-zero exit — capture stderr (bounded at 4 KB)
+        stderr_output = ""
+        try:
+            raw = proc.stderr.read(MAX_STDERR_BYTES) if proc.stderr else b""
+            stderr_output = raw.decode("utf-8", errors="replace")
+        except Exception as exc:
+            logger.warning("[StderrTrap] Failed to read stderr: %s", exc)
+
+        logger.warning(
+            "[StderrTrap] Process crashed (code %d). stderr: %s",
+            exit_code, stderr_output[:200],
+        )
+        return {
+            "success": False,
+            "command": cmd_str,
+            "return_code": exit_code,
+            "stderr": stderr_output,
+            "timestamp": ts,
+        }
+
     def _launch_direct(self, game: Game, profile_hint: Optional[str] = None) -> Dict[str, Any]:
         """
         Direct emulator launch for specific platforms.
@@ -972,9 +1081,17 @@ class GameLauncher:
                 if dry_run_enabled():
                     logger.info(f"[DIRECT] MAME DRY-RUN: {' '.join(win_command)}")
                     return {"success": True, "command": " ".join(win_command), "message": "dry-run"}
-                subprocess.Popen(win_command, cwd=wsl_cwd)
-                logger.info(f"[DIRECT] MAME launch SUCCESS: {' '.join(win_command)}")
-                return {"success": True, "command": " ".join(win_command)}
+                trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
+                if trap_result["success"]:
+                    logger.info(f"[DIRECT] MAME launch SUCCESS: {' '.join(win_command)}")
+                    return {"success": True, "command": " ".join(win_command)}
+                else:
+                    logger.warning(f"[DIRECT] MAME launch FAILED (code {trap_result['return_code']})")
+                    return {
+                        "success": False,
+                        "command": " ".join(win_command),
+                        "stderr_trap": trap_result,
+                    }
 
             # Try registered adapters (e.g., RetroArch) for consoles
             manifest = self._load_launchers_config() or {}
@@ -1211,17 +1328,39 @@ class GameLauncher:
                 win_command = _convert_wsl_paths_for_windows(full_command)
                 # Keep working directory in WSL format - subprocess.Popen needs WSL path
                 wsl_cwd = str(workdir)
-                proc = subprocess.Popen(win_command, cwd=wsl_cwd)
+                # Use stderr trap for crash detection
+                trap_result = GameLauncher._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
+                if not trap_result["success"]:
+                    logger.warning(
+                        "[Adapter] Process crashed (code %s): %s",
+                        trap_result.get("return_code"),
+                        trap_result.get("stderr", "")[:200],
+                    )
+                    # Store trap result for remediation (caller can inspect)
+                    GameLauncher._last_trap_result = trap_result
                 if on_exit:
-                    def _await_then_cleanup():
-                        try:
-                            proc.wait()
-                        finally:
+                    # Schedule cleanup — process already exited or is running
+                    if trap_result.get("pid"):
+                        # Process still running, wait for it
+                        def _await_then_cleanup(pid):
                             try:
-                                on_exit()
+                                import psutil
+                                p = psutil.Process(pid)
+                                p.wait()
                             except Exception:
                                 pass
-                    threading.Thread(target=_await_then_cleanup, daemon=True).start()
+                            finally:
+                                try:
+                                    on_exit()
+                                except Exception:
+                                    pass
+                        threading.Thread(target=_await_then_cleanup, args=(trap_result["pid"],), daemon=True).start()
+                    else:
+                        # Process already exited, run cleanup now
+                        try:
+                            on_exit()
+                        except Exception:
+                            pass
         except OSError as e:
             raise RuntimeError(f"Failed to launch adapter process: {e}")
 

@@ -79,6 +79,7 @@ class EventType(str, Enum):
     SYSTEM_ERROR = "system_error"
     SYSTEM_WARNING = "system_warning"
     STATE_UPDATED = "state_updated"
+    SYS_ANNOUNCE = "sys_announce"
 
 
 # ============================================================================
@@ -144,6 +145,19 @@ class ScoreSubmittedEvent(BaseEvent):
     player_name: str
     score: int
     rank: Optional[int] = None
+
+
+class SysAnnounceEvent(BaseEvent):
+    """Event for system-wide announcements during remediation.
+
+    announce_type values:
+        crash_detected, remediation_attempt, remediation_success, remediation_failed
+    """
+    announce_type: str
+    game_title: str
+    message: str
+    retry_number: Optional[int] = None
+    applied_flags: Optional[List[str]] = None
 
 
 class StateEvent(TypedDict, total=False):
@@ -464,3 +478,32 @@ async def publish_tutor_step(
         source="led_blinky_tutor"
     )
     await bus.publish(EventType.LED_TUTOR_STEP, event)
+
+
+async def publish_sys_announce(
+    announce_type: str,
+    game_title: str,
+    message: str,
+    retry_number: Optional[int] = None,
+    applied_flags: Optional[List[str]] = None,
+) -> None:
+    """Publish a sys_announce event for remediation status broadcasts.
+
+    Args:
+        announce_type: One of crash_detected, remediation_attempt,
+                       remediation_success, remediation_failed.
+        game_title: Title of the game involved.
+        message: Human-readable announcement text.
+        retry_number: Current retry attempt (if applicable).
+        applied_flags: CLI flags applied during remediation (if applicable).
+    """
+    bus = get_event_bus()
+    event = SysAnnounceEvent(
+        announce_type=announce_type,
+        game_title=game_title,
+        message=message,
+        retry_number=retry_number,
+        applied_flags=applied_flags,
+        source="remediation",
+    )
+    await bus.publish(EventType.SYS_ANNOUNCE, event)
