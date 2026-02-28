@@ -202,7 +202,7 @@ class GameLifecycleService:
             await self._on_game_exit(tracked)
     
     async def _on_game_exit(self, tracked: TrackedGame) -> None:
-        """Handle game exit - trigger appropriate score capture."""
+        """Handle game exit - detect crashes, trigger remediation, or score capture."""
         play_duration = (datetime.now(timezone.utc) - tracked.started_at).total_seconds()
 
         # LED Priority Arbiter — release GAME priority (attract mode resumes)
@@ -217,9 +217,56 @@ class GameLifecycleService:
             f"(mame={tracked.is_mame})"
         )
         
+        # ── LoRa Crash Detection ──
+        # If exit was too fast, it's probably a crash. Trigger remediation.
+        try:
+            from backend.services.launch_remediation import is_probable_crash, attempt_remediation
+            if is_probable_crash(play_duration):
+                logger.warning(
+                    f"🔧 Probable crash detected for {tracked.game_title} "
+                    f"(exited in {play_duration:.1f}s < 10s threshold)"
+                )
+                
+                # Build error context from what we know
+                error_context = (
+                    f"Game '{tracked.game_title}' on platform '{tracked.platform}' "
+                    f"exited in {play_duration:.1f}s using emulator '{tracked.emulator}'. "
+                    f"PID {tracked.pid} is no longer running."
+                )
+                
+                # Attempt remediation (async Gemini query)
+                result = await attempt_remediation(
+                    game_title=tracked.game_title,
+                    platform=tracked.platform,
+                    emulator=tracked.emulator,
+                    error_context=error_context,
+                )
+                
+                # Broadcast remediation event to Doc WebSocket
+                try:
+                    from backend.routers.doc_diagnostics import broadcast_health_event
+                    await broadcast_health_event({
+                        "type": "remediation",
+                        "game": tracked.game_title,
+                        "platform": tracked.platform,
+                        "emulator": tracked.emulator,
+                        "play_duration": play_duration,
+                        "result": result.to_dict(),
+                    })
+                except Exception as ws_err:
+                    logger.debug(f"Doc WS broadcast skipped: {ws_err}")
+                
+                # Log the remediation regardless of outcome
+                await self._log_game_session(tracked, play_duration)
+                return  # Don't proceed to score capture for crashes
+        except ImportError:
+            logger.debug("launch_remediation not available — skipping crash detection")
+        except Exception as exc:
+            logger.error(f"Remediation check failed: {exc}")
+        
+        # ── Normal Exit Flow ──
         if tracked.is_mame:
             # MAME games: Lua plugin handles score capture
-            # Just log the exit for telemetry
             logger.debug("MAME game - score handled by Lua plugin")
             await self._sync_mame_hiscores(tracked)
             await self._log_game_session(tracked, play_duration)
