@@ -9,7 +9,7 @@
 
 | # | Project | GitHub Repo | Local Path | Branch | Supabase |
 |---|---------|------------|------------|--------|----------|
-| 1 | **AI-Hub** (Arcade Assistant) | [Arcade-Assistant-Basement-Build](https://github.com/ggarcadeV4/Arcade-Assistant-Basement-Build) | `C:\Users\Dad's PC\Desktop\AI-Hub` | `master` | `hjxzbicsjzyzalwilmlj` |
+| 1 | **AI-Hub** (Arcade Assistant) | [Arcade-Assistant-Basement-Build](https://github.com/ggarcadeV4/Arcade-Assistant-Basement-Build) | `C:\Users\Dad's PC\Desktop\AI-Hub` | `master` | `zlkhsxacfyxsctqpvbsh` |
 | 2 | **Customer Hub** (Salesforce/CRM) | [GG-Arcade-Customer-Hub](https://github.com/ggarcadeV4/GG-Arcade-Customer-Hub) | `C:\Users\Dad's PC\Desktop\G and G Arcade Sass Salesforce` | `main` | Shared |
 | 3 | **Arcade Network** (Fleet Manager) | [Arcade-Network-Fleet-Manager](https://github.com/ggarcadeV4/Arcade-Network-Fleet-Manager) | `C:\Users\Dad's PC\Desktop\Arcade Network 12-03-2025` | `main` | Shared |
 | 4 | **InventoryGG** | [InventoryGG](https://github.com/ggarcadeV4/InventoryGG) | `C:\Users\Dad's PC\Desktop\InventoryGG` | `main` | Shared |

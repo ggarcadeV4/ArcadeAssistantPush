@@ -88,61 +88,128 @@ export default function VoicePanel() {
     return [...DEFAULT_USER_OPTIONS, ...extras]
   }, [customUsers])
 
-  // ---- Voice transcription callback (wires useGemSpeech â†’ AI chat) ----
+  // ---- Try voice lighting command via SSE (returns tts_response if recognized) ----
+  const tryLightingCommand = useCallback(async (text) => {
+    try {
+      const response = await fetch(`${GATEWAY}/api/voice/lighting-command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: text, user_id: primaryUserId })
+      })
+      if (!response.ok) return null
+
+      // Read SSE stream for final result
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let lastEvent = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        // Parse SSE lines: "data: {...}\n\n"
+        const lines = chunk.split('\n').filter(l => l.startsWith('data: '))
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            lastEvent = data
+          } catch { /* skip malformed lines */ }
+        }
+      }
+
+      // Check if the command was recognized and completed
+      if (lastEvent?.status === 'complete' && lastEvent?.success) {
+        return lastEvent  // Has tts_response, intent, etc.
+      }
+      if (lastEvent?.status === 'error' && lastEvent?.suggestion) {
+        return null  // Not a lighting command — fall through to AI chat
+      }
+      return null
+    } catch (err) {
+      console.debug('[VoicePanel] Lighting command endpoint unavailable:', err.message)
+      return null  // Backend down or error — fall through to AI chat
+    }
+  }, [primaryUserId])
+
+  // ---- Voice transcription callback (wires useGemSpeech → AI chat) ----
   const handleVoiceTranscript = useCallback((text) => {
     if (!text) return
     // Display as user message
     addMessage(text, 'user')
 
-    // Build profile context and send to AI
-    const profileName = (sharedProfile?.displayName || profile.displayName || '').trim() || 'Guest'
-    const hasProfileName = Boolean((sharedProfile?.displayName || profile.displayName || '').trim())
-    const profileContext = {
-      name: profileName,
-      userId: sharedProfile?.userId || profile.userId || 'profile',
-      initials: sharedProfile?.initials || profile.initials,
-      favoriteColor: sharedProfile?.favoriteColor || profile.favoriteColor,
-      preferences: sharedProfile?.preferences || profile.preferences
-    }
-
     setIsChatLoading(true)
-    aiChat({
-      provider: 'claude',
-      model: 'claude-3-5-haiku-20241022',
-      scope: 'state',
-      messages: [
-        { role: 'system', content: buildVickySystemPrompt(profileName, hasProfileName) },
-        { role: 'user', content: text }
-      ],
-      metadata: {
-        panel: 'voice',
-        actionType: 'voice_transcript',
-        profile: profileContext,
-        currentPlayers: players
-      }
-    }).then(async (response) => {
-      if (response) {
-        const assistantText =
-          typeof response?.message === 'string'
-            ? response.message
-            : (response?.message?.content ?? response?.response ?? 'Ready.')
-        addMessage(String(assistantText), 'assistant')
+
+    // Step 1: Try as a lighting command first (SSE endpoint)
+    tryLightingCommand(text).then(async (cmdResult) => {
+      if (cmdResult) {
+        // Lighting command recognized and applied — speak the confirmation
+        const confirmText = cmdResult.tts_response || 'Lighting command applied.'
+        addMessage(confirmText, 'assistant')
         try {
           setIsSpeaking(true)
-          await speakAsVicky(String(assistantText))
+          await speakAsVicky(confirmText)
         } catch (ttsError) {
           console.error('[VoicePanel] TTS playback failed:', ttsError)
         } finally {
           setIsSpeaking(false)
         }
+        return  // Done — don't fall through to AI chat
+      }
+
+      // Step 2: Not a lighting command — send to AI chat (existing flow)
+      const profileName = (sharedProfile?.displayName || profile.displayName || '').trim() || 'Guest'
+      const hasProfileName = Boolean((sharedProfile?.displayName || profile.displayName || '').trim())
+      const profileContext = {
+        name: profileName,
+        userId: sharedProfile?.userId || profile.userId || 'profile',
+        initials: sharedProfile?.initials || profile.initials,
+        favoriteColor: sharedProfile?.favoriteColor || profile.favoriteColor,
+        preferences: sharedProfile?.preferences || profile.preferences
+      }
+
+      try {
+        const response = await aiChat({
+          provider: 'claude',
+          model: 'claude-3-5-haiku-20241022',
+          scope: 'state',
+          messages: [
+            { role: 'system', content: buildVickySystemPrompt(profileName, hasProfileName) },
+            { role: 'user', content: text }
+          ],
+          metadata: {
+            panel: 'voice',
+            actionType: 'voice_transcript',
+            profile: profileContext,
+            currentPlayers: players
+          }
+        })
+
+        if (response) {
+          const assistantText =
+            typeof response?.message === 'string'
+              ? response.message
+              : (response?.message?.content ?? response?.response ?? 'Ready.')
+          addMessage(String(assistantText), 'assistant')
+          try {
+            setIsSpeaking(true)
+            await speakAsVicky(String(assistantText))
+          } catch (ttsError) {
+            console.error('[VoicePanel] TTS playback failed:', ttsError)
+          } finally {
+            setIsSpeaking(false)
+          }
+        }
+      } catch (error) {
+        addMessage('Sorry, I encountered an error processing your request.', 'assistant')
+        console.error('[VoicePanel] Voice transcript AI error:', error)
       }
     }).catch((error) => {
       addMessage('Sorry, I encountered an error processing your request.', 'assistant')
-      console.error('[VoicePanel] Voice transcript AI error:', error)
+      console.error('[VoicePanel] Voice command pipeline error:', error)
     }).finally(() => {
       setIsChatLoading(false)
     })
-  }, [addMessage, players, profile, sharedProfile])
+  }, [addMessage, players, profile, sharedProfile, tryLightingCommand])
 
   // ---- Gem Speech Hook ----
   const { isRecording, wsConnected, lastTranscript, warning: speechWarning, toggleMic } = useGemSpeech({

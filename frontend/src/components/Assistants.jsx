@@ -23,74 +23,74 @@ import { stopSpeaking } from '../services/ttsClient'
 // Dewey is accessed directly via /assistants?agent=dewey, not from the personas grid
 const personas = [
   {
+    id: 'dewey',
+    name: 'Dewey',
+    role: 'AI Assistant',
+    summary: 'Ask questions, browse manuals, and get step-by-step repair help powered by AI.',
+    hero: '/dewey-hero.png',
+    avatar: '/dewey-avatar.jpeg'
+  },
+  {
     id: 'launchbox',
     name: 'LaunchBox LoRa',
-    role: 'AI Agent: LoRa',
+    role: 'Game Launcher',
     summary: 'Launch retro titles, manage playlists, and import content sources.',
     hero: '/lora-hero.png',
     avatar: '/lora-avatar.jpeg'
   },
   {
-    id: 'dewey',
-    name: 'Dewey AI Assistant',
-    role: 'AI Agent: Dewey',
-    summary: 'Ask questions, browse manuals, and get step-by-step repair help.',
-    hero: '/dewey-hero.png',
-    avatar: '/dewey-avatar.jpeg'
-  },
-  {
     id: 'scorekeeper',
-    name: 'Historian / Scorekeeper',
-    role: 'AI Agent: Scores',
+    name: 'ScoreKeeper Sam',
+    role: 'Score Historian',
     summary: 'Track high scores, manage tournaments, and archive run histories.',
     hero: '/sam-hero.png',
     avatar: '/sam-avatar.jpeg'
   },
   {
-    id: 'voice',
-    name: 'Voice Assistant',
-    role: 'AI Agent: Voice',
-    summary: 'Hands-free control, speech input, and text-to-speech.',
-    hero: '/voice-hero.png',
-    avatar: '/vicky-avatar.jpeg'
-  },
-  {
     id: 'interface',
-    name: 'Arcade Interface',
+    name: 'Controller Chuck',
     role: 'Control Panel',
-    summary: 'Unified arcade controls, overlays, and quick actions.',
+    summary: 'Arcade button mapping, input testing, and player configuration.',
     hero: '/chuck-hero.png',
     avatar: '/chuck-avatar.jpeg'
   },
   {
-    id: 'controller-wizard',
-    name: 'Console Controller Wizard',
-    role: 'AI Agent: Controls',
-    summary: 'Emulator profiles and console controller mapping (NES/SNES/etc).',
-    hero: '/wiz-hero.png',
-    avatar: '/wiz-avatar.jpeg'
-  },
-  {
     id: 'led',
     name: 'LED Blinky',
-    role: 'Lighting',
-    summary: 'Game-aware button lighting and effects integrated with LaunchBox/MAME.',
+    role: 'Lighting Engine',
+    summary: 'Game-aware button lighting, color themes, and per-game LED profiles.',
     hero: '/led-hero.png',
     avatar: '/led-avatar.jpeg'
   },
   {
     id: 'lightguns',
-    name: 'Light Guns',
-    role: 'Calibration',
+    name: 'Gunner',
+    role: 'Light Gun Calibration',
     summary: 'Sinden/Gun4IR setup, auto-calibration, and CRT-friendly profiles.',
     hero: '/lightguns-hero.png',
     avatar: '/gunner-avatar.jpeg'
   },
   {
+    id: 'controller-wizard',
+    name: 'Console Wizard',
+    role: 'Controller Mapping',
+    summary: 'Emulator profiles and console controller mapping (NES/SNES/N64/etc).',
+    hero: '/wiz-hero.png',
+    avatar: '/wiz-avatar.jpeg'
+  },
+  {
+    id: 'voice',
+    name: 'Vicky',
+    role: 'Voice Assistant',
+    summary: 'Hands-free voice control, speech commands, and text-to-speech feedback.',
+    hero: '/voice-hero.png',
+    avatar: '/vicky-avatar.jpeg'
+  },
+  {
     id: 'health',
-    name: 'System Health Integration',
-    role: 'System',
-    summary: 'Monitor drives, builds, emulators, and configs in real-time.',
+    name: 'Doc',
+    role: 'Diagnostics',
+    summary: 'Monitor drives, hardware health, thermal state, and system vitals in real-time.',
     hero: '/doc-hero.png',
     avatar: '/doc-avatar.jpeg'
   }

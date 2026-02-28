@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..constants.paths import Paths
 from ..services.blinky_service import BlinkyProcessManager, BlinkyService
 from ..services.launchbox_parser import parser
 from ..services.led_calibration_service import LEDCalibrationService
@@ -2181,8 +2182,7 @@ async def blinky_launch_input_map(request: Request) -> Dict[str, Any]:
     """
     require_scope(request, "config")
     
-    from pathlib import Path
-    ledblinky_dir = Path("A:/Tools/LEDBlinky")
+    ledblinky_dir = Paths.Tools.LEDBlinky.root()
     exe_path = ledblinky_dir / "GenLEDBlinkyInputMap.exe"
     cwd = ledblinky_dir
     
@@ -2222,8 +2222,7 @@ async def blinky_launch_config_wizard(request: Request) -> Dict[str, Any]:
     """
     require_scope(request, "config")
     
-    from pathlib import Path
-    ledblinky_dir = Path("A:/Tools/LEDBlinky")
+    ledblinky_dir = Paths.Tools.LEDBlinky.root()
     exe_path = ledblinky_dir / "LEDBlinkyConfigWizard.exe"
     cwd = ledblinky_dir
     
@@ -2262,8 +2261,7 @@ async def blinky_launch_output_test(request: Request) -> Dict[str, Any]:
     """
     require_scope(request, "config")
     
-    from pathlib import Path
-    ledblinky_dir = Path("A:/Tools/LEDBlinky")
+    ledblinky_dir = Paths.Tools.LEDBlinky.root()
     exe_path = ledblinky_dir / "LEDBlinkyOutputTest.exe"
     cwd = ledblinky_dir
     

@@ -31,9 +31,18 @@ class ParseCommandRequest(BaseModel):
 
 # Dependency injection
 def get_voice_service() -> VoiceService:
-    """Get voice service instance."""
-    # TODO: Inject actual LED service and Supabase client
-    return VoiceService()
+    """Get voice service instance with real LED and Supabase dependencies."""
+    from ..services.led_hardware import LEDHardwareService
+    led_hw = LEDHardwareService()  # Singleton — returns existing instance
+
+    supabase = None
+    try:
+        from ..services.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+    except Exception:
+        pass  # Supabase optional — voice commands work without logging
+
+    return VoiceService(led_service=led_hw, supabase_client=supabase)
 
 
 @router.post("/lighting-command")

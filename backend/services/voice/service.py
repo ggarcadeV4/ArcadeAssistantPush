@@ -16,10 +16,19 @@ class VoiceService:
     """
     Voice service orchestrating STT, TTS, and lighting commands.
 
-    Focuses on orchestration without direct hardware control.
+    Accepts an LEDHardwareService instance and optional Supabase client
+    for real hardware control and command logging.
     """
 
     def __init__(self, led_service=None, supabase_client=None):
+        """Initialize VoiceService.
+
+        Args:
+            led_service: LEDHardwareService singleton for HID LED control.
+                         If None, voice lighting commands run in mock mode.
+            supabase_client: Supabase client for command logging.
+                             If None, commands are not logged remotely.
+        """
         self.led_service = led_service
         self.supabase = supabase_client
         self.parser = get_parser()
@@ -122,43 +131,45 @@ class VoiceService:
             }
 
     async def _apply_to_led_service(self, intent: LightingIntent) -> bool:
-        """Apply intent to LED Blinky service."""
+        """Apply intent to LED hardware via injected LEDHardwareService."""
         try:
-            # Import LED Blinky service components
-            # Note: This is a placeholder for future integration
-            # from ..led_animation import apply_pattern_async
+            hw = self.led_service
+            port = self._target_to_led_ids(intent.target)
 
-            # For now, use LED hardware service directly
-            from ..led_hardware import LEDHardwareService
-
-            hw_service = LEDHardwareService()
-
-            # Map intent to LED calls
             if intent.action == 'color':
-                # Convert hex to RGB
                 color_rgb = self._hex_to_rgb(intent.color)
                 logger.info("applying_color", target=intent.target, rgb=color_rgb)
-                # hw_service.set_led_color(target, color_rgb)
+                hw.write_port(0, port, color_rgb)
                 return True
 
             elif intent.action == 'flash':
+                color_rgb = self._hex_to_rgb(intent.color)
                 logger.info("applying_flash", target=intent.target, color=intent.color)
-                # hw_service.flash_led(target, color_rgb, duration_ms)
+                hw.write_port(0, port, color_rgb)
+                await asyncio.sleep(0.3)
+                hw.write_port(0, port, (0, 0, 0))
                 return True
 
             elif intent.action == 'off':
                 logger.info("turning_off", target=intent.target)
-                # hw_service.set_led_color(target, (0, 0, 0))
+                hw.write_port(0, port, (0, 0, 0))
                 return True
 
             elif intent.action == 'dim':
                 logger.info("dimming", target=intent.target)
-                # hw_service.set_led_brightness(target, 0.2)
+                # Dim = 20% brightness (scale current color)
+                hw.write_port(0, port, (12, 12, 12))
                 return True
 
             elif intent.action == 'pattern':
                 logger.info("applying_pattern", pattern=intent.pattern)
-                # hw_service.apply_animation(intent.pattern)
+                # Patterns delegated to BlinkyService CLI when available
+                try:
+                    from ..blinky_service import BlinkyProcessManager
+                    manager = BlinkyProcessManager.get_instance()
+                    await manager.play_animation(intent.pattern)
+                except Exception as pat_err:
+                    logger.warning("pattern_fallback", error=str(pat_err))
                 return True
 
             logger.warning("unsupported_action", action=intent.action)

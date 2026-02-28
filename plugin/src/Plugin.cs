@@ -1,16 +1,20 @@
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using Unbroken.LaunchBox.Plugins;
+using Unbroken.LaunchBox.Plugins.Data;
 
 namespace ArcadeAssistant.Plugin
 {
   /// <summary>
-  /// Main plugin class - implements both system events (startup/shutdown) and menu item (Tools menu)
+  /// Main plugin class - implements system events (startup/shutdown),
+  /// game lifecycle events (launch/exit), and menu item (Tools menu).
   /// </summary>
-  public class ArcadeAssistantPlugin : ISystemEventsPlugin, ISystemMenuItemPlugin
+  public class ArcadeAssistantPlugin : ISystemEventsPlugin, ISystemMenuItemPlugin, IGameLaunchingPlugin
   {
     public string Name => "G&G Arcade - Arcade Assistant Bridge";
 
@@ -20,6 +24,20 @@ namespace ArcadeAssistant.Plugin
     public bool ShowInBigBox => true;
     public bool AllowInBigBoxWhenLocked => false;
     public System.Drawing.Image? IconImage => null;
+
+    // Shared HttpClient for backend notifications (reusable, thread-safe)
+    private static readonly HttpClient _backendHttp = new HttpClient
+    {
+      BaseAddress = new Uri("http://127.0.0.1:8000"),
+      Timeout = TimeSpan.FromSeconds(3)
+    };
+
+    // Cache the last launched game so OnGameExited() can reference it
+    private static IGame? _lastLaunchedGame;
+
+    // ----------------------------------------------------------------
+    // ISystemEventsPlugin
+    // ----------------------------------------------------------------
 
     public void OnEventRaised(string eventType)
     {
@@ -67,7 +85,86 @@ namespace ArcadeAssistant.Plugin
       catch (Exception ex) { SafeLog($"Event '{eventType}' error: " + ex); }
     }
 
-    // ISystemMenuItemPlugin method - called when user clicks Tools → Arcade Assistant → Ping Bridge
+    // ----------------------------------------------------------------
+    // IGameLaunchingPlugin — Game Lifecycle Events
+    // ----------------------------------------------------------------
+
+    public void OnBeforeGameLaunching(IGame game, IAdditionalApplication app, IEmulator emulator)
+    {
+      // No action before launch — we notify after successful launch
+    }
+
+    public void OnAfterGameLaunched(IGame game, IAdditionalApplication app, IEmulator emulator)
+    {
+      // Cache game for OnGameExited (which receives no parameters)
+      _lastLaunchedGame = game;
+
+      if (game == null) return;
+
+      // Fire-and-forget POST to backend — never block the game launch
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          var payload = new
+          {
+            game_id = game.Id,
+            platform = game.Platform,
+            title = game.Title,
+            source = "launchbox",
+            timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+          };
+
+          var json = JsonSerializer.Serialize(payload);
+          var content = new StringContent(json, Encoding.UTF8, "application/json");
+          var response = await _backendHttp.PostAsync("/api/game/start", content);
+
+          SafeLog($"Game start notified: '{game.Title}' (HTTP {(int)response.StatusCode})");
+        }
+        catch (Exception ex)
+        {
+          // Silent failure — backend may not be running; game must launch normally
+          SafeLog($"Game start notify failed (non-fatal): {ex.Message}");
+        }
+      });
+    }
+
+    public void OnGameExited()
+    {
+      var game = _lastLaunchedGame;
+      _lastLaunchedGame = null;
+
+      // Fire-and-forget POST to backend
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          var payload = new
+          {
+            game_id = game?.Id,
+            title = game?.Title,
+            source = "launchbox",
+            timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+          };
+
+          var json = JsonSerializer.Serialize(payload);
+          var content = new StringContent(json, Encoding.UTF8, "application/json");
+          var response = await _backendHttp.PostAsync("/api/game/stop", content);
+
+          SafeLog($"Game exit notified: '{game?.Title ?? "unknown"}' (HTTP {(int)response.StatusCode})");
+        }
+        catch (Exception ex)
+        {
+          // Silent failure — backend may not be running
+          SafeLog($"Game exit notify failed (non-fatal): {ex.Message}");
+        }
+      });
+    }
+
+    // ----------------------------------------------------------------
+    // ISystemMenuItemPlugin — Tools menu ping
+    // ----------------------------------------------------------------
+
     public void OnSelected()
     {
       try
@@ -102,6 +199,10 @@ namespace ArcadeAssistant.Plugin
         );
       }
     }
+
+    // ----------------------------------------------------------------
+    // Logging
+    // ----------------------------------------------------------------
 
     private static void SafeLog(string msg)
     {

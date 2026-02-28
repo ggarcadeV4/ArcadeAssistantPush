@@ -481,7 +481,7 @@ class Paths:
             
             @classmethod
             def root(cls) -> Path:
-                return _tools_root() / "LEDBlinky"
+                return _drive_letter_root() / "LEDBlinky"
             
             @classmethod
             def executable(cls) -> Path:

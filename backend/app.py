@@ -170,10 +170,13 @@ print("DEBUG: Importing game_lifecycle router...")
 from backend.routers import game_lifecycle
 print("DEBUG: Importing doc_diagnostics router...")
 from backend.routers import doc_diagnostics
-print("DEBUG: Skipping blinky patterns import (lazy load)...")
-# LAZY IMPORT: blinky patterns cause blocking during import
+# DISABLED: blinky_patterns router blocks startup because
+# backend.services.blinky.__init__ eagerly imports PatternResolver which
+# parses LEDBlinky XML control files and enumerates HID devices at import
+# time.  Fix: convert __init__.py to lazy exports.  Until then, endpoints
+# under /api/blinky are unavailable.
 # from backend.routers import blinky as blinky_patterns
-blinky_patterns = None  # Will be imported lazily when needed
+blinky_patterns = None
 print("DEBUG: Importing launchbox_plugin_client...")
 from backend.services.launchbox_plugin_client import get_plugin_client
 print("DEBUG: All imports complete!")
@@ -600,8 +603,10 @@ app.include_router(pegasus_router.router)  # Pegasus frontend status and metadat
 app.include_router(theme_assets_router.router, prefix="/api/local/theme-assets", tags=["theme-assets"])  # Theme asset management
 app.include_router(runtime_state.router)
 app.include_router(runtime_state.state_router)
-# DISABLED: blinky_patterns router causes blocking during import
-# app.include_router(blinky_patterns.router, tags=["led-blinky-patterns"])  # Per-game LED lighting patterns
+# DISABLED: blinky_patterns router — see import block at top of file.
+# Endpoints under /api/blinky/* are unavailable until blinky.__init__
+# is converted to lazy exports.
+# app.include_router(blinky_patterns.router, tags=["led-blinky-patterns"])
 app.include_router(updates_router.router)  # Update plumbing (Phase 0)
 # REMOVED: provisioning router
 app.include_router(tendencies_router.router)  # User tendency/preference tracking

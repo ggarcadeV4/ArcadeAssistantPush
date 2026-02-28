@@ -2,37 +2,133 @@
   "themes": {
     "FighterClassic": {
       "description": "Classic 6-button layout for fighting games (Street Fighter, Mortal Kombat)",
-      "colors": ["#FF0000", "#FFFF00", "#0000FF", "#FF0000", "#FFFF00", "#0000FF"],
-      "button_labels": ["LP", "MP", "HP", "LK", "MK", "HK"]
+      "colors": [
+        "#FF0000",
+        "#FFFF00",
+        "#0000FF",
+        "#FF0000",
+        "#FFFF00",
+        "#0000FF"
+      ],
+      "button_labels": [
+        "LP",
+        "MP",
+        "HP",
+        "LK",
+        "MK",
+        "HK"
+      ]
     },
     "NeoGeo": {
       "description": "Red, Yellow, Green, Blue for Neo Geo games",
-      "colors": ["#FF0000", "#FFFF00", "#00FF00", "#0000FF"],
-      "button_labels": ["A", "B", "C", "D"]
+      "colors": [
+        "#FF0000",
+        "#FFFF00",
+        "#00FF00",
+        "#0000FF"
+      ],
+      "button_labels": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ]
     },
     "SciFiShooter": {
       "description": "Cool blues and greens for space shooters (Galaga, R-Type)",
-      "colors": ["#00FFFF", "#00FF00", "#FFFFFF", "#00FFFF", "#00FF00", "#FFFFFF"]
+      "colors": [
+        "#00FFFF",
+        "#00FF00",
+        "#FFFFFF",
+        "#00FFFF",
+        "#00FF00",
+        "#FFFFFF"
+      ]
     },
     "RetroArcade": {
       "description": "Warm amber and green reminiscent of classic CRTs",
-      "colors": ["#FF8000", "#00FF00", "#FF8000", "#00FF00", "#FF8000", "#00FF00"]
+      "colors": [
+        "#FF8000",
+        "#00FF00",
+        "#FF8000",
+        "#00FF00",
+        "#FF8000",
+        "#00FF00"
+      ]
     },
     "Vibrant": {
       "description": "Bright, multi-color theme for modern games",
-      "colors": ["#FF0000", "#FF8000", "#FFFF00", "#00FF00", "#00FFFF", "#0000FF", "#FF00FF", "#FFFFFF"]
+      "colors": [
+        "#FF0000",
+        "#FF8000",
+        "#FFFF00",
+        "#00FF00",
+        "#00FFFF",
+        "#0000FF",
+        "#FF00FF",
+        "#FFFFFF"
+      ]
     },
     "PurpleRain": {
       "description": "All purple theme",
-      "colors": ["#8B00FF", "#9400D3", "#8B00FF", "#9400D3", "#8B00FF", "#9400D3", "#8B00FF", "#9400D3"]
+      "colors": [
+        "#8B00FF",
+        "#9400D3",
+        "#8B00FF",
+        "#9400D3",
+        "#8B00FF",
+        "#9400D3",
+        "#8B00FF",
+        "#9400D3"
+      ]
     },
     "FireStorm": {
       "description": "Red and orange fire theme",
-      "colors": ["#FF0000", "#FF4500", "#FF6600", "#FF0000", "#FF4500", "#FF6600"]
+      "colors": [
+        "#FF0000",
+        "#FF4500",
+        "#FF6600",
+        "#FF0000",
+        "#FF4500",
+        "#FF6600"
+      ]
     },
     "IceBlue": {
       "description": "Cool blue and white ice theme",
-      "colors": ["#00BFFF", "#87CEEB", "#FFFFFF", "#00BFFF", "#87CEEB", "#FFFFFF"]
+      "colors": [
+        "#00BFFF",
+        "#87CEEB",
+        "#FFFFFF",
+        "#00BFFF",
+        "#87CEEB",
+        "#FFFFFF"
+      ]
+    },
+    "NitroRush": {
+      "description": "High-speed racing — green/yellow/white checkered flag energy",
+      "colors": [
+        "#00FF00",
+        "#FFFF00",
+        "#FFFFFF",
+        "#00FF00",
+        "#FFFF00",
+        "#FFFFFF",
+        "#CCFF00",
+        "#FFFF00"
+      ]
+    },
+    "TargetLock": {
+      "description": "Light gun targeting — red and white crosshair pulse",
+      "colors": [
+        "#FF0000",
+        "#FFFFFF",
+        "#FF0000",
+        "#FFFFFF",
+        "#FF2200",
+        "#FFFFFF",
+        "#FF0000",
+        "#FFFFFF"
+      ]
     }
   },
   "single_colors": {

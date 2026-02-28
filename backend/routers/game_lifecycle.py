@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import json
 import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
@@ -61,7 +62,7 @@ class GameLifecycleResponse(BaseModel):
 
 # Dynamically resolve LEDBlinky path from drive root
 _DRIVE_ROOT = os.getenv("AA_DRIVE_ROOT", "A:\\")
-LEDBLINKY_EXE = Path(_DRIVE_ROOT) / "Tools" / "LEDBlinky" / "LEDBlinky.exe"
+LEDBLINKY_EXE = Path(_DRIVE_ROOT) / "LEDBlinky" / "LEDBlinky.exe"
 
 
 def _extract_cinema_tag(tags: List[str]) -> Optional[str]:
@@ -94,19 +95,115 @@ CINEMA_TAG_TO_ANIMATION = {
     "LED:STANDARD":    "1",
 }
 
+# Map Cinema tags to color themes from configs/ledblinky/colors.json.
+# These provide a genre-appropriate color wash on the Python HID stack
+# (separate from LEDBlinky's per-button ROM-specific layouts).
+CINEMA_TAG_TO_THEME = {
+    "LED:FIGHTING":    "FighterClassic",
+    "LED:BEATEMUP":    "FighterClassic",
+    "LED:SHOOTER":     "SciFiShooter",
+    "LED:RACING":      "NitroRush",
+    "LED:SPORTS":      "Vibrant",
+    "LED:LIGHTGUN":    "TargetLock",
+    "LED:PLATFORMER":  "RetroArcade",
+    "LED:PUZZLE":      "PurpleRain",
+    "LED:MAZE":        "PurpleRain",
+    "LED:TRACKBALL":   "RetroArcade",
+    "LED:STANDARD":    "RetroArcade",
+}
 
-async def _call_ledblinky(animation_code: str, rom_name: Optional[str] = None) -> str:
+# Default idle LED color (warm amber) when no game is running
+_IDLE_COLOR: Tuple[int, int, int] = (0xFF, 0xBF, 0x00)
+
+
+def _load_theme_colors(theme_name: str) -> List[Tuple[int, int, int]]:
+    """Load an RGB color list from configs/ledblinky/colors.json."""
+    try:
+        config_path = Path(_DRIVE_ROOT) / "Arcade Assistant Local" / "configs" / "ledblinky" / "colors.json"
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        theme = data.get("themes", {}).get(theme_name)
+        if not theme:
+            logger.warning(f"[ColorTheme] Theme '{theme_name}' not found in colors.json")
+            return []
+        rgbs = []
+        for hex_color in theme.get("colors", []):
+            h = hex_color.lstrip("#")
+            rgbs.append((int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)))
+        return rgbs
+    except Exception as e:
+        logger.warning(f"[ColorTheme] Failed to load theme '{theme_name}': {e}")
+        return []
+
+
+async def _apply_genre_theme(cinema_tag: Optional[str]) -> str:
+    """Apply a genre-specific color theme to LEDs via the Python HID stack.
+
+    This is a cosmetic overlay *on top of* LEDBlinky's per-button ROM
+    layouts.  If the HID stack is not available, this is silently skipped.
+
+    Returns: 'applied', 'no_theme', or 'hid_unavailable'
+    """
+    theme_name = CINEMA_TAG_TO_THEME.get(cinema_tag or "", "RetroArcade")
+    colors = _load_theme_colors(theme_name)
+    if not colors:
+        return "no_theme"
+
+    try:
+        from backend.services.led_hardware import LEDHardwareService
+        hw = LEDHardwareService()  # Singleton
+        for port_idx, rgb in enumerate(colors):
+            hw.write_port(0, port_idx, rgb)
+        logger.info(f"[ColorTheme] Applied '{theme_name}' ({len(colors)} ports)")
+        return "applied"
+    except Exception as e:
+        logger.debug(f"[ColorTheme] HID unavailable (non-fatal): {e}")
+        return "hid_unavailable"
+
+
+async def _reset_leds_to_idle() -> str:
+    """Reset all LED ports to the warm idle amber color.
+
+    Called on game stop to return LEDs to attract mode on the HID
+    side (LEDBlinky separately handles its own quit animation).
+
+    Returns: 'reset', or 'hid_unavailable'
+    """
+    try:
+        from backend.services.led_hardware import LEDHardwareService
+        hw = LEDHardwareService()
+        for port_idx in range(16):
+            hw.write_port(0, port_idx, _IDLE_COLOR)
+        logger.info("[ColorTheme] LEDs reset to idle amber")
+        return "reset"
+    except Exception as e:
+        logger.debug(f"[ColorTheme] HID unavailable on reset (non-fatal): {e}")
+        return "hid_unavailable"
+
+
+async def _call_ledblinky(
+    animation_code: str,
+    rom_name: Optional[str] = None,
+    cinema_tag: Optional[str] = None,
+) -> str:
     """Call LEDBlinky.exe with the given animation code.
+    
+    If the subprocess fails for any reason, falls back to the Python HID
+    stack via _apply_genre_theme() so LEDs still respond.
     
     Args:
         animation_code: LEDBlinky animation code (e.g., "1" for game start)
         rom_name: Optional ROM name for game-specific lighting
+        cinema_tag: Optional cinema tag for HID fallback (e.g., "LED:FIGHTING")
         
     Returns:
-        Status string: "ok", "not_found", or "error: <message>"
+        Status string: "ok", "not_found", "fallback_hid", or "error: <message>"
     """
     if not LEDBLINKY_EXE.exists():
-        logger.warning(f"LEDBlinky not found at {LEDBLINKY_EXE} — skipping hardware call")
+        logger.warning(f"LEDBlinky not found at {LEDBLINKY_EXE} — falling back to HID")
+        if cinema_tag:
+            fb = await _apply_genre_theme(cinema_tag)
+            return f"not_found|fallback_{fb}"
         return "not_found"
     
     try:
@@ -130,16 +227,29 @@ async def _call_ledblinky(animation_code: str, rom_name: Optional[str] = None) -
             return "ok"
         else:
             logger.warning(f"[LEDBlinky] Non-zero exit: {result.returncode} — {result.stderr}")
+            if cinema_tag:
+                fb = await _apply_genre_theme(cinema_tag)
+                logger.info(f"[LEDBlinky] Fallback to HID: {fb}")
+                return f"error_exit_{result.returncode}|fallback_{fb}"
             return f"error: exit code {result.returncode}"
             
     except subprocess.TimeoutExpired:
         logger.error("[LEDBlinky] Timed out after 5s")
+        if cinema_tag:
+            fb = await _apply_genre_theme(cinema_tag)
+            return f"error_timeout|fallback_{fb}"
         return "error: timeout"
     except FileNotFoundError:
         logger.error(f"[LEDBlinky] Executable not found: {LEDBLINKY_EXE}")
+        if cinema_tag:
+            fb = await _apply_genre_theme(cinema_tag)
+            return f"not_found|fallback_{fb}"
         return "not_found"
     except Exception as e:
         logger.error(f"[LEDBlinky] Unexpected error: {e}")
+        if cinema_tag:
+            fb = await _apply_genre_theme(cinema_tag)
+            return f"error_{e}|fallback_{fb}"
         return f"error: {e}"
 
 
@@ -301,8 +411,12 @@ async def game_start(request: GameStartRequest):
     # Determine LEDBlinky animation code
     animation = CINEMA_TAG_TO_ANIMATION.get(cinema_tag or "", "1")
     
-    # Fire LEDBlinky
-    blinky_status = await _call_ledblinky(animation, request.rom_name)
+    # Fire LEDBlinky (per-button ROM-specific layout via CLI)
+    # If LEDBlinky fails, falls back to HID genre theme automatically
+    blinky_status = await _call_ledblinky(animation, request.rom_name, cinema_tag=cinema_tag)
+    
+    # Apply genre color theme to HID LEDs (cosmetic overlay, non-blocking)
+    theme_status = await _apply_genre_theme(cinema_tag)
     
     # Bridge to score tracking pipeline (Break 1 fix)
     tracking_status = _bridge_track_game(request.game_name, request.rom_name, request.platform)
@@ -334,6 +448,9 @@ async def game_stop():
     
     # Animation code 2 = Game Quit
     blinky_status = await _call_ledblinky("2")
+    
+    # Reset HID LEDs to idle amber (separate from LEDBlinky quit animation)
+    await _reset_leds_to_idle()
     
     # Bridge to score pipeline (Break 1 fix)
     score_status = await _bridge_on_game_stop()
