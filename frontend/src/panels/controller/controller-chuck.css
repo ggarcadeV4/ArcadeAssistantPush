@@ -55,11 +55,11 @@
   color: var(--chuck-text);
   font-family: var(--chuck-font-mono);
   overflow: hidden;
-  /* Grid + subtle concrete texture */
+  /* Point 6: background grid recedes — controls dominate */
   background-image:
-    linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    linear-gradient(rgba(0, 255, 65, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.015) 1px, transparent 1px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
   background-size: 40px 40px, 40px 40px, 400px 400px;
 }
 
@@ -194,16 +194,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
+  /* Point 5: 72px → 88px (+22%) — logo anchors the vertical midpoint */
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   margin: 0 16px;
   background: transparent;
   border: none;
   position: relative;
   overflow: hidden;
-  /* Neon glow ring matching the logo's own border */
-  box-shadow: 0 0 14px rgba(0, 255, 65, 0.35), 0 0 28px rgba(0, 255, 65, 0.12);
+  /* Point 5: stronger glow radius */
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.45), 0 0 40px rgba(0, 255, 65, 0.15);
   flex-shrink: 0;
 }
 
@@ -212,8 +213,8 @@
 }
 
 .chuck-logo-badge img {
-  width: 72px;
-  height: 72px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   object-fit: cover;
   display: block;
@@ -336,15 +337,17 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  gap: 10px;
+  padding: 8px;
+  /* Point 4: tighter vertical rhythm between rows */
+  gap: 6px;
   overflow-y: auto;
 }
 
 .chuck-player-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  /* Point 4: tighter horizontal gap between cards */
+  gap: 8px;
   flex: 1;
   min-height: 0;
 }
@@ -352,14 +355,13 @@
 /* ── Player Card — tightened footprint, authoritative rim ── */
 .chuck-player-card {
   background: var(--chuck-panel-bg);
-  /* Phase 1: 2px rim — physical housing presence */
   border: 2px solid var(--chuck-border);
   border-radius: 8px;
-  /* Phase 1: reduced from 12px → 8px (-18% footprint) */
-  padding: 8px;
+  /* Point 1: further tightened to 6px — remove excess negative space */
+  padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   position: relative;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -466,14 +468,14 @@
 }
 
 .chuck-joystick {
-  /* Phase 2: slightly larger, much stronger ring */
-  width: 64px;
-  height: 64px;
+  /* Point 3: 64px → 74px (+15%) — joystick commands space */
+  width: 74px;
+  height: 74px;
   border-radius: 50%;
   background: radial-gradient(circle at 38% 33%, #2e422e, #0a0f0b);
-  /* Thicker, brighter ring */
-  border: 3px solid #3a6a3a;
-  box-shadow: 0 0 8px rgba(0, 255, 65, 0.15), inset 0 1px 3px rgba(0, 0, 0, 0.6);
+  /* Point 3: 3px → 4px ring, brighter */
+  border: 4px solid #3e7a3e;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.22), inset 0 1px 3px rgba(0, 0, 0, 0.6);
   position: relative;
   display: flex;
   align-items: center;
@@ -481,13 +483,13 @@
 }
 
 .chuck-joystick-inner {
-  /* Phase 2: larger ball top, more contrast */
-  width: 24px;
-  height: 24px;
+  /* Point 3: 24px → 28px inner ball */
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 33%, #4a8a4a, #1c321c);
-  border: 2px solid #5aaa5a;
-  box-shadow: 0 0 6px rgba(0, 255, 65, 0.2), 0 2px 6px rgba(0, 0, 0, 0.6);
+  background: radial-gradient(circle at 38% 33%, #5a9a5a, #1c321c);
+  border: 2px solid #6ab46a;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.25), 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 /* 8-way directional tick marks */
@@ -572,55 +574,53 @@
 }
 
 .chuck-btn-circle-face {
-  /* Phase 2: 32px → 40px — buttons must visually compete */
-  width: 40px;
-  height: 40px;
+  /* Point 2: 40px → 52px (+30%) — buttons are PRIMARY interaction */
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--chuck-font-title);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
-  /* Phase 2: thicker edge definition */
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   transition: all 0.15s;
-  /* Phase 2: idle glow so buttons read at rest */
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 4px rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.45), 0 0 5px rgba(255, 255, 255, 0.06);
   position: relative;
 }
 
-/* Phase 2: richer color saturation + stronger idle glow per color */
+/* Point 2: bold color saturation + strong idle glow — eye lands here first */
 .chuck-btn-circle[data-btn="1"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="4"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 38% 32%, #00e84d, #006622);
+  background: radial-gradient(circle at 36% 30%, #00f050, #005a1e);
   border-color: #00ff66;
   color: #fff;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(0, 255, 80, 0.35);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.4), 0 0 10px rgba(0, 255, 80, 0.45);
 }
 
 .chuck-btn-circle[data-btn="2"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="5"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 38% 32%, #ffcc00, #997700);
+  background: radial-gradient(circle at 36% 30%, #ffd400, #886000);
   border-color: #ffe033;
-  color: #1a1000;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(255, 204, 0, 0.35);
+  color: #110a00;
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.4), 0 0 10px rgba(255, 210, 0, 0.45);
 }
 
 .chuck-btn-circle[data-btn="3"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="6"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 38% 32%, #ff3344, #880011);
+  background: radial-gradient(circle at 36% 30%, #ff2244, #7a0010);
   border-color: #ff5566;
   color: #fff;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(255, 50, 68, 0.35);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.4), 0 0 10px rgba(255, 34, 68, 0.45);
 }
 
 .chuck-btn-circle[data-btn="7"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="8"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 38% 32%, #3366ff, #112288);
+  background: radial-gradient(circle at 36% 30%, #2255ff, #0a1a88);
   border-color: #5588ff;
   color: #fff;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(51, 102, 255, 0.35);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.4), 0 0 10px rgba(34, 85, 255, 0.45);
 }
 
 .chuck-btn-circle-face:hover {
