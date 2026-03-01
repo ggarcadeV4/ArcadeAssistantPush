@@ -357,15 +357,16 @@
   min-height: 0;
 }
 
-/* ── Player Card — tightened footprint, authoritative rim ── */
+/* ── Player Card — framed composition, not corner-docked ── */
 .chuck-player-card {
   background: var(--chuck-panel-bg);
   border: 2px solid var(--chuck-border);
   border-radius: 8px;
-  /* Point 1: further tightened to 6px — remove excess negative space */
   padding: 6px;
   display: flex;
   flex-direction: column;
+  /* Header pins top, controls float toward center — eliminates void quadrant */
+  justify-content: space-between;
   gap: 4px;
   position: relative;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -454,11 +455,12 @@
   gap: 4px;
 }
 
-/* ── Controller Layout Area — tighter, controls anchored ── */
+/* ── Controller Layout Area — cluster centered in card ────── */
 .chuck-controller-layout {
   display: flex;
   align-items: center;
-  /* Phase 1: reduced gap from 12px → 8px */
+  /* Center the joystick+button cluster as one unit, preserve L→R arcade order */
+  justify-content: center;
   gap: 8px;
   flex: 1;
 }
