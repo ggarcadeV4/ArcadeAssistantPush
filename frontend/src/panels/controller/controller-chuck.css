@@ -783,6 +783,25 @@
   box-shadow: 0 0 16px currentColor;
 }
 
+/* Waiting for cabinet button press — cyan pulse */
+.chuck-btn-circle-face.waiting {
+  border-color: #00e5ff !important;
+  box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.6), 0 0 16px rgba(0, 229, 255, 0.4) !important;
+  animation: btn-wait 0.7s ease-in-out infinite;
+}
+
+@keyframes btn-wait {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.6), 0 0 12px rgba(0, 229, 255, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 0 4px rgba(0, 229, 255, 0.9), 0 0 24px rgba(0, 229, 255, 0.6);
+  }
+}
+
 /* Pin label under button */
 .chuck-btn-pin {
   font-size: 7px;

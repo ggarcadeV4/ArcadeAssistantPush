@@ -124,14 +124,14 @@ JoystickGraphic.displayName = 'JoystickGraphic';
 
 
 /** Single arcade button circle */
-const ArcadeButton = memo(({ num, pinLabel, pressed, onClick }) => (
+const ArcadeButton = memo(({ num, pinLabel, pressed, waiting, onClick }) => (
   <div
     className="chuck-btn-circle"
     data-btn={String(num)}
     onClick={onClick}
     title={`Button ${num}${pinLabel ? ` — Pin ${pinLabel}` : ''}`}
   >
-    <div className={`chuck-btn-circle-face ${pressed ? 'pressed' : ''}`}>
+    <div className={`chuck-btn-circle-face${pressed ? ' pressed' : ''}${waiting ? ' waiting' : ''}`}>
       {num}
     </div>
     <span className={`chuck-btn-pin ${pinLabel ? 'mapped' : ''}`}>
@@ -175,11 +175,19 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
 
   // Directional mapping state — null means idle
   const [mappingDir, setMappingDir] = useState(null);
+  // Button mapping state — which button number is waiting for cabinet input
+  const [mappingButton, setMappingButton] = useState(null);
 
   const handleDirClick = useCallback((dir) => {
-    // Enter/exit mapping mode for this direction
     setMappingDir((prev) => (prev === dir ? null : dir));
-    // Also bring this card into focus
+    setMappingButton(null); // clear any waiting button
+    onFocus?.(id);
+  }, [id, onFocus]);
+
+  const handleMapBtn = useCallback((num, e) => {
+    e.stopPropagation();
+    setMappingButton((prev) => (prev === num ? null : num));
+    setMappingDir(null); // clear any waiting direction
     onFocus?.(id);
   }, [id, onFocus]);
 
@@ -209,7 +217,8 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
                 num={n}
                 pinLabel={getPin(`button${n}`)}
                 pressed={isPressed(`button${n}`)}
-                onClick={() => handleBtn(n)}
+                waiting={mappingButton === n}
+                onClick={(e) => handleMapBtn(n, e)}
               />
             ))}
           </div>
@@ -221,7 +230,8 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
                 num={n}
                 pinLabel={getPin(`button${n}`)}
                 pressed={isPressed(`button${n}`)}
-                onClick={() => handleBtn(n)}
+                waiting={mappingButton === n}
+                onClick={(e) => handleMapBtn(n, e)}
               />
             ))}
           </div>
