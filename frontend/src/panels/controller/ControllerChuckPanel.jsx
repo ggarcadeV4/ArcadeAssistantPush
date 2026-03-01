@@ -88,10 +88,10 @@ const PLAYERS_2P = [
 /** 8-way joystick graphic with ↑↓←→ mapping overlay */
 const DIRS = ['up', 'down', 'left', 'right'];
 const DIR_PATHS = {
-  up: 'M18,10 L22,18 H14 Z',
-  down: 'M18,26 L22,18 H14 Z',
-  left: 'M10,18 L18,14 V22 Z',
-  right: 'M26,18 L18,14 V22 Z',
+  up: 'M18,5 L25,17 H11 Z',
+  down: 'M18,31 L25,19 H11 Z',
+  left: 'M5,18 L17,11 V25 Z',
+  right: 'M31,18 L19,11 V25 Z',
 };
 
 const JoystickGraphic = memo(({ onDirClick, mappingDir }) => (
@@ -111,6 +111,7 @@ const JoystickGraphic = memo(({ onDirClick, mappingDir }) => (
           <path
             key={dir}
             d={DIR_PATHS[dir]}
+            data-dir={dir}
             className={`chuck-dir-arrow${mappingDir === dir ? ' waiting' : ''}`}
             onClick={(e) => { e.stopPropagation(); onDirClick?.(dir); }}
           />
