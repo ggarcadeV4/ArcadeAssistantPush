@@ -36,6 +36,30 @@ const CHUCK_VOICE_ID = 'f5HLTX707KIM4SzJYzSz';
 
 const CHUCK_GREET = "Yo! Chuck here. Let's get this cabinet wired up right.";
 
+/** Flame SVG background — matches the physical panel aesthetic */
+const FlameSVG = memo(() => (
+  <div className="chuck-flames" aria-hidden="true">
+    <svg viewBox="0 0 1200 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="fg1" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="#ff6600" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#ff2200" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="fg2" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="#ff4400" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#ff8800" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Flame tongues across the bottom */}
+      <path d="M0,80 C30,50 50,30 80,60 C100,80 120,20 150,55 C170,75 200,10 230,50 C255,80 280,30 310,60 L310,80Z" fill="url(#fg1)" />
+      <path d="M280,80 C310,45 340,20 370,55 C395,78 420,15 450,50 C475,78 510,25 540,58 C565,78 590,30 620,60 L620,80Z" fill="url(#fg2)" />
+      <path d="M580,80 C615,42 645,18 680,52 C705,75 735,12 765,48 C792,76 820,22 855,56 C878,76 905,28 935,62 L935,80Z" fill="url(#fg1)" />
+      <path d="M880,80 C920,40 950,15 990,50 C1015,74 1045,10 1075,46 C1100,72 1130,20 1160,55 C1180,70 1200,40 1200,60 L1200,80Z" fill="url(#fg2)" />
+    </svg>
+  </div>
+));
+FlameSVG.displayName = 'FlameSVG';
+
 /** Button layout per player type */
 const LAYOUT_8BTN = {
   topRow: [1, 2, 3, 7],
@@ -46,10 +70,15 @@ const LAYOUT_4BTN = {
   bottomRow: [4, 5],
 };
 
-/** Player meta — display order is p3, p4, p1, p2 (top→bottom = back→front) */
-const PLAYERS = [
+/** Player meta — visual order top→bottom = back→front of cabinet */
+const PLAYERS_4P = [
   { id: 'p3', label: 'PLAYER 3', cls: 'p3', layout: LAYOUT_4BTN },
   { id: 'p4', label: 'PLAYER 4', cls: 'p4', layout: LAYOUT_4BTN },
+  { id: 'p1', label: 'PLAYER 1', cls: 'p1', layout: LAYOUT_8BTN },
+  { id: 'p2', label: 'PLAYER 2', cls: 'p2', layout: LAYOUT_8BTN },
+];
+
+const PLAYERS_2P = [
   { id: 'p1', label: 'PLAYER 1', cls: 'p1', layout: LAYOUT_8BTN },
   { id: 'p2', label: 'PLAYER 2', cls: 'p2', layout: LAYOUT_8BTN },
 ];
@@ -274,6 +303,13 @@ export default function ControllerChuckPanel() {
   const [pressedKeys, setPressedKeys] = useState(new Set());
   const { latestInput } = useInputDetection(detectionMode);
 
+  // Player mode: '2p' or '4p'
+  const [playerMode, setPlayerMode] = useState('4p');
+
+  // Logo image — auto-loads from /gg-logo.png, falls back to text badge
+  const [logoLoaded, setLogoLoaded] = useState(true);
+  const logoPath = '/gg-logo.png';
+
   // Pending changes flash
   const [flashMsg, setFlashMsg] = useState(null);
 
@@ -434,6 +470,15 @@ export default function ControllerChuckPanel() {
   const boardStatus = scanLoading ? 'scanning' : board?.detected ? 'ready' : 'offline';
   const boardName = board?.name || (scanLoading ? 'Scanning...' : 'No device');
 
+  // Active player set based on mode
+  const activePlayers4P = playerMode === '4p' ? PLAYERS_4P : null;
+  const activePlayers2P = playerMode === '2p'
+    ? PLAYERS_2P
+    : PLAYERS_4P.filter((p) => p.id === 'p1' || p.id === 'p2');
+  const topRowPlayers = playerMode === '4p'
+    ? PLAYERS_4P.filter((p) => p.id === 'p3' || p.id === 'p4')
+    : null;
+
   if (loading) {
     return (
       <div className="chuck-loading">
@@ -460,6 +505,22 @@ export default function ControllerChuckPanel() {
           </div>
         </div>
 
+        {/* 2P / 4P Mode Switcher */}
+        <div className="chuck-mode-switcher" title="Switch between 2-player and 4-player mode">
+          <button
+            className={`chuck-mode-btn ${playerMode === '2p' ? 'active' : ''}`}
+            onClick={() => setPlayerMode('2p')}
+          >
+            2P
+          </button>
+          <button
+            className={`chuck-mode-btn ${playerMode === '4p' ? 'active' : ''}`}
+            onClick={() => setPlayerMode('4p')}
+          >
+            4P
+          </button>
+        </div>
+
         <div className="chuck-board-pill">
           <span className="chuck-board-pill-name">{boardName}</span>
           <span className={`chuck-board-pill-status ${boardStatus}`}>
@@ -477,28 +538,53 @@ export default function ControllerChuckPanel() {
       <div className="chuck-body">
         {/* Main grid — two rows, each has 2 player cards */}
         <main className="chuck-main">
-          {/* Top row: P3 | P4 (back players — fewer buttons) */}
-          <div className="chuck-player-row">
-            {PLAYERS.filter((p) => p.id === 'p3' || p.id === 'p4').map((p) => (
-              <PlayerCard
-                key={p.id}
-                player={p}
-                mapping={mapping}
-                pressedKeys={pressedKeys}
-              />
-            ))}
+          <FlameSVG />
+
+          {/* Top row — only in 4P mode: P3 | P4 (back players) */}
+          {playerMode === '4p' && (
+            <div className="chuck-player-row">
+              {PLAYERS_4P.filter((p) => p.id === 'p3' || p.id === 'p4').map((p) => (
+                <PlayerCard
+                  key={p.id}
+                  player={p}
+                  mapping={mapping}
+                  pressedKeys={pressedKeys}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Center logo zone — sits between P3/P4 and P1/P2 */}
+          <div className="chuck-center-logo">
+            <div className="chuck-logo-badge">
+              {logoLoaded ? (
+                <img
+                  src={logoPath}
+                  alt="G&amp;G Arcade"
+                  onError={() => setLogoLoaded(false)}
+                  style={{ filter: 'drop-shadow(0 0 6px rgba(0,255,65,0.4))' }}
+                />
+              ) : (
+                <>
+                  <span className="chuck-logo-text">GG</span>
+                  <span className="chuck-logo-sub">ARCADE</span>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Bottom row: P1 | P2 (front players — full 8 buttons) */}
+          {/* Bottom row — always visible: P1 | P2 (front players) */}
           <div className="chuck-player-row">
-            {PLAYERS.filter((p) => p.id === 'p1' || p.id === 'p2').map((p) => (
-              <PlayerCard
-                key={p.id}
-                player={p}
-                mapping={mapping}
-                pressedKeys={pressedKeys}
-              />
-            ))}
+            {(playerMode === '4p' ? PLAYERS_4P : PLAYERS_2P)
+              .filter((p) => p.id === 'p1' || p.id === 'p2')
+              .map((p) => (
+                <PlayerCard
+                  key={p.id}
+                  player={p}
+                  mapping={mapping}
+                  pressedKeys={pressedKeys}
+                />
+              ))}
           </div>
         </main>
 
