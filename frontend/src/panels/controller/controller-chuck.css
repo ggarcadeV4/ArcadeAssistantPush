@@ -349,53 +349,61 @@
   min-height: 0;
 }
 
-/* ── Player Card ────────────────────────────────────────── */
+/* ── Player Card — tightened footprint, authoritative rim ── */
 .chuck-player-card {
   background: var(--chuck-panel-bg);
-  border: 1px solid var(--chuck-border);
+  /* Phase 1: 2px rim — physical housing presence */
+  border: 2px solid var(--chuck-border);
   border-radius: 8px;
-  padding: 12px;
+  /* Phase 1: reduced from 12px → 8px (-18% footprint) */
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   position: relative;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+/* Phase 1: higher opacity rims — visible at rest, not just on hover */
 .chuck-player-card.p1 {
-  border-color: rgba(0, 255, 65, 0.3);
+  border-color: rgba(0, 255, 65, 0.55);
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.1), inset 0 0 8px rgba(0, 255, 65, 0.03);
 }
 
 .chuck-player-card.p2 {
-  border-color: rgba(0, 229, 255, 0.3);
+  border-color: rgba(0, 229, 255, 0.55);
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.1), inset 0 0 8px rgba(0, 229, 255, 0.03);
 }
 
 .chuck-player-card.p3 {
-  border-color: rgba(255, 119, 0, 0.3);
+  border-color: rgba(255, 119, 0, 0.55);
+  box-shadow: 0 0 6px rgba(255, 119, 0, 0.1), inset 0 0 8px rgba(255, 119, 0, 0.03);
 }
 
 .chuck-player-card.p4 {
-  border-color: rgba(187, 68, 255, 0.3);
+  border-color: rgba(187, 68, 255, 0.55);
+  box-shadow: 0 0 6px rgba(187, 68, 255, 0.1), inset 0 0 8px rgba(187, 68, 255, 0.03);
 }
 
+/* Hover: full glow authority */
 .chuck-player-card.p1:hover {
   border-color: var(--p1-color);
-  box-shadow: 0 0 12px var(--p1-glow);
+  box-shadow: 0 0 18px var(--p1-glow), inset 0 0 12px rgba(0, 255, 65, 0.05);
 }
 
 .chuck-player-card.p2:hover {
   border-color: var(--p2-color);
-  box-shadow: 0 0 12px var(--p2-glow);
+  box-shadow: 0 0 18px var(--p2-glow), inset 0 0 12px rgba(0, 229, 255, 0.05);
 }
 
 .chuck-player-card.p3:hover {
   border-color: var(--p3-color);
-  box-shadow: 0 0 12px var(--p3-glow);
+  box-shadow: 0 0 18px var(--p3-glow), inset 0 0 12px rgba(255, 119, 0, 0.05);
 }
 
 .chuck-player-card.p4:hover {
   border-color: var(--p4-color);
-  box-shadow: 0 0 12px var(--p4-glow);
+  box-shadow: 0 0 18px var(--p4-glow), inset 0 0 12px rgba(187, 68, 255, 0.05);
 }
 
 .chuck-player-header {
@@ -439,15 +447,16 @@
   gap: 4px;
 }
 
-/* ── Controller Layout Area ─────────────────────────────── */
+/* ── Controller Layout Area — tighter, controls anchored ── */
 .chuck-controller-layout {
   display: flex;
   align-items: center;
-  gap: 12px;
+  /* Phase 1: reduced gap from 12px → 8px */
+  gap: 8px;
   flex: 1;
 }
 
-/* ── Joystick Graphic ───────────────────────────────────── */
+/* ── Joystick Graphic — Phase 2: stronger presence ──────── */
 .chuck-joystick-wrap {
   display: flex;
   flex-direction: column;
@@ -457,11 +466,14 @@
 }
 
 .chuck-joystick {
-  width: 60px;
-  height: 60px;
+  /* Phase 2: slightly larger, much stronger ring */
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #2a3a2a, #0d120e);
-  border: 2px solid #2a4a2a;
+  background: radial-gradient(circle at 38% 33%, #2e422e, #0a0f0b);
+  /* Thicker, brighter ring */
+  border: 3px solid #3a6a3a;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.15), inset 0 1px 3px rgba(0, 0, 0, 0.6);
   position: relative;
   display: flex;
   align-items: center;
@@ -469,12 +481,13 @@
 }
 
 .chuck-joystick-inner {
-  width: 20px;
-  height: 20px;
+  /* Phase 2: larger ball top, more contrast */
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #3a6a3a, #1a2a1a);
-  border: 1px solid #4a8a4a;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  background: radial-gradient(circle at 38% 33%, #4a8a4a, #1c321c);
+  border: 2px solid #5aaa5a;
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.2), 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 /* 8-way directional tick marks */
@@ -535,17 +548,18 @@
   text-align: center;
 }
 
-/* ── Button Grid ────────────────────────────────────────── */
+/* ── Button Grid — Phase 2: dominant presence ───────────── */
 .chuck-button-area {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  /* Phase 1: tighter internal gap */
+  gap: 4px;
   flex: 1;
 }
 
 .chuck-button-row {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   justify-content: flex-start;
 }
 
@@ -558,59 +572,66 @@
 }
 
 .chuck-btn-circle-face {
-  width: 32px;
-  height: 32px;
+  /* Phase 2: 32px → 40px — buttons must visually compete */
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--chuck-font-title);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
+  /* Phase 2: thicker edge definition */
   border: 2px solid transparent;
   transition: all 0.15s;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  /* Phase 2: idle glow so buttons read at rest */
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 4px rgba(255, 255, 255, 0.06);
   position: relative;
 }
 
-/* Button color scheme by number */
+/* Phase 2: richer color saturation + stronger idle glow per color */
 .chuck-btn-circle[data-btn="1"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="4"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 40% 35%, #00cc44, #007722);
-  border-color: #00ff55;
+  background: radial-gradient(circle at 38% 32%, #00e84d, #006622);
+  border-color: #00ff66;
   color: #fff;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(0, 255, 80, 0.35);
 }
 
 .chuck-btn-circle[data-btn="2"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="5"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 40% 35%, #ddaa00, #886600);
-  border-color: #ffcc00;
-  color: #fff;
+  background: radial-gradient(circle at 38% 32%, #ffcc00, #997700);
+  border-color: #ffe033;
+  color: #1a1000;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(255, 204, 0, 0.35);
 }
 
 .chuck-btn-circle[data-btn="3"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="6"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 40% 35%, #cc2233, #771122);
-  border-color: #ff4455;
+  background: radial-gradient(circle at 38% 32%, #ff3344, #880011);
+  border-color: #ff5566;
   color: #fff;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(255, 50, 68, 0.35);
 }
 
 .chuck-btn-circle[data-btn="7"] .chuck-btn-circle-face,
 .chuck-btn-circle[data-btn="8"] .chuck-btn-circle-face {
-  background: radial-gradient(circle at 40% 35%, #2255cc, #112266);
-  border-color: #4488ff;
+  background: radial-gradient(circle at 38% 32%, #3366ff, #112288);
+  border-color: #5588ff;
   color: #fff;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 7px rgba(51, 102, 255, 0.35);
 }
 
 .chuck-btn-circle-face:hover {
-  transform: scale(1.1);
-  filter: brightness(1.3);
+  transform: scale(1.12);
+  filter: brightness(1.35);
 }
 
 .chuck-btn-circle-face.pressed {
-  transform: scale(0.92);
-  filter: brightness(1.5);
-  box-shadow: 0 0 12px currentColor;
+  transform: scale(0.9);
+  filter: brightness(1.6);
+  box-shadow: 0 0 16px currentColor;
 }
 
 /* Pin label under button */
