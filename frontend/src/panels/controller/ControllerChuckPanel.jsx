@@ -548,9 +548,10 @@ export default function ControllerChuckPanel() {
         <main className="chuck-main" data-mode={playerMode}>
           <FlameSVG />
 
-          {/* Logo header — 4P mode only, sits above P3/P4 row */}
-          {playerMode === '4p' && (
-            <div className="chuck-4p-logo-header">
+          {/* ── Top Strip: Logo + Board Status + Quick Actions ── */}
+          <div className="chuck-top-strip">
+            {/* Logo */}
+            <div className="chuck-top-strip-logo">
               {logoLoaded ? (
                 <img
                   src={logoPath}
@@ -558,10 +559,39 @@ export default function ControllerChuckPanel() {
                   onError={() => setLogoLoaded(false)}
                 />
               ) : (
-                <span className="chuck-logo-text">GG ARCADE</span>
+                <span className="chuck-logo-text">GG</span>
               )}
             </div>
-          )}
+
+            {/* Board status */}
+            <div className="chuck-top-strip-status">
+              <span className={`chuck-top-strip-dot ${boardStatus}`} />
+              <span className="chuck-top-strip-board">{boardName}</span>
+              <span className={`chuck-top-strip-state ${boardStatus}`}>
+                {boardStatus.toUpperCase()}
+              </span>
+            </div>
+
+            {/* Quick actions */}
+            <div className="chuck-top-strip-actions">
+              <button
+                className="chuck-strip-btn"
+                onClick={scanDevices}
+                disabled={scanLoading}
+                title="Scan for connected encoder boards"
+              >
+                {scanLoading ? '⏳' : '🔍'} SCAN
+              </button>
+              <button
+                className={`chuck-strip-btn detect ${detectionMode ? 'active' : ''}`}
+                onClick={() => setDetectionMode(v => !v)}
+                title="Toggle live input detection mode"
+              >
+                <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
+                DETECT
+              </button>
+            </div>
+          </div>
 
           {/* Top row — only in 4P mode: P3 | P4 (back players) */}
           {playerMode === '4p' && (
