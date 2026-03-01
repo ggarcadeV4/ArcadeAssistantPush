@@ -125,7 +125,7 @@ const UtilButton = memo(({ label, pinLabel }) => (
 UtilButton.displayName = 'UtilButton';
 
 /** One player card (joystick + button grid + utilities) */
-const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick }) => {
+const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode }) => {
   const { id, label, cls, layout } = player;
 
   const getPin = useCallback((controlKey) => {
@@ -142,7 +142,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick }) => {
   }, [id, onButtonClick]);
 
   return (
-    <div className={`chuck-player-card ${cls}`}>
+    <div className={`chuck-player-card ${cls}${playerMode === '2p' ? ' mode-2p' : ''}`}>
       <div className="chuck-player-header">
         <span className="chuck-player-badge">{label}</span>
         <span className="chuck-player-status">GPIO BANK {cls.toUpperCase()}</span>
@@ -591,6 +591,7 @@ export default function ControllerChuckPanel() {
                   player={p}
                   mapping={mapping}
                   pressedKeys={pressedKeys}
+                  playerMode={playerMode}
                 />
               ))}
           </div>

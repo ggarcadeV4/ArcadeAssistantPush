@@ -463,6 +463,36 @@
   flex: 1;
 }
 
+/* ── 2P Mode: bilateral symmetry — controls centered ──────── */
+
+/* Card becomes a centered column in 2P mode */
+.chuck-player-card.mode-2p {
+  justify-content: center;
+  align-items: stretch;
+}
+
+/* Header centers in 2P mode */
+.chuck-player-card.mode-2p .chuck-player-header {
+  justify-content: center;
+}
+
+/* Control cluster: centered horizontally, tighter gap */
+.chuck-player-card.mode-2p .chuck-controller-layout {
+  justify-content: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+/* Button rows: centered rather than left-anchored */
+.chuck-player-card.mode-2p .chuck-button-row {
+  justify-content: center;
+}
+
+/* Utility row: centered */
+.chuck-player-card.mode-2p .chuck-utility-row {
+  justify-content: center;
+}
+
 /* ── Joystick Graphic — Phase 2: stronger presence ──────── */
 .chuck-joystick-wrap {
   display: flex;
