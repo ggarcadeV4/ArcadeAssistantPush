@@ -85,17 +85,43 @@ const PLAYERS_2P = [
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-/** 8-way joystick SVG/CSS graphic */
-const JoystickGraphic = memo(() => (
+/** 8-way joystick graphic with ↑↓←→ mapping overlay */
+const DIRS = ['up', 'down', 'left', 'right'];
+const DIR_PATHS = {
+  up: 'M18,10 L22,18 H14 Z',
+  down: 'M18,26 L22,18 H14 Z',
+  left: 'M10,18 L18,14 V22 Z',
+  right: 'M26,18 L18,14 V22 Z',
+};
+
+const JoystickGraphic = memo(({ onDirClick, mappingDir }) => (
   <div className="chuck-joystick-wrap">
     <div className="chuck-joystick">
       <div className="chuck-joystick-diag" />
       <div className="chuck-joystick-inner" />
+
+      {/* Directional arrow overlay — clickable SVG zones */}
+      <svg
+        className="chuck-dir-overlay"
+        viewBox="0 0 36 36"
+        xmlns="http://www.w3.org/2000/svg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {DIRS.map((dir) => (
+          <path
+            key={dir}
+            d={DIR_PATHS[dir]}
+            className={`chuck-dir-arrow${mappingDir === dir ? ' waiting' : ''}`}
+            onClick={(e) => { e.stopPropagation(); onDirClick?.(dir); }}
+          />
+        ))}
+      </svg>
     </div>
     <span className="chuck-joystick-label">8-WAY</span>
   </div>
 ));
 JoystickGraphic.displayName = 'JoystickGraphic';
+
 
 /** Single arcade button circle */
 const ArcadeButton = memo(({ num, pinLabel, pressed, onClick }) => (
@@ -147,10 +173,24 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
     onButtonClick?.(`${id}.button${num}`);
   }, [id, onButtonClick]);
 
+  // Directional mapping state — null means idle
+  const [mappingDir, setMappingDir] = useState(null);
+
+  const handleDirClick = useCallback((dir) => {
+    // Enter/exit mapping mode for this direction
+    setMappingDir((prev) => (prev === dir ? null : dir));
+    // Also bring this card into focus
+    onFocus?.(id);
+  }, [id, onFocus]);
+
   return (
     <div
       className={`chuck-player-card ${cls}${playerMode === '2p' ? ' mode-2p' : ''}${focusClass}`}
-      onClick={() => onFocus?.(isFocused ? null : id)}
+      onClick={() => {
+        // Click on card background (not an arrow) clears dir + focus
+        if (mappingDir) { setMappingDir(null); return; }
+        onFocus?.(isFocused ? null : id);
+      }}
     >
       <div className="chuck-player-header">
         <span className="chuck-player-badge">{label}</span>
@@ -158,7 +198,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
       </div>
 
       <div className="chuck-controller-layout">
-        <JoystickGraphic />
+        <JoystickGraphic onDirClick={handleDirClick} mappingDir={mappingDir} />
 
         <div className="chuck-button-area">
           {/* Top row */}

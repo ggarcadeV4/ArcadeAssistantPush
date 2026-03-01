@@ -554,7 +554,60 @@
   justify-content: center;
 }
 
-/* ── Joystick Graphic — Phase 2: stronger presence ──────── */
+/* ── Directional Arrow Overlay ──────────────────────────────── */
+.chuck-dir-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Show arrows when hovering the card or when mapping mode is active */
+.chuck-player-card:hover .chuck-dir-overlay,
+.chuck-player-card.focus-active .chuck-dir-overlay {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.chuck-dir-arrow {
+  fill: rgba(0, 255, 65, 0.3);
+  stroke: rgba(0, 255, 65, 0.7);
+  stroke-width: 0.5;
+  cursor: pointer;
+  transition: fill 0.15s, stroke 0.15s;
+}
+
+.chuck-dir-arrow:hover {
+  fill: rgba(0, 255, 65, 0.6);
+  stroke: #00ff41;
+}
+
+/* Waiting state — direction selected, listening for joystick input */
+.chuck-dir-arrow.waiting {
+  fill: rgba(0, 229, 255, 0.55);
+  stroke: #00e5ff;
+  animation: dir-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes dir-pulse {
+
+  0%,
+  100% {
+    fill: rgba(0, 229, 255, 0.55);
+    stroke-width: 0.5;
+  }
+
+  50% {
+    fill: rgba(0, 229, 255, 0.85);
+    stroke-width: 1.5;
+  }
+}
+
+/* ── Joystick Graphic — Phase 2: stronger presence ──────────── */
 .chuck-joystick-wrap {
   display: flex;
   flex-direction: column;
