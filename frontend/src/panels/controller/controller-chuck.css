@@ -1717,3 +1717,116 @@
   box-shadow: 0 0 6px var(--chuck-green);
   animation: pulse 1.2s ease-in-out infinite;
 }
+
+/* ── Mapping Confirmation Animations ──────────────────────── */
+
+/* Button: white flash → green ring burst → settle back */
+.chuck-btn-circle-face.confirmed {
+  animation: btn-confirmed 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  border-color: var(--chuck-green) !important;
+}
+
+@keyframes btn-confirmed {
+  0% {
+    transform: scale(1);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 0 0 rgba(0, 255, 65, 0);
+  }
+
+  25% {
+    transform: scale(1.35);
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 24px 8px rgba(0, 255, 65, 0.8);
+  }
+
+  60% {
+    transform: scale(1.1);
+    background: rgba(0, 30, 10, 0.95);
+    box-shadow: 0 0 12px 4px rgba(0, 255, 65, 0.4);
+  }
+
+  100% {
+    transform: scale(1);
+    background: rgba(0, 20, 8, 0.9);
+    box-shadow: 0 0 6px 2px rgba(0, 255, 65, 0.15);
+  }
+}
+
+/* Direction arrow: flash bright green then fade to settled glow */
+.chuck-dir-arrow.confirmed {
+  fill: rgba(0, 255, 65, 0.95);
+  filter: drop-shadow(0 0 6px rgba(0, 255, 65, 1));
+  animation: dir-confirmed 0.6s ease-out both;
+}
+
+@keyframes dir-confirmed {
+  0% {
+    fill: rgba(255, 255, 255, 0.95);
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 1));
+  }
+
+  30% {
+    fill: rgba(0, 255, 65, 1);
+    filter: drop-shadow(0 0 8px rgba(0, 255, 65, 1));
+  }
+
+  100% {
+    fill: rgba(0, 255, 65, 0.7);
+    filter: drop-shadow(0 0 4px rgba(0, 255, 65, 0.5));
+  }
+}
+
+/* ── MAPPED badge — floats above the confirmed element ───── */
+.chuck-mapped-badge {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(0, 40, 15, 0.97), rgba(0, 20, 8, 0.97));
+  border: 1px solid var(--chuck-green);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: var(--chuck-font-title);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--chuck-green);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 60;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
+  animation: badge-pop 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Badge on joystick: centered above the wrap */
+.chuck-joystick .chuck-mapped-badge.dir {
+  bottom: calc(100% + 4px);
+}
+
+@keyframes badge-pop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.85);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1.05);
+  }
+
+  75% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.95);
+  }
+}
+
+/* Ensure parent containers allow badge to overflow */
+.chuck-btn-circle,
+.chuck-joystick {
+  position: relative;
+  overflow: visible;
+}

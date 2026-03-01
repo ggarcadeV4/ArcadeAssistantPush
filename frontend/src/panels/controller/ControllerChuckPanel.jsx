@@ -94,7 +94,7 @@ const DIR_PATHS = {
   right: 'M31,18 L19,11 V25 Z',
 };
 
-const JoystickGraphic = memo(({ onDirClick, mappingDir }) => (
+const JoystickGraphic = memo(({ onDirClick, mappingDir, confirmedDir }) => (
   <div className="chuck-joystick-wrap">
     <div className="chuck-joystick">
       <div className="chuck-joystick-diag" />
@@ -112,11 +112,22 @@ const JoystickGraphic = memo(({ onDirClick, mappingDir }) => (
             key={dir}
             d={DIR_PATHS[dir]}
             data-dir={dir}
-            className={`chuck-dir-arrow${mappingDir === dir ? ' waiting' : ''}`}
+            className={
+              `chuck-dir-arrow`
+              + (mappingDir === dir ? ' waiting' : '')
+              + (confirmedDir?.dir === dir ? ' confirmed' : '')
+            }
             onClick={(e) => { e.stopPropagation(); onDirClick?.(dir); }}
           />
         ))}
       </svg>
+
+      {/* Confirmation badge for confirmed direction */}
+      {confirmedDir && (
+        <div className="chuck-mapped-badge dir">
+          ✓ GPIO {confirmedDir.pin}
+        </div>
+      )}
     </div>
     <span className="chuck-joystick-label">8-WAY</span>
   </div>
@@ -125,22 +136,26 @@ JoystickGraphic.displayName = 'JoystickGraphic';
 
 
 /** Single arcade button circle */
-const ArcadeButton = memo(({ num, pinLabel, pressed, waiting, onClick }) => (
+const ArcadeButton = memo(({ num, pinLabel, pressed, waiting, confirmed, onClick }) => (
   <div
     className="chuck-btn-circle"
     data-btn={String(num)}
     onClick={onClick}
     title={`Button ${num}${pinLabel ? ` — Pin ${pinLabel}` : ''}`}
   >
-    <div className={`chuck-btn-circle-face${pressed ? ' pressed' : ''}${waiting ? ' waiting' : ''}`}>
+    <div className={`chuck-btn-circle-face${pressed ? ' pressed' : ''}${waiting ? ' waiting' : ''}${confirmed ? ' confirmed' : ''}`}>
       {num}
     </div>
+    {confirmed && (
+      <div className="chuck-mapped-badge">✓ GPIO {confirmed.pin}</div>
+    )}
     <span className={`chuck-btn-pin ${pinLabel ? 'mapped' : ''}`}>
       {pinLabel || '—'}
     </span>
   </div>
 ));
 ArcadeButton.displayName = 'ArcadeButton';
+
 
 /** START / SELECT utility button */
 const UtilButton = memo(({ label, pinLabel }) => (
@@ -152,7 +167,7 @@ const UtilButton = memo(({ label, pinLabel }) => (
 UtilButton.displayName = 'UtilButton';
 
 /** One player card (joystick + button grid + utilities) */
-const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus }) => {
+const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus, latestInput }) => {
   const { id, label, cls, layout } = player;
   const cardRef = useRef(null);
 
@@ -185,9 +200,36 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
   // Button mapping state — which button number is waiting for cabinet input
   const [mappingButton, setMappingButton] = useState(null);
 
+  // Confirmation state — set briefly after a physical press is received
+  const [confirmedButton, setConfirmedButton] = useState(null); // { num, pin }
+  const [confirmedDir, setConfirmedDir] = useState(null); // { dir, pin }
+
+  // ── Listen for incoming hardware signal ──────────────────────────
+  // When this card is in a waiting state and latestInput arrives,
+  // fire the confirmation animation and clear the waiting state.
+  useEffect(() => {
+    if (!latestInput || (!mappingButton && !mappingDir)) return;
+
+    const pin = latestInput.pin ?? latestInput.key ?? '?';
+
+    if (mappingButton !== null) {
+      setConfirmedButton({ num: mappingButton, pin });
+      setMappingButton(null);
+      const t = setTimeout(() => setConfirmedButton(null), 1800);
+      return () => clearTimeout(t);
+    }
+    if (mappingDir !== null) {
+      setConfirmedDir({ dir: mappingDir, pin });
+      setMappingDir(null);
+      const t = setTimeout(() => setConfirmedDir(null), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [latestInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleDirClick = useCallback((dir) => {
     setMappingDir((prev) => (prev === dir ? null : dir));
     setMappingButton(null);
+    setConfirmedButton(null);
     onFocus?.(id, cardRef.current?.getBoundingClientRect());
   }, [id, onFocus]);
 
@@ -195,6 +237,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
     e.stopPropagation();
     setMappingButton((prev) => (prev === num ? null : num));
     setMappingDir(null);
+    setConfirmedDir(null);
     onFocus?.(id, cardRef.current?.getBoundingClientRect());
   }, [id, onFocus]);
 
@@ -228,7 +271,11 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
       </div>
 
       <div className="chuck-controller-layout">
-        <JoystickGraphic onDirClick={handleDirClick} mappingDir={mappingDir} />
+        <JoystickGraphic
+          onDirClick={handleDirClick}
+          mappingDir={mappingDir}
+          confirmedDir={confirmedDir}
+        />
 
         <div className="chuck-button-area">
           {/* Top row */}
@@ -240,6 +287,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
                 pinLabel={getPin(`button${n}`)}
                 pressed={isPressed(`button${n}`)}
                 waiting={mappingButton === n}
+                confirmed={confirmedButton?.num === n ? confirmedButton : null}
                 onClick={(e) => handleMapBtn(n, e)}
               />
             ))}
@@ -253,6 +301,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
                 pinLabel={getPin(`button${n}`)}
                 pressed={isPressed(`button${n}`)}
                 waiting={mappingButton === n}
+                confirmed={confirmedButton?.num === n ? confirmedButton : null}
                 onClick={(e) => handleMapBtn(n, e)}
               />
             ))}
@@ -726,6 +775,7 @@ export default function ControllerChuckPanel() {
                   isReturning={returningPlayer === p.id}
                   onReturnEnd={handleReturnEnd}
                   onFocus={handleFocus}
+                  latestInput={latestInput}
                 />
               ))}
             </div>
@@ -766,6 +816,7 @@ export default function ControllerChuckPanel() {
                   isReturning={returningPlayer === p.id}
                   onReturnEnd={handleReturnEnd}
                   onFocus={handleFocus}
+                  latestInput={latestInput}
                 />
               ))}
           </div>
