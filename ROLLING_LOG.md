@@ -1,5 +1,30 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-01 | Controller Chuck UX Sprint — FLIP Animations, Focus Mode, Mapping Confirmation
+**Net Progress**: Deep UX refinement session on `ControllerChuckPanel.jsx` and `controller-chuck.css`. Overhauled the entire interactive mapping experience from static layout to a cinematic, animation-driven system. All changes build-verified (234 modules, 0 errors). Commits: `586db64`, `a5fcd5e`, `bb3a81f`, `92039ff`, `64513cb`, `ac64c9c`.
+
+**Key Wins:**
+- **FLIP Focus Animation**: Click any player card → it springs from its exact grid position to the dead center of the panel using React `getBoundingClientRect()` + CSS custom properties `--flip-x/y/w`. Direction-aware: P1 comes from bottom-left, P2 from bottom-right, P3 from top-left, P4 from top-right. Spring easing: `cubic-bezier(0.34, 1.56, 0.64, 1)`.
+- **Premium Return Animation**: Card "breathes out" to scale(1.52) → arcs back to its original grid corner with a blur+fade dissolve. Uses `returningPlayer` state machine so `position:absolute` is held during exit. `onAnimationEnd` clears state cleanly.
+- **2P/4P Layout Unification**: Rooted the bug that made 2P mode look completely different from 4P — the `chuck-main` needed `justify-content: center; gap: 14px` (same as 4P). Matching compact card sizing (44px buttons, 66px joystick, `max-height: 180px`). Center logo hidden in 2P. Player row content-sized in both modes.
+- **Mapping Confirmation Animation System**: Click a button/direction in the UI → cyan pulse starts. Physical cabinet press fires `latestInput` from `useInputDetection`. `PlayerCard` `useEffect` catches it while waiting, fires `confirmedButton`/`confirmedDir` states, auto-clears after 1.8s. Confirmation: white flash → scale(1.35) green ring burst on button; white → green settled glow on arrow; `✓ GPIO XX` badge slides up and fades out.
+- **Top Strip (SCAN + DETECT) both modes**: Confirmed visible in 2P and 4P via `justify-content: center` fix.
+- **Container size fix during FLIP animation**: `width: var(--flip-w)` locks card dimensions during `position: static → absolute` transition.
+- **Directional arrows** (already done prior): flow-toward-center waiting animation, 12px triangle paths with `data-dir` attributes.
+
+**Files Modified:**
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx` — FLIP handler (`mainRef`, `handleFocus`, `focusOrigin`, `returningPlayer`), PlayerCard refactor (cardRef, confirmStates, useEffect listener), ArcadeButton + JoystickGraphic confirmed props, latestInput threading
+- `frontend/src/panels/controller/controller-chuck.css` — `@keyframes flip-to-center`, `@keyframes return-to-grid`, `@keyframes btn-confirmed`, `@keyframes dir-confirmed`, `@keyframes badge-pop`, 2P layout unification blocks, `focus-returning` class
+
+**Architecture Notes:**
+- `returnPlayer` state machine: `activePlayer=null` triggers return → card stays `position:absolute` via `.focus-returning` → `onAnimationEnd` clears → normal grid layout resumes. Critical for avoiding position snap.
+- `latestInput` threading: lives in main component (from `useInputDetection`), passed as prop to each `PlayerCard`. Each card independently watches for it while in a waiting state. Avoids lifting mapping state to parent.
+- 4P/2P CSS parity: All compact sizing in `chuck-main[data-mode]` selectors. The `chuck-shell[data-mode="4p"] .chuck-main { justify-content: center }` rule (line ~1545) is the canonical anchor — 2P now mirrors it.
+
+**Commits**: `586db64` FLIP origin animation | `a5fcd5e` premium return animation | `bb3a81f` 2P layout unification | `92039ff` 2P vertical centering | `64513cb` 2P top strip fix (justify-content root cause) | `ac64c9c` mapping confirmation system
+**Next**: Microphone support in Chuck's chat sidebar. Then cascade to Vicky Voice panel.
+
+
 ## 2026-02-28 | V1 Completion Sprint — Close All Audit Blockers
 **Net Progress**: Closed 12+ audit-flagged blockers in a single session. Key wins:
 - **LEDBlinky path fix**: Updated all backend references from `A:\Tools\LEDBlinky\` to `A:\LEDBlinky\` (actual install location).
