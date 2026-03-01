@@ -197,13 +197,19 @@ export default function Assistants() {
     agent === 'chuck' ||
     agent === 'controller-chuck' ||
     agent === 'controller_chuck' ||
-    agent === 'controller' ||
-    agent === 'interface' ||
-    agent === 'arcade-interface'
+    agent === 'controller'
   ) {
     return <>
       {Badge}
       <ErrorBoundary><ControllerChuckPanelRedesign /></ErrorBoundary>
+    </>
+  }
+
+  // Map generic interface keys directly to Chuck's panel (bypassing the tab shell)
+  if (agent === 'interface' || agent === 'arcade-interface') {
+    return <>
+      {Badge}
+      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
     </>
   }
 
