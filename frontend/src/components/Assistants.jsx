@@ -209,7 +209,7 @@ export default function Assistants() {
   if (agent === 'interface' || agent === 'arcade-interface') {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
+      <ErrorBoundary><ControllerChuckPanelRedesign /></ErrorBoundary>
     </>
   }
 
