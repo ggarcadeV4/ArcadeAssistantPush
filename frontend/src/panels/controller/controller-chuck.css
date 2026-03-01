@@ -241,9 +241,9 @@
   text-transform: uppercase;
 }
 
-/* ── 4P Mode: compact logo zone — reclaims space for player rows ── */
+/* ── 4P Mode: hide logo zone — reclaims full space for player rows ── */
 .chuck-main[data-mode="4p"] .chuck-center-logo {
-  padding: 0;
+  display: none;
 }
 
 .chuck-main[data-mode="4p"] .chuck-logo-badge {
@@ -1234,4 +1234,47 @@
 .chuck-main::-webkit-scrollbar-thumb {
   background: var(--chuck-border);
   border-radius: 2px;
+}
+
+/* ── 4P Mode: collapse action bar to save vertical space ─── */
+/* The action bar was pushing P3/P4 off-screen in 4P view     */
+.chuck-shell[data-mode="4p"] .chuck-action-bar {
+  min-height: 0;
+  padding: 2px 8px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Hide the detection toggle text label in 4P — just keep the checkbox */
+.chuck-shell[data-mode="4p"] .chuck-detection-toggle {
+  font-size: 0;
+  gap: 0;
+}
+
+/* Shrink action buttons in 4P */
+.chuck-shell[data-mode="4p"] .chuck-action-btn {
+  padding: 2px 8px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+}
+
+/* ── 4P Mode: compact, contained player rows ───────────────── */
+/* Rows shrink to their content size — no more filling the full  */
+/* viewport. chuck-main centers them with intentional breathing  */
+/* room between and around each row.                             */
+.chuck-shell[data-mode="4p"] .chuck-main {
+  justify-content: center;
+  gap: 14px;
+}
+
+.chuck-shell[data-mode="4p"] .chuck-player-row {
+  /* Content-sized — don't fill remaining vertical space */
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+/* Give each card a defined max-height so they stay compact */
+.chuck-shell[data-mode="4p"] .chuck-player-card {
+  max-height: 180px;
+  overflow: hidden;
 }

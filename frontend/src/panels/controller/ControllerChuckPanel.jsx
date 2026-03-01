@@ -497,7 +497,7 @@ export default function ControllerChuckPanel() {
   }
 
   return (
-    <div className="chuck-shell">
+    <div className="chuck-shell" data-mode={playerMode}>
       {/* ── Header ── */}
       <header className="chuck-header">
         <div className="chuck-header-left">
