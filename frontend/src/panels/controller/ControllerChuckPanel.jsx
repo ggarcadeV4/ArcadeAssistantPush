@@ -316,6 +316,14 @@ export default function ControllerChuckPanel() {
   const msgIdRef = useRef(0);
   const nextId = () => `msg-${++msgIdRef.current}`;
 
+  // Scroll to top on mount — prevents stale scroll offset from previous panel
+  // causing the 4P layout to appear clipped without a full page refresh
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.style.overflow = 'hidden';
+    return () => { document.documentElement.style.overflow = ''; };
+  }, []);
+
   // ── Load mapping ────────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {

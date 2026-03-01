@@ -50,11 +50,16 @@
 .chuck-shell {
   display: flex;
   flex-direction: column;
+  /* Fill the viewport regardless of parent scroll state */
   height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  /* Isolate from parent scroll context */
+  position: relative;
+  isolation: isolate;
   background: var(--chuck-bg);
   color: var(--chuck-text);
   font-family: var(--chuck-font-mono);
-  overflow: hidden;
   /* Point 6: background grid recedes — controls dominate */
   background-image:
     linear-gradient(rgba(0, 255, 65, 0.015) 1px, transparent 1px),
