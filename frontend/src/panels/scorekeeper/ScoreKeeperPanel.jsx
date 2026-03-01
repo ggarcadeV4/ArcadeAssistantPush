@@ -599,26 +599,28 @@ export default function ScoreKeeperPanel() {
     recognition.continuous = false
     recognition.interimResults = false
     recognition.lang = 'en-US'
+    let gotResult = false
 
     recognition.onresult = (event) => {
+      // Accumulate the best transcript — do NOT send yet
       const transcript = event.results[0]?.[0]?.transcript
       if (transcript) {
+        gotResult = true
         setInputMessage(transcript)
-        // Auto-send after a short delay so user sees the transcript
-        setTimeout(() => {
-          setInputMessage(prev => {
-            if (prev === transcript) {
-              // Trigger send via ref callback
-              document.querySelector('.panel-chat-sidebar .execute-btn')?.click()
-            }
-            return prev
-          })
-        }, 400)
       }
     }
 
-    recognition.onend = () => setIsListening(false)
-    recognition.onerror = () => setIsListening(false)
+    recognition.onend = () => {
+      setIsListening(false)
+      // Only auto-send after the recognition session is fully done
+      if (gotResult) {
+        gotResult = false
+        setTimeout(() => {
+          document.querySelector('.panel-chat-sidebar .execute-btn')?.click()
+        }, 300)
+      }
+    }
+    recognition.onerror = () => { gotResult = false; setIsListening(false) }
 
     recognitionRef.current = recognition
 
@@ -1029,7 +1031,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
       // Speak the response as Sam (fire-and-forget)
       setIsSamSpeaking(true)
       speakAsSam(responseText)
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setIsSamSpeaking(false))
 
       // Check if AI suggested an action and execute it
@@ -1064,9 +1066,9 @@ Current tournament context will be provided. Use it to give specific advice.`,
       <div className="scorekeeper-panel-wrapper" style={{ padding: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 48 }}>??</div>
+            <div style={{ fontSize: 48 }}>🎮</div>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#c8ff00' }}>ScoreKeeper Sam � Big Board</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#c8ff00' }}>ScoreKeeper Sam — Big Board</div>
               <div style={{ color: '#9ca3af' }}>Live leaderboard (read-only)</div>
             </div>
           </div>
@@ -1087,7 +1089,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
                     <td style={{ padding: 12 }}>
-                      {entry.player || entry.bestPlayer || '�'}
+                      {entry.player || entry.bestPlayer || '?'}
                       {(entry.player || entry.bestPlayer) && (
                         <span style={{
                           marginLeft: 8,
@@ -1383,7 +1385,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     <div key={idx} className="sam-record-item">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden', flex: 1 }}>
                         <div className={`record-rank ${idx < 3 ? 'highlight' : 'standard'}`}>#{idx + 1}</div>
-                        <span className="record-name">{entry.player || entry.bestPlayer || '�'}</span>
+                        <span className="record-name">{entry.player || entry.bestPlayer || '?'}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span className="record-score">{formatScoreValue(entry.score ?? entry.bestScore)}</span>
@@ -1421,7 +1423,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 <div className="sam-cabinet-health">
                   <div className="health-header">
                     <span className="health-label">SYSTEM STATUS</span>
-                    <span className="health-value">{pluginPaused ? '? Cached' : '? Live'}</span>
+                    <span className="health-value">{pluginPaused ? '⚠ Cached' : '✓ Live'}</span>
                   </div>
                   <div className="health-bar">
                     <div className="health-bar-fill" style={{ width: pluginPaused ? '50%' : '98%' }} />
@@ -1443,7 +1445,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   {tournament.name}
                 </h2>
                 <span style={{ fontSize: '0.75rem', color: 'var(--sam-text-muted)' }}>
-                  {tournament.status === 'active' ? '? Active' : tournament.status === 'completed' ? '? Completed' : '? Setup'}
+                  {tournament.status === 'active' ? '● Active' : tournament.status === 'completed' ? '✓ Completed' : '○ Setup'}
                 </span>
               </div>
               <div className="sam-bracket-body">
@@ -1706,9 +1708,9 @@ Current tournament context will be provided. Use it to give specific advice.`,
             <img src="/sam-avatar.jpeg" alt="Sam" className="chat-avatar" />
             <div className="chat-info">
               <h3>ScoreKeeper Sam</h3>
-              <div className="chat-status">� Ready to assist</div>
+              <div className="chat-status">✓ Ready to assist</div>
             </div>
-            <button className="chat-close-btn" onClick={handleChatClose} aria-label="Close chat">�</button>
+            <button className="chat-close-btn" onClick={handleChatClose} aria-label="Close chat">×</button>
           </div>
 
           <div className="welcome-message">
@@ -1718,13 +1720,13 @@ Current tournament context will be provided. Use it to give specific advice.`,
           <div className="chat-messages" ref={chatMessagesRef}>
             {chatMessages.map((message) => (
               <div key={message.id} className={`message ${message.type}`}>
-                <div className="message-avatar">{message.type === 'user' ? '??' : '??'}</div>
+                <div className="message-avatar">{message.type === 'user' ? '🎮' : '🏆'}</div>
                 <div className="message-content">{message.content}</div>
               </div>
             ))}
             {isProcessing && (
               <div className="message assistant">
-                <div className="message-avatar">??</div>
+                <div className="message-avatar">🏆</div>
                 <div className="message-content">Processing command...</div>
               </div>
             )}
@@ -1738,7 +1740,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 onClick={isListening ? toggleListening : isSamSpeaking ? () => { stopSpeaking(); setIsSamSpeaking(false) } : toggleListening}
                 title={isListening ? 'Listening... click to stop' : isSamSpeaking ? 'Sam is speaking... click to stop' : 'Click to speak'}
               >
-                {isListening ? '??' : isSamSpeaking ? '??' : '??'}
+                {isListening ? '🔴' : isSamSpeaking ? '🔊' : '🎤'}
               </button>
               <input
                 type="text"

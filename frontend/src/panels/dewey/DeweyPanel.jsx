@@ -4,12 +4,12 @@ import './DeweyPanel.css'
 import { chat as aiChat } from '../../services/aiClient'
 import { speakAsDewey, stopSpeaking, isSpeaking } from '../../services/ttsClient'
 import { useProfileContext } from '../../context/ProfileContext'
-import { useGemSpeech } from '../../hooks/useGemSpeech'
+import useGemSpeech from '../../hooks/useGemSpeech'
 import { getHeadlines } from '../../services/newsClient'
 import TriviaExperience from './trivia/TriviaExperience'
 import GamingNews from './news/GamingNews'
 import { searchArcadeLore } from '../../services/deweySearchClient'
-import useGemSpeech from '../../hooks/useGemSpeech'
+
 
 const MAX_HISTORY_MESSAGES = 12
 
@@ -306,10 +306,6 @@ export default function DeweyPanel() {
   const [isExpanded, setIsExpanded] = useState(false)
   const isFetchingMore = useRef(false)
 
-  // Media Stage state
-  const [galleryItems, setGalleryItems] = useState([])
-  const [activeCardIndex, setActiveCardIndex] = useState(0)
-  const [loreText, setLoreText] = useState(null)
 
   // Refs
   const messagesContainerRef = useRef(null)
@@ -611,46 +607,10 @@ export default function DeweyPanel() {
     }
   }
 
-  // Server-side Whisper STT via useGemSpeech hook
-  const gemSpeech = useGemSpeech({
-    onTranscript: useCallback((text) => {
-      if (!text?.trim() || processingTranscriptRef.current) return
-      if (text === lastTranscriptRef.current) return
-
-      processingTranscriptRef.current = true
-      lastTranscriptRef.current = text
-      console.log('[Dewey] Whisper transcript:', text)
-
-      setInput(text)
-      setTimeout(() => {
-        if (text.trim()) {
-          addMessage(text, 'user')
-          setInput('')
-          deweyRespond(text).finally(() => {
-            setTimeout(() => { processingTranscriptRef.current = false }, 1000)
-          })
-        } else {
-          processingTranscriptRef.current = false
-        }
-      }, 100)
-    }, []),
-    onError: useCallback((errMsg) => {
-      addSystemMessage(errMsg)
-    }, [])
-  })
-
-  // Sync hook state to component state
-  useEffect(() => {
-    setIsRecording(gemSpeech.isRecording)
-  }, [gemSpeech.isRecording])
-
-  useEffect(() => {
-    setSpeechSupported(gemSpeech.wsConnected)
-  }, [gemSpeech.wsConnected])
 
   // Cleanup TTS on unmount
   useEffect(() => {
-    return () => { try { stopSpeaking() } catch {} }
+    return () => { try { stopSpeaking() } catch { } }
   }, [])
 
   // Handle Enter Key
@@ -662,11 +622,11 @@ export default function DeweyPanel() {
 
   // Voice Input with Recording State
   const startVoice = () => {
-    if (!gemSpeech.isRecording) {
-      try { stopSpeaking() } catch {}
-      gemSpeech.startRecording()
+    if (!isRecording) {
+      try { stopSpeaking() } catch { }
+      startRecording()
     } else {
-      gemSpeech.stopRecording()
+      stopRecording()
     }
   }
 
@@ -709,7 +669,7 @@ export default function DeweyPanel() {
           setTimeout(connectVicky, backoff)
           backoff = Math.min(backoff * 2, 30000)
         }
-        ws.onerror = () => { try { ws.close() } catch {} }
+        ws.onerror = () => { try { ws.close() } catch { } }
       } catch {
         setTimeout(connectVicky, backoff)
         backoff = Math.min(backoff * 2, 30000)
@@ -720,7 +680,7 @@ export default function DeweyPanel() {
 
     return () => {
       alive = false
-      if (ws) try { ws.close() } catch {}
+      if (ws) try { ws.close() } catch { }
     }
   }, [])
 
@@ -1053,16 +1013,9 @@ export default function DeweyPanel() {
                 </div>
                 <div className="dh-profile-select-wrap">
                   <span className="dh-profile-select-tag">Identity</span>
-                  <select
-                    className="dh-profile-select"
-                    value={currentUser.id}
-                    onChange={switchUser}
-                    aria-label="Select profile"
-                  >
-                    {userOptions.map(option => (
-                      <option key={option.id} value={option.id}>{option.label}</option>
-                    ))}
-                  </select>
+                  <span className="dh-profile-select" aria-label="Current profile">
+                    {currentUser.name || 'Guest'}
+                  </span>
                 </div>
               </div>
               <div className="dh-header-session">

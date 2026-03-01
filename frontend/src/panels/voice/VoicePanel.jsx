@@ -7,7 +7,7 @@ import { startPlayerSession } from '../../services/playerTrackingClient'
 import { chat as aiChat } from '../../services/aiClient'
 import { useProfileContext } from '../../context/ProfileContext'
 import { buildVickySystemPrompt } from './vickyPrompt'
-import { useGemSpeech } from '../../hooks/useGemSpeech'
+import useGemSpeech from '../../hooks/useGemSpeech'
 
 // Use gateway port 8787 in dev mode, or current origin in production
 const GATEWAY = window.location.port === '5173' ? 'http://localhost:8787' : window.location.origin
@@ -131,6 +131,12 @@ export default function VoicePanel() {
     }
   }, [primaryUserId])
 
+
+  // Chat functionality
+  const addMessage = useCallback((text, role) => {
+    setMessages(prev => [...prev, { role, text: String(text ?? '') }])
+  }, [])
+
   // ---- Voice transcription callback (wires useGemSpeech → AI chat) ----
   const handleVoiceTranscript = useCallback((text) => {
     if (!text) return
@@ -231,10 +237,6 @@ export default function VoicePanel() {
     if (speechWarning) setWarn(speechWarning)
   }, [speechWarning])
 
-  // Chat functionality
-  const addMessage = useCallback((text, role) => {
-    setMessages(prev => [...prev, { role, text: String(text ?? '') }])
-  }, [])
 
   const sendMessage = useCallback(async () => {
     const text = input.trim()

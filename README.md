@@ -1,3 +1,56 @@
+# **Session 2026-02-28 — V1 Completion Sprint: Close All Audit Blockers**
+
+## Status
+
+✅ Session complete. Committed as `94e21d4` on `master` (19 files: 17 modified, 2 deleted).
+
+## Executive Summary
+
+Single-session sprint to close every open audit blocker from the 02-27 deep-dive. Touched backend (Python), frontend (React), plugin (C#), infrastructure (Supabase), and agent configs. Removed 482KB dead code. Fixed critical Supabase project ref pointing every AI agent at the wrong project.
+
+---
+
+## What Was Accomplished
+
+1. **LEDBlinky path fix**: `backend/constants/paths.py`, `backend/routers/led.py` — `A:\Tools\LEDBlinky\` → `A:\LEDBlinky\`
+2. **HttpBridge IGameEventsPlugin**: `plugin/src/Plugin.cs` — game start/stop POST to Python backend
+3. **Voice LED injection**: `VoiceService` DI fix — real `LEDHardwareService` injected, hardware calls uncommented
+4. **Cinema genre themes**: `NitroRush` (racing) + `TargetLock` (lightgun) in `colors.json`. `CINEMA_TAG_TO_THEME` + `_apply_genre_theme()` + `_reset_leds_to_idle()`
+5. **Voice command TTS**: `tryLightingCommand()` in `VoicePanel.jsx` — SSE + `speakAsVicky()` fallback
+6. **HID fallback**: `_call_ledblinky()` falls back to `_apply_genre_theme()` on any failure
+7. **blinky_patterns boot**: Confirmed silent hang (not error). Documented root cause in `app.py`
+8. **Supabase project ref**: Fixed in 10 files — `hjxzbicsjzyzalwilmlj` (wrong) → `zlkhsxacfyxsctqpvbsh` (correct)
+9. **JWT verification**: Toggled OFF for `elevenlabs-proxy` and `openai-proxy` in dashboard
+10. **Dead code removal**: Deleted 2 orphaned 241KB monoliths (app uses 25KB refactored version)
+11. **doc_diagnostics upgrade**: 4KB→9KB — added VID/PID scanning, alerts, WebSocket
+12. **Persona names**: Canonical roster applied to `Assistants.jsx` grid
+
+## Struggles & Resolutions
+
+| Struggle | Root Cause | Fix |
+|----------|-----------|-----|
+| Supabase CLI returned empty tables | Agent configs pointed to wrong project | Browser visual confirmation → bulk update 10 files |
+| `blinky_patterns` "import error" | Silent hang — `__init__.py` eagerly parses XML + HID | Documented root cause, noted lazy export fix path |
+| `git commit` hung 5+ minutes | USB drive I/O + large file delta (482KB delete) | Patience — commit completed |
+
+## Architecture Notes for Future Agents
+
+- **Dual LED Stack**: LEDBlinky.exe (per-button CLI) + Python HID (genre color washes). HID fallback if LEDBlinky fails.
+- **Supabase**: Arcade Assistant = `zlkhsxacfyxsctqpvbsh`. G&G Website = `hjxzbicsjzyzalwilmlj`. NEVER mix.
+- **Edge Functions**: anthropic-proxy, elevenlabs-proxy, openai-proxy, gemini-proxy, admin-gateway. All active, verify_jwt=false.
+
+## Next Session Priorities
+
+1. End-to-end cinema genre theme test during live gameplay
+2. VoicePanel lighting command test ("light P1 red")
+3. Convert `blinky/__init__.py` to lazy exports
+4. Verify gateway scorekeeper endpoints
+5. Pull/recreate `openai-proxy` local source
+
+---
+
+---
+
 # **Session 2026-02-23b - ScoreKeeper Sam Competitive Ecosystem + Persona Card Visual Hierarchy Fix**
 
 ## Status

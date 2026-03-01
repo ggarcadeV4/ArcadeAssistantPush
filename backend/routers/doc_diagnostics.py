@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
-from backend.services.identity_service import get_hardware_bio
+from backend.services.identity_service import scan_hardware_bio
 from backend.services.system_health import health_service
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ async def get_bio():
     plus a deterministic hardware fingerprint.
     """
     try:
-        bio = get_hardware_bio()
+        bio = scan_hardware_bio()
         return {
             "status": "ok",
             "hardware_bio": bio,
@@ -145,7 +145,7 @@ async def get_vitals(request: Request):
         pass
 
     # 3. Encoder Match (Pacto Tech)
-    bio = get_hardware_bio()
+    bio = scan_hardware_bio()
     sigs = [s.lower() for s in bio.get("signatures", [])]
     # KNOWN Pacto Tech IDs (04D8:EF7F, 1234:5678, atc.)
     PACTO_IDS = ["04d8:ef7f", "1234:5678", "0d62:0001", "0d62:0002", "0d62:0003"]

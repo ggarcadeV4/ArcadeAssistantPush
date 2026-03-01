@@ -2899,7 +2899,7 @@ export default function ControllerChuckPanel() {
             </div>
             <button
               className="chat-close-btn"
-              onClick={handleChatClose}
+              onClick={() => setChatOpen(false)}
               aria-label="Close chat"
             >
               ×
