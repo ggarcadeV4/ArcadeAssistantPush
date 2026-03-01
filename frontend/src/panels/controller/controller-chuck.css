@@ -323,9 +323,19 @@
 /* 2P player row: content-sized like 4P rows (no flex:1 stretching) */
 .chuck-shell[data-mode="2p"] .chuck-player-row {
   flex: 0 0 auto;
-  /* Vertically center the single row in the remaining space */
-  margin-top: auto;
-  margin-bottom: auto;
+  gap: 10px;
+}
+
+/* Match the 4P centering: top strip + player row centered in available space */
+.chuck-shell[data-mode="2p"] .chuck-main {
+  justify-content: center;
+  gap: 14px;
+}
+
+/* Same max-height as 4P so cards stay compact and consistent */
+.chuck-shell[data-mode="2p"] .chuck-player-card {
+  max-height: 180px;
+  overflow: hidden;
 }
 
 /* Override the mode-2p centered/enlarged controller layout */
