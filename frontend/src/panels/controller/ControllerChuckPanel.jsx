@@ -152,14 +152,20 @@ const UtilButton = memo(({ label, pinLabel }) => (
 UtilButton.displayName = 'UtilButton';
 
 /** One player card (joystick + button grid + utilities) */
-const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode, activePlayer, focusOrigin, onFocus }) => {
+const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus }) => {
   const { id, label, cls, layout } = player;
   const cardRef = useRef(null);
 
   // Determine focus state
   const isFocused = activePlayer === id;
-  const isDimmed = activePlayer !== null && activePlayer !== id;
-  const focusClass = isFocused ? ' focus-active' : isDimmed ? ' focus-dimmed' : '';
+  const isDimmed = activePlayer !== null && activePlayer !== id && !isReturning;
+  const focusClass = isFocused
+    ? ' focus-active'
+    : isReturning
+      ? ' focus-returning'
+      : isDimmed
+        ? ' focus-dimmed'
+        : '';
 
   const getPin = useCallback((controlKey) => {
     const entry = mapping?.[`${id}.${controlKey}`];
@@ -192,8 +198,8 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
     onFocus?.(id, cardRef.current?.getBoundingClientRect());
   }, [id, onFocus]);
 
-  // Inline CSS vars for FLIP animation — only applied to the active card
-  const flipStyle = isFocused && focusOrigin ? {
+  // CSS vars for FLIP entry + return-to-grid exit — apply to both active & returning
+  const flipStyle = (isFocused || isReturning) && focusOrigin ? {
     '--flip-x': `${focusOrigin.dx}px`,
     '--flip-y': `${focusOrigin.dy}px`,
     '--flip-w': `${focusOrigin.w}px`,
@@ -204,6 +210,9 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
       ref={cardRef}
       className={`chuck-player-card ${cls}${playerMode === '2p' ? ' mode-2p' : ''}${focusClass}`}
       style={flipStyle}
+      onAnimationEnd={(e) => {
+        if (e.animationName === 'return-to-grid') onReturnEnd?.();
+      }}
       onClick={() => {
         if (mappingDir || mappingButton) {
           setMappingDir(null);
@@ -380,6 +389,7 @@ export default function ControllerChuckPanel() {
 
   // Focus mode: which player card is active for mapping (null = all equal)
   const [activePlayer, setActivePlayer] = useState(null);
+  const [returningPlayer, setReturningPlayer] = useState(null); // plays exit animation
   // FLIP origin: where the focused card came from (for direction-aware animation)
   const [focusOrigin, setFocusOrigin] = useState(null);
   const mainRef = useRef(null);
@@ -387,22 +397,31 @@ export default function ControllerChuckPanel() {
   // FLIP focus handler — computes delta from card pos to panel center
   const handleFocus = useCallback((playerId, rect) => {
     if (!playerId || !rect) {
+      // Dismiss: hand off to return animation — keep focusOrigin until animation ends
+      setReturningPlayer(prev => prev ?? activePlayer);
       setActivePlayer(null);
-      setFocusOrigin(null);
       return;
     }
+    // Cancel any in-flight return animation
+    setReturningPlayer(null);
+    setFocusOrigin(null);
+
     const mainEl = mainRef.current;
     if (mainEl) {
       const mainRect = mainEl.getBoundingClientRect();
-      const centerX = mainRect.left + mainRect.width / 2;
-      const centerY = mainRect.top + mainRect.height / 2;
       setFocusOrigin({
-        dx: (rect.left + rect.width / 2) - centerX,
-        dy: (rect.top + rect.height / 2) - centerY,
+        dx: (rect.left + rect.width / 2) - (mainRect.left + mainRect.width / 2),
+        dy: (rect.top + rect.height / 2) - (mainRect.top + mainRect.height / 2),
         w: rect.width,
       });
     }
     setActivePlayer(playerId);
+  }, [activePlayer]);
+
+  // Called by PlayerCard when its return-to-grid animation ends
+  const handleReturnEnd = useCallback(() => {
+    setReturningPlayer(null);
+    setFocusOrigin(null);
   }, []);
 
   // Logo image — auto-loads from /gg-logo.png, falls back to text badge
@@ -703,7 +722,9 @@ export default function ControllerChuckPanel() {
                   pressedKeys={pressedKeys}
                   playerMode={playerMode}
                   activePlayer={activePlayer}
-                  focusOrigin={activePlayer === p.id ? focusOrigin : null}
+                  focusOrigin={activePlayer === p.id || returningPlayer === p.id ? focusOrigin : null}
+                  isReturning={returningPlayer === p.id}
+                  onReturnEnd={handleReturnEnd}
                   onFocus={handleFocus}
                 />
               ))}
@@ -741,7 +762,9 @@ export default function ControllerChuckPanel() {
                   pressedKeys={pressedKeys}
                   playerMode={playerMode}
                   activePlayer={activePlayer}
-                  focusOrigin={activePlayer === p.id ? focusOrigin : null}
+                  focusOrigin={activePlayer === p.id || returningPlayer === p.id ? focusOrigin : null}
+                  isReturning={returningPlayer === p.id}
+                  onReturnEnd={handleReturnEnd}
                   onFocus={handleFocus}
                 />
               ))}

@@ -456,6 +456,45 @@
   transition: all 0.3s ease;
 }
 
+/* ── Return animation: premium dissolve back to grid corner ─── */
+.chuck-player-card.focus-returning {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--flip-w, 260px);
+  z-index: 50;
+  pointer-events: none;
+  animation: return-to-grid 0.5s cubic-bezier(0.55, 0, 1, 0.45) both;
+}
+
+@keyframes return-to-grid {
+  0% {
+    transform: translate(-50%, -50%) scale(1.35);
+    box-shadow: 0 0 40px rgba(0, 255, 65, 0.45);
+    filter: brightness(1) blur(0px);
+    opacity: 1;
+  }
+
+  /* Brief "breath out" — the card pulses before releasing */
+  18% {
+    transform: translate(-50%, -50%) scale(1.52);
+    box-shadow: 0 0 60px rgba(0, 255, 65, 0.6);
+    filter: brightness(1.5) blur(0px);
+    opacity: 1;
+  }
+
+  /* Arc back to original grid position, fading and blurring out */
+  100% {
+    transform: translate(calc(-50% + var(--flip-x, 0px)),
+        calc(-50% + var(--flip-y, 0px))) scale(1.0);
+    box-shadow: none;
+    filter: brightness(0.8) blur(3px);
+    opacity: 0;
+  }
+}
+
+
+
 
 /* Phase 1: higher opacity rims — visible at rest, not just on hover */
 
