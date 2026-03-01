@@ -281,6 +281,65 @@
   gap: 2px;
 }
 
+/* ── 2P mode: identical card sizing as 4P ─────────────────── */
+/* Keeps the UI consistent; the only visual diff is no P3/P4 top row */
+.chuck-main[data-mode="2p"] .chuck-logo-badge {
+  width: 62px;
+  height: 62px;
+}
+
+.chuck-main[data-mode="2p"] .chuck-logo-badge img {
+  width: 62px;
+  height: 62px;
+}
+
+.chuck-main[data-mode="2p"] .chuck-btn-circle-face {
+  width: 44px;
+  height: 44px;
+  font-size: 11px;
+  border-width: 2px;
+}
+
+.chuck-main[data-mode="2p"] .chuck-joystick {
+  width: 66px;
+  height: 66px;
+}
+
+.chuck-main[data-mode="2p"] .chuck-joystick-inner {
+  width: 24px;
+  height: 24px;
+}
+
+.chuck-main[data-mode="2p"] .chuck-player-card {
+  padding: 4px;
+  gap: 2px;
+}
+
+/* Hide center logo in 2P — top strip already has the logo */
+.chuck-main[data-mode="2p"] .chuck-center-logo {
+  display: none;
+}
+
+/* 2P player row: content-sized like 4P rows (no flex:1 stretching) */
+.chuck-shell[data-mode="2p"] .chuck-player-row {
+  flex: 0 0 auto;
+}
+
+/* Override the mode-2p centered/enlarged controller layout */
+.chuck-player-card.mode-2p .chuck-controller-layout {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.chuck-player-card.mode-2p .chuck-button-row {
+  justify-content: flex-start;
+}
+
+.chuck-player-card.mode-2p .chuck-utility-row {
+  justify-content: flex-start;
+}
+
+
 /* ── Flame Graphics ──────────────────────────────────────── */
 .chuck-flames {
   position: absolute;
