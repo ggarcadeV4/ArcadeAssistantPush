@@ -409,10 +409,29 @@
   justify-content: flex-start;
   gap: 4px;
   position: relative;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.3s ease,
+    opacity 0.3s ease, filter 0.3s ease;
+  cursor: pointer;
+}
+
+/* ── Focus Mode: active card steps forward ───────────────────── */
+.chuck-player-card.focus-active {
+  transform: scale(1.04);
+  z-index: 10;
+  box-shadow: 0 0 24px rgba(0, 255, 65, 0.35), inset 0 0 12px rgba(0, 255, 65, 0.06);
+  border-color: rgba(0, 255, 65, 0.85) !important;
+}
+
+/* Dimmed cards recede behind the active one */
+.chuck-player-card.focus-dimmed {
+  opacity: 0.3;
+  filter: blur(0.8px) brightness(0.5);
+  transform: scale(0.97);
+  pointer-events: none;
 }
 
 /* Phase 1: higher opacity rims — visible at rest, not just on hover */
+
 .chuck-player-card.p1 {
   border-color: rgba(0, 255, 65, 0.55);
   box-shadow: 0 0 6px rgba(0, 255, 65, 0.1), inset 0 0 8px rgba(0, 255, 65, 0.03);

@@ -125,8 +125,14 @@ const UtilButton = memo(({ label, pinLabel }) => (
 UtilButton.displayName = 'UtilButton';
 
 /** One player card (joystick + button grid + utilities) */
-const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode }) => {
+const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode, activePlayer, onFocus }) => {
   const { id, label, cls, layout } = player;
+
+  // Determine focus state
+  const isFocused = activePlayer === id;
+  const isDimmed = activePlayer !== null && activePlayer !== id;
+
+  const focusClass = isFocused ? ' focus-active' : isDimmed ? ' focus-dimmed' : '';
 
   const getPin = useCallback((controlKey) => {
     const entry = mapping?.[`${id}.${controlKey}`];
@@ -142,7 +148,10 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
   }, [id, onButtonClick]);
 
   return (
-    <div className={`chuck-player-card ${cls}${playerMode === '2p' ? ' mode-2p' : ''}`}>
+    <div
+      className={`chuck-player-card ${cls}${playerMode === '2p' ? ' mode-2p' : ''}${focusClass}`}
+      onClick={() => onFocus?.(isFocused ? null : id)}
+    >
       <div className="chuck-player-header">
         <span className="chuck-player-badge">{label}</span>
         <span className="chuck-player-status">GPIO BANK {cls.toUpperCase()}</span>
@@ -305,6 +314,9 @@ export default function ControllerChuckPanel() {
 
   // Player mode: '2p' or '4p'
   const [playerMode, setPlayerMode] = useState('4p');
+
+  // Focus mode: which player card is active for mapping (null = all equal)
+  const [activePlayer, setActivePlayer] = useState(null);
 
   // Logo image — auto-loads from /gg-logo.png, falls back to text badge
   const [logoLoaded, setLogoLoaded] = useState(true);
@@ -602,6 +614,9 @@ export default function ControllerChuckPanel() {
                   player={p}
                   mapping={mapping}
                   pressedKeys={pressedKeys}
+                  playerMode={playerMode}
+                  activePlayer={activePlayer}
+                  onFocus={setActivePlayer}
                 />
               ))}
             </div>
@@ -637,6 +652,8 @@ export default function ControllerChuckPanel() {
                   mapping={mapping}
                   pressedKeys={pressedKeys}
                   playerMode={playerMode}
+                  activePlayer={activePlayer}
+                  onFocus={setActivePlayer}
                 />
               ))}
           </div>
@@ -668,19 +685,23 @@ export default function ControllerChuckPanel() {
           Input Detection Mode
         </label>
 
-        {hasPending && (
-          <span className="chuck-pending-badge">⚡ PENDING CHANGES</span>
-        )}
+        {
+          hasPending && (
+            <span className="chuck-pending-badge">⚡ PENDING CHANGES</span>
+          )
+        }
 
-        {flashMsg && (
-          <span style={{
-            fontSize: '10px',
-            color: flashMsg.type === 'success' ? 'var(--chuck-green)' :
-              flashMsg.type === 'error' ? 'var(--chuck-red)' : 'var(--chuck-cyan)'
-          }}>
-            {flashMsg.msg}
-          </span>
-        )}
+        {
+          flashMsg && (
+            <span style={{
+              fontSize: '10px',
+              color: flashMsg.type === 'success' ? 'var(--chuck-green)' :
+                flashMsg.type === 'error' ? 'var(--chuck-red)' : 'var(--chuck-cyan)'
+            }}>
+              {flashMsg.msg}
+            </span>
+          )
+        }
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
           <button
@@ -701,7 +722,7 @@ export default function ControllerChuckPanel() {
             FACTORY RESET
           </button>
         </div>
-      </footer>
-    </div>
+      </footer >
+    </div >
   );
 }
