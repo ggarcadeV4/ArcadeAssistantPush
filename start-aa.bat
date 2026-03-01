@@ -81,13 +81,27 @@ rem Small delay after killing to let ports release
 timeout /t 1 >nul
 
 rem ----------------------------------------------------------------------------
-rem  Step 3: Start FastAPI backend (minimized, logging to file)
+rem  Step 3: Build frontend (ensures latest source changes are in dist/)
+rem ----------------------------------------------------------------------------
+echo [INFO] Building frontend...
+cd /d "%REPOROOT%"
+call npm run build:frontend
+if errorlevel 1 (
+    echo [ERROR] Frontend build failed! Aborting launch.
+    echo         Fix the build error above before starting the application.
+    exit /b 1
+)
+echo [OK] Frontend built successfully.
+echo.
+
+rem ----------------------------------------------------------------------------
+rem  Step 4: Start FastAPI backend (minimized, logging to file)
 rem ----------------------------------------------------------------------------
 echo [INFO] Starting FastAPI backend on 127.0.0.1:8000...
 start "AA-Backend" /min cmd /c ""%REPOROOT%scripts\run-backend.bat" > "%LOGDIR%\backend.log" 2>&1"
 
 rem ----------------------------------------------------------------------------
-rem  Step 4: Wait for backend port 8000 to be listening (max 30 seconds)
+rem  Step 5: Wait for backend port 8000 to be listening (max 30 seconds)
 rem ----------------------------------------------------------------------------
 echo [INFO] Waiting for backend to be ready (port 8000)...
 set BACKEND_READY=0
@@ -115,13 +129,13 @@ if !BACKEND_READY! EQU 0 (
 )
 
 rem ----------------------------------------------------------------------------
-rem  Step 5: Start Gateway server (minimized, logging to file)
+rem  Step 6: Start Gateway server (minimized, logging to file)
 rem ----------------------------------------------------------------------------
 echo [INFO] Starting Gateway server on 127.0.0.1:8787...
 start "AA-Gateway" /min cmd /c ""%REPOROOT%scripts\run-gateway.bat" > "%LOGDIR%\gateway.log" 2>&1"
 
 rem ----------------------------------------------------------------------------
-rem  Step 6: Wait for gateway port 8787 to be listening (max 30 seconds)
+rem  Step 7: Wait for gateway port 8787 to be listening (max 30 seconds)
 rem ----------------------------------------------------------------------------
 echo [INFO] Waiting for gateway to be ready (port 8787)...
 set GATEWAY_READY=0
@@ -149,7 +163,7 @@ if !GATEWAY_READY! EQU 0 (
 )
 
 rem ----------------------------------------------------------------------------
-rem  Step 7: Open browser to UI
+rem  Step 8: Open browser to UI
 rem ----------------------------------------------------------------------------
 echo [INFO] Opening Arcade Assistant UI...
 start "" "http://127.0.0.1:8787/assistants"

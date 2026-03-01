@@ -192,7 +192,7 @@ export default function Assistants() {
     </>
   }
 
-  // Controller Chuck default interface (visual cabinet layout + button mappings + chat)
+  // Controller Chuck — direct panel (no shell wrapper, no tabs)
   if (
     agent === 'chuck' ||
     agent === 'controller-chuck' ||
@@ -203,15 +203,15 @@ export default function Assistants() {
   ) {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
+      <ErrorBoundary><ControllerChuckPanelRedesign /></ErrorBoundary>
     </>
   }
 
-  // Redesigned Chuck panel (grid-based pin mapping) available via explicit aliases
-  if (agent === 'chuck-redesign' || agent === 'controller-chuck-redesign' || agent === 'chuck-legacy') {
+  // Legacy deprecated stub — basic device table only, kept for reference
+  if (agent === 'chuck-legacy' || agent === 'controller-chuck-legacy' || agent === 'chuck-redesign') {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerPanel /></ErrorBoundary>
+      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
     </>
   }
 

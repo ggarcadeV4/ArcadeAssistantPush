@@ -1244,7 +1244,7 @@ export default function VoicePanel() {
                 <div style={{ fontSize: '16px', fontWeight: '600', color: '#c8ff00' }}>Vicky</div>
                 <div style={{ fontSize: '12px', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
-                  <span>Voice Assistant â€¢ {sharedProfile?.displayName || profile.displayName || 'Guest'}</span>
+                  <span>Voice Assistant • {sharedProfile?.displayName || profile.displayName || 'Guest'}</span>
                 </div>
               </div>
             </div>
@@ -1253,7 +1253,7 @@ export default function VoicePanel() {
               onClick={() => setChatOpen(false)}
               aria-label="Close chat"
             >
-              Ã—
+              ×
             </button>
           </div>
 
@@ -1312,7 +1312,7 @@ export default function VoicePanel() {
                 aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
               >
                 {isRecording ? (
-                  <span style={{ fontSize: '20px' }}>â¹ï¸</span>
+                  <span style={{ fontSize: '20px' }}>⏹️</span>
                 ) : (
                   <img src="/vicky-mic.png" alt="Microphone" style={{ width: '28px', height: '28px' }} />
                 )}
@@ -1334,7 +1334,7 @@ export default function VoicePanel() {
                   fontWeight: 'bold'
                 }}
               >
-                {autoStopEnabled ? 'â±ï¸ Auto' : 'â±ï¸ Manual'}
+                {autoStopEnabled ? '⏱️ Auto' : '⏱️ Manual'}
               </button>
             </div>
           </div>
