@@ -416,32 +416,46 @@
   cursor: pointer;
 }
 
-/* ── Focus Mode: active card slides to center of panel ─────── */
+/* ── Focus Mode: active card slides from its grid position to center ── */
 .chuck-player-card.focus-active {
-  /* Pop out of flex flow and center in chuck-main */
   position: absolute;
   top: 50%;
   left: 50%;
+  /* Lock width so card doesn't reshape when leaving the grid */
+  width: var(--flip-w, 260px);
   transform: translate(-50%, -50%) scale(1.35);
   z-index: 50;
-  /* Strong border glow so it reads as 'selected' */
   box-shadow: 0 0 40px rgba(0, 255, 65, 0.45), inset 0 0 16px rgba(0, 255, 65, 0.08);
   border-color: rgba(0, 255, 65, 0.9) !important;
-  /* Minimum width so content doesn't squash when centered */
-  min-width: 280px;
-  /* Spring easing: overshoots slightly then settles */
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* FLIP animation: starts at grid origin, ends at center */
+  animation: flip-to-center 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* Dimmed cards disappear further — active card is the only thing to see */
+@keyframes flip-to-center {
+  from {
+    /* Start at the card's natural grid position (stored as CSS vars by JS) */
+    transform: translate(calc(-50% + var(--flip-x, 0px)),
+        calc(-50% + var(--flip-y, 0px))) scale(1.0);
+    box-shadow: none;
+    border-color: inherit;
+  }
+
+  to {
+    transform: translate(-50%, -50%) scale(1.35);
+    box-shadow: 0 0 40px rgba(0, 255, 65, 0.45), inset 0 0 16px rgba(0, 255, 65, 0.08);
+    border-color: rgba(0, 255, 65, 0.9);
+  }
+}
+
+/* Dimmed cards disappear — active card is the only focal point */
 .chuck-player-card.focus-dimmed {
   opacity: 0.12;
   filter: blur(1px) brightness(0.4);
   transform: scale(0.95);
   pointer-events: none;
-  /* Normal transition back — no spring needed for dimmed */
   transition: all 0.3s ease;
 }
+
 
 /* Phase 1: higher opacity rims — visible at rest, not just on hover */
 
