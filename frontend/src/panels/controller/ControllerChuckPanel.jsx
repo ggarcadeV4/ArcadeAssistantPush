@@ -545,7 +545,7 @@ export default function ControllerChuckPanel() {
       {/* ── Body ── */}
       <div className="chuck-body">
         {/* Main grid — two rows, each has 2 player cards */}
-        <main className="chuck-main">
+        <main className="chuck-main" data-mode={playerMode}>
           <FlameSVG />
 
           {/* Top row — only in 4P mode: P3 | P4 (back players) */}

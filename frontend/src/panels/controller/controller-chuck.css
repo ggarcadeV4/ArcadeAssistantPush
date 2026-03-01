@@ -241,6 +241,22 @@
   text-transform: uppercase;
 }
 
+/* ── 4P Mode: compact logo zone — reclaims space for player rows ── */
+.chuck-main[data-mode="4p"] .chuck-center-logo {
+  padding: 0;
+}
+
+.chuck-main[data-mode="4p"] .chuck-logo-badge {
+  width: 62px;
+  height: 62px;
+  box-shadow: 0 0 14px rgba(0, 255, 65, 0.4), 0 0 28px rgba(0, 255, 65, 0.12);
+}
+
+.chuck-main[data-mode="4p"] .chuck-logo-badge img {
+  width: 62px;
+  height: 62px;
+}
+
 /* ── Flame Graphics ──────────────────────────────────────── */
 .chuck-flames {
   position: absolute;
@@ -365,8 +381,8 @@
   padding: 6px;
   display: flex;
   flex-direction: column;
-  /* Header pins top, controls float toward center — eliminates void quadrant */
-  justify-content: space-between;
+  /* flex-start: header at top, controller-layout fills remaining space */
+  justify-content: flex-start;
   gap: 4px;
   position: relative;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -587,13 +603,13 @@
   text-align: center;
 }
 
-/* ── Button Grid — Phase 2: dominant presence ───────────── */
+/* ── Button Grid ─────────────────────────────────────────── */
 .chuck-button-area {
   display: flex;
   flex-direction: column;
-  /* Phase 1: tighter internal gap */
   gap: 4px;
-  flex: 1;
+  /* flex: 0 0 auto — cluster sized to content, enables true centering */
+  flex: 0 0 auto;
 }
 
 .chuck-button-row {
