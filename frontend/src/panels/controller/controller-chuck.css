@@ -323,6 +323,9 @@
 /* 2P player row: content-sized like 4P rows (no flex:1 stretching) */
 .chuck-shell[data-mode="2p"] .chuck-player-row {
   flex: 0 0 auto;
+  /* Vertically center the single row in the remaining space */
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 /* Override the mode-2p centered/enlarged controller layout */
