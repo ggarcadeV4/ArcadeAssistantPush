@@ -548,6 +548,21 @@ export default function ControllerChuckPanel() {
         <main className="chuck-main" data-mode={playerMode}>
           <FlameSVG />
 
+          {/* Logo header — 4P mode only, sits above P3/P4 row */}
+          {playerMode === '4p' && (
+            <div className="chuck-4p-logo-header">
+              {logoLoaded ? (
+                <img
+                  src={logoPath}
+                  alt="G&G Arcade"
+                  onError={() => setLogoLoaded(false)}
+                />
+              ) : (
+                <span className="chuck-logo-text">GG ARCADE</span>
+              )}
+            </div>
+          )}
+
           {/* Top row — only in 4P mode: P3 | P4 (back players) */}
           {playerMode === '4p' && (
             <div className="chuck-player-row">

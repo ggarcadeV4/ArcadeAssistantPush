@@ -1278,3 +1278,22 @@
   max-height: 180px;
   overflow: hidden;
 }
+
+/* ── 4P Logo Header — sits above P3/P4 row ─────────────────── */
+.chuck-4p-logo-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0 0;
+  flex-shrink: 0;
+}
+
+.chuck-4p-logo-header img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  box-shadow: 0 0 14px rgba(0, 255, 65, 0.45), 0 0 28px rgba(0, 255, 65, 0.15);
+  filter: drop-shadow(0 0 4px rgba(0, 255, 65, 0.4));
+}
