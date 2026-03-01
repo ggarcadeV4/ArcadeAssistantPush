@@ -257,6 +257,30 @@
   height: 62px;
 }
 
+/* 4P: scale down buttons + joystick so all 4 cards fit without clipping */
+.chuck-main[data-mode="4p"] .chuck-btn-circle-face {
+  width: 44px;
+  height: 44px;
+  font-size: 11px;
+  border-width: 2px;
+}
+
+.chuck-main[data-mode="4p"] .chuck-joystick {
+  width: 66px;
+  height: 66px;
+}
+
+.chuck-main[data-mode="4p"] .chuck-joystick-inner {
+  width: 24px;
+  height: 24px;
+}
+
+/* 4P: tighter card padding to further reclaim height */
+.chuck-main[data-mode="4p"] .chuck-player-card {
+  padding: 4px;
+  gap: 2px;
+}
+
 /* ── Flame Graphics ──────────────────────────────────────── */
 .chuck-flames {
   position: absolute;

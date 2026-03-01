@@ -67,7 +67,7 @@ const LAYOUT_8BTN = {
 };
 const LAYOUT_4BTN = {
   topRow: [1, 2],
-  bottomRow: [4, 5],
+  bottomRow: [3, 4],
 };
 
 /** Player meta — visual order top→bottom = back→front of cabinet */
