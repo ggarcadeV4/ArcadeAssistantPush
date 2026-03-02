@@ -822,524 +822,531 @@ export default function VoicePanel() {
   }, [shareFeedback])
 
   return (
-    <>
-      <PanelShell
-        title="Voice Assistant"
-        subtitle="Personalization & AI Training Hub"
-        icon={
-          <img
-            src="/vicky-avatar.jpeg"
-            alt="Vicky"
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              border: '2px solid rgba(0, 229, 255, 0.4)',
-              boxShadow: '0 0 12px rgba(200, 255, 0, 0.4)',
-              objectFit: 'cover'
-            }}
-          />
-        }
-        headerActions={
-          <button
-            className="chat-toggle-btn"
-            onClick={() => setChatOpen(true)}
-            title="Open AI Chat Assistant"
-            aria-label="Open AI Chat Assistant"
-          >
-            <span className="chat-icon">ðŸ’¬</span>
-            <span className="chat-label">Chat with AI</span>
-          </button>
-        }
-      >
-        <div className="voice-panel">
-          {showConsent && (
-            <div className="consent-overlay" role="dialog" aria-modal="true" aria-label="Permissions & Consent" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.9)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '680px', maxWidth: '95vw', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 20, color: '#e5e7eb' }}>
-                <h2 style={{ marginTop: 0, color: '#c8ff00' }}>Join the Arcade Assistant Network</h2>
-                <p style={{ marginTop: 8, marginBottom: 12 }}>By opting in, you agree that your display name and scores may be shared across connected cabinets for public leaderboards. You can manage or revoke permissions anytime in Settings â†’ Permissions.</p>
-                <ul style={{ lineHeight: '1.6' }}>
-                  <li>Shares: display name, scores, timestamps, and cabinet ID.</li>
-                  <li>No sensitive data is collected. Local play remains available.</li>
-                </ul>
-                <div style={{ marginTop: 12 }}>
-                  <label style={{ display: 'block', marginBottom: 6 }}>
-                    <input type="checkbox" checked={agreeNetwork} onChange={(e) => setAgreeNetwork(e.target.checked)} /> I agree to join the Arcade Assistant Network.
-                  </label>
-                  <label style={{ display: 'block', marginBottom: 6 }}>
-                    <input type="checkbox" checked={agreeLeaderboard} onChange={(e) => setAgreeLeaderboard(e.target.checked)} /> I agree my scores may be shown on public leaderboards.
-                  </label>
-                  <label style={{ display: 'block', marginBottom: 6 }}>
-                    <input type="checkbox" checked={agreeContact} onChange={(e) => setAgreeContact(e.target.checked)} /> Optional: I agree to receive updates (email/SMS).
-                  </label>
-                </div>
-                <p style={{ fontSize: '0.85em', color: '#9ca3af', marginTop: 12 }}>
-                  By checking the boxes above, you consent to the data sharing described. Your data is stored securely and you can revoke consent anytime via Settings â†’ Permissions.
-                </p>
-                {consentError && (
-                  <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 6, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span>{consentError}</span>
-                    <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">Ã—</button>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
-                  <button className="btn" disabled={!canApplyConsent || consentSaving} onClick={handleApplyConsent} aria-label="Agree and continue">{consentSaving ? 'Saving...' : 'I Agree'}</button>
-                  <button className="btn btn-secondary" onClick={() => { setShowConsent(false); setWarn(''); }} aria-label="Continue offline">Continue Offline</button>
-                  <button type="button" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowTerms(true)}>Terms & Privacy</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Terms & Privacy Modal */}
-          {showTerms && (
-            <div className="terms-overlay" role="dialog" aria-modal="true" aria-label="Terms and Privacy" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.95)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '800px', maxWidth: '95vw', maxHeight: '90vh', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 24, color: '#e5e7eb', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h2 style={{ margin: 0, color: '#c8ff00' }}>Terms & Privacy (Local-First)</h2>
-                  <button type="button" onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5em', cursor: 'pointer' }} aria-label="Close">Ã—</button>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9em', lineHeight: 1.6 }}>
-                  <p><strong>Operator / Publisher:</strong> G & G Arcade ("G&G," "we," "us")<br />
-                    <strong>Software:</strong> Arcade Assistant<br />
-                    <strong>Version:</strong> v1.0 | <strong>Effective:</strong> 2025-12-13</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>1) Local-First Default</h3>
-                  <p>The Software functions fully offline. No account required for local play. Declining consent does not block basic cabinet use. Online Features are optional.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>2) Consent & Opt-In Model</h3>
-                  <p><strong>Requires consent:</strong> Public leaderboards, score syncing, display name visibility, cabinet ID for syncing, optional communications.</p>
-                  <p><strong>Does NOT require consent:</strong> Local gameplay, local scores/profiles, basic cabinet operation.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>3) Data We Collect</h3>
-                  <p><strong>Local-only by default:</strong> Profiles, scores, settings stored on cabinet.</p>
-                  <p><strong>If you opt into Online Features:</strong> Display name, game titles, scores/timestamps, cabinet ID, basic config metadata.</p>
-                  <p><strong>We do NOT collect:</strong> Government IDs, biometrics, payment data, real names (unless typed), permanent voice recordings (unless enabled).</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>4) Voice & Audio</h3>
-                  <p>Voice features are optional. Audio is processed transiently for voice commands. We do not use voice data to identify individuals or sell voice data. Public-space reminder: avoid speaking sensitive information.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>5) Third-Party Services</h3>
-                  <p>Online Features may use third-party providers (hosting, databases, cloud AI). Their privacy practices are governed by their own terms.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>6) Scores & Leaderboards</h3>
-                  <p>Scores may be moderated, hidden, or removed. Leaderboards are not guaranteed permanent. Offline scores may not sync retroactively.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>7) User Responsibilities</h3>
-                  <p>Do not use for unlawful conduct, cheating, or interfering with systems. Cabinet owners responsible for safe operation and installed content.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>8) Ownership & Licensing</h3>
-                  <p>Software owned by G&G Arcade. Limited license granted for cabinet use. ROMs/game content are owner's responsibility.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>9) Warranty Disclaimer</h3>
-                  <p>Software provided "AS IS." No guarantee of uninterrupted operation or permanent data retention.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>10) Limitation of Liability</h3>
-                  <p>G&G not liable for hardware damage, data loss, third-party outages, or indirect damages.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>11) Privacy Choices</h3>
-                  <p>Disable Online Features anytime. Request deletion via contact. Local data deletable via cabinet settings.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>12) Changes</h3>
-                  <p>Terms may update. Material changes require renewed consent.</p>
-
-                  <h3 style={{ color: '#93c5fd', marginTop: 16 }}>13) Contact</h3>
-                  <p>Questions or concerns: <strong>greg@ggarcade.net</strong></p>
-                </div>
-                <div style={{ marginTop: 16, textAlign: 'right' }}>
-                  <button className="btn" onClick={() => setShowTerms(false)}>Close</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Toast Notification */}
-          {saveToast && (
-            <div
-              className="save-toast"
-              role="status"
-              aria-live="polite"
+    <div className="eb-layout">
+      <div className="eb-layout__main">
+        <PanelShell
+          title="Voice Assistant"
+          subtitle="Personalization & AI Training Hub"
+          icon={
+            <img
+              src="/vicky-avatar.jpeg"
+              alt="Vicky"
               style={{
-                position: 'fixed',
-                top: '20px',
-                right: '20px',
-                zIndex: 1000,
-                background: saveToast.startsWith('Error') ? '#dc2626' : '#10b981',
-                color: '#ffffff',
-                padding: '12px 20px',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                fontWeight: '500',
-                maxWidth: '400px'
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                border: '2px solid rgba(0, 229, 255, 0.4)',
+                boxShadow: '0 0 12px rgba(200, 255, 0, 0.4)',
+                objectFit: 'cover'
               }}
-            >
-              {saveToast}
-            </div>
-          )}
-
-          {/* Live Transcription */}
-          <section className="section">
-            <div className="section-header">
-              <h2>Live Transcription</h2>
-              <span className="badge">WS</span>
-            </div>
-            {warn && (
-              <div className="text-sm" style={{ color: '#fbbf24', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }} role="status" aria-live="polite">
-                <span>{warn}</span>
-                <button type="button" onClick={() => setWarn('')} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss warning">Ã—</button>
-              </div>
-            )}
-            <div className="voice-transcript-box" style={{ padding: '8px', border: '1px solid #374151', borderRadius: 6, background: '#0b1020' }}>
-              <div className={`vicky-phase-badge ${currentPhase.className}`}>
-                <span className="phase-icon">{currentPhase.icon}</span>
-                <span className="phase-label">{currentPhase.label}</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button
-                className="btn btn-secondary"
-                onClick={() => forwardTranscript('launchbox')}
-                disabled={shareInFlight === 'launchbox'}
-              >
-                {shareInFlight === 'launchbox' ? 'Sending to LoRa...' : 'Send to LaunchBox LoRa'}
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => forwardTranscript('dewey')}
-                disabled={shareInFlight === 'dewey'}
-              >
-                {shareInFlight === 'dewey' ? 'Sending to Dewey...' : 'Send to Dewey'}
-              </button>
-              {shareFeedback && (
-                <span style={{ fontSize: '13px', color: '#a5f3fc' }}>{shareFeedback}</span>
-              )}
-            </div>
-          </section>
-
-          {/* Player Overview */}
-          <section className="section player-overview-section">
-            <div className="section-header">
-              <h2>Player Overview</h2>
-              <span className="badge">Session Context</span>
-            </div>
-            <div className="player-overview-grid">
-              <div className="overview-tile tendencies">
-                <div className="tile-header">
-                  <h3>{`${primaryUserName}'s Tendencies`}</h3>
-                  <p className="tile-subtitle">Read-only insights</p>
-                </div>
-                {tendenciesStatus === 'loading' && <p className="tendencies-note">Loading tendenciesâ€¦</p>}
-                {tendenciesStatus === 'empty' && (
-                  <p className="tendencies-note">No tendencies saved yet. They will appear here once recorded.</p>
-                )}
-                {tendenciesStatus === 'ready' && tendencyEntries.length === 0 && (
-                  <p className="tendencies-note">No tendencies saved yet.</p>
-                )}
-                {tendencyEntries.length > 0 && (
-                  <ul className="tendencies-list">
-                    {tendencyEntries.map(([key, value]) => (
-                      <li key={key}>
-                        <span className="label">{formatTendencyLabel(key)}</span>
-                        <span className="value">{formatTendencyValue(value)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="overview-tile permissions">
-                <div className="tile-header">
-                  <h3>Permissions</h3>
-                  <p className="tile-subtitle">Consent &amp; device access</p>
-                </div>
-                <p className="tendencies-note">
-                  {consent?.accepted
-                    ? 'Consent is active for this session.'
-                    : 'Consent required to sync recordings and transcripts.'}
-                </p>
-                <button className="btn btn-secondary" onClick={() => setShowConsent(true)}>
-                  Review Permissions
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Current Session */}
-          <section className="section">
-            <div className="section-header">
-              <h2>Current Session</h2>
-            </div>
-            <div className="player-grid">
-              {players.map((player, index) => (
-                <div key={index} className="player-slot">
-                  <div className="player-header">
-                    <div className="player-number">P{index + 1}</div>
-                    <div className="player-label">Player {index + 1}</div>
-                  </div>
-                  <div className="form-group">
-                    <label>User</label>
-                    <select
-                      className="form-control"
-                      value={player.user}
-                      onChange={(e) => handlePlayerUserChange(index, e.target.value)}
-                    >
-                      {userOptions.map(option => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                      <option value={ADD_USER_OPTION_VALUE}>+ Add user</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Controller</label>
-                    <select
-                      className="form-control"
-                      value={player.controller}
-                      onChange={(e) => setPlayers(prev => {
-                        const next = [...prev]
-                        next[index] = { ...next[index], controller: e.target.value }
-                        return next
-                      })}
-                    >
-                      <option value="Not Assigned">Not Assigned</option>
-                      <option value="Joystick 1">Joystick 1</option>
-                      <option value="Joystick 2">Joystick 2</option>
-                      <option value="Joystick 3">Joystick 3</option>
-                      <option value="Joystick 4">Joystick 4</option>
-                      <option value="Xbox Pad 1">Xbox Pad 1</option>
-                      <option value="Xbox Pad 2">Xbox Pad 2</option>
-                      <option value="Keyboard">Keyboard</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="action-bar">
-              <button className="btn btn-secondary" onClick={handleCopySetup}>
-                ðŸ“‹ Copy Setup Link
-              </button>
-              <button className="btn" onClick={handleStartSession}>Start Session</button>
-            </div>
-          </section>
-
-          {/* Primary User Tendencies */}
-          <section className="section">
-            <div className="section-header">
-              <h2>{primaryUserName}'s Tendencies</h2>
-              <span className="badge">Auto-Tracked</span>
-            </div>
-            {tendenciesStatus === 'loading' && (
-              <div className="tendencies-note">Loading tendencies...</div>
-            )}
-            {tendenciesStatus === 'empty' && (
-              <div className="tendencies-note">
-                No tendencies recorded yet. Play some games to build your profile!
-              </div>
-            )}
-            {tendenciesStatus === 'ready' && tendenciesData && (
-              <div className="tendencies-grid">
-                {tendenciesData.favorite_game && (
-                  <div className="tendency-card">
-                    <div className="tendency-label">Favorite Game</div>
-                    <div className="tendency-value">{tendenciesData.favorite_game}</div>
-                  </div>
-                )}
-                {tendenciesData.favorite_genre && (
-                  <div className="tendency-card">
-                    <div className="tendency-label">Favorite Genre</div>
-                    <div className="tendency-value">{tendenciesData.favorite_genre}</div>
-                  </div>
-                )}
-                {tendenciesData.total_sessions && (
-                  <div className="tendency-card">
-                    <div className="tendency-label">Total Sessions</div>
-                    <div className="tendency-value">{tendenciesData.total_sessions}</div>
-                  </div>
-                )}
-                {tendenciesData.peak_play_time && (
-                  <div className="tendency-card">
-                    <div className="tendency-label">Peak Play Time</div>
-                    <div className="tendency-value">{tendenciesData.peak_play_time}</div>
-                  </div>
-                )}
-                {tendenciesData.most_used_platform && (
-                  <div className="tendency-card">
-                    <div className="tendency-label">Most Used Platform</div>
-                    <div className="tendency-value">{tendenciesData.most_used_platform}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Primary User */}
-          <section className="section">
-            <div className="section-header">
-              <h2>Primary User</h2>
-              <p className="section-subtitle">
-                This is the main profile Arcade Assistant will operate under for this session.
-              </p>
-              <div className="current-profile-pill">
-                <span className="pill-label">Current Profile</span>
-                <span className="pill-value">
-                  {sharedProfile?.displayName || profile.displayName || 'Guest'}
-                </span>
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Custom Vocabulary</label>
-              <div className="quick-commands">
-                {Object.keys(quickCommands).map(cmd => (
-                  <button key={cmd} className="quick-command-btn" onClick={() => addQuickCommand(cmd)}>
-                    + {cmd === 'galaga' ? '"Galaga" pronunciation' :
-                      cmd === 'fighter' ? '"Fighter" means SF2' :
-                        cmd === 'continues' ? 'Continues = Extra guys' :
-                          'Cabinet nickname'}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                ref={vocabRef}
-                className="form-control"
-                value={vocabText}
-                onChange={(e) => setVocabText(e.target.value)}
-                placeholder="e.g., 'I call the cabinet the machine', 'When I say fighter, I mean Street Fighter'"
-                rows={3}
-              />
-            </div>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Display Name</label>
-                <input className="form-control" value={profile.displayName} onChange={(e) => setProfile(p => ({ ...p, displayName: e.target.value }))} placeholder="e.g., Dad" />
-              </div>
-              <div className="form-group">
-                <label>Initials</label>
-                <input className="form-control" value={profile.initials} onChange={(e) => setProfile(p => ({ ...p, initials: e.target.value }))} placeholder="e.g., DAD" />
-              </div>
-            </div>
-            <div className="action-bar">
-              <button
-                className="btn"
-                onClick={handleSaveProfile}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving & Broadcasting...' : 'Save & Broadcast'}
-              </button>
-            </div>
-          </section>
-        </div>
-      </PanelShell>
-
-      {/* Chat Sidebar - Matches LED Blinky style */}
-      {chatOpen && (
-        <div className="voice-chat-sidebar" role="dialog" aria-label="Voice Assistant Chat">
-          <div className="voice-chat-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <img
-                src="/vicky-avatar.jpeg"
-                alt="Vicky Voice Assistant"
-                className="voice-chat-avatar"
-              />
-              <div>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#c8ff00' }}>Vicky</div>
-                <div style={{ fontSize: '12px', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
-                  <span>Voice Assistant • {sharedProfile?.displayName || profile.displayName || 'Guest'}</span>
-                </div>
-              </div>
-            </div>
+            />
+          }
+          headerActions={
             <button
-              className="voice-chat-close"
-              onClick={() => setChatOpen(false)}
-              aria-label="Close chat"
+              className="chat-toggle-btn"
+              onClick={() => setChatOpen(true)}
+              title="Open AI Chat Assistant"
+              aria-label="Open AI Chat Assistant"
             >
-              ×
+              <span className="chat-icon">ðŸ’¬</span>
+              <span className="chat-label">Chat with AI</span>
             </button>
-          </div>
+          }
+        >
+          <div className="voice-panel">
+            {showConsent && (
+              <div className="consent-overlay" role="dialog" aria-modal="true" aria-label="Permissions & Consent" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.9)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '680px', maxWidth: '95vw', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 20, color: '#e5e7eb' }}>
+                  <h2 style={{ marginTop: 0, color: '#c8ff00' }}>Join the Arcade Assistant Network</h2>
+                  <p style={{ marginTop: 8, marginBottom: 12 }}>By opting in, you agree that your display name and scores may be shared across connected cabinets for public leaderboards. You can manage or revoke permissions anytime in Settings â†’ Permissions.</p>
+                  <ul style={{ lineHeight: '1.6' }}>
+                    <li>Shares: display name, scores, timestamps, and cabinet ID.</li>
+                    <li>No sensitive data is collected. Local play remains available.</li>
+                  </ul>
+                  <div style={{ marginTop: 12 }}>
+                    <label style={{ display: 'block', marginBottom: 6 }}>
+                      <input type="checkbox" checked={agreeNetwork} onChange={(e) => setAgreeNetwork(e.target.checked)} /> I agree to join the Arcade Assistant Network.
+                    </label>
+                    <label style={{ display: 'block', marginBottom: 6 }}>
+                      <input type="checkbox" checked={agreeLeaderboard} onChange={(e) => setAgreeLeaderboard(e.target.checked)} /> I agree my scores may be shown on public leaderboards.
+                    </label>
+                    <label style={{ display: 'block', marginBottom: 6 }}>
+                      <input type="checkbox" checked={agreeContact} onChange={(e) => setAgreeContact(e.target.checked)} /> Optional: I agree to receive updates (email/SMS).
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.85em', color: '#9ca3af', marginTop: 12 }}>
+                    By checking the boxes above, you consent to the data sharing described. Your data is stored securely and you can revoke consent anytime via Settings â†’ Permissions.
+                  </p>
+                  {consentError && (
+                    <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 6, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>{consentError}</span>
+                      <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">Ã—</button>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+                    <button className="btn" disabled={!canApplyConsent || consentSaving} onClick={handleApplyConsent} aria-label="Agree and continue">{consentSaving ? 'Saving...' : 'I Agree'}</button>
+                    <button className="btn btn-secondary" onClick={() => { setShowConsent(false); setWarn(''); }} aria-label="Continue offline">Continue Offline</button>
+                    <button type="button" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowTerms(true)}>Terms & Privacy</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-          <div className="voice-chat-messages" ref={chatMessagesRef} aria-live="polite">
-            {messages.map((message, index) => (
+            {/* Terms & Privacy Modal */}
+            {showTerms && (
+              <div className="terms-overlay" role="dialog" aria-modal="true" aria-label="Terms and Privacy" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.95)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '800px', maxWidth: '95vw', maxHeight: '90vh', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 24, color: '#e5e7eb', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <h2 style={{ margin: 0, color: '#c8ff00' }}>Terms & Privacy (Local-First)</h2>
+                    <button type="button" onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5em', cursor: 'pointer' }} aria-label="Close">Ã—</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9em', lineHeight: 1.6 }}>
+                    <p><strong>Operator / Publisher:</strong> G & G Arcade ("G&G," "we," "us")<br />
+                      <strong>Software:</strong> Arcade Assistant<br />
+                      <strong>Version:</strong> v1.0 | <strong>Effective:</strong> 2025-12-13</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>1) Local-First Default</h3>
+                    <p>The Software functions fully offline. No account required for local play. Declining consent does not block basic cabinet use. Online Features are optional.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>2) Consent & Opt-In Model</h3>
+                    <p><strong>Requires consent:</strong> Public leaderboards, score syncing, display name visibility, cabinet ID for syncing, optional communications.</p>
+                    <p><strong>Does NOT require consent:</strong> Local gameplay, local scores/profiles, basic cabinet operation.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>3) Data We Collect</h3>
+                    <p><strong>Local-only by default:</strong> Profiles, scores, settings stored on cabinet.</p>
+                    <p><strong>If you opt into Online Features:</strong> Display name, game titles, scores/timestamps, cabinet ID, basic config metadata.</p>
+                    <p><strong>We do NOT collect:</strong> Government IDs, biometrics, payment data, real names (unless typed), permanent voice recordings (unless enabled).</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>4) Voice & Audio</h3>
+                    <p>Voice features are optional. Audio is processed transiently for voice commands. We do not use voice data to identify individuals or sell voice data. Public-space reminder: avoid speaking sensitive information.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>5) Third-Party Services</h3>
+                    <p>Online Features may use third-party providers (hosting, databases, cloud AI). Their privacy practices are governed by their own terms.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>6) Scores & Leaderboards</h3>
+                    <p>Scores may be moderated, hidden, or removed. Leaderboards are not guaranteed permanent. Offline scores may not sync retroactively.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>7) User Responsibilities</h3>
+                    <p>Do not use for unlawful conduct, cheating, or interfering with systems. Cabinet owners responsible for safe operation and installed content.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>8) Ownership & Licensing</h3>
+                    <p>Software owned by G&G Arcade. Limited license granted for cabinet use. ROMs/game content are owner's responsibility.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>9) Warranty Disclaimer</h3>
+                    <p>Software provided "AS IS." No guarantee of uninterrupted operation or permanent data retention.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>10) Limitation of Liability</h3>
+                    <p>G&G not liable for hardware damage, data loss, third-party outages, or indirect damages.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>11) Privacy Choices</h3>
+                    <p>Disable Online Features anytime. Request deletion via contact. Local data deletable via cabinet settings.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>12) Changes</h3>
+                    <p>Terms may update. Material changes require renewed consent.</p>
+
+                    <h3 style={{ color: '#93c5fd', marginTop: 16 }}>13) Contact</h3>
+                    <p>Questions or concerns: <strong>greg@ggarcade.net</strong></p>
+                  </div>
+                  <div style={{ marginTop: 16, textAlign: 'right' }}>
+                    <button className="btn" onClick={() => setShowTerms(false)}>Close</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Toast Notification */}
+            {saveToast && (
               <div
-                key={index}
+                className="save-toast"
+                role="status"
+                aria-live="polite"
                 style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: message.role === 'assistant' ? '8px' : '0',
-                  alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '80%',
-                  flexDirection: message.role === 'user' ? 'row-reverse' : 'row'
+                  position: 'fixed',
+                  top: '20px',
+                  right: '20px',
+                  zIndex: 1000,
+                  background: saveToast.startsWith('Error') ? '#dc2626' : '#10b981',
+                  color: '#ffffff',
+                  padding: '12px 20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  fontWeight: '500',
+                  maxWidth: '400px'
                 }}
               >
-                {message.role === 'assistant' && (
-                  <img
-                    src="/vicky-avatar.jpeg"
-                    alt="Vicky"
-                    className="voice-message-avatar"
-                  />
-                )}
-                <div className={`voice-message ${message.role}`}>
-                  {message.text}
+                {saveToast}
+              </div>
+            )}
+
+            {/* Live Transcription */}
+            <section className="section">
+              <div className="section-header">
+                <h2>Live Transcription</h2>
+                <span className="badge">WS</span>
+              </div>
+              {warn && (
+                <div className="text-sm" style={{ color: '#fbbf24', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }} role="status" aria-live="polite">
+                  <span>{warn}</span>
+                  <button type="button" onClick={() => setWarn('')} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss warning">Ã—</button>
+                </div>
+              )}
+              <div className="voice-transcript-box" style={{ padding: '8px', border: '1px solid #374151', borderRadius: 6, background: '#0b1020' }}>
+                <div className={`vicky-phase-badge ${currentPhase.className}`}>
+                  <span className="phase-icon">{currentPhase.icon}</span>
+                  <span className="phase-label">{currentPhase.label}</span>
                 </div>
               </div>
-            ))}
-            {isChatLoading && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '12px', marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => forwardTranscript('launchbox')}
+                  disabled={shareInFlight === 'launchbox'}
+                >
+                  {shareInFlight === 'launchbox' ? 'Sending to LoRa...' : 'Send to LaunchBox LoRa'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => forwardTranscript('dewey')}
+                  disabled={shareInFlight === 'dewey'}
+                >
+                  {shareInFlight === 'dewey' ? 'Sending to Dewey...' : 'Send to Dewey'}
+                </button>
+                {shareFeedback && (
+                  <span style={{ fontSize: '13px', color: '#a5f3fc' }}>{shareFeedback}</span>
+                )}
+              </div>
+            </section>
+
+            {/* Player Overview */}
+            <section className="section player-overview-section">
+              <div className="section-header">
+                <h2>Player Overview</h2>
+                <span className="badge">Session Context</span>
+              </div>
+              <div className="player-overview-grid">
+                <div className="overview-tile tendencies">
+                  <div className="tile-header">
+                    <h3>{`${primaryUserName}'s Tendencies`}</h3>
+                    <p className="tile-subtitle">Read-only insights</p>
+                  </div>
+                  {tendenciesStatus === 'loading' && <p className="tendencies-note">Loading tendenciesâ€¦</p>}
+                  {tendenciesStatus === 'empty' && (
+                    <p className="tendencies-note">No tendencies saved yet. They will appear here once recorded.</p>
+                  )}
+                  {tendenciesStatus === 'ready' && tendencyEntries.length === 0 && (
+                    <p className="tendencies-note">No tendencies saved yet.</p>
+                  )}
+                  {tendencyEntries.length > 0 && (
+                    <ul className="tendencies-list">
+                      {tendencyEntries.map(([key, value]) => (
+                        <li key={key}>
+                          <span className="label">{formatTendencyLabel(key)}</span>
+                          <span className="value">{formatTendencyValue(value)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="overview-tile permissions">
+                  <div className="tile-header">
+                    <h3>Permissions</h3>
+                    <p className="tile-subtitle">Consent &amp; device access</p>
+                  </div>
+                  <p className="tendencies-note">
+                    {consent?.accepted
+                      ? 'Consent is active for this session.'
+                      : 'Consent required to sync recordings and transcripts.'}
+                  </p>
+                  <button className="btn btn-secondary" onClick={() => setShowConsent(true)}>
+                    Review Permissions
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* Current Session */}
+            <section className="section">
+              <div className="section-header">
+                <h2>Current Session</h2>
+              </div>
+              <div className="player-grid">
+                {players.map((player, index) => (
+                  <div key={index} className="player-slot">
+                    <div className="player-header">
+                      <div className="player-number">P{index + 1}</div>
+                      <div className="player-label">Player {index + 1}</div>
+                    </div>
+                    <div className="form-group">
+                      <label>User</label>
+                      <select
+                        className="form-control"
+                        value={player.user}
+                        onChange={(e) => handlePlayerUserChange(index, e.target.value)}
+                      >
+                        {userOptions.map(option => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                        <option value={ADD_USER_OPTION_VALUE}>+ Add user</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Controller</label>
+                      <select
+                        className="form-control"
+                        value={player.controller}
+                        onChange={(e) => setPlayers(prev => {
+                          const next = [...prev]
+                          next[index] = { ...next[index], controller: e.target.value }
+                          return next
+                        })}
+                      >
+                        <option value="Not Assigned">Not Assigned</option>
+                        <option value="Joystick 1">Joystick 1</option>
+                        <option value="Joystick 2">Joystick 2</option>
+                        <option value="Joystick 3">Joystick 3</option>
+                        <option value="Joystick 4">Joystick 4</option>
+                        <option value="Xbox Pad 1">Xbox Pad 1</option>
+                        <option value="Xbox Pad 2">Xbox Pad 2</option>
+                        <option value="Keyboard">Keyboard</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="action-bar">
+                <button className="btn btn-secondary" onClick={handleCopySetup}>
+                  ðŸ“‹ Copy Setup Link
+                </button>
+                <button className="btn" onClick={handleStartSession}>Start Session</button>
+              </div>
+            </section>
+
+            {/* Primary User Tendencies */}
+            <section className="section">
+              <div className="section-header">
+                <h2>{primaryUserName}'s Tendencies</h2>
+                <span className="badge">Auto-Tracked</span>
+              </div>
+              {tendenciesStatus === 'loading' && (
+                <div className="tendencies-note">Loading tendencies...</div>
+              )}
+              {tendenciesStatus === 'empty' && (
+                <div className="tendencies-note">
+                  No tendencies recorded yet. Play some games to build your profile!
+                </div>
+              )}
+              {tendenciesStatus === 'ready' && tendenciesData && (
+                <div className="tendencies-grid">
+                  {tendenciesData.favorite_game && (
+                    <div className="tendency-card">
+                      <div className="tendency-label">Favorite Game</div>
+                      <div className="tendency-value">{tendenciesData.favorite_game}</div>
+                    </div>
+                  )}
+                  {tendenciesData.favorite_genre && (
+                    <div className="tendency-card">
+                      <div className="tendency-label">Favorite Genre</div>
+                      <div className="tendency-value">{tendenciesData.favorite_genre}</div>
+                    </div>
+                  )}
+                  {tendenciesData.total_sessions && (
+                    <div className="tendency-card">
+                      <div className="tendency-label">Total Sessions</div>
+                      <div className="tendency-value">{tendenciesData.total_sessions}</div>
+                    </div>
+                  )}
+                  {tendenciesData.peak_play_time && (
+                    <div className="tendency-card">
+                      <div className="tendency-label">Peak Play Time</div>
+                      <div className="tendency-value">{tendenciesData.peak_play_time}</div>
+                    </div>
+                  )}
+                  {tendenciesData.most_used_platform && (
+                    <div className="tendency-card">
+                      <div className="tendency-label">Most Used Platform</div>
+                      <div className="tendency-value">{tendenciesData.most_used_platform}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Primary User */}
+            <section className="section">
+              <div className="section-header">
+                <h2>Primary User</h2>
+                <p className="section-subtitle">
+                  This is the main profile Arcade Assistant will operate under for this session.
+                </p>
+                <div className="current-profile-pill">
+                  <span className="pill-label">Current Profile</span>
+                  <span className="pill-value">
+                    {sharedProfile?.displayName || profile.displayName || 'Guest'}
+                  </span>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Custom Vocabulary</label>
+                <div className="quick-commands">
+                  {Object.keys(quickCommands).map(cmd => (
+                    <button key={cmd} className="quick-command-btn" onClick={() => addQuickCommand(cmd)}>
+                      + {cmd === 'galaga' ? '"Galaga" pronunciation' :
+                        cmd === 'fighter' ? '"Fighter" means SF2' :
+                          cmd === 'continues' ? 'Continues = Extra guys' :
+                            'Cabinet nickname'}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  ref={vocabRef}
+                  className="form-control"
+                  value={vocabText}
+                  onChange={(e) => setVocabText(e.target.value)}
+                  placeholder="e.g., 'I call the cabinet the machine', 'When I say fighter, I mean Street Fighter'"
+                  rows={3}
+                />
+              </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Display Name</label>
+                  <input className="form-control" value={profile.displayName} onChange={(e) => setProfile(p => ({ ...p, displayName: e.target.value }))} placeholder="e.g., Dad" />
+                </div>
+                <div className="form-group">
+                  <label>Initials</label>
+                  <input className="form-control" value={profile.initials} onChange={(e) => setProfile(p => ({ ...p, initials: e.target.value }))} placeholder="e.g., DAD" />
+                </div>
+              </div>
+              <div className="action-bar">
+                <button
+                  className="btn"
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Saving & Broadcasting...' : 'Save & Broadcast'}
+                </button>
+              </div>
+            </section>
+          </div>
+        </PanelShell>
+      </div>
+
+      {/* Vicky AI Chat Sidebar — permanent sticky panel */}
+      <div className="voice-chat-sidebar"
+        role="complementary"
+        aria-label="Voice Assistant Chat"
+        style={{
+          height: '100vh', position: 'sticky', top: 0, overflowY: 'auto',
+          flexShrink: 0, width: '320px', display: 'flex', flexDirection: 'column',
+          background: '#08080e', borderLeft: '1px solid rgba(168,85,247,0.25)'
+        }}>
+        <div className="voice-chat-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img
+              src="/vicky-avatar.jpeg"
+              alt="Vicky Voice Assistant"
+              className="voice-chat-avatar"
+            />
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: '600', color: '#c8ff00' }}>Vicky</div>
+              <div style={{ fontSize: '12px', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
+                <span>Voice Assistant • {sharedProfile?.displayName || profile.displayName || 'Guest'}</span>
+              </div>
+            </div>
+          </div>
+          <button
+            className="voice-chat-close"
+            onClick={() => setChatOpen(false)}
+            aria-label="Close chat"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="voice-chat-messages" ref={chatMessagesRef} aria-live="polite">
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: message.role === 'assistant' ? '8px' : '0',
+                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '80%',
+                flexDirection: message.role === 'user' ? 'row-reverse' : 'row'
+              }}
+            >
+              {message.role === 'assistant' && (
                 <img
                   src="/vicky-avatar.jpeg"
                   alt="Vicky"
                   className="voice-message-avatar"
                 />
-                <div className="voice-message assistant">Thinking...</div>
+              )}
+              <div className={`voice-message ${message.role}`}>
+                {message.text}
               </div>
-            )}
-          </div>
-
-          <div className="voice-chat-input-container">
-            <div className="voice-chat-input-row">
-              <input
-                type="text"
-                className="voice-chat-input"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={isRecording ? "Listening..." : "Type your message or use voice input..."}
-                aria-label="Chat with voice assistant"
-              />
-              <button
-                className={`voice-voice-btn ${isRecording ? 'recording' : ''}`}
-                onClick={toggleMic}
-                title={isRecording ? 'Stop voice input' : 'Start voice input'}
-                aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
-              >
-                {isRecording ? (
-                  <span style={{ fontSize: '20px' }}>⏹️</span>
-                ) : (
-                  <img src="/vicky-mic.png" alt="Microphone" style={{ width: '28px', height: '28px' }} />
-                )}
-              </button>
-              <button
-                className={`voice-auto-stop-toggle ${autoStopEnabled ? 'enabled' : 'disabled'}`}
-                onClick={() => setAutoStopEnabled(!autoStopEnabled)}
-                title={autoStopEnabled ? 'Auto-stop enabled (will stop when you finish speaking)' : 'Auto-stop disabled (click mic to stop)'}
-                aria-label="Toggle auto-stop on silence"
-                style={{
-                  marginLeft: '8px',
-                  padding: '8px 12px',
-                  background: autoStopEnabled ? 'rgba(200, 255, 0, 0.2)' : 'rgba(128, 128, 128, 0.2)',
-                  border: `2px solid ${autoStopEnabled ? '#c8ff00' : '#666'}`,
-                  borderRadius: '8px',
-                  color: autoStopEnabled ? '#c8ff00' : '#999',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 'bold'
-                }}
-              >
-                {autoStopEnabled ? '⏱️ Auto' : '⏱️ Manual'}
-              </button>
             </div>
+          ))}
+          {isChatLoading && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <img
+                src="/vicky-avatar.jpeg"
+                alt="Vicky"
+                className="voice-message-avatar"
+              />
+              <div className="voice-message assistant">Thinking...</div>
+            </div>
+          )}
+        </div>
+
+        <div className="voice-chat-input-container">
+          <div className="voice-chat-input-row">
+            <input
+              type="text"
+              className="voice-chat-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={isRecording ? "Listening..." : "Type your message or use voice input..."}
+              aria-label="Chat with voice assistant"
+            />
+            <button
+              className={`voice-voice-btn ${isRecording ? 'recording' : ''}`}
+              onClick={toggleMic}
+              title={isRecording ? 'Stop voice input' : 'Start voice input'}
+              aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
+            >
+              {isRecording ? (
+                <span style={{ fontSize: '20px' }}>⏹️</span>
+              ) : (
+                <img src="/vicky-mic.png" alt="Microphone" style={{ width: '28px', height: '28px' }} />
+              )}
+            </button>
+            <button
+              className={`voice-auto-stop-toggle ${autoStopEnabled ? 'enabled' : 'disabled'}`}
+              onClick={() => setAutoStopEnabled(!autoStopEnabled)}
+              title={autoStopEnabled ? 'Auto-stop enabled (will stop when you finish speaking)' : 'Auto-stop disabled (click mic to stop)'}
+              aria-label="Toggle auto-stop on silence"
+              style={{
+                marginLeft: '8px',
+                padding: '8px 12px',
+                background: autoStopEnabled ? 'rgba(200, 255, 0, 0.2)' : 'rgba(128, 128, 128, 0.2)',
+                border: `2px solid ${autoStopEnabled ? '#c8ff00' : '#666'}`,
+                borderRadius: '8px',
+                color: autoStopEnabled ? '#c8ff00' : '#999',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+            >
+              {autoStopEnabled ? '⏱️ Auto' : '⏱️ Manual'}
+            </button>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   )
 }

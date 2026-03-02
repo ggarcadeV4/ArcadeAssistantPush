@@ -1,5 +1,5 @@
 # Arcade Assistant — Project README
-**Last Updated:** 2026-03-02 | **Build:** Diagnosis Mode Phase 1 complete | **Branch:** `master`
+**Last Updated:** 2026-03-02 | **Build:** Engineering Bay Sidebars — All 6 panels complete | **Branch:** `master`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 

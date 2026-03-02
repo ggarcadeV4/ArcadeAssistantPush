@@ -75,13 +75,14 @@ export default function GunnerPanel() {
             <GunnerNav activeTab={activeTab} onTabChange={setActiveTab} />
 
             {/* Main Content Area + Chat Sidebar */}
-            <div className="gunner-content">
+            <div className="gunner-content" style={{ alignItems: 'flex-start' }}>
                 <main className="gunner-main">
                     {renderTabContent()}
                 </main>
                 <GunnerChatSidebar
                     chatState={chatState}
                     onSend={handleChatSend}
+                    style={{ height: '100vh', position: 'sticky', top: 0, flexShrink: 0 }}
                 />
             </div>
 

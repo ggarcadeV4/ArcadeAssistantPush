@@ -1,5 +1,50 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-02 (PM3) | Engineering Bay Sidebars — All 6 Panels Complete
+
+**Net Progress**: Built the full Engineering Bay sidebar system end-to-end. Generic `EngineeringBaySidebar` component created, unified Claude AI backend, 4 new persona prompts, sticky sidebar applied to all remaining panels (Vicky, Doc, Blinky, Gunner). Build: ✅ 2.94s, 254 modules, 0 errors.
+
+**Key Wins:**
+- **`EngineeringBaySidebar.jsx/.css`** (NEW in `panels/_kit/`): Generic sidebar component — one component serves all 4 remaining Engineering Bay panels. Colors driven by `--eb-accent` / `--eb-glow` CSS vars per persona. Always-on ambient KITT scanner, Diagnosis toggle, ExecutionCard, ContextChips, MicButton all wired in. Accepts `persona` config prop + optional `contextAssembler`.
+- **`POST /api/local/engineering-bay/chat`** (NEW): Unified AI endpoint in `backend/routers/engineering_bay.py`. Accepts `persona` param — routes to correct prompt variant automatically. Registered in `backend/app.py`.
+- **`backend/services/engineering_bay/ai.py`** (NEW): Unified AI service. Loads per-persona prompt files, splits on `---DIAGNOSIS---`, caches both variants. Doc is always-diagnosis (no delimiter needed).
+- **4 Persona Prompts** (NEW): `prompts/vicky.prompt` (purple, TTS domain), `prompts/blinky.prompt` (cyan, LED domain), `prompts/gunner.prompt` (red, light gun domain), `prompts/doc.prompt` (orange, always-SYS, medical persona).
+- **VoicePanel.jsx**: Vicky chat converted from hidden slide-out drawer → permanent sticky sidebar via `eb-layout` flex wrapper. Purple `#A855F7` accent.
+- **SystemHealthPanel.jsx**: Doc chat converted from hidden slide-out drawer → permanent sticky sidebar. Orange `#F97316` accent. SYS pill always active.
+- **LEDBlinkyPanelNew.jsx**: `eb-layout` wrapper added, `<EngineeringBaySidebar persona={BLINKY_PERSONA} />` inserted on the right. Cyan `#06B6D4` accent.
+- **GunnerPanel.jsx**: `align-items: flex-start` + sticky inline styles applied to `gunner-content` and `GunnerChatSidebar`. Existing sidebar preserved.
+- **WizSidebar.jsx/.css**: Ambient KITT scanner, sticky 100vh, `useDiagnosisMode` import fix.
+- **chuck-sidebar.css**: Sticky 100vh applied (matches WIZ layout).
+
+**Files Created:**
+- `frontend/src/panels/_kit/EngineeringBaySidebar.jsx` — NEW
+- `frontend/src/panels/_kit/EngineeringBaySidebar.css` — NEW
+- `backend/routers/engineering_bay.py` — NEW
+- `backend/services/engineering_bay/ai.py` — NEW
+- `backend/services/engineering_bay/__init__.py` — NEW
+- `prompts/vicky.prompt` — NEW
+- `prompts/blinky.prompt` — NEW
+- `prompts/gunner.prompt` — NEW
+- `prompts/doc.prompt` — NEW
+
+**Files Modified:**
+- `backend/app.py` — +engineering_bay import + include_router
+- `frontend/src/panels/voice/VoicePanel.jsx` — sticky sidebar
+- `frontend/src/panels/system-health/SystemHealthPanel.jsx` — sticky sidebar
+- `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx` — eb-layout + EB sidebar
+- `frontend/src/components/gunner/GunnerPanel.jsx` — sticky inline
+- `frontend/src/panels/console-wizard/WizSidebar.jsx/.css` — ambient scanner, bug fixes
+- `frontend/src/panels/controller/chuck-sidebar.css` — sticky 100vh
+
+**State of Union — What's Next (Priority Order):**
+1. ⚡ **`contextAssembler` data feeds** — Wire real hardware data into each panel's EB sidebar so AI can see actual cabinet state. This is the highest-ROI move (Doc gets live CPU/temps, Blinky gets LED controller list, Gunner gets gun enumeration, Vicky gets audio devices).
+2. ⚡ **Blinky chat consolidation** — Remove footer chat bar + drawer from `LEDBlinkyPanelNew.jsx`. Migrate Gemini native LED tool calls into EB sidebar's `contextAssembler` pipeline so the sidebar CAN execute LED commands.
+3. 🌱 **Vicky intent routing** — Vicky hears "set buttons red" → routes to Blinky AI via `forwardTranscript` extension.
+4. 🌱 **Diagnosis Mode hardware snapshot** — Toggle diagnosis mode triggers a fresh hardware snapshot injected as context.
+5. 🌱 **ScoreKeeper Sam session loop** — Vicky → game start → Sam records.
+
+---
+
 ## 2026-03-02 (PM2) | Console Wizard WIZ Sidebar V1 Complete
 
 **Net Progress**: Built Console Wizard WIZ sidebar end-to-end — new backend AI service, chat endpoint, green KITT scanner, diagnosis mode with emulator context assembler. **All 6 Engineering Bay Stitch designs complete.** Chuck KITT scanner upgraded to match WIZ intensity. Build: ✅ 2.85s, 0 errors. Git: `981fc59`.

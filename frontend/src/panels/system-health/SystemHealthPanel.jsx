@@ -754,572 +754,580 @@ export default function SystemHealthPanel() {
   const performanceUpdatedAt = performanceState.data?.timestamp || summaryState.data?.timestamp || null
   const processesUpdatedAt = processState.data?.timestamp || null
   return (
-    <>
-      <PanelShell
-        title="System Health Panel"
-        subtitle="Live telemetry for Doc"
-        icon={panelIcon}
-        headerActions={headerActions}
-        status="online"
-        className="system-health"
-        bodyClassName="system-health-body"
-      >
-        <div className="system-health-content">
-          <div className="sh-summary-grid">
-            {summaryState.loading && !summaryState.data && <div className="sh-summary-card">Loading summary...</div>}
-            {summaryState.error && !summaryState.data && (
-              <div className="sh-summary-card sh-summary-error">Error: {summaryState.error}</div>
-            )}
-            {summaryState.data &&
-              summaryCards.map(card => (
-                <div
-                  key={card.label}
-                  className={`sh-summary-card ${card.status === 'warn' ? 'warn' : 'ok'}`}
-                  aria-label={`${card.label} status`}
-                >
-                  <div className="sh-summary-label">{card.label}</div>
-                  <div className="sh-summary-value">{card.value}</div>
-                  {card.description && <div className="sh-summary-description">{card.description}</div>}
-                </div>
-              ))}
-          </div>
-          <div className="sh-diagnosis-section">
-            <div className="sh-diagnosis-header">
-              <div>
-                <h3>Doc Quick Diagnosis</h3>
-                <p>Live summary of the most actionable health findings.</p>
-              </div>
-            </div>
-            <div className="sh-diagnosis-grid">
-              {docQuickDiagnosis.lines.map((line, index) => (
-                <div key={`diag-${index}`} className="sh-diagnosis-card">
-                  <div className="sh-diagnosis-detail">{line}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick diagnosis gives Doc-style summary using current telemetry */}
-          <div className={`sh-quick-card status-${docQuickDiagnosis.overallStatus || 'healthy'}`}>
-            <div className="sh-quick-header">
-              <div>
-                <h3>Doc's Quick Diagnosis</h3>
-                <p>Top-level summary of hardware, performance, and alert posture.</p>
-              </div>
-              <span className={`sh-quick-badge status-${docQuickDiagnosis.overallStatus || 'healthy'}`}>
-                {docQuickDiagnosis.overallStatus
-                  ? docQuickDiagnosis.overallStatus.toUpperCase()
-                  : 'HEALTHY'}
-              </span>
-            </div>
-            {docQuickDiagnosis.lines.length ? (
-              <ul className="sh-quick-lines">
-                {docQuickDiagnosis.lines.map((line, index) => (
-                  <li key={`${line}-${index}`}>{line}</li>
+    <div className="eb-layout">
+      <div className="eb-layout__main">
+        <PanelShell
+          title="System Health Panel"
+          subtitle="Live telemetry for Doc"
+          icon={panelIcon}
+          headerActions={headerActions}
+          status="online"
+          className="system-health"
+          bodyClassName="system-health-body"
+        >
+          <div className="system-health-content">
+            <div className="sh-summary-grid">
+              {summaryState.loading && !summaryState.data && <div className="sh-summary-card">Loading summary...</div>}
+              {summaryState.error && !summaryState.data && (
+                <div className="sh-summary-card sh-summary-error">Error: {summaryState.error}</div>
+              )}
+              {summaryState.data &&
+                summaryCards.map(card => (
+                  <div
+                    key={card.label}
+                    className={`sh-summary-card ${card.status === 'warn' ? 'warn' : 'ok'}`}
+                    aria-label={`${card.label} status`}
+                  >
+                    <div className="sh-summary-label">{card.label}</div>
+                    <div className="sh-summary-value">{card.value}</div>
+                    {card.description && <div className="sh-summary-description">{card.description}</div>}
+                  </div>
                 ))}
-              </ul>
-            ) : (
-              <div className="sh-quick-loading">Gathering telemetry...</div>
-            )}
-          </div>
-
-          <div className="sh-tab-bar">
-            {['performance', 'processes', 'hardware', 'alerts'].map(tab => (
-              <button
-                key={tab}
-                className={`sh-tab ${activeTab === tab ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab === 'performance' && 'Performance'}
-                {tab === 'processes' && 'Processes'}
-                {tab === 'hardware' && 'Hardware'}
-                {tab === 'alerts' && 'Alerts'}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === 'performance' && (
-            <div className="sh-tab-content">
-              <div className="sh-performance-header">
-                <div className="sh-perf-title">
-                  <h2>Gaming Performance Monitor</h2>
-                  <div className="sh-perf-status">
-                    <span className="sh-status-dot optimal"></span>
-                    <span>
-                      Last updated:{' '}
-                      {performanceUpdatedAt ? formatTimeOfDay(performanceUpdatedAt) : 'calibrating...'}
-                    </span>
+            </div>
+            <div className="sh-diagnosis-section">
+              <div className="sh-diagnosis-header">
+                <div>
+                  <h3>Doc Quick Diagnosis</h3>
+                  <p>Live summary of the most actionable health findings.</p>
+                </div>
+              </div>
+              <div className="sh-diagnosis-grid">
+                {docQuickDiagnosis.lines.map((line, index) => (
+                  <div key={`diag-${index}`} className="sh-diagnosis-card">
+                    <div className="sh-diagnosis-detail">{line}</div>
                   </div>
-                </div>
-                <div className="sh-perf-controls">
-                  <label className={`sh-toggle ${autoRefreshPerformance ? 'active' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={autoRefreshPerformance}
-                      onChange={e => setAutoRefreshPerformance(e.target.checked)}
-                    />
-                    Auto-refresh
-                  </label>
-                  <span className="sh-last-updated">
-                    Samples: {timeseriesSamples.length.toString().padStart(1, '0')}
-                  </span>
-                </div>
-              </div>
-              {/* Safe no-op optimize button logs intent via backend */}
-              <div className="sh-optimize-card">
-                <div className="sh-optimize-copy">
-                  <h4>Doc Auto Optimize</h4>
-                  <p>Queues a safe tune-up via the backend (cache cleanup, telemetry recalibration, USB sanity checks).</p>
-                  <div className="sh-optimize-meta">
-                    <span>
-                      Last request:{' '}
-                      {optimizeState.lastRun ? formatTimestamp(optimizeState.lastRun) : 'Not requested yet'}
-                    </span>
-                    {optimizeState.message && <span className="sh-optimize-hint">{optimizeState.message}</span>}
-                    {optimizeState.error && (
-                      <span className="sh-optimize-error">Error: {optimizeState.error}</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  className="sh-auto-optimize-btn"
-                  onClick={handleOptimize}
-                  disabled={optimizeState.pending}
-                  title="Doc will log an optimization request for later processing."
-                >
-                  {optimizeState.pending ? 'Queuing...' : 'Run Quick Optimization'}
-                </button>
-              </div>
-
-              <div className="sh-metrics-grid">
-                {performanceState.loading && !performanceState.data && (
-                  <div className="sh-metric-card">Loading performance...</div>
-                )}
-                {performanceState.error && !performanceState.data && (
-                  <div className="sh-metric-card sh-summary-error">{performanceState.error}</div>
-                )}
-                {performanceState.data &&
-                  performanceMetrics.map(metric => (
-                    <div key={metric.label} className="sh-metric-card">
-                      <div className="sh-metric-value">{metric.value}</div>
-                      <div className="sh-metric-label">{metric.label}</div>
-                      <div className="sh-metric-sublabel">{metric.sublabel}</div>
-                    </div>
-                  ))}
-              </div>
-
-              <div className="sh-chart-container">
-                <div className="sh-chart-header">
-                  <h3>Recent Samples (last 5 entries)</h3>
-                </div>
-                <div className="sh-chart-placeholder">
-                  {timeseriesState.loading && !timeseriesSamples.length && <div>Loading samples...</div>}
-                  {timeseriesState.error && !timeseriesSamples.length && (
-                    <div>Error: {timeseriesState.error}</div>
-                  )}
-                  {timeseriesSamples.length > 0 && (
-                    <table className="sh-samples-table">
-                      <thead>
-                        <tr>
-                          <th>Timestamp</th>
-                          <th>CPU</th>
-                          <th>Memory</th>
-                          <th>FPS</th>
-                          <th>Latency</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {timeseriesSamples.map(sample => (
-                          <tr key={sample.timestamp}>
-                            <td>{formatTimestamp(sample.timestamp)}</td>
-                            <td>{formatPercent(sample.cpu_percent)}</td>
-                            <td>{formatPercent(sample.memory_percent)}</td>
-                            <td>{sample.fps != null ? sample.fps.toFixed(1) : '--'}</td>
-                            <td>{sample.latency_ms != null ? `${sample.latency_ms.toFixed(1)} ms` : '--'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-
-              <div className="sh-suggestions-panel">
-                <h3>Performance Insights</h3>
-                <div className="sh-suggestions-list">
-                  {performanceInsights.map(insight => (
-                    <div key={insight.title} className="sh-suggestion-item">
-                      <div className="sh-suggestion-content">
-                        <div className="sh-suggestion-title">{insight.title}</div>
-                        <div className="sh-suggestion-desc">{insight.description}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
-          )}
 
-          {activeTab === 'processes' && (
-            <div className="sh-tab-content">
-              <div className="sh-process-header">
+            {/* Quick diagnosis gives Doc-style summary using current telemetry */}
+            <div className={`sh-quick-card status-${docQuickDiagnosis.overallStatus || 'healthy'}`}>
+              <div className="sh-quick-header">
                 <div>
-                  <h2>Arcade Process Management</h2>
-                  <p>Doc tracks emulator cores, assistants, and helper daemons.</p>
-                  <div className="sh-process-stats">
-                    <span>Total tracked: {processOverview.total}</span>
-                    <span>High usage: {processOverview.heavy}</span>
-                    {processOverview.timestamp && (
-                      <span>Updated {formatTimestamp(processOverview.timestamp)}</span>
-                    )}
+                  <h3>Doc's Quick Diagnosis</h3>
+                  <p>Top-level summary of hardware, performance, and alert posture.</p>
+                </div>
+                <span className={`sh-quick-badge status-${docQuickDiagnosis.overallStatus || 'healthy'}`}>
+                  {docQuickDiagnosis.overallStatus
+                    ? docQuickDiagnosis.overallStatus.toUpperCase()
+                    : 'HEALTHY'}
+                </span>
+              </div>
+              {docQuickDiagnosis.lines.length ? (
+                <ul className="sh-quick-lines">
+                  {docQuickDiagnosis.lines.map((line, index) => (
+                    <li key={`${line}-${index}`}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="sh-quick-loading">Gathering telemetry...</div>
+              )}
+            </div>
+
+            <div className="sh-tab-bar">
+              {['performance', 'processes', 'hardware', 'alerts'].map(tab => (
+                <button
+                  key={tab}
+                  className={`sh-tab ${activeTab === tab ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab === 'performance' && 'Performance'}
+                  {tab === 'processes' && 'Processes'}
+                  {tab === 'hardware' && 'Hardware'}
+                  {tab === 'alerts' && 'Alerts'}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'performance' && (
+              <div className="sh-tab-content">
+                <div className="sh-performance-header">
+                  <div className="sh-perf-title">
+                    <h2>Gaming Performance Monitor</h2>
+                    <div className="sh-perf-status">
+                      <span className="sh-status-dot optimal"></span>
+                      <span>
+                        Last updated:{' '}
+                        {performanceUpdatedAt ? formatTimeOfDay(performanceUpdatedAt) : 'calibrating...'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="sh-perf-controls">
+                    <label className={`sh-toggle ${autoRefreshPerformance ? 'active' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={autoRefreshPerformance}
+                        onChange={e => setAutoRefreshPerformance(e.target.checked)}
+                      />
+                      Auto-refresh
+                    </label>
+                    <span className="sh-last-updated">
+                      Samples: {timeseriesSamples.length.toString().padStart(1, '0')}
+                    </span>
                   </div>
                 </div>
-                <div className="sh-process-actions">
-                  <label className={`sh-toggle ${autoRefreshProcesses ? 'active' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={autoRefreshProcesses}
-                      onChange={e => setAutoRefreshProcesses(e.target.checked)}
-                    />
-                    Auto-refresh
-                  </label>
-                  <span className="sh-last-updated">
-                    Last updated: {processesUpdatedAt ? formatTimeOfDay(processesUpdatedAt) : 'pending'}
-                  </span>
-                  <button className="chat-with-ai-btn refresh" onClick={loadProcesses} disabled={processState.loading}>
-                    {processState.loading ? 'Refreshing...' : 'Refresh'}
+                {/* Safe no-op optimize button logs intent via backend */}
+                <div className="sh-optimize-card">
+                  <div className="sh-optimize-copy">
+                    <h4>Doc Auto Optimize</h4>
+                    <p>Queues a safe tune-up via the backend (cache cleanup, telemetry recalibration, USB sanity checks).</p>
+                    <div className="sh-optimize-meta">
+                      <span>
+                        Last request:{' '}
+                        {optimizeState.lastRun ? formatTimestamp(optimizeState.lastRun) : 'Not requested yet'}
+                      </span>
+                      {optimizeState.message && <span className="sh-optimize-hint">{optimizeState.message}</span>}
+                      {optimizeState.error && (
+                        <span className="sh-optimize-error">Error: {optimizeState.error}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="sh-auto-optimize-btn"
+                    onClick={handleOptimize}
+                    disabled={optimizeState.pending}
+                    title="Doc will log an optimization request for later processing."
+                  >
+                    {optimizeState.pending ? 'Queuing...' : 'Run Quick Optimization'}
                   </button>
                 </div>
-              </div>
-              {processesUnavailable && (
-                <div className="sh-summary-error">Process metrics unavailable on this platform.</div>
-              )}
-              {processState.error && (
-                <div className="sh-summary-error">Error: {processState.error}</div>
-              )}
-              <div className="sh-process-controls">
-                <input
-                  type="text"
-                  value={processFilter}
-                  onChange={e => setProcessFilter(e.target.value)}
-                  placeholder="Filter by name, PID, or path"
-                />
-                <label className="sh-sort-select">
-                  Sort by
-                  <select value={processSortBy} onChange={e => setProcessSortBy(e.target.value)}>
-                    <option value="cpu">CPU</option>
-                    <option value="memory">Memory</option>
-                  </select>
-                </label>
-                <label className={`sh-toggle ${showResourceHogs ? 'active' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={showResourceHogs}
-                    onChange={e => setShowResourceHogs(e.target.checked)}
-                  />
-                  Show only heavy usage
-                </label>
-              </div>
 
-              <div className="sh-process-groups">
-                {filteredProcessGroups.length === 0 && !processState.loading && (
-                  <div className="sh-empty">No processes match the current filters.</div>
-                )}
-                {filteredProcessGroups.map(group => {
-                  const isExpanded = expandedProcessGroups[group.id] || false
-                  const visibleProcesses = isExpanded
-                    ? group.processes
-                    : group.processes.slice(0, PROCESS_PREVIEW_LIMIT)
-                  const hiddenCount = group.processes.length - visibleProcesses.length
-                  return (
-                    <div className="sh-process-group" key={group.id}>
-                      <div className={`sh-group-header ${isExpanded ? 'expanded' : ''}`}>
-                        <div className="sh-group-title">
-                          <span>{group.title}</span>
-                          <span className="sh-group-count">{group.processes.length}</span>
+                <div className="sh-metrics-grid">
+                  {performanceState.loading && !performanceState.data && (
+                    <div className="sh-metric-card">Loading performance...</div>
+                  )}
+                  {performanceState.error && !performanceState.data && (
+                    <div className="sh-metric-card sh-summary-error">{performanceState.error}</div>
+                  )}
+                  {performanceState.data &&
+                    performanceMetrics.map(metric => (
+                      <div key={metric.label} className="sh-metric-card">
+                        <div className="sh-metric-value">{metric.value}</div>
+                        <div className="sh-metric-label">{metric.label}</div>
+                        <div className="sh-metric-sublabel">{metric.sublabel}</div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="sh-chart-container">
+                  <div className="sh-chart-header">
+                    <h3>Recent Samples (last 5 entries)</h3>
+                  </div>
+                  <div className="sh-chart-placeholder">
+                    {timeseriesState.loading && !timeseriesSamples.length && <div>Loading samples...</div>}
+                    {timeseriesState.error && !timeseriesSamples.length && (
+                      <div>Error: {timeseriesState.error}</div>
+                    )}
+                    {timeseriesSamples.length > 0 && (
+                      <table className="sh-samples-table">
+                        <thead>
+                          <tr>
+                            <th>Timestamp</th>
+                            <th>CPU</th>
+                            <th>Memory</th>
+                            <th>FPS</th>
+                            <th>Latency</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {timeseriesSamples.map(sample => (
+                            <tr key={sample.timestamp}>
+                              <td>{formatTimestamp(sample.timestamp)}</td>
+                              <td>{formatPercent(sample.cpu_percent)}</td>
+                              <td>{formatPercent(sample.memory_percent)}</td>
+                              <td>{sample.fps != null ? sample.fps.toFixed(1) : '--'}</td>
+                              <td>{sample.latency_ms != null ? `${sample.latency_ms.toFixed(1)} ms` : '--'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                <div className="sh-suggestions-panel">
+                  <h3>Performance Insights</h3>
+                  <div className="sh-suggestions-list">
+                    {performanceInsights.map(insight => (
+                      <div key={insight.title} className="sh-suggestion-item">
+                        <div className="sh-suggestion-content">
+                          <div className="sh-suggestion-title">{insight.title}</div>
+                          <div className="sh-suggestion-desc">{insight.description}</div>
                         </div>
-                        <div className="sh-group-actions">
-                          <span className="sh-group-status healthy">MONITORED</span>
-                          {group.processes.length > PROCESS_PREVIEW_LIMIT && (
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'processes' && (
+              <div className="sh-tab-content">
+                <div className="sh-process-header">
+                  <div>
+                    <h2>Arcade Process Management</h2>
+                    <p>Doc tracks emulator cores, assistants, and helper daemons.</p>
+                    <div className="sh-process-stats">
+                      <span>Total tracked: {processOverview.total}</span>
+                      <span>High usage: {processOverview.heavy}</span>
+                      {processOverview.timestamp && (
+                        <span>Updated {formatTimestamp(processOverview.timestamp)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="sh-process-actions">
+                    <label className={`sh-toggle ${autoRefreshProcesses ? 'active' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={autoRefreshProcesses}
+                        onChange={e => setAutoRefreshProcesses(e.target.checked)}
+                      />
+                      Auto-refresh
+                    </label>
+                    <span className="sh-last-updated">
+                      Last updated: {processesUpdatedAt ? formatTimeOfDay(processesUpdatedAt) : 'pending'}
+                    </span>
+                    <button className="chat-with-ai-btn refresh" onClick={loadProcesses} disabled={processState.loading}>
+                      {processState.loading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
+                {processesUnavailable && (
+                  <div className="sh-summary-error">Process metrics unavailable on this platform.</div>
+                )}
+                {processState.error && (
+                  <div className="sh-summary-error">Error: {processState.error}</div>
+                )}
+                <div className="sh-process-controls">
+                  <input
+                    type="text"
+                    value={processFilter}
+                    onChange={e => setProcessFilter(e.target.value)}
+                    placeholder="Filter by name, PID, or path"
+                  />
+                  <label className="sh-sort-select">
+                    Sort by
+                    <select value={processSortBy} onChange={e => setProcessSortBy(e.target.value)}>
+                      <option value="cpu">CPU</option>
+                      <option value="memory">Memory</option>
+                    </select>
+                  </label>
+                  <label className={`sh-toggle ${showResourceHogs ? 'active' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={showResourceHogs}
+                      onChange={e => setShowResourceHogs(e.target.checked)}
+                    />
+                    Show only heavy usage
+                  </label>
+                </div>
+
+                <div className="sh-process-groups">
+                  {filteredProcessGroups.length === 0 && !processState.loading && (
+                    <div className="sh-empty">No processes match the current filters.</div>
+                  )}
+                  {filteredProcessGroups.map(group => {
+                    const isExpanded = expandedProcessGroups[group.id] || false
+                    const visibleProcesses = isExpanded
+                      ? group.processes
+                      : group.processes.slice(0, PROCESS_PREVIEW_LIMIT)
+                    const hiddenCount = group.processes.length - visibleProcesses.length
+                    return (
+                      <div className="sh-process-group" key={group.id}>
+                        <div className={`sh-group-header ${isExpanded ? 'expanded' : ''}`}>
+                          <div className="sh-group-title">
+                            <span>{group.title}</span>
+                            <span className="sh-group-count">{group.processes.length}</span>
+                          </div>
+                          <div className="sh-group-actions">
+                            <span className="sh-group-status healthy">MONITORED</span>
+                            {group.processes.length > PROCESS_PREVIEW_LIMIT && (
+                              <button
+                                className="sh-group-toggle-btn"
+                                onClick={() => toggleProcessGroup(group.id)}
+                              >
+                                {isExpanded ? 'Collapse' : `Show all (${group.processes.length})`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="sh-group-content">
+                          {group.processes.length === 0 && <div className="sh-empty">No processes detected</div>}
+                          {visibleProcesses.map(process => (
+                            <ProcessItem key={`${group.id}-${process.pid}-${process.name}`} process={process} />
+                          ))}
+                          {!isExpanded && hiddenCount > 0 && (
                             <button
-                              className="sh-group-toggle-btn"
+                              className="sh-group-showmore"
                               onClick={() => toggleProcessGroup(group.id)}
                             >
-                              {isExpanded ? 'Collapse' : `Show all (${group.processes.length})`}
+                              Show {hiddenCount} more
                             </button>
                           )}
                         </div>
                       </div>
-                      <div className="sh-group-content">
-                        {group.processes.length === 0 && <div className="sh-empty">No processes detected</div>}
-                        {visibleProcesses.map(process => (
-                          <ProcessItem key={`${group.id}-${process.pid}-${process.name}`} process={process} />
-                        ))}
-                        {!isExpanded && hiddenCount > 0 && (
-                          <button
-                            className="sh-group-showmore"
-                            onClick={() => toggleProcessGroup(group.id)}
-                          >
-                            Show {hiddenCount} more
-                          </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'hardware' && (
+              <div className="sh-tab-content">
+                <div className="sh-process-header">
+                  <div>
+                    <h2>Hardware & Devices</h2>
+                    {hardwareData && (
+                      <div className="sh-hardware-meta">
+                        <span className={`sh-status-pill status-${hardwareStatus}`}>{hardwareStatusLabel}</span>
+                        <span className="sh-hardware-usb">
+                          USB backend: {hardwareUsbBackend ? formatMetricLabel(hardwareUsbBackend) : 'Unknown'}
+                        </span>
+                        {hardwareData.timestamp && (
+                          <span className="sh-hardware-timestamp">
+                            Updated {formatTimestamp(hardwareData.timestamp)}
+                          </span>
                         )}
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'hardware' && (
-            <div className="sh-tab-content">
-              <div className="sh-process-header">
-                <div>
-                  <h2>Hardware & Devices</h2>
-                  {hardwareData && (
-                    <div className="sh-hardware-meta">
-                      <span className={`sh-status-pill status-${hardwareStatus}`}>{hardwareStatusLabel}</span>
-                      <span className="sh-hardware-usb">
-                        USB backend: {hardwareUsbBackend ? formatMetricLabel(hardwareUsbBackend) : 'Unknown'}
-                      </span>
-                      {hardwareData.timestamp && (
-                        <span className="sh-hardware-timestamp">
-                          Updated {formatTimestamp(hardwareData.timestamp)}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <div className="sh-hardware-actions">
+                    <button className="chat-with-ai-btn refresh" onClick={loadHardware} disabled={loadingHardware}>
+                      {loadingHardware ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
                 </div>
-                <div className="sh-hardware-actions">
-                  <button className="chat-with-ai-btn refresh" onClick={loadHardware} disabled={loadingHardware}>
-                    {loadingHardware ? 'Refreshing...' : 'Refresh'}
+                {hardwareData?.error && !hardwareErrorDismissed && (
+                  <div className="sh-banner warn">
+                    <span>Hardware subsystem reported: {hardwareData.error}</span>
+                    <button onClick={() => setHardwareErrorDismissed(true)}>Dismiss</button>
+                  </div>
+                )}
+                <div className="sh-hardware-stats">
+                  <span>Connected: {hardwareStats.connected}</span>
+                  <span>Warnings: {hardwareStats.warning}</span>
+                  <span>Disconnected: {hardwareStats.disconnected}</span>
+                </div>
+                <div className="sh-hardware-controls">
+                  <label>
+                    Status filter
+                    <select value={hardwareFilter} onChange={e => setHardwareFilter(e.target.value)}>
+                      <option value="all">All</option>
+                      <option value="connected">Connected</option>
+                      <option value="warning">Warning</option>
+                      <option value="disconnected">Disconnected</option>
+                    </select>
+                  </label>
+                  <input
+                    type="text"
+                    value={hardwareSearch}
+                    onChange={e => setHardwareSearch(e.target.value)}
+                    placeholder="Search by name or device ID"
+                  />
+                </div>
+                {loadingHardware && !hardwareCategories.length && <div>Loading hardware...</div>}
+                {errorHardware && !hardwareCategories.length && (
+                  <div className="sh-summary-error">Error: {errorHardware}</div>
+                )}
+                <div className="sh-hardware-grid">
+                  {filteredHardwareCategories.length === 0 && !loadingHardware && (
+                    <div className="sh-empty">No devices match the selected filters.</div>
+                  )}
+                  {filteredHardwareCategories.map(category => {
+                    const issueDevices = (category.devices || []).filter(device => {
+                      const status = (device.status || '').toLowerCase()
+                      return status === 'warning' || status === 'disconnected'
+                    })
+                    const issueNames = issueDevices.slice(0, 2).map(device => device.name || device.id || 'Device')
+                    return (
+                      <div className="sh-hardware-category" key={category.id}>
+                        <div
+                          className="sh-category-header"
+                          onClick={() =>
+                            setExpandedCategories(prev => ({
+                              ...prev,
+                              [category.id]: !prev[category.id]
+                            }))
+                          }
+                        >
+                          <div className="sh-category-title">
+                            <span>{category.title}</span>
+                            {issueNames.length > 0 && (
+                              <span className="sh-category-note">
+                                Issues: {issueNames.join(', ')}
+                                {issueDevices.length > issueNames.length
+                                  ? ` +${issueDevices.length - issueNames.length}`
+                                  : ''}
+                              </span>
+                            )}
+                          </div>
+                          <div className="sh-category-meta">
+                            <span className="sh-category-status">{category.devices.length} devices</span>
+                            <span
+                              className={`sh-category-pill ${issueDevices.length ? 'status-issues' : 'status-ok'}`}
+                            >
+                              {issueDevices.length ? 'Issues detected' : 'All clear'}
+                            </span>
+                          </div>
+                        </div>
+                        {expandedCategories[category.id] && (
+                          <div className="sh-category-content">
+                            {category.devices.map(device => (
+                              <HardwareDevice key={device.id || device.name} device={device} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'alerts' && (
+              <div className="sh-tab-content">
+                <div className="sh-alerts-toolbar">
+                  <button className="chat-with-ai-btn refresh" onClick={loadAlerts} disabled={loadingAlerts}>
+                    {loadingAlerts ? 'Refreshing...' : 'Refresh Alerts'}
                   </button>
                 </div>
-              </div>
-              {hardwareData?.error && !hardwareErrorDismissed && (
-                <div className="sh-banner warn">
-                  <span>Hardware subsystem reported: {hardwareData.error}</span>
-                  <button onClick={() => setHardwareErrorDismissed(true)}>Dismiss</button>
-                </div>
-              )}
-              <div className="sh-hardware-stats">
-                <span>Connected: {hardwareStats.connected}</span>
-                <span>Warnings: {hardwareStats.warning}</span>
-                <span>Disconnected: {hardwareStats.disconnected}</span>
-              </div>
-              <div className="sh-hardware-controls">
-                <label>
-                  Status filter
-                  <select value={hardwareFilter} onChange={e => setHardwareFilter(e.target.value)}>
-                    <option value="all">All</option>
-                    <option value="connected">Connected</option>
-                    <option value="warning">Warning</option>
-                    <option value="disconnected">Disconnected</option>
-                  </select>
-                </label>
-                <input
-                  type="text"
-                  value={hardwareSearch}
-                  onChange={e => setHardwareSearch(e.target.value)}
-                  placeholder="Search by name or device ID"
-                />
-              </div>
-              {loadingHardware && !hardwareCategories.length && <div>Loading hardware...</div>}
-              {errorHardware && !hardwareCategories.length && (
-                <div className="sh-summary-error">Error: {errorHardware}</div>
-              )}
-              <div className="sh-hardware-grid">
-                {filteredHardwareCategories.length === 0 && !loadingHardware && (
-                  <div className="sh-empty">No devices match the selected filters.</div>
-                )}
-                {filteredHardwareCategories.map(category => {
-                  const issueDevices = (category.devices || []).filter(device => {
-                    const status = (device.status || '').toLowerCase()
-                    return status === 'warning' || status === 'disconnected'
-                  })
-                  const issueNames = issueDevices.slice(0, 2).map(device => device.name || device.id || 'Device')
-                  return (
-                    <div className="sh-hardware-category" key={category.id}>
-                      <div
-                        className="sh-category-header"
-                        onClick={() =>
-                          setExpandedCategories(prev => ({
-                            ...prev,
-                            [category.id]: !prev[category.id]
-                          }))
-                        }
-                      >
-                        <div className="sh-category-title">
-                          <span>{category.title}</span>
-                          {issueNames.length > 0 && (
-                            <span className="sh-category-note">
-                              Issues: {issueNames.join(', ')}
-                              {issueDevices.length > issueNames.length
-                                ? ` +${issueDevices.length - issueNames.length}`
-                                : ''}
-                            </span>
-                          )}
-                        </div>
-                        <div className="sh-category-meta">
-                          <span className="sh-category-status">{category.devices.length} devices</span>
-                          <span
-                            className={`sh-category-pill ${issueDevices.length ? 'status-issues' : 'status-ok'}`}
-                          >
-                            {issueDevices.length ? 'Issues detected' : 'All clear'}
-                          </span>
-                        </div>
-                      </div>
-                      {expandedCategories[category.id] && (
-                        <div className="sh-category-content">
-                          {category.devices.map(device => (
-                            <HardwareDevice key={device.id || device.name} device={device} />
-                          ))}
-                        </div>
-                      )}
+                {errorAlerts && <div className="sh-summary-error">Error: {errorAlerts}</div>}
+                <div className="sh-alerts-layout">
+                  <div className="sh-alert-section">
+                    <div className="sh-alert-header">
+                      <h3>Active Alerts</h3>
+                      <span className="sh-alert-count">{activeAlertsList.length}</span>
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'alerts' && (
-            <div className="sh-tab-content">
-              <div className="sh-alerts-toolbar">
-                <button className="chat-with-ai-btn refresh" onClick={loadAlerts} disabled={loadingAlerts}>
-                  {loadingAlerts ? 'Refreshing...' : 'Refresh Alerts'}
-                </button>
-              </div>
-              {errorAlerts && <div className="sh-summary-error">Error: {errorAlerts}</div>}
-              <div className="sh-alerts-layout">
-                <div className="sh-alert-section">
-                  <div className="sh-alert-header">
-                    <h3>Active Alerts</h3>
-                    <span className="sh-alert-count">{activeAlertsList.length}</span>
+                    {loadingAlerts && !activeAlertsList.length && <div>Loading alerts...</div>}
+                    <div className="sh-alerts-list">
+                      {!loadingAlerts && !errorAlerts && activeAlertsList.length === 0 && (
+                        <div className="sh-empty">No active alerts</div>
+                      )}
+                      {activeAlertsList.map(alert => (
+                        <AlertItem
+                          key={alert.id}
+                          alert={alert}
+                          onDismiss={() => handleDismissAlert(alert.id)}
+                          dismissing={dismissingAlertId === alert.id}
+                          showActions
+                        />
+                      ))}
+                    </div>
                   </div>
-                  {loadingAlerts && !activeAlertsList.length && <div>Loading alerts...</div>}
-                  <div className="sh-alerts-list">
-                    {!loadingAlerts && !errorAlerts && activeAlertsList.length === 0 && (
-                      <div className="sh-empty">No active alerts</div>
-                    )}
-                    {activeAlertsList.map(alert => (
-                      <AlertItem
-                        key={alert.id}
-                        alert={alert}
-                        onDismiss={() => handleDismissAlert(alert.id)}
-                        dismissing={dismissingAlertId === alert.id}
-                        showActions
-                      />
-                    ))}
+                  <div className="sh-alert-section">
+                    <div className="sh-alert-header">
+                      <h3>Alert History</h3>
+                      <span className="sh-alert-count">{alertHistoryList.length}</span>
+                    </div>
+                    {loadingAlerts && !alertHistoryList.length && <div>Loading history...</div>}
+                    <div className="sh-alerts-list">
+                      {!loadingAlerts && !errorAlerts && alertHistoryList.length === 0 && (
+                        <div className="sh-empty">No historical alerts logged</div>
+                      )}
+                      {alertHistoryList.map(alert => (
+                        <AlertItem key={`${alert.id}-${alert.dismissed_at || alert.detected_at}`} alert={alert} compact />
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="sh-alert-section">
-                  <div className="sh-alert-header">
-                    <h3>Alert History</h3>
-                    <span className="sh-alert-count">{alertHistoryList.length}</span>
-                  </div>
-                  {loadingAlerts && !alertHistoryList.length && <div>Loading history...</div>}
-                  <div className="sh-alerts-list">
-                    {!loadingAlerts && !errorAlerts && alertHistoryList.length === 0 && (
-                      <div className="sh-empty">No historical alerts logged</div>
-                    )}
-                    {alertHistoryList.map(alert => (
-                      <AlertItem key={`${alert.id}-${alert.dismissed_at || alert.detected_at}`} alert={alert} compact />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </PanelShell>
-
-      {chatOpen && (
-        <div className="panel-chat-sidebar" role="dialog" aria-label="Chat with Doc">
-          <div className="chat-header">
-            <img src="/doc-avatar.jpeg" alt="Doc" className="chat-avatar" />
-            <div className="chat-header-info">
-              <h3>Doc</h3>
-              <p>Health Monitoring Specialist</p>
-            </div>
-            <div className="chat-header-actions">
-              <DocVoiceControls
-                onTranscript={sendDocMessage}
-                ensureChatOpen={() => setChatOpen(true)}
-              />
-              <button className="chat-close-btn" onClick={() => setChatOpen(false)} aria-label="Close chat">
-                x
-              </button>
-            </div>
-          </div>
-
-          <div className="chat-messages">
-            {chatMessages.map(message => (
-              <div key={message.id} className={`chat-message ${message.sender}`}>
-                <div className="chat-message-content">
-                  <div
-                    className={`chat-message-text ${message.isError ? 'error' : ''}`}
-                    dangerouslySetInnerHTML={{ __html: formatAssistantResponse(message.text) }}
-                  />
-                  <div className="chat-message-time">
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isTyping && (
-              <div className="chat-typing-indicator">
-                <span>Doc is thinking...</span>
-                <div className="chat-typing-dots">
-                  <div className="chat-typing-dot"></div>
-                  <div className="chat-typing-dot"></div>
-                  <div className="chat-typing-dot"></div>
                 </div>
               </div>
             )}
           </div>
+        </PanelShell>
+      </div>
 
-          {chatError && <div className="chat-error">{chatError}</div>}
-
-          <div className="chat-quick-actions">
-            {QUICK_PROMPTS.map(prompt => (
-              <button
-                key={prompt.label}
-                className="quick-action-btn"
-                onClick={() => sendDocMessage(prompt.text)}
-                disabled={isTyping}
-              >
-                {prompt.label}
-              </button>
-            ))}
+      {/* Doc AI Chat Sidebar — permanent sticky panel */}
+      <div className="panel-chat-sidebar"
+        role="complementary"
+        aria-label="Chat with Doc"
+        style={{
+          height: '100vh', position: 'sticky', top: 0, overflowY: 'hidden',
+          flexShrink: 0, width: '320px', display: 'flex', flexDirection: 'column',
+          background: '#0a0702', borderLeft: '1px solid rgba(249,115,22,0.25)'
+        }}>
+        <div className="chat-header">
+          <img src="/doc-avatar.jpeg" alt="Doc" className="chat-avatar" />
+          <div className="chat-header-info">
+            <h3>Doc</h3>
+            <p>Health Monitoring Specialist</p>
           </div>
-
-          <div className="chat-input-container">
-            <textarea
-              className="chat-input"
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  sendDocMessage(chatInput)
-                }
-              }}
-              placeholder="Ask Doc about performance, hardware, or diagnostics..."
-              rows={1}
+          <div className="chat-header-actions">
+            <DocVoiceControls
+              onTranscript={sendDocMessage}
+              ensureChatOpen={() => setChatOpen(true)}
             />
-            <button
-              className="chat-send-btn"
-              onClick={() => sendDocMessage(chatInput)}
-              disabled={!chatInput.trim() || isTyping}
-              aria-label="Send message"
-            >
-              Send
+            <button className="chat-close-btn" onClick={() => setChatOpen(false)} aria-label="Close chat">
+              x
             </button>
           </div>
         </div>
-      )}
-    </>
+
+        <div className="chat-messages">
+          {chatMessages.map(message => (
+            <div key={message.id} className={`chat-message ${message.sender}`}>
+              <div className="chat-message-content">
+                <div
+                  className={`chat-message-text ${message.isError ? 'error' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: formatAssistantResponse(message.text) }}
+                />
+                <div className="chat-message-time">
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isTyping && (
+            <div className="chat-typing-indicator">
+              <span>Doc is thinking...</span>
+              <div className="chat-typing-dots">
+                <div className="chat-typing-dot"></div>
+                <div className="chat-typing-dot"></div>
+                <div className="chat-typing-dot"></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {chatError && <div className="chat-error">{chatError}</div>}
+
+        <div className="chat-quick-actions">
+          {QUICK_PROMPTS.map(prompt => (
+            <button
+              key={prompt.label}
+              className="quick-action-btn"
+              onClick={() => sendDocMessage(prompt.text)}
+              disabled={isTyping}
+            >
+              {prompt.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="chat-input-container">
+          <textarea
+            className="chat-input"
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendDocMessage(chatInput)
+              }
+            }}
+            placeholder="Ask Doc about performance, hardware, or diagnostics..."
+            rows={1}
+          />
+          <button
+            className="chat-send-btn"
+            onClick={() => sendDocMessage(chatInput)}
+            disabled={!chatInput.trim() || isTyping}
+            aria-label="Send message"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 function ProcessItem({ process }) {

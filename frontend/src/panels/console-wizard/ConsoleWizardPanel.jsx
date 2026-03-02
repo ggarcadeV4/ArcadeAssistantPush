@@ -1786,8 +1786,8 @@ Current context: ${JSON.stringify(contextInfo)}`;
   ] ?? PANEL_STATUS_META.warning;
 
   return (
-    <div className="wiz-layout" style={{ display: 'flex', width: '100%', height: '100%' }}>
-      <div className="console-wizard-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+    <div className="wiz-layout" style={{ display: 'flex', width: '100%', alignItems: 'flex-start' }}>
+      <div className="console-wizard-panel" style={{ flex: 1, minWidth: 0 }}>
         <header className="console-wizard-header">
           <div className="panel-heading">
             <h1>Console Wizard</h1>
@@ -2558,175 +2558,175 @@ Current context: ${JSON.stringify(contextInfo)}`;
       </div>
       <WizSidebar />
     </div>
-      );
+  );
 }
 
-      function PreviewModal({
-        preview,
-        error,
-        onClose,
-        loading,
-        onApply,
-        applying,
-        emulatorMap,
-        onRetry,
+function PreviewModal({
+  preview,
+  error,
+  onClose,
+  loading,
+  onApply,
+  applying,
+  emulatorMap,
+  onRetry,
 }) {
   const [expandedIds, setExpandedIds] = useState([]);
 
   useEffect(() => {
     if (!preview?.emulators) {
-        setExpandedIds([]);
+      setExpandedIds([]);
       return;
     }
     setExpandedIds(preview.emulators.map((entry) => entry.id));
   }, [preview]);
 
   const toggleExpanded = (id) => {
-        setExpandedIds((prev) =>
-          prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id],
-        );
+    setExpandedIds((prev) =>
+      prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id],
+    );
   };
 
-      const hasPreviewData = Boolean(preview);
-      const previewHasDiffs = Boolean(preview?.emulators?.length);
-      const {emulatorCount, fileCount} = hasPreviewData
-      ? previewCounts(preview)
-      : {emulatorCount: 0, fileCount: 0 };
+  const hasPreviewData = Boolean(preview);
+  const previewHasDiffs = Boolean(preview?.emulators?.length);
+  const { emulatorCount, fileCount } = hasPreviewData
+    ? previewCounts(preview)
+    : { emulatorCount: 0, fileCount: 0 };
 
-      return (
-      <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
-        <div className="wizard-modal">
-          <header>
-            <h3>Preview Config Changes</h3>
-            <button type="button" className="text" onClick={onClose}>
-              Close
-            </button>
-          </header>
-          <div className="modal-body">
-            {error && <div className="modal-error">{error}</div>}
-            {loading && <p>Loading preview…</p>}
-            {!loading && hasPreviewData && (
-              <>
-                <p className="modal-summary">
-                  Will update configs for {emulatorCount} emulator
-                  {emulatorCount === 1 ? '' : 's'}, {fileCount} file
-                  {fileCount === 1 ? '' : 's'} total.
-                </p>
-                {preview?.summary && <p className="modal-copy">{preview.summary}</p>}
-              </>
-            )}
-            {!loading && previewHasDiffs && (
-              <ul className="preview-groups">
-                {preview?.emulators?.map((entry) => {
-                  const source = emulatorMap.get(entry.id);
-                  const isExpanded = expandedIds.includes(entry.id);
-                  return (
-                    <li key={entry.id} className="preview-group">
-                      <div className="preview-header">
-                        <div>
-                          <strong>{entry.displayName}</strong>
-                          {source?.status && (
-                            <span className={`status-chip ${source.status}`}>
-                              {STATUS_LABELS[source.status] ?? 'OK'}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          className="text"
-                          onClick={() => toggleExpanded(entry.id)}
-                        >
-                          {isExpanded ? 'Hide files' : 'Show files'} (
-                          {entry.files?.length ?? 0})
-                        </button>
-                      </div>
-                      {isExpanded && (
-                        <ul className="preview-files">
-                          {entry.files?.map((file) => (
-                            <li key={file.relativePath}>
-                              <div className="diff-heading">
-                                <span>{file.relativePath}</span>
-                                <span className={`chip ${file.changeType}`}>
-                                  {file.changeType}
-                                </span>
-                              </div>
-                              {(file.before || file.after) && (
-                                <div className="diff-body">
-                                  {file.before && (
-                                    <pre>
-                                      <strong>Before</strong>
-                                      <code>{file.before}</code>
-                                    </pre>
-                                  )}
-                                  {file.after && (
-                                    <pre>
-                                      <strong>After</strong>
-                                      <code>{file.after}</code>
-                                    </pre>
-                                  )}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {!loading && hasPreviewData && !previewHasDiffs && !error && (
-              <p className="modal-copy">
-                Console Wizard did not detect any config changes for this selection.
+  return (
+    <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="wizard-modal">
+        <header>
+          <h3>Preview Config Changes</h3>
+          <button type="button" className="text" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="modal-body">
+          {error && <div className="modal-error">{error}</div>}
+          {loading && <p>Loading preview…</p>}
+          {!loading && hasPreviewData && (
+            <>
+              <p className="modal-summary">
+                Will update configs for {emulatorCount} emulator
+                {emulatorCount === 1 ? '' : 's'}, {fileCount} file
+                {fileCount === 1 ? '' : 's'} total.
               </p>
-            )}
-            {!loading && !hasPreviewData && !error && (
-              <p className="modal-copy">No preview data available yet.</p>
-            )}
-          </div>
-          <footer className="modal-footer">
-            <button type="button" onClick={onClose}>
-              Cancel
-            </button>
-            {error && onRetry && (
-              <button type="button" className="ghost" onClick={onRetry} disabled={loading}>
-                Retry Preview
-              </button>
-            )}
-            <button
-              type="button"
-              className="primary"
-              onClick={onApply}
-              disabled={applying || !previewHasDiffs}
-            >
-              {applying ? 'Applying...' : 'Apply Changes'}
-            </button>
-          </footer>
+              {preview?.summary && <p className="modal-copy">{preview.summary}</p>}
+            </>
+          )}
+          {!loading && previewHasDiffs && (
+            <ul className="preview-groups">
+              {preview?.emulators?.map((entry) => {
+                const source = emulatorMap.get(entry.id);
+                const isExpanded = expandedIds.includes(entry.id);
+                return (
+                  <li key={entry.id} className="preview-group">
+                    <div className="preview-header">
+                      <div>
+                        <strong>{entry.displayName}</strong>
+                        {source?.status && (
+                          <span className={`status-chip ${source.status}`}>
+                            {STATUS_LABELS[source.status] ?? 'OK'}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="text"
+                        onClick={() => toggleExpanded(entry.id)}
+                      >
+                        {isExpanded ? 'Hide files' : 'Show files'} (
+                        {entry.files?.length ?? 0})
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <ul className="preview-files">
+                        {entry.files?.map((file) => (
+                          <li key={file.relativePath}>
+                            <div className="diff-heading">
+                              <span>{file.relativePath}</span>
+                              <span className={`chip ${file.changeType}`}>
+                                {file.changeType}
+                              </span>
+                            </div>
+                            {(file.before || file.after) && (
+                              <div className="diff-body">
+                                {file.before && (
+                                  <pre>
+                                    <strong>Before</strong>
+                                    <code>{file.before}</code>
+                                  </pre>
+                                )}
+                                {file.after && (
+                                  <pre>
+                                    <strong>After</strong>
+                                    <code>{file.after}</code>
+                                  </pre>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {!loading && hasPreviewData && !previewHasDiffs && !error && (
+            <p className="modal-copy">
+              Console Wizard did not detect any config changes for this selection.
+            </p>
+          )}
+          {!loading && !hasPreviewData && !error && (
+            <p className="modal-copy">No preview data available yet.</p>
+          )}
         </div>
+        <footer className="modal-footer">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          {error && onRetry && (
+            <button type="button" className="ghost" onClick={onRetry} disabled={loading}>
+              Retry Preview
+            </button>
+          )}
+          <button
+            type="button"
+            className="primary"
+            onClick={onApply}
+            disabled={applying || !previewHasDiffs}
+          >
+            {applying ? 'Applying...' : 'Apply Changes'}
+          </button>
+        </footer>
       </div>
-      );
+    </div>
+  );
 }
 
-      function DevErrorModal({error, onClose}) {
+function DevErrorModal({ error, onClose }) {
   if (!error) return null;
-      return (
-      <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
-        <div className="wizard-modal">
-          <header>
-            <h3>{error.title ?? 'Error details'}</h3>
-            <button type="button" className="text" onClick={onClose}>
-              Close
-            </button>
-          </header>
-          <div className="modal-body">
-            <pre className="dev-error-body">{error.details}</pre>
-          </div>
-          <footer className="modal-footer">
-            <button type="button" onClick={onClose}>
-              Close
-            </button>
-          </footer>
+  return (
+    <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="wizard-modal">
+        <header>
+          <h3>{error.title ?? 'Error details'}</h3>
+          <button type="button" className="text" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="modal-body">
+          <pre className="dev-error-body">{error.details}</pre>
         </div>
+        <footer className="modal-footer">
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        </footer>
       </div>
-      );
+    </div>
+  );
 }

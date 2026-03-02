@@ -251,23 +251,25 @@ export default function WizSidebar({ className = '' }) {
             {/* ── Message list ─────────────────────────────────────────────────── */}
             <div className="wsb-messages" role="log" aria-live="polite" aria-label="Chat messages">
                 {messages.length === 0 && (
-                    <p className="wsb-empty">
+                    <div className="wsb-empty">
+                        <span className="wsb-empty__icon">🧙</span>
                         {diag.diagMode
                             ? 'Diagnosis Mode active. Ask Wiz about your emulators or controllers.'
-                            : 'Ask Wiz about console controllers or emulator setup.'}
-                    </p>
+                            : 'Wiz is standing by.\nAsk about console controllers, emulator configs, or toggle DIAG to run diagnostics.'}
+                    </div>
                 )}
                 {messages.map((msg) => (
                     <MessageBubble key={msg.id} msg={msg} />
                 ))}
-                {loading && (
-                    <div className="wsb-kitt" aria-label="Wiz is scanning">
-                        <span className="wsb-kitt__label">Scanning…</span>
-                        <div className="wsb-kitt__track">
-                            <div className="wsb-kitt__orb" />
-                        </div>
+                {/* Always-on ambient scanner — dims when idle, bright when loading */}
+                <div className={`wsb-kitt ${loading ? '' : 'wsb-kitt--ambient'}`}
+                    aria-label={loading ? 'Wiz is scanning' : 'Wiz standby'}
+                    aria-live={loading ? 'polite' : undefined}>
+                    <span className="wsb-kitt__label">{loading ? 'Scanning…' : 'Standby'}</span>
+                    <div className="wsb-kitt__track">
+                        <div className="wsb-kitt__orb" />
                     </div>
-                )}
+                </div>
                 <div ref={bottomRef} />
             </div>
 

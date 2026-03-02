@@ -1,0 +1,356 @@
+/* EngineeringBaySidebar.css
+ * Generic sidebar for all Engineering Bay personas.
+ * Colors driven by CSS variables set via inline style on the root element:
+ *   --eb-accent : persona accent hex   (e.g. #A855F7 for Vicky)
+ *   --eb-glow   : persona glow rgba    (e.g. rgba(168,85,247,0.35))
+ */
+
+/* ── Root shell ─────────────────────────────────────────────────── */
+.eb-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 320px;
+    min-width: 260px;
+    max-width: 360px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    background: #060609;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    transition: border-color 0.4s, box-shadow 0.4s;
+    flex-shrink: 0;
+}
+
+/* ── Diagnosis / always-on state ──────────────────────────────── */
+.eb-sidebar--active {
+    border-left-color: var(--eb-accent);
+    box-shadow: -3px 0 14px var(--eb-glow);
+    animation: eb-border-pulse 3s ease-in-out infinite;
+}
+
+@keyframes eb-border-pulse {
+
+    0%,
+    100% {
+        box-shadow: -3px 0 14px var(--eb-glow);
+    }
+
+    50% {
+        box-shadow: -3px 0 28px var(--eb-glow);
+    }
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+.eb-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.eb-header__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+}
+
+.eb-header__icon {
+    font-size: 16px;
+}
+
+.eb-header__icon2 {
+    font-size: 12px;
+    opacity: 0.35;
+}
+
+.eb-header__pill {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--eb-accent) 20%, transparent);
+    color: var(--eb-accent);
+    border: 1px solid color-mix(in srgb, var(--eb-accent) 40%, transparent);
+    animation: eb-pill-blink 2s ease-in-out infinite;
+}
+
+@keyframes eb-pill-blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+/* ── Message list ───────────────────────────────────────────────── */
+.eb-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.eb-empty {
+    margin: auto;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.3);
+    line-height: 1.7;
+    padding: 0 16px;
+}
+
+.eb-empty__icon {
+    font-size: 28px;
+    display: block;
+    margin-bottom: 8px;
+    opacity: 0.5;
+}
+
+/* ── Message bubbles ────────────────────────────────────────────── */
+.eb-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 90%;
+}
+
+.eb-msg--user {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.eb-msg--assistant {
+    align-self: flex-start;
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 7px;
+}
+
+.eb-msg--system {
+    align-self: center;
+    align-items: center;
+}
+
+.eb-msg__avatar {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.eb-msg__text {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 8px 11px;
+    border-radius: 12px;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.eb-msg--user .eb-msg__text {
+    background: color-mix(in srgb, var(--eb-accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--eb-accent) 22%, transparent);
+    color: rgba(255, 255, 255, 0.9);
+    border-radius: 12px 12px 3px 12px;
+}
+
+.eb-msg--assistant .eb-msg__text {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.85);
+    border-radius: 3px 12px 12px 12px;
+}
+
+.eb-msg--system .eb-msg__text {
+    background: color-mix(in srgb, var(--eb-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--eb-accent) 18%, transparent);
+    color: color-mix(in srgb, var(--eb-accent) 80%, white);
+    border-radius: 8px;
+    font-size: 11px;
+    text-align: center;
+}
+
+.eb-msg__time {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.25);
+    padding: 0 4px;
+}
+
+/* ── KITT Scanner ───────────────────────────────────────────────── */
+.eb-kitt {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-self: flex-start;
+    padding: 10px 14px;
+    max-width: 220px;
+}
+
+.eb-kitt__label {
+    font-size: 8px;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--eb-accent);
+    opacity: 0.7;
+}
+
+.eb-kitt__track {
+    width: 160px;
+    height: 6px;
+    background: rgba(0, 0, 5, 0.95);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.6),
+        0 0 6px color-mix(in srgb, var(--eb-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--eb-accent) 15%, transparent);
+}
+
+.eb-kitt__orb {
+    position: absolute;
+    top: -2px;
+    width: 56px;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            color-mix(in srgb, var(--eb-accent) 20%, transparent) 15%,
+            color-mix(in srgb, var(--eb-accent) 70%, transparent) 35%,
+            var(--eb-accent) 48%,
+            white 54%,
+            color-mix(in srgb, var(--eb-accent) 70%, transparent) 65%,
+            color-mix(in srgb, var(--eb-accent) 20%, transparent) 85%,
+            transparent 100%);
+    box-shadow: 0 0 10px 3px var(--eb-glow),
+        0 0 24px 8px color-mix(in srgb, var(--eb-accent) 30%, transparent),
+        0 0 40px 12px color-mix(in srgb, var(--eb-accent) 10%, transparent);
+    animation: eb-kitt-sweep 1.2s ease-in-out infinite alternate;
+    filter: blur(0.5px);
+}
+
+@keyframes eb-kitt-sweep {
+    from {
+        left: -56px;
+    }
+
+    to {
+        left: 160px;
+    }
+}
+
+/* Ambient (idle) — dim the orb, slow the sweep */
+.eb-kitt--ambient .eb-kitt__orb {
+    background: linear-gradient(90deg,
+            transparent 0%,
+            color-mix(in srgb, var(--eb-accent) 8%, transparent) 20%,
+            color-mix(in srgb, var(--eb-accent) 35%, transparent) 48%,
+            color-mix(in srgb, var(--eb-accent) 8%, transparent) 80%,
+            transparent 100%);
+    box-shadow: 0 0 6px 2px color-mix(in srgb, var(--eb-accent) 25%, transparent),
+        0 0 14px 4px color-mix(in srgb, var(--eb-accent) 8%, transparent);
+    animation: eb-kitt-sweep 2.8s ease-in-out infinite alternate;
+    filter: none;
+}
+
+.eb-kitt--ambient .eb-kitt__track {
+    border-color: color-mix(in srgb, var(--eb-accent) 7%, transparent);
+    box-shadow: none;
+}
+
+.eb-kitt--ambient .eb-kitt__label {
+    opacity: 0.3;
+}
+
+/* ── Input row ──────────────────────────────────────────────────── */
+.eb-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.eb-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 11px;
+    resize: none;
+    outline: none;
+    line-height: 1.4;
+    max-height: 96px;
+    overflow-y: auto;
+    transition: border-color 0.2s;
+}
+
+.eb-input:focus {
+    border-color: color-mix(in srgb, var(--eb-accent) 40%, transparent);
+}
+
+.eb-input::placeholder {
+    color: rgba(255, 255, 255, 0.22);
+}
+
+.eb-input:disabled {
+    opacity: 0.4;
+}
+
+.eb-send {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: color-mix(in srgb, var(--eb-accent) 18%, transparent);
+    color: var(--eb-accent);
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.18s, transform 0.12s;
+    outline: none;
+}
+
+.eb-send:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--eb-accent) 32%, transparent);
+    transform: scale(1.08);
+}
+
+.eb-send:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* ── Layout wrapper (used in each panel) ───────────────────────── */
+.eb-layout {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+}
+
+.eb-layout__main {
+    flex: 1;
+    min-width: 0;
+}
