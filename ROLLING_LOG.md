@@ -24,6 +24,102 @@
 **Commits**: `586db64` FLIP origin animation | `a5fcd5e` premium return animation | `bb3a81f` 2P layout unification | `92039ff` 2P vertical centering | `64513cb` 2P top strip fix (justify-content root cause) | `ac64c9c` mapping confirmation system
 **Next**: Microphone support in Chuck's chat sidebar. Then cascade to Vicky Voice panel.
 
+---
+
+## 🔬 FEATURE SPEC IN PROGRESS: Diagnosis Mode — AI-Driven Profile Configuration
+*Introduced: 2026-03-01 | Status: Pre-architecture | DO NOT CODE until questions below are resolved.*
+
+### The Concept
+A mode-switch on each panel's chat sidebar that shifts the AI from **Standard Mode** (free conversation) to **Diagnosis Mode** (context-aware, action-capable co-pilot). In Diagnosis Mode, the AI knows the current user, current game, current hardware state, and has **write access to config files and user profiles** via tool-use/function-calling.
+
+**The killer use case:** *"Hey Chuck, on Street Fighter 2 for my profile, I want Button 4 to be Punch."* → Chuck writes a per-user, per-game override that persists permanently. Next time that profile loads → Button 4 = Punch.
+
+**Panels that will need this:** Controller Chuck (first), LED Blinky, Console Wizard, Gunner.
+
+---
+
+### Pre-Architecture Planning Questions
+*These must be answered before any code is written. Think of this as the design spec gate.*
+
+**1. Microphone Interaction Model: Push-to-Talk vs. Always-On?**
+- Does the user press a button each time they want to speak (push-to-talk)? Or is the mic always listening in Diagnosis Mode?
+- Push-to-talk: cleaner, fewer false triggers, requires deliberate action.
+- Always-on: more natural, but arcade environments have background noise (button clicks, cabinet audio). Need a wake word ("Hey Chuck") or noise filter?
+- *Decision needed: Which model fits the physical arcade cabinet use case better?*
+
+**2. TTS (Text-to-Speech) Policy in Diagnosis Mode**
+- Does Chuck speak *every* response, or only confirmations and alerts?
+- Does Chuck speak over itself if the user interrupts mid-sentence?
+- Volume: should Diagnosis Mode auto-raise volume vs. Standard Mode?
+- Do we need an interrupt command ("Stop" / "Cancel")?
+- *Decision needed: Full TTS, confirmation-only TTS, or user-controlled toggle?*
+
+**3. Wake Word / Activation Boundary**
+- In a physical arcade cabinet environment with speakers on, always-on listening risks false triggers from game audio.
+- Options: (a) Physical mic button, (b) Wake word ("Hey Chuck"), (c) Silence detection + timeout-gated listening, (d) Diagnosis Mode itself is the activation boundary.
+- *Decision needed: How do we gate when Chuck is actually "listening" vs passive?*
+
+**4. Profile Config Schema Design**
+- Hardware mapping = `{ userId, playerId, controlKey, gpioPin }` (done today — GPIO level)
+- Game overrides = `{ userId, gameId, controlKey, actionLabel }` (new layer — software/semantic level)
+- These are *two separate layers* that need to be merged at runtime. Where does merge happen: frontend state, backend, LaunchBox plugin, or Supabase materialized view?
+- *Decision needed: Schema structure and merge strategy.*
+
+**5. Tool-Use / Function-Calling Implementation**
+- Which AI model handles Diagnosis Mode? Gemini (current), Claude, or OpenAI?
+- Does our current proxy edge function support tool schemas (function definitions)?
+- Tools needed at minimum: `updateProfileMapping()`, `readCurrentMapping()`, `listAvailableActions()`, `undoLastChange()`
+- *Decision needed: Model + proxy extension plan for tool-use.*
+
+**6. Context Injection Scope**
+- What data gets injected into the system prompt in Diagnosis Mode?
+- Proposed: `{ activeUser, currentGame, gpioMapping (current), profileOverrides (current), boardStatus, detectedBoard }`
+- Does the game context come from LaunchBox (via the HttpBridge plugin we already have)? Or manual selection?
+- *Decision needed: What is the full context payload and where does each piece come from?*
+
+**7. Conflict Resolution: Hardware vs Profile Override**
+- Hardware layer: Button 4 = GPIO 14 (physical wire).
+- Profile layer: Button 4 = Punch on SF2 (semantic intent).
+- System layer: SF2 config file maps Punch = GPIO 14.
+- Who owns the truth? What happens if there's a conflict (e.g., button remapped hardware but profile override still points old GPIO)?
+- *Decision needed: Layered priority model (hardware → system → profile) and conflict audit plan.*
+
+**8. Error Handling: AI Misunderstanding a Command**
+- Chuck might misinterpret: "make button 4 punch" → maps the wrong button or wrong game.
+- Need a confirmation step before write: "I'll set Button 4 to Punch on Street Fighter 2 for [username]. Confirm?"
+- Need an undo: "Actually, cancel that" or "Undo last change."
+- *Decision needed: Mandatory confirm-before-write? Or optimistic write with undo?*
+
+**9. Rollout Order Across Panels**
+- If we build this correctly the first time in Chuck, the pattern (mode switch + context injection + tool-use) should be reusable across all panels.
+- Proposed order: Chuck → LED Blinky → Console Wizard → Gunner.
+- Do all panels share one `useDiagnosisMode()` hook, or are they all standalone?
+- *Decision needed: Shared hook architecture vs. panel-specific implementations.*
+
+**10. Session Summary / Change Commit Flow**
+- When user exits Diagnosis Mode, does Chuck summarize what changed? "Session summary: 3 overrides saved — P1 Button 4=Punch (SF2), P1 Button 6=Kick (SF2), P2 Joystick Right=GPIO 12."
+- Is there a "commit" step (like a config save button) or are writes immediate?
+- *Decision needed: Optimistic real-time writes vs. staged commit model.*
+
+**11. Ambient Noise / False-Fire Prevention**
+- Diagnosis Mode in an arcade environment: cabinet speakers, button clicks, fans, background music.
+- If using always-on mic, how do we prevent Chuck from triggering on cabinet audio?
+- Options: VAD (Voice Activity Detection) threshold tuning, push-to-talk only, noise-gate filter in Web Audio API, confidence scoring on speech transcripts before sending to AI.
+- *Decision needed: What noise-handling strategy is acceptable for the cabinet environment?*
+
+---
+
+### Hook Points in Existing Code
+*(Identified pre-architecture — DO NOT CODE yet, just reference)*
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx` — `handleFocus`, `latestInput`, `mapping` state all relevant
+- `backend/routers/` — new route needed: `POST /api/profiles/mapping-override`
+- `gateway/server.js` — AI proxy call needs tool-schema support added
+- `plugin/src/Plugin.cs` (HttpBridge) — already fires game start/stop events; can provide `currentGame` to context injection
+- Supabase `profiles` table — new `mapping_overrides` JSONB column or separate table
+
+---
+
+
 
 ## 2026-02-28 | V1 Completion Sprint — Close All Audit Blockers
 **Net Progress**: Closed 12+ audit-flagged blockers in a single session. Key wins:
