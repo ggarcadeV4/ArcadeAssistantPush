@@ -1,5 +1,26 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-02 (PM2) | Console Wizard WIZ Sidebar V1 Complete
+
+**Net Progress**: Built Console Wizard WIZ sidebar end-to-end — new backend AI service, chat endpoint, green KITT scanner, diagnosis mode with emulator context assembler. **All 6 Engineering Bay Stitch designs complete.** Chuck KITT scanner upgraded to match WIZ intensity. Build: ✅ 2.85s, 0 errors. Git: `981fc59`.
+
+**Key Wins:**
+- **`backend/services/wiz/ai.py`** (NEW): Full Wiz AI service, mirrors chuck/ai.py. Hot-swaps `controller_wizard.prompt` on `---DIAGNOSIS---` delimiter. Injects emulator health + controller context. Caches both variants.
+- **`POST /api/local/console_wizard/chat`**: New endpoint in `console_wizard.py`. Passes `isDiagnosisMode` flag + runtime context to AI service.
+- **`controller_wizard.prompt`**: Split with `---DIAGNOSIS---`. Diagnosis mode now covers all emulator configs (RetroArch, Dolphin, PCSX2, TeknoParrot) + action block format for config fixes.
+- **`WizSidebar.jsx/.css`**: Green neon #22C55E chat panel, `SCANNING...` KITT orb, Diagnosis toggle, ExecutionCard wired, action block parser for emulator config fixes.
+- **`wizContextAssembler.js`**: Parallel-fetches emulator health + controller list for AI context (< 1500 tokens).
+- **`ConsoleWizardPanel.jsx`**: Wired in WizSidebar via `wiz-layout` flex wrapper.
+- **Stitch Designs** (project `8940180023178032848`): All 6 Engineering Bay sidebars done — CHUCK (amber), WIZ (green), VICKY (purple), BLINKY (cyan), GUNNER (red), DOC (orange).
+
+**Next Steps:**
+1. Implement VICKY sidebar (purple #A855F7, voice/TTS domain)
+2. Implement BLINKY sidebar (cyan #06B6D4, LED lighting domain)
+3. Implement GUNNER sidebar (red #EF4444, light gun domain)
+4. Implement DOC sidebar (orange #F97316, always-on SYS pill)
+
+---
+
 ## 2026-03-02 (PM) | V1 Guardrails Constitution + Chuck Sidebar Polish Complete
 
 **Net Progress**: Established the canonical **Diagnosis Mode Guardrails Constitution** for all 9 Arcade Assistant personas. Implemented all V1 safety rails for Controller Chuck (ExecutionCard, dual prompt, timeout auto-revert, KITT scanner). Designed Chuck sidebar GUI in Stitch. Build: ✅ 2.93s, 0 errors.
