@@ -1,0 +1,112 @@
+/* ── ExecutionCard.css ─────────────────────────────────────────────────────
+   V1 Safety gate card — amber/dark theme matching Diagnosis Mode aesthetic.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.exec-card {
+    background: linear-gradient(135deg, #1a1200 0%, #2a1f00 100%);
+    border: 1px solid var(--chuck-amber, #f59e0b);
+    border-left: 4px solid var(--chuck-amber, #f59e0b);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 6px 0;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
+    transition: box-shadow 0.2s ease;
+}
+
+.exec-card--running {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
+    animation: exec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes exec-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 24px rgba(245, 158, 11, 0.5);
+    }
+}
+
+.exec-card__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.exec-card__icon {
+    font-size: 14px;
+}
+
+.exec-card__label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--chuck-amber, #f59e0b);
+    opacity: 0.85;
+}
+
+.exec-card__display {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fef3c7;
+    margin: 0 0 10px 0;
+    line-height: 1.4;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.exec-card__error {
+    font-size: 11px;
+    color: #fca5a5;
+    margin: 0 0 8px 0;
+}
+
+.exec-card__actions {
+    display: flex;
+    gap: 8px;
+}
+
+.exec-card__btn {
+    flex: 1;
+    padding: 7px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.exec-card__btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.exec-card__btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+.exec-card__btn--execute {
+    background: var(--chuck-amber, #f59e0b);
+    color: #0a0500;
+}
+
+.exec-card__btn--execute:not(:disabled):hover {
+    background: #fbbf24;
+}
+
+.exec-card__btn--cancel {
+    background: rgba(255, 255, 255, 0.07);
+    color: #9ca3af;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.exec-card__btn--cancel:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #d1d5db;
+}

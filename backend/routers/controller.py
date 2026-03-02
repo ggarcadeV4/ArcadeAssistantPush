@@ -64,6 +64,11 @@ from ..services.mame_hot_swap import (
     get_ephemeral_status,
 )
 from ..services.controller_shared import log_controller_change
+from ..services.controller_bridge import (
+    ControllerBridge,
+    ControllerBridgeError,
+    ConflictError,
+)
 
 # Board detection – used by GET /mapping for real-time status
 try:
@@ -180,6 +185,21 @@ class GoldenResetRequest(BaseModel):
         default=False,
         description="Also clear MAME high scores (optional)"
     )
+
+
+class MappingOverrideRequest(BaseModel):
+    """AI-driven single-input override (Diagnosis Mode / remediate_controller_config tool).
+
+    Q8 decision: optimistic per-input + confirm-before-commit.
+    The frontend MUST show the proposal diff to the user before setting confirmed_by='user'.
+    """
+    control_key  : str            = Field(...,       description="e.g. 'p1.button3'")
+    pin          : int            = Field(...,       description="GPIO pin number to assign")
+    label        : Optional[str] = Field(None,      description="Human-readable label")
+    source       : str            = Field("ai_tool", description="Origin: 'ai_tool' | 'user' | 'hardware'")
+    force        : bool           = Field(False,     description="Bypass error-severity conflicts (requires reasoning)")
+    confirmed_by : str            = Field("user",   description="Who confirmed: 'user' | 'ai_tool' | 'auto'")
+    reasoning    : Optional[str] = Field(None,      description="AI reasoning for this override")
 
 
 # ============================================================================
@@ -366,6 +386,109 @@ def _maybe_trigger_auto_cascade(
         backup=backup_on_write,
     )
     return job_record
+
+
+
+# ============================================================================
+# Diagnosis Mode — AI-Driven Mapping Override (Q8)
+# ============================================================================
+
+@router.post("/profiles/mapping-override")
+async def mapping_override(request: Request, payload: MappingOverrideRequest):
+    """AI-driven single-input mapping override via ControllerBridge.
+
+    Decision refs (diagnosis_mode_plan.md):
+      Q4  — ControllerBridge is sole merge authority
+      Q7  — Hardware truth wins; 4 conflict types returned on proposal
+      Q8  — 5-step atomic flow: validate → backup → write → meta → return
+
+    Two-phase flow:
+      Phase 1 (proposal):  POST with confirmed_by='pending'
+                           Returns proposal + conflicts for UI diff display.
+                           Does NOT write to disk.
+      Phase 2 (commit):    POST with confirmed_by='user' (or 'ai_tool' / 'auto')
+                           Commits atomically with backup.
+
+    The frontend ChuckSidebar MUST show the proposal diff before confirming.
+    """
+    require_scope(request, "config")
+    _ensure_writes_allowed(request)
+
+    drive_root: Path = request.app.state.drive_root
+    bridge = ControllerBridge(drive_root)
+
+    # ── Phase 1: Proposal only (no write) ─────────────────────────────────────
+    if payload.confirmed_by == "pending":
+        try:
+            proposal = bridge.propose_override(
+                control_key = payload.control_key,
+                pin         = payload.pin,
+                label       = payload.label,
+                source      = payload.source,
+            )
+        except ControllerBridgeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        return {
+            "phase"           : "proposal",
+            "control_key"     : proposal["control_key"],
+            "pin"             : proposal["pin"],
+            "conflicts"       : proposal["conflicts"],
+            "can_auto_commit" : proposal["can_auto_commit"],
+            "mapping_before"  : proposal["mapping_before"],
+            "mapping_after"   : proposal["mapping_after"],
+            "reasoning"       : payload.reasoning,
+        }
+
+    # ── Phase 2: Commit ────────────────────────────────────────────────────────
+    try:
+        proposal = bridge.propose_override(
+            control_key = payload.control_key,
+            pin         = payload.pin,
+            label       = payload.label,
+            source      = payload.source,
+        )
+        result = bridge.commit_override(
+            proposal,
+            confirmed_by = payload.confirmed_by,
+            force        = payload.force,
+        )
+    except ConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message"  : "Conflict(s) blocked the override. Use force=true to override, or resolve first.",
+                "conflicts": exc.conflicts,
+            },
+        )
+    except ControllerBridgeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    # Log to controller audit trail
+    log_controller_change(
+        request, drive_root,
+        action  = "mapping_override",
+        details = {
+            "control_key"  : payload.control_key,
+            "pin"          : payload.pin,
+            "source"       : payload.source,
+            "confirmed_by" : payload.confirmed_by,
+            "reasoning"    : payload.reasoning,
+            "warnings"     : result.get("warnings", []),
+        },
+        backup_path = Path(result["backup_path"]) if result.get("backup_path") else None,
+    )
+
+    return {
+        "phase"        : "committed",
+        "status"       : result["status"],
+        "control_key"  : result["control_key"],
+        "pin"          : result["pin"],
+        "confirmed_by" : result["confirmed_by"],
+        "backup_path"  : result["backup_path"],
+        "warnings"     : result.get("warnings", []),
+        "reasoning"    : payload.reasoning,
+    }
 
 
 # ============================================================================

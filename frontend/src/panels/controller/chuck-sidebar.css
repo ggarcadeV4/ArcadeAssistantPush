@@ -1,0 +1,327 @@
+﻿/* chuck-sidebar.css
+ * ═══════════════════════════════════════════════════════════════════
+ * Styles for ChuckSidebar — the chat panel that slides alongside
+ * the controller grid. Amber border signals Diagnosis Mode.
+ *
+ * V1 Design System:
+ *   --chuck-amber : #FBBF24  (brighter warm amber — not murky brown)
+ *   --chuck-cyan  : #00e5ff  (chat mode accent)
+ *   KITT Scanner replaces dot-bounce as Chuck's signature animation.
+ */
+
+/* ── CSS variables ─────────────────────────────────────────────────────────── */
+:root {
+    --sidebar-bg: #0d1117;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+    --sidebar-width: 320px;
+    --chuck-amber: #FBBF24;
+    --chuck-amber-glow: rgba(251, 191, 36, 0.35);
+    --chuck-cyan: #00e5ff;
+}
+
+/* ── Sidebar shell ──────────────────────────────────────────────────────────── */
+.chuck-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: var(--sidebar-width);
+    min-width: 260px;
+    max-width: 360px;
+    height: 100%;
+    background: var(--sidebar-bg);
+    border-left: 1px solid var(--sidebar-border);
+    border-radius: 0 12px 12px 0;
+    overflow: hidden;
+    transition: border-color 0.4s, box-shadow 0.4s;
+    position: relative;
+}
+
+/* ── Diagnosis Mode amber border ───────────────────────────────────────────── */
+.chuck-sidebar--diagnosis {
+    border-left-color: var(--chuck-amber);
+    box-shadow: -3px 0 14px rgba(251, 191, 36, 0.2);
+    animation: sidebar-diag-pulse 3s ease-in-out infinite;
+}
+
+@keyframes sidebar-diag-pulse {
+
+    0%,
+    100% {
+        box-shadow: -3px 0 14px rgba(251, 191, 36, 0.2);
+    }
+
+    50% {
+        box-shadow: -3px 0 28px rgba(251, 191, 36, 0.45);
+    }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.csb-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.csb-header__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+}
+
+.csb-header__icon {
+    font-size: 16px;
+}
+
+/* Joystick badge — signals arcade-stick optimized UI at a glance */
+.csb-header__joystick {
+    font-size: 14px;
+    opacity: 0.4;
+    margin-left: 2px;
+    filter: grayscale(1);
+}
+
+.csb-header__diag-badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--chuck-amber);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    animation: badge-blink 2s ease-in-out infinite;
+}
+
+@keyframes badge-blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+/* ── Message list ───────────────────────────────────────────────────────────── */
+.csb-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.csb-empty {
+    margin: auto;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.3);
+    line-height: 1.5;
+}
+
+/* ── Message bubbles ────────────────────────────────────────────────────────── */
+.csb-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 90%;
+}
+
+.csb-msg--user {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.csb-msg--assistant {
+    align-self: flex-start;
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 7px;
+}
+
+.csb-msg__avatar {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.csb-msg__text {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 8px 11px;
+    border-radius: 12px;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.csb-msg--user .csb-msg__text {
+    background: rgba(0, 200, 255, 0.15);
+    border: 1px solid rgba(0, 200, 255, 0.25);
+    color: rgba(255, 255, 255, 0.9);
+    border-radius: 12px 12px 3px 12px;
+}
+
+.csb-msg--assistant .csb-msg__text {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+    border-radius: 3px 12px 12px 12px;
+}
+
+.csb-msg__time {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.25);
+    padding: 0 4px;
+}
+
+/* ── KITT Scanner ───────────────────────────────────────────────────────────── */
+/* Chuck's signature animation — replaces generic dot-bounce typing indicator. */
+/* Shows when loading=true. Amber sweep = AI is analyzing.                     */
+.csb-kitt {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-self: flex-start;
+    padding: 10px 14px;
+    max-width: 220px;
+}
+
+.csb-kitt__label {
+    font-size: 8px;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--chuck-amber);
+    opacity: 0.7;
+}
+
+.csb-kitt__track {
+    width: 160px;
+    height: 6px;
+    background: rgba(10, 5, 0, 0.9);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.6),
+        0 0 6px rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+.csb-kitt__orb {
+    position: absolute;
+    top: -1px;
+    width: 48px;
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(251, 191, 36, 0.3) 20%,
+            #FBBF24 48%,
+            #FDE68A 55%,
+            rgba(251, 191, 36, 0.3) 80%,
+            transparent 100%);
+    box-shadow: 0 0 8px 2px rgba(251, 191, 36, 0.55),
+        0 0 16px 4px rgba(251, 191, 36, 0.2);
+    animation: kitt-sweep 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes kitt-sweep {
+    from {
+        left: -48px;
+    }
+
+    to {
+        left: 160px;
+    }
+}
+
+/* ── Input row ──────────────────────────────────────────────────────────────── */
+.csb-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.csb-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 11px;
+    resize: none;
+    outline: none;
+    line-height: 1.4;
+    max-height: 96px;
+    overflow-y: auto;
+    transition: border-color 0.2s;
+}
+
+.csb-input:focus {
+    border-color: rgba(0, 200, 255, 0.4);
+}
+
+.chuck-sidebar--diagnosis .csb-input:focus {
+    border-color: rgba(251, 191, 36, 0.5);
+}
+
+.csb-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.csb-input:disabled {
+    opacity: 0.4;
+}
+
+/* ── Send button ────────────────────────────────────────────────────────────── */
+.csb-send {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 200, 255, 0.18);
+    color: var(--chuck-cyan);
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.18s, transform 0.12s;
+    outline: none;
+}
+
+.csb-send:hover:not(:disabled) {
+    background: rgba(0, 200, 255, 0.3);
+    transform: scale(1.08);
+}
+
+.csb-send:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.chuck-sidebar--diagnosis .csb-send {
+    background: rgba(251, 191, 36, 0.18);
+    color: var(--chuck-amber);
+}
+
+.chuck-sidebar--diagnosis .csb-send:hover:not(:disabled) {
+    background: rgba(251, 191, 36, 0.32);
+}

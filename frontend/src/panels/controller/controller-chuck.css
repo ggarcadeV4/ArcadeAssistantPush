@@ -20,6 +20,8 @@
   --chuck-text-dim: #4a6a52;
   --chuck-font-mono: 'Share Tech Mono', monospace;
   --chuck-font-title: 'Orbitron', sans-serif;
+  --sidebar-bg: #0d120e;
+  /* consumed by chuck-sidebar.css */
 
   /* Player colors */
   --p1-color: #00ff41;

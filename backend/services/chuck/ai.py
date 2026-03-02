@@ -469,14 +469,32 @@ class ControllerAIService:
         if self._override_prompt:
             return self._override_prompt
 
-        persona = (extra_context or {}).get("persona")
+        ctx = extra_context or {}
+        persona = ctx.get("persona")
+        is_diagnosis = bool(ctx.get("isDiagnosisMode", False))
+
         key = "controller-chuck"
         if persona == "wizard" or (panel and "wizard" in panel):
             key = "controller-wizard"
 
-        if key not in self._prompt_cache:
-            self._prompt_cache[key] = _load_prompt_text(key)
-        return self._prompt_cache[key]
+        # V1 Constitution: hot-swap to Diagnosis Mode prompt when flag is set.
+        # Cache both variants independently so neither has to reload from disk.
+        cache_key = f"{key}--diagnosis" if is_diagnosis else key
+
+        if cache_key not in self._prompt_cache:
+            raw = _load_prompt_text(key)
+            diag_delimiter = "---DIAGNOSIS---"
+            if diag_delimiter in raw:
+                chat_part, diag_part = raw.split(diag_delimiter, 1)
+                self._prompt_cache[key] = chat_part.strip()
+                self._prompt_cache[f"{key}--diagnosis"] = diag_part.strip()
+            else:
+                # No delimiter — same prompt for both modes (safe fallback)
+                self._prompt_cache[key] = raw
+                self._prompt_cache[f"{key}--diagnosis"] = raw
+
+        return self._prompt_cache[cache_key]
+
 
     def _summarize_mapping(self, drive_root: Path) -> Dict[str, Any]:
         mapping_file = drive_root / "config" / "mappings" / "controls.json"
@@ -607,7 +625,122 @@ class ControllerAIService:
         return data
 
 
+
 _controller_ai_service: Optional[ControllerAIService] = None
+
+
+# ============================================================================
+# Diagnosis Mode — AI Tool: remediate_controller_config (Q5)
+# ============================================================================
+
+def remediate_controller_config(
+    drive_root: Path,
+    control_key: str,
+    pin: int,
+    *,
+    label: Optional[str] = None,
+    source: str = "ai_tool",
+    auto_commit: bool = False,
+    confirmed_by: str = "ai_tool",
+    reasoning: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Diagnosis Mode AI Tool: propose or commit a single GPIO pin override.
+
+    Decision refs (diagnosis_mode_plan.md):
+      Q5  — Gemini 2.0 Flash calls this tool via function calling when
+             Diagnosis Mode is active and hardware truth requires a fix.
+      Q7  — Hardware truth wins; conflicts are always surfaced before commit.
+      Q8  — auto_commit=False (default) returns a proposal for UI confirmation;
+             auto_commit=True commits immediately (AI-only, for unambiguous fixes).
+
+    Called by:
+      - ChuckSidebar when a Diagnosis Mode AI response includes a tool call
+      - POST /profiles/mapping-override endpoint (via HTTP)
+
+    Returns:
+      {
+        "phase": "proposal" | "committed",
+        "control_key": str,
+        "pin": int,
+        "conflicts": [...],
+        "result": {...} if committed,
+        "reasoning": str,
+      }
+    """
+    from .controller_bridge import ControllerBridge, ConflictError, ControllerBridgeError
+
+    bridge   = ControllerBridge(drive_root)
+    proposal = bridge.propose_override(
+        control_key = control_key,
+        pin         = pin,
+        label       = label,
+        source      = source,
+    )
+
+    has_errors = any(c["severity"] == "error" for c in proposal["conflicts"])
+
+    # If conflicts and not auto-committing — return proposal for user review
+    if has_errors and not auto_commit:
+        logger.info(
+            "[remediate_controller_config] Proposal halted — %d error conflict(s) on %s",
+            len([c for c in proposal["conflicts"] if c["severity"] == "error"]),
+            control_key,
+        )
+        return {
+            "phase"       : "proposal",
+            "control_key" : control_key,
+            "pin"         : pin,
+            "conflicts"   : proposal["conflicts"],
+            "reasoning"   : reasoning,
+            "message"     : (
+                f"I found {len(proposal['conflicts'])} conflict(s) that need your confirmation "
+                f"before I can assign pin {pin} to {control_key}. "
+                "Review the proposal above and confirm to proceed."
+            ),
+        }
+
+    # Auto-commit (clean path or forced)
+    if auto_commit or not has_errors:
+        try:
+            result = bridge.commit_override(
+                proposal,
+                confirmed_by = confirmed_by,
+                force        = auto_commit and has_errors,
+            )
+            logger.info(
+                "[remediate_controller_config] Committed %s → pin %d",
+                control_key, pin,
+            )
+            return {
+                "phase"       : "committed",
+                "control_key" : control_key,
+                "pin"         : pin,
+                "conflicts"   : proposal["conflicts"],
+                "result"      : result,
+                "reasoning"   : reasoning,
+                "message"     : (
+                    f"Done. Pin {pin} is now assigned to {control_key}. "
+                    + (f"Warnings: {len(result.get('warnings', []))}." if result.get("warnings") else "")
+                ),
+            }
+        except (ConflictError, ControllerBridgeError) as exc:
+            logger.warning("[remediate_controller_config] Commit failed: %s", exc)
+            return {
+                "phase"    : "error",
+                "error"    : str(exc),
+                "conflicts": proposal["conflicts"],
+                "reasoning": reasoning,
+            }
+
+    # Fallback — return proposal if no explicit commit decision
+    return {
+        "phase"       : "proposal",
+        "control_key" : control_key,
+        "pin"         : pin,
+        "conflicts"   : proposal["conflicts"],
+        "reasoning"   : reasoning,
+    }
 
 
 def get_controller_ai_service() -> ControllerAIService:

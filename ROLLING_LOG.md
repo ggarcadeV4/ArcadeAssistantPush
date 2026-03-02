@@ -1,6 +1,67 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-02 (PM) | V1 Guardrails Constitution + Chuck Sidebar Polish Complete
+
+**Net Progress**: Established the canonical **Diagnosis Mode Guardrails Constitution** for all 9 Arcade Assistant personas. Implemented all V1 safety rails for Controller Chuck (ExecutionCard, dual prompt, timeout auto-revert, KITT scanner). Designed Chuck sidebar GUI in Stitch. Build: ✅ 2.93s, 0 errors.
+
+**Key Wins:**
+- **Guardrails Constitution** (`diagnosis_mode_guardrails.md`): Canonical spec for Chat vs Diagnosis Mode across all 9 panels. Defines two-tier architecture (Front-of-House = Chat only; Engineering Bay = amber pill). Memory never wiped on toggle — only permissions + system prompt swap. UI Execution Card is law for all writes. 5-min idle → full auto-revert (not soft-lock). Doc is System Overlord — only agent allowed to auto-trigger and cross panel boundaries.
+- **Dual System Prompt** (`prompts/controller_chuck.prompt`): Split with `---DIAGNOSIS---` delimiter. Chat prompt gets read-only + escalation suggestion. Diagnosis prompt gets scope lock, 50/50 rule, action block format, Sacred Button Law reminder.
+- **`useDiagnosisMode` Timeout Fix**: 5-min idle now fully exits Diagnosis Mode (no soft-lock). Fires `onTimeout` callback so ChuckSidebar appends a system message. `resumeFromSoftLock` removed entirely.
+- **UI Execution Card** (`ExecutionCard.jsx + .css`): New V1 safety gate. Renders amber `[EXECUTE] [CANCEL]` card for every proposed write. Pulsing amber glow during commit. Error surfaces in-card. No write ever commits without a physical EXECUTE tap.
+- **Action Block Parser** (`ChuckSidebar.jsx`): Detects ` ```action {...}``` ` blocks in AI replies. Strips code block, renders ExecutionCard. EXECUTE → `POST /api/profiles/mapping-override` with `confirmed_by='user'`. CANCEL → system message.
+- **Backend Prompt Hot-Swap** (`services/chuck/ai.py`): `_resolve_prompt` reads `isDiagnosisMode` from `extra_context`. Splits prompt on `---DIAGNOSIS---` delimiter, caches both variants independently. Zero disk re-reads after first load.
+- **KITT Scanner** (`chuck-sidebar.css`): Amber orb sweeps left-to-right across dark track — replaces generic dot-bounce as Chuck's signature loading animation. Amber bumped to `#FBBF24` (brighter, not murky). All color values unified to `--chuck-amber` CSS variable.
+- **Stitch Design**: Created "Chuck AI Sidebar — Diagnosis Mode" project (ID: `8940180023178032848`). V1 design: header with DIAG pill + joystick icon, chat bubbles, ExecutionCard UI, context chips, KITT scanner bar, amber input row.
+- **Persona Color System**: Defined 6-color palette for Engineering Bay: Chuck=Amber, Blinky=Cyan, Wiz=Green, Vicky=Purple, Gunner=Red, Doc=Orange. Single CSS variable swap per panel.
+
+**Files Modified:**
+- `prompts/controller_chuck.prompt` — MODIFIED (dual prompt)
+- `frontend/src/hooks/useDiagnosisMode.js` — MODIFIED (timeout auto-revert, onTimeout)
+- `frontend/src/panels/controller/ExecutionCard.jsx` — NEW
+- `frontend/src/panels/controller/ExecutionCard.css` — NEW
+- `frontend/src/panels/controller/ChuckSidebar.jsx` — MODIFIED (KITT scanner, joystick icon, execute/cancel, softLocked removed)
+- `frontend/src/panels/controller/chuck-sidebar.css` — MODIFIED (brighter amber, KITT scanner, joystick icon, CSS var unification)
+- `backend/services/chuck/ai.py` — MODIFIED (_resolve_prompt hot-swaps on isDiagnosisMode)
+
+**Next**: Console Wizard GUI (Stitch first → then implementation). All V1 patterns inherited from Chuck with `#22C55E` green accent.
+
+---
+
+## 2026-03-02 | Diagnosis Mode — Phase 1 Implementation Complete (Frontend + Backend)
+**Net Progress**: Full Phase 1 implementation of **Diagnosis Mode** for Controller Chuck. 14 files written/modified across frontend and backend. Python syntax check: ✅ 0 errors. File presence check: 9/9 frontend files confirmed on disk.
+
+
+**Key Wins:**
+- **`useDiagnosisMode` Hook** (`hooks/useDiagnosisMode.js`): Shared state manager for toggle lifecycle, contextual greeting (from last 8 messages + hardware state), TTS entry/exit, periodic 30s context refresh, 5-min soft-lock inactivity timeout, and graceful cleanup on unmount. Any future specialist panel registers its own `contextAssembler` and gets Diagnosis Mode for ~50 lines.
+- **Chuck Context Assembler** (`chuckContextAssembler.js`): 3-tier context payload fetched on entry and every 30s. Tier 1: always (timestamp, hardware status, session). Tier 2: conditional (active mapping summary, profile name). Tier 3: static (sacred button law, write targets, AI tool availability). Stays under 1500 tokens. Chuck's world only — no cross-panel bleed.
+- **Chuck Chips** (`chuckChips.js`): 6 suggestion chips (What's my pin status?, Remap a button, Fix pin conflict, Check wiring, Test inputs, Run diagnostics) — each pre-fills and sends a prompt.
+- **UI Components**: `DiagnosisToggle.jsx/.css` (amber pill with animated thumb + pulse), `ContextChips.jsx/.css` (horizontal scroll amber chip bar with edge fades), `MicButton.jsx/.css` (push-to-talk, Web Speech API, 0.7 confidence threshold, red hot-state + ripple rings).
+- **ChuckSidebar** (`ChuckSidebar.jsx` + `chuck-sidebar.css` + `chuck-layout.css`): Full chat panel assembling all components. Amber left-border pulse in Diagnosis Mode. Context injected into every AI call. Soft-lock overlay. PTT auto-stops TTS to prevent feedback.
+- **`ControllerBridge`** (`services/controller_bridge.py`): GPIO merge authority (Q4/Q7). `propose_override()` returns non-destructive diff. `commit_override()` is 5-step atomic (validate stale → backup → write → metadata → return). `rollback()` restores from timestamped backup. `validate_sacred_law()` hard-blocks sacred-number deviations. 4 conflict types: `pin_collision`, `player_boundary`, `sacred_law_deviation`, `orphaned_key`.
+- **`POST /api/profiles/mapping-override`** (`routers/controller.py`): Two-phase flow — `confirmed_by='pending'` returns proposal+diff (no write); `confirmed_by='user'` commits atomically. Returns 409 on unresolvable conflicts.
+- **`remediate_controller_config`** (`services/chuck/ai.py`): Q5 AI tool called by Gemini 2.0 Flash during Diagnosis Mode. `auto_commit=False` surfaces proposal for user confirmation; `True` commits unambiguous fixes directly.
+
+**Files Created/Modified:**
+- `frontend/src/hooks/useDiagnosisMode.js` — NEW
+- `frontend/src/panels/controller/chuckContextAssembler.js` — NEW
+- `frontend/src/panels/controller/chuckChips.js` — NEW
+- `frontend/src/panels/controller/DiagnosisToggle.jsx + .css` — NEW
+- `frontend/src/panels/controller/ContextChips.jsx + .css` — NEW
+- `frontend/src/panels/controller/MicButton.jsx + .css` — NEW
+- `frontend/src/panels/controller/ChuckSidebar.jsx` — NEW
+- `frontend/src/panels/controller/chuck-sidebar.css + chuck-layout.css` — NEW
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx` — MODIFIED (ChuckSidebar wired in)
+- `backend/services/controller_bridge.py` — NEW
+- `backend/routers/controller.py` — MODIFIED (MappingOverrideRequest + endpoint added)
+- `backend/services/chuck/ai.py` — MODIFIED (remediate_controller_config tool added)
+
+**Next**: Controller Chuck Diagnosis Mode sidebar GUI polish → Console Wizard panel.
+
+---
+
 ## 2026-03-01 | Controller Chuck UX Sprint — FLIP Animations, Focus Mode, Mapping Confirmation
+
 **Net Progress**: Deep UX refinement session on `ControllerChuckPanel.jsx` and `controller-chuck.css`. Overhauled the entire interactive mapping experience from static layout to a cinematic, animation-driven system. All changes build-verified (234 modules, 0 errors). Commits: `586db64`, `a5fcd5e`, `bb3a81f`, `92039ff`, `64513cb`, `ac64c9c`.
 
 **Key Wins:**

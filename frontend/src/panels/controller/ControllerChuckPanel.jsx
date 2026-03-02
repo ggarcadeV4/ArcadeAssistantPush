@@ -27,6 +27,7 @@ import {
   requestCascade,
   setCascadePreference,
 } from './apiHelpers';
+import { ChuckSidebar } from './ChuckSidebar';
 import './controller-chuck.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -318,93 +319,6 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
   );
 });
 PlayerCard.displayName = 'PlayerCard';
-
-/** Chuck AI chat sidebar (embedded, always visible) */
-const ChuckSidebar = memo(({
-  messages, onSend, isLoading, boardName, boardStatus, onScan, scanLoading,
-  voiceEnabled, isListening, onVoiceToggle,
-}) => {
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleSend = useCallback(() => {
-    const text = input.trim();
-    if (!text || isLoading) return;
-    setInput('');
-    onSend(text);
-  }, [input, isLoading, onSend]);
-
-  const handleKey = useCallback((e) => {
-    if (e.key === 'Enter') handleSend();
-  }, [handleSend]);
-
-  const statusClass =
-    boardStatus === 'ready' ? 'ready' :
-      boardStatus === 'scanning' ? 'scanning' : 'offline';
-
-  return (
-    <aside className="chuck-sidebar">
-      <div className="chuck-sidebar-header">
-        <img src="/chuck-avatar.jpeg" alt="Chuck" className="chuck-sidebar-avatar" />
-        <div>
-          <div className="chuck-sidebar-title">CHUCK AI</div>
-          <div className="chuck-sidebar-status">• ONLINE</div>
-        </div>
-      </div>
-
-      <div className="chuck-chat-messages">
-        {messages.map((m) => (
-          <div key={m.id} className={`chuck-chat-msg ${m.role}`}>
-            {m.content}
-          </div>
-        ))}
-        {isLoading && (
-          <div className="chuck-chat-msg chuck">Thinkin'...</div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="chuck-chat-input-row">
-        <input
-          className="chuck-chat-input"
-          placeholder="Ask Chuck anything..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          disabled={isLoading}
-        />
-        <button className="chuck-chat-send" onClick={handleSend} disabled={isLoading} title="Send">
-          ▶
-        </button>
-      </div>
-
-      <div className="chuck-device-info">
-        <div className="chuck-device-row">
-          <div>
-            <div className="chuck-device-label">DEVICE TYPE</div>
-            <div className="chuck-device-name">{boardName || 'Unknown'}</div>
-          </div>
-          <span className={`chuck-device-status-pill ${statusClass}`}>
-            {boardStatus === 'ready' ? 'READY' :
-              boardStatus === 'scanning' ? 'SCANNING' : 'OFFLINE'}
-          </span>
-        </div>
-        <button
-          className="chuck-scan-btn"
-          onClick={onScan}
-          disabled={scanLoading}
-        >
-          {scanLoading ? 'SCANNING...' : '🔍 SCAN DEVICES'}
-        </button>
-      </div>
-    </aside>
-  );
-});
-ChuckSidebar.displayName = 'ChuckSidebar';
 
 // ── Main Panel Component ─────────────────────────────────────────────────────
 export default function ControllerChuckPanel() {
@@ -711,181 +625,184 @@ export default function ControllerChuckPanel() {
 
       {/* ── Body ── */}
       <div className="chuck-body">
-        {/* Main grid — two rows, each has 2 player cards */}
-        <main ref={mainRef} className="chuck-main" data-mode={playerMode}>
-          <FlameSVG />
+        {/* ── Horizontal layout: main grid + AI sidebar ── */}
+        <div className="chuck-layout">
 
-          {/* ── Top Strip: Logo + Board Status + Quick Actions ── */}
-          <div className="chuck-top-strip">
-            {/* Logo */}
-            <div className="chuck-top-strip-logo">
-              {logoLoaded ? (
-                <img
-                  src={logoPath}
-                  alt="G&G Arcade"
-                  onError={() => setLogoLoaded(false)}
-                />
-              ) : (
-                <span className="chuck-logo-text">GG</span>
-              )}
-            </div>
+          {/* Main grid — two rows, each has 2 player cards */}
+          <main ref={mainRef} className="chuck-main" data-mode={playerMode}>
+            <FlameSVG />
 
-            {/* Board status */}
-            <div className="chuck-top-strip-status">
-              <span className={`chuck-top-strip-dot ${boardStatus}`} />
-              <span className="chuck-top-strip-board">{boardName}</span>
-              <span className={`chuck-top-strip-state ${boardStatus}`}>
-                {boardStatus.toUpperCase()}
-              </span>
-            </div>
-
-            {/* Quick actions */}
-            <div className="chuck-top-strip-actions">
-              <button
-                className="chuck-strip-btn"
-                onClick={scanDevices}
-                disabled={scanLoading}
-                title="Scan for connected encoder boards"
-              >
-                {scanLoading ? '⏳' : '🔍'} SCAN
-              </button>
-              <button
-                className={`chuck-strip-btn detect ${detectionMode ? 'active' : ''}`}
-                onClick={() => setDetectionMode(v => !v)}
-                title="Toggle live input detection mode"
-              >
-                <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
-                DETECT
-              </button>
-            </div>
-          </div>
-
-          {/* Top row — only in 4P mode: P3 | P4 (back players) */}
-          {playerMode === '4p' && (
-            <div className="chuck-player-row">
-              {PLAYERS_4P.filter((p) => p.id === 'p3' || p.id === 'p4').map((p) => (
-                <PlayerCard
-                  key={p.id}
-                  player={p}
-                  mapping={mapping}
-                  pressedKeys={pressedKeys}
-                  playerMode={playerMode}
-                  activePlayer={activePlayer}
-                  focusOrigin={activePlayer === p.id || returningPlayer === p.id ? focusOrigin : null}
-                  isReturning={returningPlayer === p.id}
-                  onReturnEnd={handleReturnEnd}
-                  onFocus={handleFocus}
-                  latestInput={latestInput}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Center logo zone — sits between P3/P4 and P1/P2 */}
-          <div className="chuck-center-logo">
-            <div className="chuck-logo-badge">
-              {logoLoaded ? (
-                <img
-                  src={logoPath}
-                  alt="G&amp;G Arcade"
-                  onError={() => setLogoLoaded(false)}
-                  style={{ filter: 'drop-shadow(0 0 6px rgba(0,255,65,0.4))' }}
-                />
-              ) : (
-                <>
+            {/* ── Top Strip: Logo + Board Status + Quick Actions ── */}
+            <div className="chuck-top-strip">
+              {/* Logo */}
+              <div className="chuck-top-strip-logo">
+                {logoLoaded ? (
+                  <img
+                    src={logoPath}
+                    alt="G&G Arcade"
+                    onError={() => setLogoLoaded(false)}
+                  />
+                ) : (
                   <span className="chuck-logo-text">GG</span>
-                  <span className="chuck-logo-sub">ARCADE</span>
-                </>
-              )}
+                )}
+              </div>
+
+              {/* Board status */}
+              <div className="chuck-top-strip-status">
+                <span className={`chuck-top-strip-dot ${boardStatus}`} />
+                <span className="chuck-top-strip-board">{boardName}</span>
+                <span className={`chuck-top-strip-state ${boardStatus}`}>
+                  {boardStatus.toUpperCase()}
+                </span>
+              </div>
+
+              {/* Quick actions */}
+              <div className="chuck-top-strip-actions">
+                <button
+                  className="chuck-strip-btn"
+                  onClick={scanDevices}
+                  disabled={scanLoading}
+                  title="Scan for connected encoder boards"
+                >
+                  {scanLoading ? '⏳' : '🔍'} SCAN
+                </button>
+                <button
+                  className={`chuck-strip-btn detect ${detectionMode ? 'active' : ''}`}
+                  onClick={() => setDetectionMode(v => !v)}
+                  title="Toggle live input detection mode"
+                >
+                  <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
+                  DETECT
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Bottom row — always visible: P1 | P2 (front players) */}
-          <div className="chuck-player-row">
-            {(playerMode === '4p' ? PLAYERS_4P : PLAYERS_2P)
-              .filter((p) => p.id === 'p1' || p.id === 'p2')
-              .map((p) => (
-                <PlayerCard
-                  key={p.id}
-                  player={p}
-                  mapping={mapping}
-                  pressedKeys={pressedKeys}
-                  playerMode={playerMode}
-                  activePlayer={activePlayer}
-                  focusOrigin={activePlayer === p.id || returningPlayer === p.id ? focusOrigin : null}
-                  isReturning={returningPlayer === p.id}
-                  onReturnEnd={handleReturnEnd}
-                  onFocus={handleFocus}
-                  latestInput={latestInput}
-                />
-              ))}
-          </div>
-        </main>
+            {/* Top row — only in 4P mode: P3 | P4 (back players) */}
+            {playerMode === '4p' && (
+              <div className="chuck-player-row">
+                {PLAYERS_4P.filter((p) => p.id === 'p3' || p.id === 'p4').map((p) => (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    mapping={mapping}
+                    pressedKeys={pressedKeys}
+                    playerMode={playerMode}
+                    activePlayer={activePlayer}
+                    focusOrigin={activePlayer === p.id || returningPlayer === p.id ? focusOrigin : null}
+                    isReturning={returningPlayer === p.id}
+                    onReturnEnd={handleReturnEnd}
+                    onFocus={handleFocus}
+                    latestInput={latestInput}
+                  />
+                ))}
+              </div>
+            )}
 
-        {/* Right sidebar — Chuck AI + device scan */}
-        <ChuckSidebar
-          messages={messages}
-          onSend={handleSend}
-          isLoading={aiLoading}
-          boardName={boardName}
-          boardStatus={boardStatus}
-          onScan={scanDevices}
-          scanLoading={scanLoading}
-          voiceEnabled={voiceEnabled}
-          isListening={isListening}
-          onVoiceToggle={() => setVoiceEnabled((v) => !v)}
-        />
-      </div>
+            {/* Center logo zone — sits between P3/P4 and P1/P2 */}
+            <div className="chuck-center-logo">
+              <div className="chuck-logo-badge">
+                {logoLoaded ? (
+                  <img
+                    src={logoPath}
+                    alt="G&amp;G Arcade"
+                    onError={() => setLogoLoaded(false)}
+                    style={{ filter: 'drop-shadow(0 0 6px rgba(0,255,65,0.4))' }}
+                  />
+                ) : (
+                  <>
+                    <span className="chuck-logo-text">GG</span>
+                    <span className="chuck-logo-sub">ARCADE</span>
+                  </>
+                )}
+              </div>
+            </div>
 
-      {/* ── Action Bar ── */}
-      <footer className="chuck-action-bar">
-        <label className={`chuck-detection-toggle ${detectionMode ? 'active' : ''}`}>
-          <input
-            type="checkbox"
-            checked={detectionMode}
-            onChange={(e) => setDetectionMode(e.target.checked)}
+            {/* Bottom row — always visible: P1 | P2 (front players) */}
+            <div className="chuck-player-row">
+              {(playerMode === '4p' ? PLAYERS_4P : PLAYERS_2P)
+                .filter((p) => p.id === 'p1' || p.id === 'p2')
+                .map((p) => (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    mapping={mapping}
+                    pressedKeys={pressedKeys}
+                    playerMode={playerMode}
+                    activePlayer={activePlayer}
+                    focusOrigin={activePlayer === p.id || returningPlayer === p.id ? focusOrigin : null}
+                    isReturning={returningPlayer === p.id}
+                    onReturnEnd={handleReturnEnd}
+                    onFocus={handleFocus}
+                    latestInput={latestInput}
+                  />
+                ))}
+            </div>
+          </main>
+
+          {/* ── Chuck AI Sidebar (Diagnosis Mode) ── */}
+          <ChuckSidebar
+            panelState={{
+              playerMode,
+              boardName,
+              boardStatus,
+              mapping,
+              mappedCount: Object.keys(mapping).length,
+              detectionMode,
+            }}
           />
-          Input Detection Mode
-        </label>
 
-        {
-          hasPending && (
-            <span className="chuck-pending-badge">⚡ PENDING CHANGES</span>
-          )
-        }
+        </div>{/* end chuck-layout */}
 
-        {
-          flashMsg && (
-            <span style={{
-              fontSize: '10px',
-              color: flashMsg.type === 'success' ? 'var(--chuck-green)' :
-                flashMsg.type === 'error' ? 'var(--chuck-red)' : 'var(--chuck-cyan)'
-            }}>
-              {flashMsg.msg}
-            </span>
-          )
-        }
+        {/* ── Action Bar ── */}
+        <footer className="chuck-action-bar">
+          <label className={`chuck-detection-toggle ${detectionMode ? 'active' : ''}`}>
+            <input
+              type="checkbox"
+              checked={detectionMode}
+              onChange={(e) => setDetectionMode(e.target.checked)}
+            />
+            Input Detection Mode
+          </label>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          <button
-            className="chuck-action-btn preview"
-            onClick={handlePreview}
-            disabled={!hasPending}
-          >
-            PREVIEW CHANGES
-          </button>
-          <button
-            className="chuck-action-btn apply"
-            onClick={handleApply}
-            disabled={!hasPending || submitting}
-          >
-            {submitting ? 'APPLYING...' : 'APPLY MAPPING'}
-          </button>
-          <button className="chuck-action-btn reset" onClick={handleReset}>
-            FACTORY RESET
-          </button>
-        </div>
-      </footer >
-    </div >
+          {
+            hasPending && (
+              <span className="chuck-pending-badge">⚡ PENDING CHANGES</span>
+            )
+          }
+
+          {
+            flashMsg && (
+              <span style={{
+                fontSize: '10px',
+                color: flashMsg.type === 'success' ? 'var(--chuck-green)' :
+                  flashMsg.type === 'error' ? 'var(--chuck-red)' : 'var(--chuck-cyan)'
+              }}>
+                {flashMsg.msg}
+              </span>
+            )
+          }
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+            <button
+              className="chuck-action-btn preview"
+              onClick={handlePreview}
+              disabled={!hasPending}
+            >
+              PREVIEW CHANGES
+            </button>
+            <button
+              className="chuck-action-btn apply"
+              onClick={handleApply}
+              disabled={!hasPending || submitting}
+            >
+              {submitting ? 'APPLYING...' : 'APPLY MAPPING'}
+            </button>
+            <button className="chuck-action-btn reset" onClick={handleReset}>
+              FACTORY RESET
+            </button>
+          </div>
+        </footer >
+      </div >
+    </div>
   );
 }
