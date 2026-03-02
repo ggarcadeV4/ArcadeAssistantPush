@@ -174,3 +174,49 @@ async def read_config_files(emulator: str, request: Request):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to read configs: {exc}")
+
+
+# ── WIZ AI Chat ───────────────────────────────────────────────────────────────
+
+class WizChatTurn(BaseModel):
+    role: str
+    content: str
+
+
+class WizChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    history: List[WizChatTurn] = Field(default_factory=list)
+    isDiagnosisMode: bool = False
+    extraContext: Optional[dict] = None
+
+
+class WizChatResponse(BaseModel):
+    reply: str
+    isDiagnosisMode: bool
+
+
+@router.post("/chat")
+async def wiz_chat(request: Request, payload: WizChatRequest):
+    """
+    Send a message to Wiz AI and get a reply (CW-AI-01).
+    In Diagnosis Mode the ---DIAGNOSIS--- prompt variant is loaded automatically.
+    """
+    require_scope(request, "state")
+
+    try:
+        from backend.services.wiz.ai import wizard_ai_chat
+
+        history = [{"role": t.role, "content": t.content} for t in payload.history]
+        reply = await wizard_ai_chat(
+            payload.message,
+            history,
+            is_diagnosis_mode=payload.isDiagnosisMode,
+            extra_context=payload.extraContext,
+        )
+        return WizChatResponse(reply=reply, isDiagnosisMode=payload.isDiagnosisMode)
+
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Wiz AI error: {exc}")
+

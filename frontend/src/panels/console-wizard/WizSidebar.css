@@ -1,61 +1,57 @@
-﻿/* chuck-sidebar.css
+/* wiz-sidebar.css
  * ═══════════════════════════════════════════════════════════════════
- * Styles for ChuckSidebar — the chat panel that slides alongside
- * the controller grid. Amber border signals Diagnosis Mode.
+ * Styles for WizSidebar — the Console Wizard chat panel.
+ * Neon green palette. All amber → green. Layout identical to chuck.
  *
  * V1 Design System:
- *   --chuck-amber : #FBBF24  (brighter warm amber — not murky brown)
- *   --chuck-cyan  : #00e5ff  (chat mode accent)
- *   KITT Scanner replaces dot-bounce as Chuck's signature animation.
+ *   --wiz-green      : #22C55E  (neon green)
+ *   --wiz-green-glow : rgba(34, 197, 94, 0.35)
+ *   KITT Scanner label: "SCANNING..."
  */
 
-/* ── CSS variables ─────────────────────────────────────────────────────────── */
+/* ── CSS variables ──────────────────────────────────────────────────────────── */
 :root {
-    --sidebar-bg: #0d1117;
-    --sidebar-border: rgba(255, 255, 255, 0.1);
-    --sidebar-width: 320px;
-    --chuck-amber: #FBBF24;
-    --chuck-amber-glow: rgba(251, 191, 36, 0.35);
-    --chuck-cyan: #00e5ff;
+    --wiz-green: #22C55E;
+    --wiz-green-glow: rgba(34, 197, 94, 0.35);
 }
 
 /* ── Sidebar shell ──────────────────────────────────────────────────────────── */
-.chuck-sidebar {
+.wiz-sidebar {
     display: flex;
     flex-direction: column;
-    width: var(--sidebar-width);
+    width: 320px;
     min-width: 260px;
     max-width: 360px;
     height: 100%;
-    background: var(--sidebar-bg);
-    border-left: 1px solid var(--sidebar-border);
+    background: #030F03;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 0 12px 12px 0;
     overflow: hidden;
     transition: border-color 0.4s, box-shadow 0.4s;
     position: relative;
 }
 
-/* ── Diagnosis Mode amber border ───────────────────────────────────────────── */
-.chuck-sidebar--diagnosis {
-    border-left-color: var(--chuck-amber);
-    box-shadow: -3px 0 14px rgba(251, 191, 36, 0.2);
-    animation: sidebar-diag-pulse 3s ease-in-out infinite;
+/* ── Diagnosis Mode green border ──────────────────────────────────────────── */
+.wiz-sidebar--diagnosis {
+    border-left-color: var(--wiz-green);
+    box-shadow: -3px 0 14px rgba(34, 197, 94, 0.2);
+    animation: wiz-diag-pulse 3s ease-in-out infinite;
 }
 
-@keyframes sidebar-diag-pulse {
+@keyframes wiz-diag-pulse {
 
     0%,
     100% {
-        box-shadow: -3px 0 14px rgba(251, 191, 36, 0.2);
+        box-shadow: -3px 0 14px rgba(34, 197, 94, 0.2);
     }
 
     50% {
-        box-shadow: -3px 0 28px rgba(251, 191, 36, 0.45);
+        box-shadow: -3px 0 28px rgba(34, 197, 94, 0.45);
     }
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────────── */
-.csb-header {
+.wsb-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -65,7 +61,7 @@
     gap: 8px;
 }
 
-.csb-header__title {
+.wsb-header__title {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -76,31 +72,30 @@
     text-transform: uppercase;
 }
 
-.csb-header__icon {
+.wsb-header__icon {
     font-size: 16px;
 }
 
-/* Joystick badge — signals arcade-stick optimized UI at a glance */
-.csb-header__joystick {
-    font-size: 14px;
-    opacity: 0.4;
-    margin-left: 2px;
+.wsb-header__joystick,
+.wsb-header__gamepad {
+    font-size: 12px;
+    opacity: 0.35;
     filter: grayscale(1);
 }
 
-.csb-header__diag-badge {
+.wsb-header__diag-badge {
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.12em;
     padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(251, 191, 36, 0.2);
-    color: var(--chuck-amber);
-    border: 1px solid rgba(251, 191, 36, 0.4);
-    animation: badge-blink 2s ease-in-out infinite;
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--wiz-green);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    animation: wiz-badge-blink 2s ease-in-out infinite;
 }
 
-@keyframes badge-blink {
+@keyframes wiz-badge-blink {
 
     0%,
     100% {
@@ -113,7 +108,7 @@
 }
 
 /* ── Message list ───────────────────────────────────────────────────────────── */
-.csb-messages {
+.wsb-messages {
     flex: 1;
     overflow-y: auto;
     padding: 12px;
@@ -124,7 +119,7 @@
     scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
-.csb-empty {
+.wsb-empty {
     margin: auto;
     text-align: center;
     font-size: 12px;
@@ -133,32 +128,37 @@
 }
 
 /* ── Message bubbles ────────────────────────────────────────────────────────── */
-.csb-msg {
+.wsb-msg {
     display: flex;
     flex-direction: column;
     gap: 3px;
     max-width: 90%;
 }
 
-.csb-msg--user {
+.wsb-msg--user {
     align-self: flex-end;
     align-items: flex-end;
 }
 
-.csb-msg--assistant {
+.wsb-msg--assistant {
     align-self: flex-start;
     align-items: flex-start;
     flex-direction: row;
     gap: 7px;
 }
 
-.csb-msg__avatar {
+.wsb-msg--system {
+    align-self: center;
+    align-items: center;
+}
+
+.wsb-msg__avatar {
     font-size: 16px;
     flex-shrink: 0;
     margin-top: 2px;
 }
 
-.csb-msg__text {
+.wsb-msg__text {
     margin: 0;
     font-size: 12px;
     line-height: 1.55;
@@ -168,30 +168,38 @@
     white-space: pre-wrap;
 }
 
-.csb-msg--user .csb-msg__text {
-    background: rgba(0, 200, 255, 0.15);
-    border: 1px solid rgba(0, 200, 255, 0.25);
+.wsb-msg--user .wsb-msg__text {
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.22);
     color: rgba(255, 255, 255, 0.9);
     border-radius: 12px 12px 3px 12px;
 }
 
-.csb-msg--assistant .csb-msg__text {
+.wsb-msg--assistant .wsb-msg__text {
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     color: rgba(255, 255, 255, 0.85);
     border-radius: 3px 12px 12px 12px;
 }
 
-.csb-msg__time {
+.wsb-msg--system .wsb-msg__text {
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.18);
+    color: rgba(34, 197, 94, 0.8);
+    border-radius: 8px;
+    font-size: 11px;
+    text-align: center;
+}
+
+.wsb-msg__time {
     font-size: 9px;
     color: rgba(255, 255, 255, 0.25);
     padding: 0 4px;
 }
 
-/* ── KITT Scanner ───────────────────────────────────────────────────────────── */
-/* Chuck's signature animation — replaces generic dot-bounce typing indicator. */
-/* Shows when loading=true. Amber sweep = AI is analyzing.                     */
-.csb-kitt {
+/* ── KITT Scanner — green variant ───────────────────────────────────────────── */
+/* Label: SCANNING... | Persona color: #22C55E                                 */
+.wsb-kitt {
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -200,54 +208,52 @@
     max-width: 220px;
 }
 
-.csb-kitt__label {
+.wsb-kitt__label {
     font-size: 8px;
     font-family: 'Courier New', Courier, monospace;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--chuck-amber);
+    color: var(--wiz-green);
     opacity: 0.7;
 }
 
-.csb-kitt__track {
+.wsb-kitt__track {
     width: 160px;
     height: 6px;
-    background: rgba(10, 5, 0, 0.9);
+    background: rgba(0, 10, 2, 0.95);
     border-radius: 3px;
     overflow: hidden;
     position: relative;
     box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.6),
-        0 0 6px rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.15);
+        0 0 6px rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.15);
 }
 
-.csb-kitt__orb {
+.wsb-kitt__orb {
     position: absolute;
     top: -2px;
     width: 56px;
     height: 10px;
     border-radius: 5px;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(251, 191, 36, 0.2) 15%,
-        rgba(251, 191, 36, 0.7) 35%,
-        #FBBF24 48%,
-        #FEF08A 54%,
-        rgba(251, 191, 36, 0.7) 65%,
-        rgba(251, 191, 36, 0.2) 85%,
-        transparent 100%
-    );
-    box-shadow: 0 0 10px 3px rgba(251, 191, 36, 0.7),
-                0 0 24px 8px rgba(251, 191, 36, 0.3),
-                0 0 40px 12px rgba(251, 191, 36, 0.1);
-    animation: kitt-sweep 1.2s ease-in-out infinite alternate;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(34, 197, 94, 0.2) 15%,
+            rgba(34, 197, 94, 0.7) 35%,
+            #22C55E 48%,
+            #86EFAC 54%,
+            rgba(34, 197, 94, 0.7) 65%,
+            rgba(34, 197, 94, 0.2) 85%,
+            transparent 100%);
+    box-shadow: 0 0 10px 3px rgba(34, 197, 94, 0.7),
+        0 0 24px 8px rgba(34, 197, 94, 0.3),
+        0 0 40px 12px rgba(34, 197, 94, 0.1);
+    animation: wiz-kitt-sweep 1.2s ease-in-out infinite alternate;
     filter: blur(0.5px);
 }
 
-@keyframes kitt-sweep {
+@keyframes wiz-kitt-sweep {
     from {
-        left: -48px;
+        left: -56px;
     }
 
     to {
@@ -256,19 +262,19 @@
 }
 
 /* ── Input row ──────────────────────────────────────────────────────────────── */
-.csb-input-row {
+.wsb-input-row {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 8px 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
     flex-shrink: 0;
 }
 
-.csb-input {
+.wsb-input {
     flex: 1;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     color: rgba(255, 255, 255, 0.9);
     font-family: inherit;
@@ -282,30 +288,30 @@
     transition: border-color 0.2s;
 }
 
-.csb-input:focus {
-    border-color: rgba(0, 200, 255, 0.4);
+.wsb-input:focus {
+    border-color: rgba(34, 197, 94, 0.4);
 }
 
-.chuck-sidebar--diagnosis .csb-input:focus {
-    border-color: rgba(251, 191, 36, 0.5);
+.wiz-sidebar--diagnosis .wsb-input:focus {
+    border-color: rgba(34, 197, 94, 0.6);
 }
 
-.csb-input::placeholder {
-    color: rgba(255, 255, 255, 0.25);
+.wsb-input::placeholder {
+    color: rgba(255, 255, 255, 0.22);
 }
 
-.csb-input:disabled {
+.wsb-input:disabled {
     opacity: 0.4;
 }
 
 /* ── Send button ────────────────────────────────────────────────────────────── */
-.csb-send {
+.wsb-send {
     width: 36px;
     height: 36px;
     border-radius: 50%;
     border: none;
-    background: rgba(0, 200, 255, 0.18);
-    color: var(--chuck-cyan);
+    background: rgba(34, 197, 94, 0.18);
+    color: var(--wiz-green);
     font-size: 14px;
     cursor: pointer;
     flex-shrink: 0;
@@ -313,21 +319,12 @@
     outline: none;
 }
 
-.csb-send:hover:not(:disabled) {
-    background: rgba(0, 200, 255, 0.3);
+.wsb-send:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.32);
     transform: scale(1.08);
 }
 
-.csb-send:disabled {
+.wsb-send:disabled {
     opacity: 0.3;
     cursor: not-allowed;
-}
-
-.chuck-sidebar--diagnosis .csb-send {
-    background: rgba(251, 191, 36, 0.18);
-    color: var(--chuck-amber);
-}
-
-.chuck-sidebar--diagnosis .csb-send:hover:not(:disabled) {
-    background: rgba(251, 191, 36, 0.32);
 }

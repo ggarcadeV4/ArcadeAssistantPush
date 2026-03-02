@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import './console-wizard.css';
 import { speak as ttsSpeak, stopSpeaking as stopTTS } from '../../services/ttsClient';
+import WizSidebar from './WizSidebar';
 
 const arrayBufferToBase64 = (buffer) => {
   let binary = '';
@@ -1785,944 +1786,947 @@ Current context: ${JSON.stringify(contextInfo)}`;
   ] ?? PANEL_STATUS_META.warning;
 
   return (
-    <div className="console-wizard-panel">
-      <header className="console-wizard-header">
-        <div className="panel-heading">
-          <h1>Console Wizard</h1>
-          <p>Auto-configure console emulators from your controller mapping.</p>
-        </div>
-        <div className="panel-actions">
-          <span className={`status-pill ${panelStatus.tone}`}>
-            {panelStatus.label}
-          </span>
-          <button
-            type="button"
-            className="ghost"
-            onClick={refreshAll}
-            disabled={scanInFlight}
-          >
-            {scanInFlight ? 'Scanning...' : 'Scan Emulators'}
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => setChatOpen(true)}
-          >
-            💬 Chat with Wiz
-          </button>
-          <label className="ghost voice-toggle" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <input
-              type="checkbox"
-              checked={speakReplies}
-              onChange={(e) => setSpeakReplies(e.target.checked)}
-            />
-            Voice replies
-          </label>
-          <button
-            type="button"
-            className="primary"
-            onClick={handlePreviewAll}
-            disabled={previewLoading}
-          >
-            Generate Configs (Preview)
-          </button>
-        </div>
-      </header>
-
-      {panelError && (
-        <div className="panel-banner error">
-          <div>
-            <strong>Something went wrong.</strong>
-            <span>{panelError}</span>
+    <div className="wiz-layout" style={{ display: 'flex', width: '100%', height: '100%' }}>
+      <div className="console-wizard-panel" style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+        <header className="console-wizard-header">
+          <div className="panel-heading">
+            <h1>Console Wizard</h1>
+            <p>Auto-configure console emulators from your controller mapping.</p>
           </div>
-          <button type="button" className="text" onClick={handleDismissError}>
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {backendDisconnected && (
-        <div className="panel-banner warning">
-          <div>
-            <strong>Backend offline.</strong>
-            <span>{backendDisconnectMessage || 'Start the backend service and retry.'}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Controller Detection Section */}
-      <div className="controller-detection-section">
-        <div className="detection-header">
-          <h2>Controller Auto-Configuration</h2>
-          <p>Plug in your controller and auto-configure all emulators with one click</p>
-        </div>
-
-        <div className="detection-content">
-          <div className="detection-actions">
+          <div className="panel-actions">
+            <span className={`status-pill ${panelStatus.tone}`}>
+              {panelStatus.label}
+            </span>
             <button
               type="button"
               className="ghost"
-              onClick={handleDetectControllers}
-              disabled={controllerDetectionLoading || autoConfiguring}
+              onClick={refreshAll}
+              disabled={scanInFlight}
             >
-              {controllerDetectionLoading ? 'Detecting...' : '🎮 Detect Controller'}
+              {scanInFlight ? 'Scanning...' : 'Scan Emulators'}
             </button>
-
-            {detectedControllers.length > 0 && (
-              <button
-                type="button"
-                className="primary"
-                onClick={handleAutoConfigureAll}
-                disabled={autoConfiguring || !emulators.length}
-              >
-                {autoConfiguring ? 'Configuring...' : '⚡ Auto-Configure All Emulators'}
-              </button>
-            )}
-          </div>
-
-          {controllerDetectionError && (
-            <div className="detection-error">
-              <span>❌ {controllerDetectionError}</span>
-            </div>
-          )}
-
-          {detectedControllers.length > 0 && (
-            <div className="detected-controllers">
-              {detectedControllers.map((controller, idx) => (
-                <div key={idx} className="controller-card">
-                  <div className="controller-icon">🎮</div>
-                  <div className="controller-info">
-                    <div className="controller-name">{controller.name}</div>
-                    <div className="controller-details">
-                      {controller.manufacturer} • {controller.button_count} buttons
-                      {controller.has_profile && (
-                        <span className="profile-badge">✓ Profile loaded</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {autoConfigProgress && (
-            <div className="auto-config-progress">
-              <div className="progress-info">
-                <span>⚙️ {autoConfigProgress.status}</span>
-                <span>{autoConfigProgress.current} / {autoConfigProgress.total} emulators</span>
-              </div>
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${(autoConfigProgress.current / autoConfigProgress.total) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* TeknoParrot Section */}
-      <div className="teknoparrot-section">
-        <div className="teknoparrot-header">
-          <h2>🎮 TeknoParrot Configuration</h2>
-          <p>Configure arcade game input bindings for TeknoParrot emulator</p>
-        </div>
-
-        <div className="teknoparrot-content">
-          <div className="teknoparrot-game-select">
-            <label htmlFor="tp-game-select">Game Profile:</label>
-            <select
-              id="tp-game-select"
-              value={tpSelectedGame}
-              onChange={(e) => {
-                setTpSelectedGame(e.target.value);
-                setTpPreviewResult(null);
-                setTpApplyResult(null);
-                setTpError(null);
-              }}
-              disabled={tpPreviewLoading || tpApplyLoading}
-            >
-              {tpGames.length > 0 ? (
-                tpGames.map((game) => (
-                  <option key={game.name} value={game.name}>
-                    {game.display_name || game.name} ({game.category})
-                  </option>
-                ))
-              ) : (
-                <option value="InitialD8">Initial D Arcade Stage 8 (racing)</option>
-              )}
-            </select>
-          </div>
-
-          <div className="teknoparrot-actions">
             <button
               type="button"
               className="ghost"
-              onClick={handleTpPreflight}
-              disabled={tpPreviewLoading || tpApplyLoading || !tpSelectedGame}
+              onClick={() => setChatOpen(true)}
             >
-              {tpPreviewLoading ? 'Checking...' : '🔍 Preflight Check'}
+              💬 Chat with Wiz
             </button>
-
-            {tpPreviewResult?.has_changes && (
-              <button
-                type="button"
-                className="primary"
-                onClick={handleTpApply}
-                disabled={tpApplyLoading || !tpPreviewResult}
-              >
-                {tpApplyLoading ? 'Applying...' : `⚡ Apply ${tpPreviewResult?.changes_count ?? 0} Changes`}
-              </button>
-            )}
-          </div>
-
-          {tpError && (
-            <div className="teknoparrot-result error">
-              <h4>❌ Error</h4>
-              <p>{tpError}</p>
-            </div>
-          )}
-
-          {tpPreviewResult && !tpError && (
-            <div className={`teknoparrot-result ${tpPreviewResult.has_changes ? '' : 'success'}`}>
-              <h4>
-                {tpPreviewResult.has_changes
-                  ? `📋 ${tpPreviewResult.changes_count} binding(s) need updating`
-                  : '✅ All bindings are correct'}
-              </h4>
-
-              {tpPreviewResult.diffs && tpPreviewResult.diffs.length > 0 && (
-                <ul className="teknoparrot-diff-list">
-                  {tpPreviewResult.diffs.slice(0, 10).map((diff, idx) => (
-                    <li key={idx} className={`teknoparrot-diff-item ${diff.needs_update ? 'changed' : 'correct'}`}>
-                      <span className="control-name">{diff.control}</span>
-                      <span className="control-value">
-                        {diff.needs_update
-                          ? `${diff.current || '(empty)'} → ${diff.expected}`
-                          : diff.current}
-                      </span>
-                    </li>
-                  ))}
-                  {tpPreviewResult.diffs.length > 10 && (
-                    <li className="teknoparrot-diff-item">
-                      <span className="control-name">... and {tpPreviewResult.diffs.length - 10} more</span>
-                    </li>
-                  )}
-                </ul>
-              )}
-
-              {tpPreviewResult.bindings && Object.keys(tpPreviewResult.bindings).length > 0 && !tpPreviewResult.diffs && (
-                <ul className="teknoparrot-diff-list">
-                  {Object.entries(tpPreviewResult.bindings).slice(0, 8).map(([key, value]) => (
-                    <li key={key} className="teknoparrot-diff-item correct">
-                      <span className="control-name">{key}</span>
-                      <span className="control-value">{String(value)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <div className="teknoparrot-summary">
-                <span>
-                  Profile: <strong>{tpPreviewResult.profile}</strong>
-                </span>
-                <span>
-                  Category: <strong>{tpPreviewResult.category}</strong>
-                </span>
-                {tpPreviewResult.file_exists !== undefined && (
-                  <span>
-                    File: {tpPreviewResult.file_exists ? '✅ exists' : '⚠️ will be created'}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {tpApplyResult && !tpError && (
-            <div className="teknoparrot-result success">
-              <h4>✅ Configuration Applied Successfully</h4>
-              <p>
-                Applied {tpApplyResult.changes_applied ?? 0} binding changes to{' '}
-                <strong>{tpApplyResult.profile}</strong>
-              </p>
-              {tpApplyResult.backup_path && (
-                <p style={{ fontSize: '0.85rem', color: '#a4afc1' }}>
-                  Backup saved: {tpApplyResult.backup_path}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="banner-stack">
-        {healthUnavailable && (
-          <div className="panel-banner warning">
-            <div>
-              <strong>Health status unavailable.</strong>
-              <span>
-                {healthMessage ??
-                  'Console Wizard health endpoint could not be reached. Try again after launching the affected emulator.'}
-              </span>
-            </div>
-            <div className="banner-buttons">
-              <button type="button" onClick={refreshAll} disabled={scanInFlight}>
-                Retry
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!!attentionEntries.length && (
-          <div className="panel-banner warning">
-            <div>
-              <strong>Can I help?</strong>
-              <span>
-                {attentionEntries.length} emulator
-                {attentionEntries.length > 1 ? 's' : ''} need attention. Console
-                Wizard can repair configs with preview → apply safety.
-              </span>
-            </div>
-            <div className="banner-buttons">
-              <button type="button" onClick={handleBannerReview}>
-                Review
-              </button>
-            </div>
-          </div>
-        )}
-
-        {chuckStatus?.isOutOfSync && (
-          <div className="panel-banner info">
-            <div>
-              <strong>Controller mapping changed.</strong>
-              <span>
-                Chuck hash {chuckStatus.lastSyncedHash ?? '—'} →{' '}
-                {chuckStatus.currentMappingHash}. Sync console emulators?
-              </span>
-            </div>
-            <div className="banner-buttons">
-              <button
-                type="button"
-                onClick={handleChuckPreview}
-                disabled={previewLoading}
-              >
-                Preview Sync
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={handleApplyPreview}
-                disabled={
-                  applyInFlight ||
-                  !previewRequestRef.current ||
-                  previewContextRef.current !== 'chuck' ||
-                  !previewResult
-                }
-              >
-                Apply Sync
-              </button>
-            </div>
-          </div>
-        )}
-
-        {requiresRestart && (
-          <div className="panel-banner neutral">
-            <div>
-              <strong>Restart recommended.</strong>
-              <span>
-                Some emulators may need to be restarted before changes take
-                effect.
-              </span>
-            </div>
+            <label className="ghost voice-toggle" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <input
+                type="checkbox"
+                checked={speakReplies}
+                onChange={(e) => setSpeakReplies(e.target.checked)}
+              />
+              Voice replies
+            </label>
             <button
               type="button"
-              className="text"
-              onClick={() => setRequiresRestart(false)}
+              className="primary"
+              onClick={handlePreviewAll}
+              disabled={previewLoading}
             >
+              Generate Configs (Preview)
+            </button>
+          </div>
+        </header>
+
+        {panelError && (
+          <div className="panel-banner error">
+            <div>
+              <strong>Something went wrong.</strong>
+              <span>{panelError}</span>
+            </div>
+            <button type="button" className="text" onClick={handleDismissError}>
               Dismiss
             </button>
           </div>
         )}
-      </div>
 
-      <div className="wizard-secondary-actions">
-        <button
-          type="button"
-          className="ghost"
-          onClick={handleSetDefaults}
-          disabled={settingDefaults || !emulators.length}
-        >
-          {settingDefaults ? 'Snapshotting...' : 'Set as Default'}
-        </button>
-        <button
-          type="button"
-          className="ghost"
-          onClick={handleRestoreAll}
-          disabled={restoringAll || !emulators.length}
-        >
-          {restoringAll ? 'Restoring...' : 'Restore All'}
-        </button>
-      </div>
-
-      {attentionEntries.map((entry) => {
-        const emulator = emulatorMap.get(entry.id);
-        return (
-          <div className="panel-banner subtle" key={entry.id}>
+        {backendDisconnected && (
+          <div className="panel-banner warning">
             <div>
-              <strong>{emulator?.displayName ?? entry.id}</strong>
-              <span>{describeHealth(entry)}</span>
-            </div>
-            <div className="banner-buttons">
-              <button
-                type="button"
-                onClick={() => handlePreviewSingle(entry.id)}
-              >
-                Fix it
-              </button>
+              <strong>Backend offline.</strong>
+              <span>{backendDisconnectMessage || 'Start the backend service and retry.'}</span>
             </div>
           </div>
-        );
-      })}
+        )}
 
-      <div className="emulator-layout">
-        <section className="emulator-table" ref={tableRef}>
-          <div className="table-heading">
-            <h2>Emulators</h2>
-            <div className="table-filters">
+        {/* Controller Detection Section */}
+        <div className="controller-detection-section">
+          <div className="detection-header">
+            <h2>Controller Auto-Configuration</h2>
+            <p>Plug in your controller and auto-configure all emulators with one click</p>
+          </div>
+
+          <div className="detection-content">
+            <div className="detection-actions">
               <button
                 type="button"
-                className={statusFilter === 'all' ? 'active' : ''}
-                onClick={() => setStatusFilter('all')}
+                className="ghost"
+                onClick={handleDetectControllers}
+                disabled={controllerDetectionLoading || autoConfiguring}
               >
-                All
+                {controllerDetectionLoading ? 'Detecting...' : '🎮 Detect Controller'}
               </button>
-              <button
-                type="button"
-                className={statusFilter === 'attention' ? 'active' : ''}
-                onClick={() => setStatusFilter('attention')}
-              >
-                Needs attention
-              </button>
-            </div>
-          </div>
-          <div className="table-row table-header">
-            <span>Emulator</span>
-            <span>Systems</span>
-            <span>Status</span>
-            <span>Format</span>
-            <span>Actions</span>
-          </div>
-          {initialLoading ? (
-            <div className="table-empty">Loading emulators…</div>
-          ) : !filteredEmulators.length ? (
-            <div className="table-empty">
-              {statusFilter === 'attention'
-                ? 'No emulators currently need attention.'
-                : 'No emulators detected. Run Scan to refresh.'}
-            </div>
-          ) : (
-            filteredEmulators.map((emu) => {
-              const healthEntry = healthMap.get(emu.id);
-              return (
-                <div
-                  key={emu.id}
-                  className={`table-row ${selectedEmulatorId === emu.id ? 'selected' : ''
-                    }`}
-                  onClick={() => {
-                    setSelectedEmulatorId(emu.id);
-                    setDetailsTab('summary');
-                  }}
+
+              {detectedControllers.length > 0 && (
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleAutoConfigureAll}
+                  disabled={autoConfiguring || !emulators.length}
                 >
-                  <div className="emu-name">
-                    <span>{emu.displayName}</span>
-                    {emu.statusReason && (
-                      <small>{emu.statusReason}</small>
-                    )}
-                  </div>
-                  <span>{formatSystems(emu.systems)}</span>
-                  <span className={`status-chip ${emu.status}`}>
-                    {STATUS_LABELS[emu.status] ?? 'Unknown'}
-                  </span>
-                  <span>{emu.configFormat}</span>
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handlePreviewSingle(emu.id);
-                      }}
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        restoringEmulatorId === emu.id ||
-                        healthEntry?.status === 'no_default_snapshot'
-                      }
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleRestoreEmulator(emu.id);
-                      }}
-                    >
-                      {restoringEmulatorId === emu.id
-                        ? 'Restoring...'
-                        : 'Restore Default'}
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedEmulatorId(emu.id);
-                        setDetailsTab('summary');
-                      }}
-                    >
-                      Details
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </section>
+                  {autoConfiguring ? 'Configuring...' : '⚡ Auto-Configure All Emulators'}
+                </button>
+              )}
+            </div>
 
-        <aside className="details-panel">
-          {selectedEmulator ? (
-            <>
-              <div className="details-header">
-                <div>
-                  <h3>{selectedEmulator.displayName}</h3>
-                  <p>{describeHealth(selectedHealth)}</p>
-                </div>
-                <span className={`status-chip ${selectedEmulator.status}`}>
-                  {STATUS_LABELS[selectedEmulator.status] ?? 'OK'}
-                </span>
+            {controllerDetectionError && (
+              <div className="detection-error">
+                <span>❌ {controllerDetectionError}</span>
               </div>
+            )}
 
-              <div className="details-meta">
-                <div>
-                  <label>Systems</label>
-                  <span>{formatSystems(selectedEmulator.systems)}</span>
-                </div>
-                <div>
-                  <label>Format</label>
-                  <span>{selectedEmulator.configFormat}</span>
-                </div>
-                <div>
-                  <label>Input labels</label>
-                  <span>{selectedEmulator.inputNamingConvention}</span>
-                </div>
-              </div>
-
-              <div className="details-tabs">
-                {DETAIL_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={detailsTab === tab.id ? 'active' : ''}
-                    onClick={() => setDetailsTab(tab.id)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="details-body">
-                {detailsTab === 'summary' && (
-                  <div className="details-card">
-                    <p>
-                      Console Wizard generates{' '}
-                      {selectedEmulator.configFormat} configs that follow{' '}
-                      {selectedEmulator.inputNamingConvention} naming.
-                      Preview diffs before applying, and use Restore to
-                      roll back to the default snapshot.
-                    </p>
-                    <div className="details-log">
-                      <label>Last action</label>
-                      {lastActions[selectedEmulator.id] ? (
-                        <span>
-                          {lastActions[selectedEmulator.id].description}{' '}
-                          ({relativeTime(
-                            lastActions[selectedEmulator.id].timestamp,
-                          )})
-                        </span>
-                      ) : (
-                        <span>Nothing yet</span>
-                      )}
+            {detectedControllers.length > 0 && (
+              <div className="detected-controllers">
+                {detectedControllers.map((controller, idx) => (
+                  <div key={idx} className="controller-card">
+                    <div className="controller-icon">🎮</div>
+                    <div className="controller-info">
+                      <div className="controller-name">{controller.name}</div>
+                      <div className="controller-details">
+                        {controller.manufacturer} • {controller.button_count} buttons
+                        {controller.has_profile && (
+                          <span className="profile-badge">✓ Profile loaded</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-
-                {detailsTab === 'preview' && (
-                  <div className="details-card">
-                    {selectedPreviewEntry?.files?.length ? (
-                      <ul className="diff-list">
-                        {selectedPreviewEntry.files.map((file) => (
-                          <li key={file.relativePath}>
-                            <div className="diff-heading">
-                              <span>{file.relativePath}</span>
-                              <span className={`chip ${file.changeType}`}>
-                                {file.changeType}
-                              </span>
-                            </div>
-                            {(file.before || file.after) && (
-                              <div className="diff-body">
-                                {file.before && (
-                                  <pre>
-                                    <strong>Before</strong>
-                                    <code>{file.before}</code>
-                                  </pre>
-                                )}
-                                {file.after && (
-                                  <pre>
-                                    <strong>After</strong>
-                                    <code>{file.after}</code>
-                                  </pre>
-                                )}
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No preview data yet. Run Preview to see diffs.</p>
-                    )}
-                  </div>
-                )}
-
-                {detailsTab === 'quirks' && (
-                  <div className="details-card">
-                    {selectedQuirks.length ? (
-                      <ul className="quirk-list">
-                        {selectedQuirks.map((quirk) => (
-                          <li key={quirk.quirkId}>
-                            <div className="quirk-heading">
-                              <span>{quirk.userMessage}</span>
-                              <span
-                                className={`chip ${severityTone[quirk.severity]}`}
-                              >
-                                {quirk.severity}
-                              </span>
-                            </div>
-                            {quirk.actionsTaken?.length && (
-                              <div>
-                                <label>Actions</label>
-                                <span>{safeJoin(quirk.actionsTaken)}</span>
-                              </div>
-                            )}
-                            {quirk.warnings?.length && (
-                              <div className="quirk-warning">
-                                <label>Warnings</label>
-                                <span>{safeJoin(quirk.warnings)}</span>
-                              </div>
-                            )}
-                            {quirk.errors?.length && (
-                              <div className="quirk-error">
-                                <label>Errors</label>
-                                <span>{safeJoin(quirk.errors)}</span>
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No quirks were applied for the latest run.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="details-placeholder">
-              <p>Select an emulator to view details.</p>
-            </div>
-          )}
-        </aside>
-      </div>
-
-      {toast && (
-        <div className={`action-toast ${toast.type}`}>
-          <span>{toast.text}</span>
-          <div>
-            {toast.actionLabel && toast.actionHandler && (
-              <button type="button" onClick={toast.actionHandler}>
-                {toast.actionLabel}
-              </button>
-            )}
-            <button type="button" className="text" onClick={handleDismissToast}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {previewModalOpen && (
-        <PreviewModal
-          preview={previewResult}
-          error={previewError}
-          onClose={handleClosePreviewModal}
-          loading={previewLoading}
-          onApply={handleApplyPreview}
-          applying={applyInFlight}
-          emulatorMap={emulatorMap}
-          onRetry={handleRetryPreview}
-        />
-      )}
-
-      {devErrorDetails && (
-        <DevErrorModal error={devErrorDetails} onClose={handleCloseDevError} />
-      )}
-
-      {chatOpen && (
-        <div className="panel-chat-sidebar" role="dialog" aria-modal="true">
-          <div className="chat-header">
-            <img src="/wiz-avatar.jpeg" alt="Wiz" className="chat-avatar" />
-            <div className="chat-header-text">
-              <h3>Wiz</h3>
-              <p className="chat-subtitle">Console Wizard AI</p>
-            </div>
-            <button
-              type="button"
-              className="chat-close"
-              onClick={() => setChatOpen(false)}
-              aria-label="Close chat"
-            >
-              ×
-            </button>
-          </div>
-          <div className="chat-messages">
-            {chatMessages.length === 0 && (
-              <div className="chat-welcome">
-                <p>👋 Hi! I'm Wiz, your Console Wizard AI assistant.</p>
-                <p>Ask me about:</p>
-                <ul>
-                  <li>Emulator configuration</li>
-                  <li>Controller mapping</li>
-                  <li>Troubleshooting config issues</li>
-                  <li>Understanding health status</li>
-                </ul>
+                ))}
               </div>
             )}
-            {chatMessages.map((msg) => (
-              <div key={msg.id} className={`chat-message ${msg.sender}`}>
-                <div className="message-content">{msg.text}</div>
-                <div className="message-timestamp">
-                  {new Date(msg.timestamp).toLocaleTimeString()}
+
+            {autoConfigProgress && (
+              <div className="auto-config-progress">
+                <div className="progress-info">
+                  <span>⚙️ {autoConfigProgress.status}</span>
+                  <span>{autoConfigProgress.current} / {autoConfigProgress.total} emulators</span>
+                </div>
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${(autoConfigProgress.current / autoConfigProgress.total) * 100}%` }}
+                  />
                 </div>
               </div>
-            ))}
-            {chatLoading && (
-              <div className="chat-message assistant">
-                <div className="message-content">Thinking...</div>
-              </div>
             )}
-            {listeningLabel && !chatLoading && (
-              <div className="chat-message assistant listening-indicator">
-                <div className="message-content">🎤 Listening...</div>
-              </div>
-            )}
-          </div>
-          <div className="chat-input-container">
-            <button
-              type="button"
-              onClick={toggleMic}
-              className={`chat-mic-button ${isRecording ? 'recording' : ''}`}
-              aria-label={isRecording ? 'Stop recording' : 'Start voice recording'}
-              title={isRecording ? 'Stop recording' : 'Start voice recording'}
-            >
-              {isRecording ? '🔴' : '🎤'}
-            </button>
-            <textarea
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={handleChatKeyPress}
-              placeholder="Ask Wiz about console configs..."
-              rows={2}
-              disabled={chatLoading || isRecording}
-            />
-            <button
-              type="button"
-              onClick={handleChatSend}
-              disabled={!chatInput.trim() || chatLoading || isRecording}
-              className="chat-send-button"
-            >
-              {chatLoading ? '⏳' : '📤'}
-            </button>
           </div>
         </div>
-      )}
+
+        {/* TeknoParrot Section */}
+        <div className="teknoparrot-section">
+          <div className="teknoparrot-header">
+            <h2>🎮 TeknoParrot Configuration</h2>
+            <p>Configure arcade game input bindings for TeknoParrot emulator</p>
+          </div>
+
+          <div className="teknoparrot-content">
+            <div className="teknoparrot-game-select">
+              <label htmlFor="tp-game-select">Game Profile:</label>
+              <select
+                id="tp-game-select"
+                value={tpSelectedGame}
+                onChange={(e) => {
+                  setTpSelectedGame(e.target.value);
+                  setTpPreviewResult(null);
+                  setTpApplyResult(null);
+                  setTpError(null);
+                }}
+                disabled={tpPreviewLoading || tpApplyLoading}
+              >
+                {tpGames.length > 0 ? (
+                  tpGames.map((game) => (
+                    <option key={game.name} value={game.name}>
+                      {game.display_name || game.name} ({game.category})
+                    </option>
+                  ))
+                ) : (
+                  <option value="InitialD8">Initial D Arcade Stage 8 (racing)</option>
+                )}
+              </select>
+            </div>
+
+            <div className="teknoparrot-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={handleTpPreflight}
+                disabled={tpPreviewLoading || tpApplyLoading || !tpSelectedGame}
+              >
+                {tpPreviewLoading ? 'Checking...' : '🔍 Preflight Check'}
+              </button>
+
+              {tpPreviewResult?.has_changes && (
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleTpApply}
+                  disabled={tpApplyLoading || !tpPreviewResult}
+                >
+                  {tpApplyLoading ? 'Applying...' : `⚡ Apply ${tpPreviewResult?.changes_count ?? 0} Changes`}
+                </button>
+              )}
+            </div>
+
+            {tpError && (
+              <div className="teknoparrot-result error">
+                <h4>❌ Error</h4>
+                <p>{tpError}</p>
+              </div>
+            )}
+
+            {tpPreviewResult && !tpError && (
+              <div className={`teknoparrot-result ${tpPreviewResult.has_changes ? '' : 'success'}`}>
+                <h4>
+                  {tpPreviewResult.has_changes
+                    ? `📋 ${tpPreviewResult.changes_count} binding(s) need updating`
+                    : '✅ All bindings are correct'}
+                </h4>
+
+                {tpPreviewResult.diffs && tpPreviewResult.diffs.length > 0 && (
+                  <ul className="teknoparrot-diff-list">
+                    {tpPreviewResult.diffs.slice(0, 10).map((diff, idx) => (
+                      <li key={idx} className={`teknoparrot-diff-item ${diff.needs_update ? 'changed' : 'correct'}`}>
+                        <span className="control-name">{diff.control}</span>
+                        <span className="control-value">
+                          {diff.needs_update
+                            ? `${diff.current || '(empty)'} → ${diff.expected}`
+                            : diff.current}
+                        </span>
+                      </li>
+                    ))}
+                    {tpPreviewResult.diffs.length > 10 && (
+                      <li className="teknoparrot-diff-item">
+                        <span className="control-name">... and {tpPreviewResult.diffs.length - 10} more</span>
+                      </li>
+                    )}
+                  </ul>
+                )}
+
+                {tpPreviewResult.bindings && Object.keys(tpPreviewResult.bindings).length > 0 && !tpPreviewResult.diffs && (
+                  <ul className="teknoparrot-diff-list">
+                    {Object.entries(tpPreviewResult.bindings).slice(0, 8).map(([key, value]) => (
+                      <li key={key} className="teknoparrot-diff-item correct">
+                        <span className="control-name">{key}</span>
+                        <span className="control-value">{String(value)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="teknoparrot-summary">
+                  <span>
+                    Profile: <strong>{tpPreviewResult.profile}</strong>
+                  </span>
+                  <span>
+                    Category: <strong>{tpPreviewResult.category}</strong>
+                  </span>
+                  {tpPreviewResult.file_exists !== undefined && (
+                    <span>
+                      File: {tpPreviewResult.file_exists ? '✅ exists' : '⚠️ will be created'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tpApplyResult && !tpError && (
+              <div className="teknoparrot-result success">
+                <h4>✅ Configuration Applied Successfully</h4>
+                <p>
+                  Applied {tpApplyResult.changes_applied ?? 0} binding changes to{' '}
+                  <strong>{tpApplyResult.profile}</strong>
+                </p>
+                {tpApplyResult.backup_path && (
+                  <p style={{ fontSize: '0.85rem', color: '#a4afc1' }}>
+                    Backup saved: {tpApplyResult.backup_path}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="banner-stack">
+          {healthUnavailable && (
+            <div className="panel-banner warning">
+              <div>
+                <strong>Health status unavailable.</strong>
+                <span>
+                  {healthMessage ??
+                    'Console Wizard health endpoint could not be reached. Try again after launching the affected emulator.'}
+                </span>
+              </div>
+              <div className="banner-buttons">
+                <button type="button" onClick={refreshAll} disabled={scanInFlight}>
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!!attentionEntries.length && (
+            <div className="panel-banner warning">
+              <div>
+                <strong>Can I help?</strong>
+                <span>
+                  {attentionEntries.length} emulator
+                  {attentionEntries.length > 1 ? 's' : ''} need attention. Console
+                  Wizard can repair configs with preview → apply safety.
+                </span>
+              </div>
+              <div className="banner-buttons">
+                <button type="button" onClick={handleBannerReview}>
+                  Review
+                </button>
+              </div>
+            </div>
+          )}
+
+          {chuckStatus?.isOutOfSync && (
+            <div className="panel-banner info">
+              <div>
+                <strong>Controller mapping changed.</strong>
+                <span>
+                  Chuck hash {chuckStatus.lastSyncedHash ?? '—'} →{' '}
+                  {chuckStatus.currentMappingHash}. Sync console emulators?
+                </span>
+              </div>
+              <div className="banner-buttons">
+                <button
+                  type="button"
+                  onClick={handleChuckPreview}
+                  disabled={previewLoading}
+                >
+                  Preview Sync
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleApplyPreview}
+                  disabled={
+                    applyInFlight ||
+                    !previewRequestRef.current ||
+                    previewContextRef.current !== 'chuck' ||
+                    !previewResult
+                  }
+                >
+                  Apply Sync
+                </button>
+              </div>
+            </div>
+          )}
+
+          {requiresRestart && (
+            <div className="panel-banner neutral">
+              <div>
+                <strong>Restart recommended.</strong>
+                <span>
+                  Some emulators may need to be restarted before changes take
+                  effect.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="text"
+                onClick={() => setRequiresRestart(false)}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="wizard-secondary-actions">
+          <button
+            type="button"
+            className="ghost"
+            onClick={handleSetDefaults}
+            disabled={settingDefaults || !emulators.length}
+          >
+            {settingDefaults ? 'Snapshotting...' : 'Set as Default'}
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={handleRestoreAll}
+            disabled={restoringAll || !emulators.length}
+          >
+            {restoringAll ? 'Restoring...' : 'Restore All'}
+          </button>
+        </div>
+
+        {attentionEntries.map((entry) => {
+          const emulator = emulatorMap.get(entry.id);
+          return (
+            <div className="panel-banner subtle" key={entry.id}>
+              <div>
+                <strong>{emulator?.displayName ?? entry.id}</strong>
+                <span>{describeHealth(entry)}</span>
+              </div>
+              <div className="banner-buttons">
+                <button
+                  type="button"
+                  onClick={() => handlePreviewSingle(entry.id)}
+                >
+                  Fix it
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="emulator-layout">
+          <section className="emulator-table" ref={tableRef}>
+            <div className="table-heading">
+              <h2>Emulators</h2>
+              <div className="table-filters">
+                <button
+                  type="button"
+                  className={statusFilter === 'all' ? 'active' : ''}
+                  onClick={() => setStatusFilter('all')}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  className={statusFilter === 'attention' ? 'active' : ''}
+                  onClick={() => setStatusFilter('attention')}
+                >
+                  Needs attention
+                </button>
+              </div>
+            </div>
+            <div className="table-row table-header">
+              <span>Emulator</span>
+              <span>Systems</span>
+              <span>Status</span>
+              <span>Format</span>
+              <span>Actions</span>
+            </div>
+            {initialLoading ? (
+              <div className="table-empty">Loading emulators…</div>
+            ) : !filteredEmulators.length ? (
+              <div className="table-empty">
+                {statusFilter === 'attention'
+                  ? 'No emulators currently need attention.'
+                  : 'No emulators detected. Run Scan to refresh.'}
+              </div>
+            ) : (
+              filteredEmulators.map((emu) => {
+                const healthEntry = healthMap.get(emu.id);
+                return (
+                  <div
+                    key={emu.id}
+                    className={`table-row ${selectedEmulatorId === emu.id ? 'selected' : ''
+                      }`}
+                    onClick={() => {
+                      setSelectedEmulatorId(emu.id);
+                      setDetailsTab('summary');
+                    }}
+                  >
+                    <div className="emu-name">
+                      <span>{emu.displayName}</span>
+                      {emu.statusReason && (
+                        <small>{emu.statusReason}</small>
+                      )}
+                    </div>
+                    <span>{formatSystems(emu.systems)}</span>
+                    <span className={`status-chip ${emu.status}`}>
+                      {STATUS_LABELS[emu.status] ?? 'Unknown'}
+                    </span>
+                    <span>{emu.configFormat}</span>
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handlePreviewSingle(emu.id);
+                        }}
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          restoringEmulatorId === emu.id ||
+                          healthEntry?.status === 'no_default_snapshot'
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRestoreEmulator(emu.id);
+                        }}
+                      >
+                        {restoringEmulatorId === emu.id
+                          ? 'Restoring...'
+                          : 'Restore Default'}
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedEmulatorId(emu.id);
+                          setDetailsTab('summary');
+                        }}
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </section>
+
+          <aside className="details-panel">
+            {selectedEmulator ? (
+              <>
+                <div className="details-header">
+                  <div>
+                    <h3>{selectedEmulator.displayName}</h3>
+                    <p>{describeHealth(selectedHealth)}</p>
+                  </div>
+                  <span className={`status-chip ${selectedEmulator.status}`}>
+                    {STATUS_LABELS[selectedEmulator.status] ?? 'OK'}
+                  </span>
+                </div>
+
+                <div className="details-meta">
+                  <div>
+                    <label>Systems</label>
+                    <span>{formatSystems(selectedEmulator.systems)}</span>
+                  </div>
+                  <div>
+                    <label>Format</label>
+                    <span>{selectedEmulator.configFormat}</span>
+                  </div>
+                  <div>
+                    <label>Input labels</label>
+                    <span>{selectedEmulator.inputNamingConvention}</span>
+                  </div>
+                </div>
+
+                <div className="details-tabs">
+                  {DETAIL_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={detailsTab === tab.id ? 'active' : ''}
+                      onClick={() => setDetailsTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="details-body">
+                  {detailsTab === 'summary' && (
+                    <div className="details-card">
+                      <p>
+                        Console Wizard generates{' '}
+                        {selectedEmulator.configFormat} configs that follow{' '}
+                        {selectedEmulator.inputNamingConvention} naming.
+                        Preview diffs before applying, and use Restore to
+                        roll back to the default snapshot.
+                      </p>
+                      <div className="details-log">
+                        <label>Last action</label>
+                        {lastActions[selectedEmulator.id] ? (
+                          <span>
+                            {lastActions[selectedEmulator.id].description}{' '}
+                            ({relativeTime(
+                              lastActions[selectedEmulator.id].timestamp,
+                            )})
+                          </span>
+                        ) : (
+                          <span>Nothing yet</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailsTab === 'preview' && (
+                    <div className="details-card">
+                      {selectedPreviewEntry?.files?.length ? (
+                        <ul className="diff-list">
+                          {selectedPreviewEntry.files.map((file) => (
+                            <li key={file.relativePath}>
+                              <div className="diff-heading">
+                                <span>{file.relativePath}</span>
+                                <span className={`chip ${file.changeType}`}>
+                                  {file.changeType}
+                                </span>
+                              </div>
+                              {(file.before || file.after) && (
+                                <div className="diff-body">
+                                  {file.before && (
+                                    <pre>
+                                      <strong>Before</strong>
+                                      <code>{file.before}</code>
+                                    </pre>
+                                  )}
+                                  {file.after && (
+                                    <pre>
+                                      <strong>After</strong>
+                                      <code>{file.after}</code>
+                                    </pre>
+                                  )}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No preview data yet. Run Preview to see diffs.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {detailsTab === 'quirks' && (
+                    <div className="details-card">
+                      {selectedQuirks.length ? (
+                        <ul className="quirk-list">
+                          {selectedQuirks.map((quirk) => (
+                            <li key={quirk.quirkId}>
+                              <div className="quirk-heading">
+                                <span>{quirk.userMessage}</span>
+                                <span
+                                  className={`chip ${severityTone[quirk.severity]}`}
+                                >
+                                  {quirk.severity}
+                                </span>
+                              </div>
+                              {quirk.actionsTaken?.length && (
+                                <div>
+                                  <label>Actions</label>
+                                  <span>{safeJoin(quirk.actionsTaken)}</span>
+                                </div>
+                              )}
+                              {quirk.warnings?.length && (
+                                <div className="quirk-warning">
+                                  <label>Warnings</label>
+                                  <span>{safeJoin(quirk.warnings)}</span>
+                                </div>
+                              )}
+                              {quirk.errors?.length && (
+                                <div className="quirk-error">
+                                  <label>Errors</label>
+                                  <span>{safeJoin(quirk.errors)}</span>
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No quirks were applied for the latest run.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="details-placeholder">
+                <p>Select an emulator to view details.</p>
+              </div>
+            )}
+          </aside>
+        </div>
+
+        {toast && (
+          <div className={`action-toast ${toast.type}`}>
+            <span>{toast.text}</span>
+            <div>
+              {toast.actionLabel && toast.actionHandler && (
+                <button type="button" onClick={toast.actionHandler}>
+                  {toast.actionLabel}
+                </button>
+              )}
+              <button type="button" className="text" onClick={handleDismissToast}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {previewModalOpen && (
+          <PreviewModal
+            preview={previewResult}
+            error={previewError}
+            onClose={handleClosePreviewModal}
+            loading={previewLoading}
+            onApply={handleApplyPreview}
+            applying={applyInFlight}
+            emulatorMap={emulatorMap}
+            onRetry={handleRetryPreview}
+          />
+        )}
+
+        {devErrorDetails && (
+          <DevErrorModal error={devErrorDetails} onClose={handleCloseDevError} />
+        )}
+
+        {chatOpen && (
+          <div className="panel-chat-sidebar" role="dialog" aria-modal="true">
+            <div className="chat-header">
+              <img src="/wiz-avatar.jpeg" alt="Wiz" className="chat-avatar" />
+              <div className="chat-header-text">
+                <h3>Wiz</h3>
+                <p className="chat-subtitle">Console Wizard AI</p>
+              </div>
+              <button
+                type="button"
+                className="chat-close"
+                onClick={() => setChatOpen(false)}
+                aria-label="Close chat"
+              >
+                ×
+              </button>
+            </div>
+            <div className="chat-messages">
+              {chatMessages.length === 0 && (
+                <div className="chat-welcome">
+                  <p>👋 Hi! I'm Wiz, your Console Wizard AI assistant.</p>
+                  <p>Ask me about:</p>
+                  <ul>
+                    <li>Emulator configuration</li>
+                    <li>Controller mapping</li>
+                    <li>Troubleshooting config issues</li>
+                    <li>Understanding health status</li>
+                  </ul>
+                </div>
+              )}
+              {chatMessages.map((msg) => (
+                <div key={msg.id} className={`chat-message ${msg.sender}`}>
+                  <div className="message-content">{msg.text}</div>
+                  <div className="message-timestamp">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="chat-message assistant">
+                  <div className="message-content">Thinking...</div>
+                </div>
+              )}
+              {listeningLabel && !chatLoading && (
+                <div className="chat-message assistant listening-indicator">
+                  <div className="message-content">🎤 Listening...</div>
+                </div>
+              )}
+            </div>
+            <div className="chat-input-container">
+              <button
+                type="button"
+                onClick={toggleMic}
+                className={`chat-mic-button ${isRecording ? 'recording' : ''}`}
+                aria-label={isRecording ? 'Stop recording' : 'Start voice recording'}
+                title={isRecording ? 'Stop recording' : 'Start voice recording'}
+              >
+                {isRecording ? '🔴' : '🎤'}
+              </button>
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={handleChatKeyPress}
+                placeholder="Ask Wiz about console configs..."
+                rows={2}
+                disabled={chatLoading || isRecording}
+              />
+              <button
+                type="button"
+                onClick={handleChatSend}
+                disabled={!chatInput.trim() || chatLoading || isRecording}
+                className="chat-send-button"
+              >
+                {chatLoading ? '⏳' : '📤'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <WizSidebar />
     </div>
-  );
+      );
 }
 
-function PreviewModal({
-  preview,
-  error,
-  onClose,
-  loading,
-  onApply,
-  applying,
-  emulatorMap,
-  onRetry,
+      function PreviewModal({
+        preview,
+        error,
+        onClose,
+        loading,
+        onApply,
+        applying,
+        emulatorMap,
+        onRetry,
 }) {
   const [expandedIds, setExpandedIds] = useState([]);
 
   useEffect(() => {
     if (!preview?.emulators) {
-      setExpandedIds([]);
+        setExpandedIds([]);
       return;
     }
     setExpandedIds(preview.emulators.map((entry) => entry.id));
   }, [preview]);
 
   const toggleExpanded = (id) => {
-    setExpandedIds((prev) =>
-      prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id],
-    );
+        setExpandedIds((prev) =>
+          prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id],
+        );
   };
 
-  const hasPreviewData = Boolean(preview);
-  const previewHasDiffs = Boolean(preview?.emulators?.length);
-  const { emulatorCount, fileCount } = hasPreviewData
-    ? previewCounts(preview)
-    : { emulatorCount: 0, fileCount: 0 };
+      const hasPreviewData = Boolean(preview);
+      const previewHasDiffs = Boolean(preview?.emulators?.length);
+      const {emulatorCount, fileCount} = hasPreviewData
+      ? previewCounts(preview)
+      : {emulatorCount: 0, fileCount: 0 };
 
-  return (
-    <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="wizard-modal">
-        <header>
-          <h3>Preview Config Changes</h3>
-          <button type="button" className="text" onClick={onClose}>
-            Close
-          </button>
-        </header>
-        <div className="modal-body">
-          {error && <div className="modal-error">{error}</div>}
-          {loading && <p>Loading preview…</p>}
-          {!loading && hasPreviewData && (
-            <>
-              <p className="modal-summary">
-                Will update configs for {emulatorCount} emulator
-                {emulatorCount === 1 ? '' : 's'}, {fileCount} file
-                {fileCount === 1 ? '' : 's'} total.
-              </p>
-              {preview?.summary && <p className="modal-copy">{preview.summary}</p>}
-            </>
-          )}
-          {!loading && previewHasDiffs && (
-            <ul className="preview-groups">
-              {preview?.emulators?.map((entry) => {
-                const source = emulatorMap.get(entry.id);
-                const isExpanded = expandedIds.includes(entry.id);
-                return (
-                  <li key={entry.id} className="preview-group">
-                    <div className="preview-header">
-                      <div>
-                        <strong>{entry.displayName}</strong>
-                        {source?.status && (
-                          <span className={`status-chip ${source.status}`}>
-                            {STATUS_LABELS[source.status] ?? 'OK'}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        className="text"
-                        onClick={() => toggleExpanded(entry.id)}
-                      >
-                        {isExpanded ? 'Hide files' : 'Show files'} (
-                        {entry.files?.length ?? 0})
-                      </button>
-                    </div>
-                    {isExpanded && (
-                      <ul className="preview-files">
-                        {entry.files?.map((file) => (
-                          <li key={file.relativePath}>
-                            <div className="diff-heading">
-                              <span>{file.relativePath}</span>
-                              <span className={`chip ${file.changeType}`}>
-                                {file.changeType}
-                              </span>
-                            </div>
-                            {(file.before || file.after) && (
-                              <div className="diff-body">
-                                {file.before && (
-                                  <pre>
-                                    <strong>Before</strong>
-                                    <code>{file.before}</code>
-                                  </pre>
-                                )}
-                                {file.after && (
-                                  <pre>
-                                    <strong>After</strong>
-                                    <code>{file.after}</code>
-                                  </pre>
-                                )}
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {!loading && hasPreviewData && !previewHasDiffs && !error && (
-            <p className="modal-copy">
-              Console Wizard did not detect any config changes for this selection.
-            </p>
-          )}
-          {!loading && !hasPreviewData && !error && (
-            <p className="modal-copy">No preview data available yet.</p>
-          )}
-        </div>
-        <footer className="modal-footer">
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          {error && onRetry && (
-            <button type="button" className="ghost" onClick={onRetry} disabled={loading}>
-              Retry Preview
+      return (
+      <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
+        <div className="wizard-modal">
+          <header>
+            <h3>Preview Config Changes</h3>
+            <button type="button" className="text" onClick={onClose}>
+              Close
             </button>
-          )}
-          <button
-            type="button"
-            className="primary"
-            onClick={onApply}
-            disabled={applying || !previewHasDiffs}
-          >
-            {applying ? 'Applying...' : 'Apply Changes'}
-          </button>
-        </footer>
+          </header>
+          <div className="modal-body">
+            {error && <div className="modal-error">{error}</div>}
+            {loading && <p>Loading preview…</p>}
+            {!loading && hasPreviewData && (
+              <>
+                <p className="modal-summary">
+                  Will update configs for {emulatorCount} emulator
+                  {emulatorCount === 1 ? '' : 's'}, {fileCount} file
+                  {fileCount === 1 ? '' : 's'} total.
+                </p>
+                {preview?.summary && <p className="modal-copy">{preview.summary}</p>}
+              </>
+            )}
+            {!loading && previewHasDiffs && (
+              <ul className="preview-groups">
+                {preview?.emulators?.map((entry) => {
+                  const source = emulatorMap.get(entry.id);
+                  const isExpanded = expandedIds.includes(entry.id);
+                  return (
+                    <li key={entry.id} className="preview-group">
+                      <div className="preview-header">
+                        <div>
+                          <strong>{entry.displayName}</strong>
+                          {source?.status && (
+                            <span className={`status-chip ${source.status}`}>
+                              {STATUS_LABELS[source.status] ?? 'OK'}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() => toggleExpanded(entry.id)}
+                        >
+                          {isExpanded ? 'Hide files' : 'Show files'} (
+                          {entry.files?.length ?? 0})
+                        </button>
+                      </div>
+                      {isExpanded && (
+                        <ul className="preview-files">
+                          {entry.files?.map((file) => (
+                            <li key={file.relativePath}>
+                              <div className="diff-heading">
+                                <span>{file.relativePath}</span>
+                                <span className={`chip ${file.changeType}`}>
+                                  {file.changeType}
+                                </span>
+                              </div>
+                              {(file.before || file.after) && (
+                                <div className="diff-body">
+                                  {file.before && (
+                                    <pre>
+                                      <strong>Before</strong>
+                                      <code>{file.before}</code>
+                                    </pre>
+                                  )}
+                                  {file.after && (
+                                    <pre>
+                                      <strong>After</strong>
+                                      <code>{file.after}</code>
+                                    </pre>
+                                  )}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {!loading && hasPreviewData && !previewHasDiffs && !error && (
+              <p className="modal-copy">
+                Console Wizard did not detect any config changes for this selection.
+              </p>
+            )}
+            {!loading && !hasPreviewData && !error && (
+              <p className="modal-copy">No preview data available yet.</p>
+            )}
+          </div>
+          <footer className="modal-footer">
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
+            {error && onRetry && (
+              <button type="button" className="ghost" onClick={onRetry} disabled={loading}>
+                Retry Preview
+              </button>
+            )}
+            <button
+              type="button"
+              className="primary"
+              onClick={onApply}
+              disabled={applying || !previewHasDiffs}
+            >
+              {applying ? 'Applying...' : 'Apply Changes'}
+            </button>
+          </footer>
+        </div>
       </div>
-    </div>
-  );
+      );
 }
 
-function DevErrorModal({ error, onClose }) {
+      function DevErrorModal({error, onClose}) {
   if (!error) return null;
-  return (
-    <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="wizard-modal">
-        <header>
-          <h3>{error.title ?? 'Error details'}</h3>
-          <button type="button" className="text" onClick={onClose}>
-            Close
-          </button>
-        </header>
-        <div className="modal-body">
-          <pre className="dev-error-body">{error.details}</pre>
+      return (
+      <div className="wizard-modal-backdrop" role="dialog" aria-modal="true">
+        <div className="wizard-modal">
+          <header>
+            <h3>{error.title ?? 'Error details'}</h3>
+            <button type="button" className="text" onClick={onClose}>
+              Close
+            </button>
+          </header>
+          <div className="modal-body">
+            <pre className="dev-error-body">{error.details}</pre>
+          </div>
+          <footer className="modal-footer">
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          </footer>
         </div>
-        <footer className="modal-footer">
-          <button type="button" onClick={onClose}>
-            Close
-          </button>
-        </footer>
       </div>
-    </div>
-  );
+      );
 }
