@@ -1,0 +1,124 @@
+"""
+TTS Router — bridges frontend speak() to ElevenLabs via Supabase Edge Function proxy.
+
+POST /api/voice/tts
+Body: { text, voice_profile, voice_id, model_id }
+Returns: audio/mpeg stream
+"""
+from __future__ import annotations
+
+import logging
+import os
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/voice", tags=["tts"])
+
+# ── Voice Profile → ElevenLabs Voice ID Mapping ──────────────────────────────
+# These map the named voice_profile from the frontend persona configs
+# to the correct ElevenLabs voice IDs.
+VOICE_PROFILES = {
+    "vicky":   "EXAVITQu4vr4xnSDxMaL",   # Vicky — default ElevenLabs voice
+    "blinky":  "EXAVITQu4vr4xnSDxMaL",   # Blinky — same default for now
+    "chuck":   "f5HLTX707KIM4SzJYzSz",   # Controller Chuck
+    "wiz":     "CwhRBWXzGAHq8TQ4Fs17",   # Console Wizard
+    "gunner":  "EXAVITQu4vr4xnSDxMaL",   # Gunner — default for now
+    "doc":     "EXAVITQu4vr4xnSDxMaL",   # Doc — default for now
+    "lora":    "EXAVITQu4vr4xnSDxMaL",   # LaunchBox LoRa — default for now
+    "sam":     "EXAVITQu4vr4xnSDxMaL",   # ScoreKeeper Sam — default for now
+    "dewey":   "bVMeCyTHy58xNoL34h3p",   # Dewey
+}
+
+
+class TTSRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+    voice_profile: Optional[str] = None
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+
+
+@router.post("/tts")
+async def text_to_speech(request: Request, payload: TTSRequest):
+    """
+    Convert text to speech via ElevenLabs (proxied through Supabase Edge Function).
+
+    Priority:
+    1. Explicit voice_id (direct ElevenLabs ID)
+    2. voice_profile mapping (e.g., 'chuck' → 'f5HLTX707KIM4SzJYzSz')
+    3. Default voice
+    """
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+    if not supabase_url or not service_key:
+        logger.warning("SUPABASE_URL or SUPABASE_SERVICE_KEY not set — TTS unavailable")
+        raise HTTPException(
+            status_code=501,
+            detail="TTS not configured (missing Supabase credentials)"
+        )
+
+    # Resolve voice ID
+    resolved_voice_id = payload.voice_id
+    if not resolved_voice_id and payload.voice_profile:
+        resolved_voice_id = VOICE_PROFILES.get(payload.voice_profile.lower())
+        if not resolved_voice_id:
+            logger.warning("Unknown voice_profile '%s', using default", payload.voice_profile)
+
+    if not resolved_voice_id:
+        resolved_voice_id = "EXAVITQu4vr4xnSDxMaL"  # Default ElevenLabs voice
+
+    model_id = payload.model_id or "eleven_monolingual_v1"
+
+    # Build request to Supabase Edge Function
+    proxy_url = f"{supabase_url}/functions/v1/elevenlabs-proxy"
+
+    proxy_payload = {
+        "text": payload.text,
+        "voice_id": resolved_voice_id,
+        "model_id": model_id,
+    }
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                proxy_url,
+                json=proxy_payload,
+                headers={
+                    "Authorization": f"Bearer {service_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        if response.status_code == 429:
+            raise HTTPException(status_code=429, detail="ElevenLabs daily quota exceeded")
+
+        if response.status_code != 200:
+            logger.error(
+                "ElevenLabs proxy error: %s — %s",
+                response.status_code,
+                response.text[:200],
+            )
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"ElevenLabs proxy returned {response.status_code}",
+            )
+
+        # Return audio bytes directly
+        content_type = response.headers.get("content-type", "audio/mpeg")
+        return Response(
+            content=response.content,
+            media_type=content_type,
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    except httpx.HTTPError as exc:
+        logger.error("TTS proxy request failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"TTS proxy error: {exc}")
+    except ImportError:
+        raise HTTPException(status_code=501, detail="httpx not installed — TTS unavailable")

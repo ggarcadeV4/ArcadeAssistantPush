@@ -172,6 +172,8 @@ print("DEBUG: Importing doc_diagnostics router...")
 from backend.routers import doc_diagnostics
 print("DEBUG: Importing engineering_bay router...")
 from backend.routers import engineering_bay
+print("DEBUG: Importing tts router...")
+from backend.routers import tts as tts_router
 # DISABLED: blinky_patterns router blocks startup because
 # backend.services.blinky.__init__ eagerly imports PatternResolver which
 # parses LEDBlinky XML control files and enumerates HID devices at import
@@ -619,6 +621,7 @@ app.include_router(tournament_router.router)  # Tournament mode plugin integrati
 app.include_router(game_lifecycle.router)  # Game lifecycle: Playnite start/stop → LEDBlinky Cinema Logic
 app.include_router(doc_diagnostics.router, prefix="/api/doc", tags=["doc-diagnostics"])  # Phase 4: Doc's Pulse vitals
 app.include_router(engineering_bay.router, prefix="/api", tags=["engineering-bay"])  # Unified EB chat: Vicky/Blinky/Gunner/Doc
+app.include_router(tts_router.router, prefix="/api", tags=["tts"])  # ElevenLabs TTS via Supabase proxy
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
