@@ -20,19 +20,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["tts"])
 
 # ── Voice Profile → ElevenLabs Voice ID Mapping ──────────────────────────────
-# These map the named voice_profile from the frontend persona configs
-# to the correct ElevenLabs voice IDs.
-VOICE_PROFILES = {
-    "vicky":   "EXAVITQu4vr4xnSDxMaL",   # Vicky — default ElevenLabs voice
-    "blinky":  "EXAVITQu4vr4xnSDxMaL",   # Blinky — same default for now
-    "chuck":   "f5HLTX707KIM4SzJYzSz",   # Controller Chuck
-    "wiz":     "CwhRBWXzGAHq8TQ4Fs17",   # Console Wizard
-    "gunner":  "EXAVITQu4vr4xnSDxMaL",   # Gunner — default for now
-    "doc":     "EXAVITQu4vr4xnSDxMaL",   # Doc — default for now
-    "lora":    "EXAVITQu4vr4xnSDxMaL",   # LaunchBox LoRa — default for now
-    "sam":     "EXAVITQu4vr4xnSDxMaL",   # ScoreKeeper Sam — default for now
-    "dewey":   "bVMeCyTHy58xNoL34h3p",   # Dewey
-}
+# Reads from environment variables first (set in .env), falls back to defaults.
+# IDs can be verified at: https://elevenlabs.io/voice-lab
+DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"  # ElevenLabs "Rachel" default
+
+def _get_voice_profiles() -> dict:
+    return {
+        "dewey":   os.getenv("DEWEY_VOICE_ID",  "pNInz6obpgDQGcFmaJgB"),
+        "lora":    os.getenv("LORA_VOICE_ID",    "EXAVITQu4vr4xnSDxMaL"),
+        "blinky":  os.getenv("BLINKY_VOICE_ID",  "DTKMou8ccj1ZaWGBiotd"),
+        "chuck":   os.getenv("CHUCK_VOICE_ID",   DEFAULT_VOICE),   # Needs correct ID
+        "wiz":     os.getenv("WIZ_VOICE_ID",     "CwhRBWXzGAHq8TQ4Fs17"),
+        "vicky":   os.getenv("VICKY_VOICE_ID",   DEFAULT_VOICE),   # Needs correct ID
+        "gunner":  os.getenv("GUNNER_VOICE_ID",  DEFAULT_VOICE),   # Needs correct ID
+        "doc":     os.getenv("DOC_VOICE_ID",     DEFAULT_VOICE),   # Needs correct ID
+        "sam":     os.getenv("SAM_VOICE_ID",     DEFAULT_VOICE),   # Needs correct ID
+    }
 
 
 class TTSRequest(BaseModel):
@@ -65,7 +68,7 @@ async def text_to_speech(request: Request, payload: TTSRequest):
     # Resolve voice ID
     resolved_voice_id = payload.voice_id
     if not resolved_voice_id and payload.voice_profile:
-        resolved_voice_id = VOICE_PROFILES.get(payload.voice_profile.lower())
+        resolved_voice_id = _get_voice_profiles().get(payload.voice_profile.lower())
         if not resolved_voice_id:
             logger.warning("Unknown voice_profile '%s', using default", payload.voice_profile)
 
