@@ -1,19 +1,24 @@
 """
-Engineering Bay AI Service — unified chat backend for Vicky, Blinky, Gunner, Doc.
+Engineering Bay AI Service — unified chat backend for all personas.
 
-Mirrors services/wiz/ai.py pattern.
+POST /api/local/engineering-bay/chat
 Each persona loads its own prompt file, splits on ---DIAGNOSIS---,
 caches both variants independently.
+
+Uses Gemini (Google AI) as the LLM provider.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import anthropic
+try:
+    import httpx
+    HTTPX_AVAILABLE = True
+except ImportError:
+    HTTPX_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,10 @@ _VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc", "chuck", "wiz"}
 
 # Doc is always in diagnosis mode — no chat variant needed
 _ALWAYS_DIAGNOSIS = {"doc"}
+
+# Gemini configuration
+_GEMINI_MODEL = "gemini-2.0-flash"
+_GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL}:generateContent"
 
 
 def _load_prompt(persona: str) -> None:
@@ -87,10 +96,10 @@ async def engineering_bay_chat(
     extra_context: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
-    Route a chat message to the correct Engineering Bay persona AI.
+    Route a chat message to the correct Engineering Bay persona AI via Gemini.
 
     Args:
-        persona: One of 'vicky', 'blinky', 'gunner', 'doc'
+        persona: One of 'vicky', 'blinky', 'gunner', 'doc', 'chuck', 'wiz'
         message: The user's latest message.
         history: Prior turns as [{"role": "user"|"assistant", "content": "..."}]
         is_diagnosis_mode: When True, uses the Diagnosis prompt variant.
@@ -102,29 +111,73 @@ async def engineering_bay_chat(
     if persona not in _VALID_PERSONAS:
         raise ValueError(f"Unknown Engineering Bay persona: '{persona}'. Valid: {_VALID_PERSONAS}")
 
-    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY not set — Engineering Bay cannot chat.")
+    if not HTTPX_AVAILABLE:
+        raise EnvironmentError("httpx not installed — Engineering Bay cannot chat.")
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise EnvironmentError("GEMINI_API_KEY not set — Engineering Bay cannot chat.")
+
     system_prompt = _build_system(persona, is_diagnosis_mode, extra_context)
 
-    messages: List[Dict[str, str]] = []
+    # Build Gemini-format conversation
+    # Gemini uses a single "contents" array with alternating user/model roles
+    contents: List[Dict[str, Any]] = []
+
     for turn in history or []:
         role = turn.get("role", "user")
         content = turn.get("content", "")
-        if role in ("user", "assistant") and content:
-            messages.append({"role": role, "content": content})
-    messages.append({"role": "user", "content": message})
+        if not content:
+            continue
+        # Gemini uses "model" instead of "assistant"
+        gemini_role = "model" if role == "assistant" else "user"
+        contents.append({
+            "role": gemini_role,
+            "parts": [{"text": content}]
+        })
+
+    # Add the current user message
+    contents.append({
+        "role": "user",
+        "parts": [{"text": message}]
+    })
+
+    request_body = {
+        "system_instruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1024,
+        }
+    }
 
     try:
-        response = await client.messages.create(
-            model="claude-3-5-haiku-20241022",
-            max_tokens=1024,
-            system=system_prompt,
-            messages=messages,
-        )
-        return response.content[0].text
-    except anthropic.APIError as exc:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{_GEMINI_ENDPOINT}?key={api_key}",
+                json=request_body,
+                headers={"Content-Type": "application/json"}
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        # Parse Gemini response
+        candidates = result.get("candidates", [])
+        if not candidates:
+            raise ValueError("No response candidates from Gemini")
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+        if not parts:
+            raise ValueError("Empty response from Gemini")
+
+        return parts[0].get("text", "").strip()
+
+    except httpx.HTTPStatusError as exc:
+        logger.error("Gemini API error (persona=%s): %s — %s", persona, exc.response.status_code, exc.response.text)
+        raise
+    except Exception as exc:
         logger.error("Engineering Bay AI error (persona=%s): %s", persona, exc)
         raise
