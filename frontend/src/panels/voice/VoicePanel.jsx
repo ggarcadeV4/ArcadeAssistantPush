@@ -1,5 +1,7 @@
 ﻿import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { PanelShell } from '../_kit'
+import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar'
+import '../_kit/EngineeringBaySidebar.css'
 import './voice.css'
 import { getConsent, previewConsent, applyConsent, previewProfile, applyProfile } from '../../services/profileClient'
 import { speakAsVicky, stopSpeaking } from '../../services/ttsClient'
@@ -28,6 +30,24 @@ const createDefaultPreferences = () => ({
 
 const defaultVocabularyText = 'I call the cabinet "the machine"\nPrefer scanline filter at 50%\nAlways play with sound at 60%'
 const DEFAULT_USER_OPTIONS = ['None', 'Dad', 'Mom', 'Kid Y', 'Kid Z', 'Guest']
+
+/** Vicky persona config for EngineeringBaySidebar */
+const VICKY_PERSONA = {
+    id: 'voice',
+    name: 'VICKY',
+    icon: '🎙️',
+    icon2: '🗣️',
+    accentColor: '#c8ff00',
+    accentGlow: 'rgba(200, 255, 0, 0.35)',
+    scannerLabel: 'LISTENING...',
+    emptyHint: 'Ask Vicky about voice settings, profiles, or speech recognition.',
+    chips: [
+        { id: 'profiles', label: 'Show profiles', prompt: 'Show me all user voice profiles.' },
+        { id: 'tts', label: 'Test TTS', prompt: 'Read a test sentence aloud so I can hear the TTS voice.' },
+        { id: 'vocab', label: 'Custom vocabulary', prompt: 'Help me set up custom vocabulary for voice commands.' },
+        { id: 'consent', label: 'Privacy settings', prompt: 'Show me the current voice consent and privacy settings.' },
+    ],
+};
 const ADD_USER_OPTION_VALUE = '__add_user__'
 
 export default function VoicePanel() {
@@ -70,8 +90,6 @@ export default function VoicePanel() {
   const [isSaving, setIsSaving] = useState(false)
 
   // Refs
-  const chatMessagesRef = useRef(null)
-  const chatInputRef = useRef(null)
   const vocabRef = useRef(null)
   const welcomedProfileRef = useRef('')
   const handoffProcessedRef = useRef(null)
@@ -330,13 +348,6 @@ export default function VoicePanel() {
   // Stop any ongoing TTS when this panel unmounts
   useEffect(() => () => { try { stopSpeaking() } catch { } }, [])
 
-  const handleKeyPress = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }, [sendMessage])
-
   // Session management
   const handleCopySetup = useCallback(async () => {
     try {
@@ -368,21 +379,6 @@ export default function VoicePanel() {
       console.warn('[Voice Panel] Failed to start ScoreKeeper session:', sessionError)
     }
   }, [players, addMessage, primaryUserId, primaryUserName])
-
-  // Auto-resize chat input
-  useEffect(() => {
-    if (chatInputRef.current) {
-      chatInputRef.current.style.height = 'auto'
-      chatInputRef.current.style.height = Math.min(chatInputRef.current.scrollHeight, 120) + 'px'
-    }
-  }, [input, chatOpen])
-
-  // Auto-scroll chat
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight
-    }
-  }, [messages, chatOpen])
 
   // Handoff effect (handles Dewey â†’ Voice context handoff)
   useEffect(() => {
@@ -1232,121 +1228,8 @@ export default function VoicePanel() {
         </PanelShell>
       </div>
 
-      {/* Vicky AI Chat Sidebar — permanent sticky panel */}
-      <div className="voice-chat-sidebar"
-        role="complementary"
-        aria-label="Voice Assistant Chat"
-        style={{
-          height: '100vh', position: 'sticky', top: 0, overflowY: 'auto',
-          flexShrink: 0, width: '320px', display: 'flex', flexDirection: 'column',
-          background: '#08080e', borderLeft: '1px solid rgba(168,85,247,0.25)'
-        }}>
-        <div className="voice-chat-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img
-              src="/vicky-avatar.jpeg"
-              alt="Vicky Voice Assistant"
-              className="voice-chat-avatar"
-            />
-            <div>
-              <div style={{ fontSize: '16px', fontWeight: '600', color: '#c8ff00' }}>Vicky</div>
-              <div style={{ fontSize: '12px', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
-                <span>Voice Assistant • {sharedProfile?.displayName || profile.displayName || 'Guest'}</span>
-              </div>
-            </div>
-          </div>
-          <button
-            className="voice-chat-close"
-            onClick={() => setChatOpen(false)}
-            aria-label="Close chat"
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="voice-chat-messages" ref={chatMessagesRef} aria-live="polite">
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: message.role === 'assistant' ? '8px' : '0',
-                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '80%',
-                flexDirection: message.role === 'user' ? 'row-reverse' : 'row'
-              }}
-            >
-              {message.role === 'assistant' && (
-                <img
-                  src="/vicky-avatar.jpeg"
-                  alt="Vicky"
-                  className="voice-message-avatar"
-                />
-              )}
-              <div className={`voice-message ${message.role}`}>
-                {message.text}
-              </div>
-            </div>
-          ))}
-          {isChatLoading && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <img
-                src="/vicky-avatar.jpeg"
-                alt="Vicky"
-                className="voice-message-avatar"
-              />
-              <div className="voice-message assistant">Thinking...</div>
-            </div>
-          )}
-        </div>
-
-        <div className="voice-chat-input-container">
-          <div className="voice-chat-input-row">
-            <input
-              type="text"
-              className="voice-chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={isRecording ? "Listening..." : "Type your message or use voice input..."}
-              aria-label="Chat with voice assistant"
-            />
-            <button
-              className={`voice-voice-btn ${isRecording ? 'recording' : ''}`}
-              onClick={toggleMic}
-              title={isRecording ? 'Stop voice input' : 'Start voice input'}
-              aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
-            >
-              {isRecording ? (
-                <span style={{ fontSize: '20px' }}>⏹️</span>
-              ) : (
-                <img src="/vicky-mic.png" alt="Microphone" style={{ width: '28px', height: '28px' }} />
-              )}
-            </button>
-            <button
-              className={`voice-auto-stop-toggle ${autoStopEnabled ? 'enabled' : 'disabled'}`}
-              onClick={() => setAutoStopEnabled(!autoStopEnabled)}
-              title={autoStopEnabled ? 'Auto-stop enabled (will stop when you finish speaking)' : 'Auto-stop disabled (click mic to stop)'}
-              aria-label="Toggle auto-stop on silence"
-              style={{
-                marginLeft: '8px',
-                padding: '8px 12px',
-                background: autoStopEnabled ? 'rgba(200, 255, 0, 0.2)' : 'rgba(128, 128, 128, 0.2)',
-                border: `2px solid ${autoStopEnabled ? '#c8ff00' : '#666'}`,
-                borderRadius: '8px',
-                color: autoStopEnabled ? '#c8ff00' : '#999',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}
-            >
-              {autoStopEnabled ? '⏱️ Auto' : '⏱️ Manual'}
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Vicky AI Chat Sidebar */}
+      <EngineeringBaySidebar persona={VICKY_PERSONA} />
     </div>
   )
 }
