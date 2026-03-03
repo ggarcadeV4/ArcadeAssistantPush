@@ -50,6 +50,7 @@ const CHUCK_PERSONA = {
   accentColor: '#FBBF24',
   accentGlow: 'rgba(251,191,36,0.35)',
   scannerLabel: 'ANALYZING...',
+  voiceProfile: 'chuck',
   emptyHint: 'Ask Chuck about controller mappings, GPIO, or arcade setup.',
   chips: chuckChips,
 };

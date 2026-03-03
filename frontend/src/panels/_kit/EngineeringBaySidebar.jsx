@@ -156,10 +156,13 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             if (action) setPendingAction(action);
 
             // TTS: first sentence only in Diagnosis Mode
+            const ttsOpts = persona.voiceProfile
+                ? { voice_profile: persona.voiceProfile }
+                : {};
             if (diag.diagMode || persona.diagPermanent) {
-                speak(cleanText.split('.')[0]);
+                speak(cleanText.split('.')[0], ttsOpts);
             } else {
-                speak(cleanText);
+                speak(cleanText, ttsOpts);
             }
         } catch (err) {
             addMessage(`⚠️ ${err.message ?? `${persona.name} is unreachable.`}`, 'system');

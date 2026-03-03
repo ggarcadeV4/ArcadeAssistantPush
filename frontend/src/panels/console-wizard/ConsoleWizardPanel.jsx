@@ -22,6 +22,7 @@ const WIZ_PERSONA = {
   accentColor: '#a78bfa',
   accentGlow: 'rgba(167,139,250,0.35)',
   scannerLabel: 'CONJURING...',
+  voiceProfile: 'wiz',
   emptyHint: 'Ask WIZ about emulator configs, controller mapping, or RetroArch setup.',
   chips: WIZ_CHIPS,
 };

@@ -231,6 +231,7 @@ const LEDBlinkyPanel = () => {
         accentColor: '#06B6D4',
         accentGlow: 'rgba(6,182,212,0.35)',
         scannerLabel: 'STROBING...',
+        voiceProfile: 'blinky',
         emptyHint: 'Ask Blinky about LED colors, zones, themes, or calibration.',
         chips: [
             { id: 'scan', label: 'Scan LEDs', prompt: 'Scan all connected LED controllers and list their status.' },

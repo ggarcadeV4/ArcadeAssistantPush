@@ -33,20 +33,21 @@ const DEFAULT_USER_OPTIONS = ['None', 'Dad', 'Mom', 'Kid Y', 'Kid Z', 'Guest']
 
 /** Vicky persona config for EngineeringBaySidebar */
 const VICKY_PERSONA = {
-    id: 'voice',
-    name: 'VICKY',
-    icon: '🎙️',
-    icon2: '🗣️',
-    accentColor: '#c8ff00',
-    accentGlow: 'rgba(200, 255, 0, 0.35)',
-    scannerLabel: 'LISTENING...',
-    emptyHint: 'Ask Vicky about voice settings, profiles, or speech recognition.',
-    chips: [
-        { id: 'profiles', label: 'Show profiles', prompt: 'Show me all user voice profiles.' },
-        { id: 'tts', label: 'Test TTS', prompt: 'Read a test sentence aloud so I can hear the TTS voice.' },
-        { id: 'vocab', label: 'Custom vocabulary', prompt: 'Help me set up custom vocabulary for voice commands.' },
-        { id: 'consent', label: 'Privacy settings', prompt: 'Show me the current voice consent and privacy settings.' },
-    ],
+  id: 'voice',
+  name: 'VICKY',
+  icon: '🎙️',
+  icon2: '🗣️',
+  accentColor: '#c8ff00',
+  accentGlow: 'rgba(200, 255, 0, 0.35)',
+  scannerLabel: 'LISTENING...',
+  voiceProfile: 'vicky',
+  emptyHint: 'Ask Vicky about voice settings, profiles, or speech recognition.',
+  chips: [
+    { id: 'profiles', label: 'Show profiles', prompt: 'Show me all user voice profiles.' },
+    { id: 'tts', label: 'Test TTS', prompt: 'Read a test sentence aloud so I can hear the TTS voice.' },
+    { id: 'vocab', label: 'Custom vocabulary', prompt: 'Help me set up custom vocabulary for voice commands.' },
+    { id: 'consent', label: 'Privacy settings', prompt: 'Show me the current voice consent and privacy settings.' },
+  ],
 };
 const ADD_USER_OPTION_VALUE = '__add_user__'
 
