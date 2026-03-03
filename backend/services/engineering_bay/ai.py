@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _DIAGNOSIS_DELIMITER = "---DIAGNOSIS---"
 _prompt_cache: Dict[str, Dict[str, str]] = {}  # {persona: {"chat": ..., "diagnosis": ...}}
 
-_VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc"}
+_VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc", "chuck", "wiz"}
 
 # Doc is always in diagnosis mode — no chat variant needed
 _ALWAYS_DIAGNOSIS = {"doc"}
