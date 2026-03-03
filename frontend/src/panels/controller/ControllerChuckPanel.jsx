@@ -27,8 +27,12 @@ import {
   requestCascade,
   setCascadePreference,
 } from './apiHelpers';
-import { ChuckSidebar } from './ChuckSidebar';
+import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
+import { chuckContextAssembler } from './chuckContextAssembler';
+import { chuckChips } from './chuckChips';
 import './controller-chuck.css';
+import './chuck-sidebar.css';
+import '../_kit/EngineeringBaySidebar.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 const API_BASE = '/api/local/controller';
@@ -36,6 +40,19 @@ const HARDWARE_API = '/api/local/hardware';
 const CHUCK_VOICE_ID = 'f5HLTX707KIM4SzJYzSz';
 
 const CHUCK_GREET = "Yo! Chuck here. Let's get this cabinet wired up right.";
+
+/** Chuck persona config for EngineeringBaySidebar */
+const CHUCK_PERSONA = {
+  id: 'chuck',
+  name: 'CHUCK',
+  icon: '⚙️',
+  icon2: '🕹️',
+  accentColor: '#FBBF24',
+  accentGlow: 'rgba(251,191,36,0.35)',
+  scannerLabel: 'ANALYZING...',
+  emptyHint: 'Ask Chuck about controller mappings, GPIO, or arcade setup.',
+  chips: chuckChips,
+};
 
 /** Flame SVG background — matches the physical panel aesthetic */
 const FlameSVG = memo(() => (
@@ -777,18 +794,20 @@ export default function ControllerChuckPanel() {
             className={`chuck-sidebar-backdrop ${chatOpen ? 'chuck-sidebar-backdrop--visible' : ''}`}
             onClick={() => setChatOpen(false)}
           />
-          <ChuckSidebar
-            isOpen={chatOpen}
-            onClose={() => setChatOpen(false)}
-            panelState={{
-              playerMode,
-              boardName,
-              boardStatus,
-              mapping,
-              mappedCount: Object.keys(mapping).length,
-              detectionMode,
-            }}
-          />
+          <div className={`chuck-drawer ${chatOpen ? 'chuck-drawer--open' : ''}`}>
+            <button
+              type="button"
+              className="chuck-drawer__close"
+              onClick={() => setChatOpen(false)}
+              aria-label="Close sidebar"
+            >
+              ✕
+            </button>
+            <EngineeringBaySidebar
+              persona={CHUCK_PERSONA}
+              contextAssembler={chuckContextAssembler}
+            />
+          </div>
 
         </div>{/* end chuck-layout */}
 
