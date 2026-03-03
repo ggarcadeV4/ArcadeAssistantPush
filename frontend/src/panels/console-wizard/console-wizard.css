@@ -689,6 +689,7 @@ button:not(:disabled):hover {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -822,9 +823,12 @@ button:not(:disabled):hover {
 }
 
 @keyframes pulse-recording {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(255, 79, 110, 0.7);
   }
+
   50% {
     box-shadow: 0 0 0 8px rgba(255, 79, 110, 0);
   }
@@ -1153,4 +1157,830 @@ button:not(:disabled):hover {
 
 .teknoparrot-summary .count-correct {
   color: #1cbb8c;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Console Wizard V2 — Tab Component Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Shared V2 Utilities ──────────────────── */
+.wiz-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wiz-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.wiz-btn--ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: #c5cfe0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wiz-btn--ghost:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #22C55E;
+}
+
+.wiz-btn--primary {
+  background: linear-gradient(135deg, #22C55E, #16A34A);
+  color: #fff;
+}
+
+.wiz-btn--primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.4);
+  transform: translateY(-1px);
+}
+
+.wiz-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.wiz-badge--success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22C55E;
+}
+
+.wiz-badge--info {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3B82F6;
+}
+
+.wiz-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.wiz-alert .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.wiz-alert--error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #FCA5A5;
+}
+
+.wiz-alert--success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86EFAC;
+}
+
+.wiz-tab-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.wiz-tab-btn--active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22C55E;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.wiz-section {
+  margin-bottom: 1.5rem;
+}
+
+.wiz-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.wiz-section__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #e3e7ef;
+}
+
+.wiz-section__header p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wiz-section__actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.wiz-section__filter {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.wiz-section--actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ── Dashboard Status Cards ───────────────── */
+.wiz-status-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.wiz-status-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  transition: border-color 0.2s ease;
+}
+
+.wiz-status-card:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.wiz-status-card__icon {
+  font-size: 28px;
+  color: rgba(34, 197, 94, 0.6);
+}
+
+.wiz-status-card__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.wiz-status-card__value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.wiz-status-card__label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wiz-status-card--status-healthy .wiz-status-card__icon {
+  color: #22C55E;
+}
+
+.wiz-status-card--status-warning .wiz-status-card__icon {
+  color: #F59E0B;
+}
+
+.wiz-status-card--status-error .wiz-status-card__icon {
+  color: #EF4444;
+}
+
+/* ── Dashboard Controller Grid ────────────── */
+.wiz-controller-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wiz-controller-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(34, 197, 94, 0.04);
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  border-radius: 10px;
+}
+
+.wiz-controller-card__icon {
+  font-size: 1.75rem;
+}
+
+.wiz-controller-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wiz-controller-card__name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.wiz-controller-card__details {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Dashboard Emulator List ──────────────── */
+.wiz-emulator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wiz-emulator-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wiz-emulator-row:hover {
+  background: rgba(34, 197, 94, 0.04);
+  border-color: rgba(34, 197, 94, 0.15);
+}
+
+.wiz-emulator-row--selected {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.wiz-emulator-row__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: #e3e7ef;
+}
+
+.wiz-emulator-row__type {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wiz-emulator-row__systems {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.wiz-emulator-row__health {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wiz-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wiz-dot--healthy,
+.wiz-dot--ok {
+  background: #22C55E;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.wiz-dot--warning {
+  background: #F59E0B;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.wiz-dot--error {
+  background: #EF4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+.wiz-dot--unknown {
+  background: #6B7280;
+}
+
+/* ── Progress ─────────────────────────────── */
+.wiz-progress {
+  padding: 12px 16px;
+  background: rgba(34, 197, 94, 0.04);
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  border-radius: 8px;
+}
+
+.wiz-progress__info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #c5cfe0;
+  margin-bottom: 8px;
+}
+
+.wiz-progress__bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.wiz-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22C55E, #06B6D4);
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+/* ── TeknoParrot Tab ──────────────────────── */
+.wiz-tp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.wiz-tp-header__title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.wiz-tp-header__title h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #fff;
+}
+
+.wiz-tp-header__title p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wiz-tp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 1.5rem;
+}
+
+.wiz-tp-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.wiz-tp-card:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.wiz-tp-card--selected {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.wiz-tp-card__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.1));
+}
+
+.wiz-tp-card__info {
+  padding: 14px 16px;
+}
+
+.wiz-tp-card__name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 8px;
+}
+
+.wiz-tp-card__meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wiz-tp-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--badge-color, #6B7280) 15%, transparent);
+  color: var(--badge-color, #6B7280);
+}
+
+.wiz-tp-card__check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #22C55E;
+}
+
+/* TeknoParrot Result */
+.wiz-tp-result {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.wiz-tp-result--changes {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.wiz-tp-result--ok {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.wiz-tp-result__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.wiz-tp-result__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #fff;
+}
+
+.wiz-tp-result__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.wiz-tp-diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wiz-tp-diff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.85rem;
+}
+
+.wiz-tp-diff--changed {
+  border-left: 3px solid #F59E0B;
+}
+
+.wiz-tp-diff__key {
+  color: #c5cfe0;
+  font-weight: 500;
+}
+
+.wiz-tp-diff__arrow {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.wiz-tp-diff__val {
+  color: #22C55E;
+  font-family: monospace;
+}
+
+/* ── Visual Diff Tab ──────────────────────── */
+.wiz-diff-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.wiz-diff-empty h3 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.wiz-diff-empty p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.3);
+  max-width: 400px;
+}
+
+.wiz-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.wiz-diff-header__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.wiz-diff-header__title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #fff;
+}
+
+.wiz-diff-header__stats {
+  display: flex;
+  gap: 12px;
+}
+
+.wiz-diff-stat {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.wiz-diff-stat--add {
+  color: #22C55E;
+}
+
+.wiz-diff-stat--rem {
+  color: #EF4444;
+}
+
+.wiz-toggle-group {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.wiz-toggle {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wiz-toggle--active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22C55E;
+}
+
+.wiz-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wiz-diff-entry {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.wiz-diff-entry__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: none;
+  width: 100%;
+  color: #e3e7ef;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.wiz-diff-entry__header .material-symbols-outlined {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wiz-diff-entry__name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.wiz-diff-entry__badge {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wiz-diff-file {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wiz-diff-file__path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+}
+
+.wiz-diff-file__path .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.wiz-diff-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.wiz-diff-pane {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wiz-diff-pane__label {
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.wiz-diff-pane--local .wiz-diff-pane__label {
+  background: rgba(239, 68, 68, 0.08);
+  color: rgba(239, 68, 68, 0.7);
+}
+
+.wiz-diff-pane--remote .wiz-diff-pane__label {
+  background: rgba(34, 197, 94, 0.08);
+  color: rgba(34, 197, 94, 0.7);
+}
+
+.wiz-diff-code {
+  margin: 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: 'Fira Code', Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: #c5cfe0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.wiz-diff-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Activity Log Tab ─────────────────────── */
+.wiz-logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wiz-logs-header__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wiz-logs-header__title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #fff;
+}
+
+.wiz-logs-filter {
+  display: flex;
+  gap: 6px;
+}
+
+.wiz-logs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.wiz-logs-empty h3 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.wiz-logs-empty p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.wiz-logs-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.wiz-log-entry {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  position: relative;
+}
+
+.wiz-log-entry__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.wiz-log-entry__line {
+  position: absolute;
+  left: 3.5px;
+  top: 20px;
+  bottom: -10px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.wiz-log-entry:last-child .wiz-log-entry__line {
+  display: none;
+}
+
+.wiz-log-entry__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.wiz-log-entry__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wiz-log-entry__title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #e3e7ef;
+  flex: 1;
+}
+
+.wiz-log-entry__time {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+}
+
+.wiz-log-entry__detail {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
 }

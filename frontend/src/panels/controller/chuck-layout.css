@@ -1,5 +1,5 @@
 /* chuck-layout — appended to controller-chuck.css bottom
- * Horizontal flex wrapper: player grid | AI sidebar
+ * Horizontal flex wrapper: player grid fills full width, sidebar overlays
  */
 
 .chuck-layout {
@@ -11,13 +11,8 @@
     min-height: 0;
 }
 
-/* Main grid takes remaining space; sidebar is fixed width */
+/* Main grid takes full width — sidebar is now an overlay drawer */
 .chuck-layout .chuck-main {
     flex: 1;
     min-width: 0;
-}
-
-.chuck-layout .chuck-sidebar {
-    flex-shrink: 0;
-    height: 100%;
 }

@@ -52,6 +52,8 @@ Current panel state: ${JSON.stringify(panelState)}`
       'x-device-id': deviceId
     },
     body: JSON.stringify({
+      provider: 'gemini',
+      model: 'gemini-2.0-flash',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }

@@ -350,6 +350,9 @@ export default function ControllerChuckPanel() {
   // Player mode: '2p' or '4p'
   const [playerMode, setPlayerMode] = useState('4p');
 
+  // Chat drawer
+  const [chatOpen, setChatOpen] = useState(false);
+
   // Focus mode: which player card is active for mapping (null = all equal)
   const [activePlayer, setActivePlayer] = useState(null);
   const [returningPlayer, setReturningPlayer] = useState(null); // plays exit animation
@@ -674,6 +677,36 @@ export default function ControllerChuckPanel() {
                   <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
                   DETECT
                 </button>
+                <button
+                  className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
+                  onClick={() => setChatOpen(v => !v)}
+                  title="Chat with Chuck"
+                >
+                  💬 CHUCK
+                </button>
+                <button
+                  className="chuck-strip-btn preview"
+                  onClick={handlePreview}
+                  disabled={!hasPending}
+                  title="Preview pending changes"
+                >
+                  PREVIEW
+                </button>
+                <button
+                  className="chuck-strip-btn apply"
+                  onClick={handleApply}
+                  disabled={!hasPending || submitting}
+                  title="Apply mapping changes"
+                >
+                  {submitting ? 'APPLYING...' : 'APPLY'}
+                </button>
+                <button
+                  className="chuck-strip-btn reset"
+                  onClick={handleReset}
+                  title="Factory reset mappings"
+                >
+                  RESET
+                </button>
               </div>
             </div>
 
@@ -739,8 +772,14 @@ export default function ControllerChuckPanel() {
             </div>
           </main>
 
-          {/* ── Chuck AI Sidebar (Diagnosis Mode) ── */}
+          {/* ── Chuck AI Sidebar (Slide-out Drawer) ── */}
+          <div
+            className={`chuck-sidebar-backdrop ${chatOpen ? 'chuck-sidebar-backdrop--visible' : ''}`}
+            onClick={() => setChatOpen(false)}
+          />
           <ChuckSidebar
+            isOpen={chatOpen}
+            onClose={() => setChatOpen(false)}
             panelState={{
               playerMode,
               boardName,
@@ -753,55 +792,7 @@ export default function ControllerChuckPanel() {
 
         </div>{/* end chuck-layout */}
 
-        {/* ── Action Bar ── */}
-        <footer className="chuck-action-bar">
-          <label className={`chuck-detection-toggle ${detectionMode ? 'active' : ''}`}>
-            <input
-              type="checkbox"
-              checked={detectionMode}
-              onChange={(e) => setDetectionMode(e.target.checked)}
-            />
-            Input Detection Mode
-          </label>
 
-          {
-            hasPending && (
-              <span className="chuck-pending-badge">⚡ PENDING CHANGES</span>
-            )
-          }
-
-          {
-            flashMsg && (
-              <span style={{
-                fontSize: '10px',
-                color: flashMsg.type === 'success' ? 'var(--chuck-green)' :
-                  flashMsg.type === 'error' ? 'var(--chuck-red)' : 'var(--chuck-cyan)'
-              }}>
-                {flashMsg.msg}
-              </span>
-            )
-          }
-
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <button
-              className="chuck-action-btn preview"
-              onClick={handlePreview}
-              disabled={!hasPending}
-            >
-              PREVIEW CHANGES
-            </button>
-            <button
-              className="chuck-action-btn apply"
-              onClick={handleApply}
-              disabled={!hasPending || submitting}
-            >
-              {submitting ? 'APPLYING...' : 'APPLY MAPPING'}
-            </button>
-            <button className="chuck-action-btn reset" onClick={handleReset}>
-              FACTORY RESET
-            </button>
-          </div>
-        </footer >
       </div >
     </div>
   );

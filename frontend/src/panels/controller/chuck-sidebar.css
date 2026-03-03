@@ -19,21 +19,49 @@
     --chuck-cyan: #00e5ff;
 }
 
-/* ── Sidebar shell ──────────────────────────────────────────────────────────── */
+/* ── Sidebar shell — slide-out drawer ──────────────────────────────────────── */
 .chuck-sidebar {
     display: flex;
     flex-direction: column;
-    width: var(--sidebar-width);
-    min-width: 260px;
-    max-width: 360px;
+    width: 320px;
+    min-width: 300px;
+    max-width: 380px;
     height: 100vh;
-    position: sticky;
+    position: fixed;
+    right: 0;
     top: 0;
-    background: var(--sidebar-bg);
-    border-left: 1px solid var(--sidebar-border);
+    background: #080b10;
+    border-left: 3px solid #00e5ff;
+    box-shadow:
+        -12px 0 40px rgba(0, 0, 0, 0.9),
+        -3px 0 15px rgba(0, 229, 255, 0.25),
+        inset 2px 0 0 rgba(0, 229, 255, 0.1);
+    z-index: 900;
     overflow: hidden;
-    transition: border-color 0.4s, box-shadow 0.4s;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.4s, box-shadow 0.4s;
     flex-shrink: 0;
+}
+
+.chuck-sidebar--open {
+    transform: translateX(0);
+}
+
+/* ── Backdrop overlay ──────────────────────────────────────────────────────── */
+.chuck-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 899;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.chuck-sidebar-backdrop--visible {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* ── Diagnosis Mode amber border ───────────────────────────────────────────── */
@@ -60,8 +88,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 12px 14px;
+    background: #0d1220;
+    border-bottom: 2px solid rgba(0, 229, 255, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     flex-shrink: 0;
     gap: 8px;
 }
@@ -128,9 +158,10 @@
 .csb-empty {
     margin: auto;
     text-align: center;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.3);
-    line-height: 1.5;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.6;
+    padding: 20px;
 }
 
 /* ── Message bubbles ────────────────────────────────────────────────────────── */
@@ -259,8 +290,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 10px 12px;
+    background: #0d1220;
+    border-top: 2px solid rgba(0, 229, 255, 0.2);
     flex-shrink: 0;
 }
 
@@ -329,4 +361,26 @@
 
 .chuck-sidebar--diagnosis .csb-send:hover:not(:disabled) {
     background: rgba(251, 191, 36, 0.32);
+}
+
+/* ── Close button ──────────────────────────────────────────────────────────── */
+.csb-close {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.6);
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.csb-close:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff6b6b;
+    border-color: rgba(255, 80, 80, 0.3);
 }

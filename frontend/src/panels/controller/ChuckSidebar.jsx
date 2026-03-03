@@ -63,7 +63,7 @@ const SoftLockBanner = memo(({ onResume }) => (
 SoftLockBanner.displayName = 'SoftLockBanner';
 
 // ── Main sidebar ────────────────────────────────────────────────────────────
-export function ChuckSidebar({ panelState = {}, className = '' }) {
+export function ChuckSidebar({ panelState = {}, className = '', isOpen = false, onClose }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -215,6 +215,7 @@ export function ChuckSidebar({ panelState = {}, className = '' }) {
     // ── Sidebar border class — amber when diagnosis mode active ───────────────
     const sidebarClass = [
         'chuck-sidebar',
+        isOpen ? 'chuck-sidebar--open' : '',
         diag.diagMode ? 'chuck-sidebar--diagnosis' : '',
         className,
     ].join(' ').trim();
@@ -232,12 +233,25 @@ export function ChuckSidebar({ panelState = {}, className = '' }) {
                         <span className="csb-header__diag-badge">DIAG</span>
                     )}
                 </div>
-                <DiagnosisToggle
-                    active={diag.diagMode}
-                    isTransitioning={diag.isTransitioning}
-                    onToggle={diag.toggleDiagMode}
-                    disabled={loading}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <DiagnosisToggle
+                        active={diag.diagMode}
+                        isTransitioning={diag.isTransitioning}
+                        onToggle={diag.toggleDiagMode}
+                        disabled={loading}
+                    />
+                    {onClose && (
+                        <button
+                            type="button"
+                            className="csb-close"
+                            onClick={onClose}
+                            aria-label="Close chat"
+                            title="Close"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* ── Message list ────────────────────────────────────────────────── */}
