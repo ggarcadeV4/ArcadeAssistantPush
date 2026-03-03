@@ -15,4 +15,14 @@
 .chuck-layout .chuck-main {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Constrain player content to a readable width, centered */
+.chuck-layout .chuck-main .chuck-toolbar,
+.chuck-layout .chuck-main .chuck-player-row {
+    width: 100%;
+    max-width: 800px;
 }
