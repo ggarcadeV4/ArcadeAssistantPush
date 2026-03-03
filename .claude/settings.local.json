@@ -34,7 +34,10 @@
       "Bash(for:*)",
       "Bash(do curl -s http://localhost:8000/health)",
       "Bash(break)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(npx vite build)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

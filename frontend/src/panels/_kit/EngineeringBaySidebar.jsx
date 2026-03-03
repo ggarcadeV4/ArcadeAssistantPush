@@ -10,7 +10,6 @@ import { speak, stopSpeaking } from '../../services/ttsClient';
 import { useDiagnosisMode } from '../../hooks/useDiagnosisMode';
 import { DiagnosisToggle } from '../controller/DiagnosisToggle';
 import { ContextChips } from '../controller/ContextChips';
-import { MicButton } from '../controller/MicButton';
 import { ExecutionCard } from '../controller/ExecutionCard';
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -91,8 +90,10 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const [loading, setLoading] = useState(false);
     const [pendingAction, setPendingAction] = useState(null);
     const [executeLoading, setExecuteLoading] = useState(false);
+    const [isVoiceRecording, setIsVoiceRecording] = useState(false);
 
     const bottomRef = useRef(null);
+    const recognitionRef = useRef(null);
     const inputRef = useRef(null);
     const messagesRef = useRef(messages);
     useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -203,10 +204,62 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
     }, [input, sendMessage]);
 
-    const handleTranscript = useCallback((transcript) => {
-        diag.resetInteraction?.();
-        sendMessage(transcript);
-    }, [sendMessage, diag]);
+    // ── Click-toggle voice input (adapted from LED Blinky) ─────────────────────
+    const toggleVoiceInput = useCallback(() => {
+        if (isVoiceRecording) {
+            if (recognitionRef.current) recognitionRef.current.stop();
+            setIsVoiceRecording(false);
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            addMessage('Voice input not supported in this browser.', 'system');
+            return;
+        }
+
+        try {
+            // Stop TTS before recording to prevent feedback
+            stopSpeaking();
+
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            recognitionRef.current = recognition;
+
+            recognition.onstart = () => {
+                setIsVoiceRecording(true);
+            };
+
+            recognition.onresult = (event) => {
+                if (!event.results[0].isFinal) return;
+                const transcript = event.results[0][0].transcript;
+                setIsVoiceRecording(false);
+                recognitionRef.current = null;
+                if (!transcript.trim()) return;
+
+                diag.resetInteraction?.();
+                sendMessage(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                console.warn('[EngineeringBaySidebar] Voice error:', event.error);
+                setIsVoiceRecording(false);
+                recognitionRef.current = null;
+            };
+
+            recognition.onend = () => {
+                setIsVoiceRecording(false);
+                recognitionRef.current = null;
+            };
+
+            recognition.start();
+        } catch (err) {
+            console.error('[EngineeringBaySidebar] Failed to start voice input:', err);
+            setIsVoiceRecording(false);
+        }
+    }, [isVoiceRecording, addMessage, sendMessage, diag]);
 
     // ── Active state: diagnosis OR always-on (Doc) ────────────────────────────
     const isActive = diag.diagMode || persona.diagPermanent;
@@ -292,11 +345,16 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                     disabled={loading}
                     aria-label="Chat input"
                 />
-                <MicButton
-                    onTranscript={handleTranscript}
-                    stopTTS={stopSpeaking}
+                <button
+                    type="button"
+                    className={`eb-mic ${isVoiceRecording ? 'eb-mic--recording' : ''}`}
+                    onClick={toggleVoiceInput}
                     disabled={loading}
-                />
+                    title={isVoiceRecording ? 'Stop recording' : 'Voice input'}
+                    aria-label={isVoiceRecording ? 'Stop recording' : 'Voice input'}
+                >
+                    {isVoiceRecording ? '⏹' : '🎤'}
+                </button>
                 <button
                     type="button"
                     className="eb-send"

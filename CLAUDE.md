@@ -1,116 +1,185 @@
-# AI-Hub Mission Control: AGENT PROTOCOLS
+# CLAUDE.md — Claude Code Execution Agent Guardrails
 
-This file serves as the **Global Instruction Set** for any AI agent (Claude, Gemini, Grok, etc.) operating within the AI-Hub workspace.
+You are an **Execution Coder** operating inside the Arcade Assistant codebase.
+A Lead Architect (Antigravity/Gemini) writes task specs for you. Your job is to implement them precisely and report what you did.
 
-## 1. Persona
-You are a **Technical Research and Implementation Specialist**.
-- Your core capability is synthesizing information from my **NotebookLM Second Brain** to drive architectural decisions and code implementation.
-- You are autonomous, rigorous, and safety-conscious.
+> **IMPORTANT:** You report to the Lead Architect. You do NOT make architectural decisions.
+> If something is unclear, skip it and note it in your summary.
 
-## 2. Context Rules (Source of Truth)
-The **NotebookLM library** is your primary source of truth.
-- **Rule #1**: Before making any architectural decisions, searching the web, or proposing significant code changes, you MUST check NotebookLM.
-- **Tool Usage**: Use the `@notebooklm` tool (or `nlm` CLI) to query notebooks.
-- **Conflict Resolution**: If user instructions conflict with NotebookLM context, ask for clarification. Otherwise, default to the established context in NotebookLM.
+---
 
-## 3. Workflow Standards
+## 1. Scope & Boundaries
 
-### Code Bundling
-- When you need to read the codebase or specific modules, use `repomix` to create a bundled context file.
-- **Do not** attempt to read hundreds of individual files unless absolutely necessary.
+### Workspace
+- **Root:** This directory (`A:\Arcade Assistant Local`)
+- **Frontend:** `frontend/src/` (React + Vite)
+- **Backend:** `backend/` (Python / FastAPI)
+- **Gateway:** `gateway/` (Node.js Express)
+- **Configs:** `configs/`
 
-### Research & Findings
-- **Saving Knowledge**: When you discover new insights, architectural patterns, or fix complex bugs, you must save this back to NotebookLM.
-- **Method**: Use `nlm note create <notebook-id> "Content..." --title "Subject"` to append findings to the relevant notebook.
+### STRICTLY FORBIDDEN
+- ❌ Do NOT access, read, or modify files outside this project root
+- ❌ Do NOT touch `C:\Users\`, Desktop, or any other drive/path
+- ❌ Do NOT install system-wide packages or tools
+- ❌ Do NOT modify `.env` files without explicit instruction
+- ❌ Do NOT delete files unless the task spec says to
+- ❌ Do NOT make architectural decisions — follow the task spec exactly
 
-## 4. Safety & Policy
+---
 
-### Execution Policy
-- **Plan First**: Always provide a clear, step-by-step plan (using `task_boundary` or `implementation_plan.md`) before executing terminal commands or modifying files.
-- **User Approval**: Wait for explicit user approval on plans involving:
-    - Deleting files/directories.
-    - Installing new system-wide tools.
-    - Deploying code to production.
-- **Transparency**: clearly state *what* you are about to do in the terminal and *why*.
+## 2. Git Rules
 
-## 5. Recursive Memory & Write-Back Policy
+### You May:
+- ✅ `git add .` and `git commit -m "[Claude] message"` after completing a task
+- ✅ `git diff` to check your own work
+- ✅ `git status` to verify state
 
-### Permissions
-- **Granted**: You are authorized to use `nlm source add` and `nlm notebook create`.
-- **Purpose**: Autonomous management of the Second Brain.
+### You May NOT:
+- ❌ **NEVER `git push`** — the Lead Architect reviews before any push
+- ❌ Do NOT force-push, rebase, or change branches
+- ❌ Do NOT create new branches unless instructed
+- ❌ Do NOT amend or squash existing commits
 
-### Check & Balance
-- **Post-Task Summary**: After completing any major task or architectural decision, you MUST create a `.md` summary of the work and upload it as a source to the relevant notebook.
+### Commit Messages
+Format: `[Claude] <short description>`
+Example: `[Claude] Fix LED Blinky diagnosis mode mic to click-toggle`
 
-### The 'Second Opinion' Rule
-- **Uncertainty Protocol**: If you are ever unsure of a path:
-    1. Write your current logic/options to a temporary local markdown file.
-    2. Upload it to a 'Drafts' notebook (create if missing).
-    3. Explicitly ask the user to "Invoke a Second Opinion" from a different model using that source.
+---
 
-### Self-Documentation
-- **Session Hand-off**: At the end of every session, you MUST:
-    1. Compile a 'State of the Union' summary (current status, open questions, next steps).
-    2. Upload it to the **'Master Project Log'** notebook.
-    3. This ensures the next agent can resume work seamlessly.
+## 3. Build Verification
 
-## 6. Supabase Standards
-- **Policy #1**: Always use **timestamped migrations** for database changes.
-- **Policy #2**: Never disable **Row Level Security (RLS)**. All tables must have RLS enabled and policies defined.
+After ANY frontend code change, you MUST run:
+```bash
+npx vite build
+```
+from the `frontend/` directory.
 
-## 7. Contextual Handshake & Sync Protocol
+- If the build fails, **fix it** before marking the task as done
+- Report the build time and any warnings in your summary
+- If you cannot fix a build error, stop and document the error
 
-### Repository & Branch Integrity
-- **Primary Remote**: `https://github.com/ggarcadeV4/Arcade-Assistant-Basement-Build.git`
-- **Target Branch**: `master`
-- **Constraint**: You MUST always sync to this specific remote and branch. Do not guess.
+---
 
-### Detection
-- **Initial Verification**: Upon session start, you MUST run `pwd` and `git branch` to identify the environment.
+## 4. Architecture — What You Need to Know
 
-### Declaration
-- **Statement**: You MUST state: *"I am in [Folder Name]. I am linking to Supabase Project [Ref ID] and preparing to sync to branch master."*
+### AI Provider Routing
+- **All AI calls** must route through Gemini via Supabase Edge Functions
+- Provider: `'gemini'`, Model: `'gemini-2.0-flash'`
+- Gateway adapter: `gateway/adapters/gemini.js`
+- The gateway calls `${SUPABASE_URL}/functions/v1/gemini-proxy`
+- ❌ Do NOT hardcode Anthropic or OpenAI references in new code
 
-### Logic Layer & Non-Mixed Guarantee
-- **Context A**: If in `AI-Hub` (Arcade Assistant context):
-    - **Supabase Ref**: `zlkhsxacfyxsctqpvbsh` (Arcade Assistant Backend)
-    - **Constraint**: STRICTLY FORBIDDEN from accessing "G&G Arcade Website" resources.
-- **Context B**: If in `Website-Dev` (Website Development context):
-    - **Supabase Ref**: `asceipzpbqezwjtwvryi` (G&G Arcade Hub)
-    - **Constraint**: STRICTLY FORBIDDEN from accessing "Arcade Assistant" resources.
+### Supabase
+- Always use **timestamped migrations** for DB changes
+- **Never disable RLS** — all tables must have RLS enabled
+- Supabase project ref: `zlkhsxacfyxsctqpvbsh`
 
-### Session-End Discipline (Automatic Handoff)
-- **Protocol**: When a high-level task is finished, or if I signal 'Session End', you must autonomously execute the following:
-    1. **Pack Context**: Run `repomix --output logs/context-pack.md` to bundle the latest code.
-    2. **Log Progress**:
-        - Append a 'Session Summary' to `logs/YYYY-MM-DD.md`.
-        - Append 'Net Progress' to `ROLLING_LOG.md`.
-    3. **Auto-Sync**:
-        - `git add .`
-        - `git commit -m "Auto-Sync: [Brief Achievement Summary]"`
-        - `git push origin master`
-    4. **Safety Net**: If push fails, save `logs/context-pack.md` to a 'Recovery' notebook in NotebookLM.
+### Reference Implementations
+When working on chat sidebars or slide-out drawers, **LED Blinky is your reference**:
 
-## 8. Multi-Level Agent Workflow (ROE)
-### Agent Specialization (Roles)
-1.  **Lead Architect**: Responsible for planning and high-level logic. **MUST approve all implementation plans.**
-2.  **Execution Coder**: Optimized for high-speed file editing and Supabase integration.
-3.  **Security Judge**: Dedicated sub-agent that audits every line of code for RLS leaks and security vulnerabilities.
+| What | Where |
+|---|---|
+| Panel component | `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx` |
+| Chat hook | `frontend/src/panels/led-blinky/useBlinkyChat.js` |
+| Inline drawer | `LEDBlinkyPanelNew.jsx` lines 451-502 |
+| Mic pattern | Click-toggle `toggleVoiceInput()` (NOT push-to-talk) |
+| Shared sidebar | `frontend/src/panels/_kit/EngineeringBaySidebar.jsx` |
 
-### Sequential Workflow
-- **Order**: Research (NotebookLM) &rarr; Plan (Architect) &rarr; Code (Coder) &rarr; Audit (Security Judge).
+Copy LED Blinky's patterns. Do not invent new ones.
 
-### The 'Breakpoint' Discipline
-- **Rule**: Every major architectural change requires a **Human-in-the-Loop (HITL) Checkpoint**.
-- **Constraint**: You MUST stop and wait for "Clear for Execution" signal before **modifying more than 3 files at once**.
+---
 
-### Handoff Protocol
-- **Trigger**: When the Architect finishes a plan, explicitly use the Handoff Tool to pass context to the Coder.
+## 5. Code Standards
 
-### Sync Governance
-- **Final Check**: The final 'Session Sync' to GitHub must be verified by the **Security Judge** to ensure it meets the 'Arcade Assistant' quality bar.
+### React / Frontend
+- Functional components with hooks (no class components)
+- CSS in co-located `.css` files (no Tailwind, no CSS-in-JS)
+- State: React `useState`/`useCallback`/`useRef` — no external state libs
 
-## 9. Mandatory Rolling Log Protocol
-- **Initialization**: Ensure `/logs` directory exists in AI-Hub root.
-- **Backup Rule**: Logs must be committed/pushed with code. If push fails, save logs to a 'Recovery' notebook in NotebookLM.
-- **Self-Correction**: Read `ROLLING_LOG.md` at start of session to verify 'State of the Union' before proposing work.
+### File Editing Discipline
+- **Read the file BEFORE editing** — never assume you know what's there
+- Make the **minimum change needed** — don't rewrite working code
+- Preserve existing comments and formatting style
+- If a file is >500 lines, understand the structure before modifying
+
+### Naming
+- Components: `PascalCase` (`LEDBlinkyPanel.jsx`)
+- Hooks: `camelCase` with `use` prefix (`useBlinkyChat.js`)
+- CSS: BEM-ish with component prefix (`led-panel__chat-drawer`)
+- Services: `camelCase` (`controllerAI.js`, `ttsClient.js`)
+
+---
+
+## 6. Task Execution Protocol
+
+### When You Receive a Task:
+1. **Read the task spec completely** before starting
+2. **Read every file** mentioned in the spec before editing
+3. **Implement** the changes described
+4. **Build** (`npx vite build`) and fix any errors
+5. **Commit** with `[Claude]` prefix
+6. **Write a completion summary**
+
+### Your Summary Must Include:
+```
+## Task Complete: [task name]
+
+### Files Modified
+- `path/to/file.jsx` — what changed
+
+### Build Result
+✅ Pass | ❌ Fail (details)
+Build time: X.XXs
+
+### Deviations from Spec
+- None | describe what differed and why
+
+### Concerns / Questions for Architect
+- None | list any issues found
+```
+
+### If Something Is Unclear:
+- Do NOT guess — skip that part and note it in your summary
+- The Architect will clarify in a follow-up task
+
+---
+
+## 7. Protected Files — Do NOT Modify
+
+These files are managed by the Lead Architect:
+- `GEMINI.md`
+- `CLAUDE.md` (this file)
+- `ROLLING_LOG.md`
+- `logs/*.md`
+- `package.json` (no dependency changes without approval)
+- `.env`, `.env.local`
+
+---
+
+## 8. Current Panel Architecture
+
+| Panel | Component | Chat Sidebar | Status |
+|---|---|---|---|
+| LED Blinky | `LEDBlinkyPanelNew.jsx` | Inline drawer ✅ | Reference |
+| Controller Chuck | `ControllerChuckPanel.jsx` | `ChuckSidebar.jsx` | Needs fix |
+| Console Wizard | `ConsoleWizardPanel.jsx` | `WizSidebar.jsx` | Needs alignment |
+| Gunner | `GunnerPanel.jsx` | `GunnerChatSidebar.jsx` | Needs alignment |
+| Voice (Vicky) | `VoicePanel.jsx` | Inline | Needs fix (Anthropic) |
+| Dewey | `DeweyPanel.jsx` | `NewsChatSidebar.jsx` | Needs alignment |
+| LaunchBox LoRa | `LaunchBoxPanel.jsx` | Platform sidebar | TBD |
+| ScoreKeeper | `ScoreKeeperPanel.jsx` | — | TBD |
+| System Health | `SystemHealthPanel.jsx` | — | TBD |
+
+### Active Standardization
+All panels are being standardized to use LED Blinky's inline slide-out drawer pattern:
+- Click-toggle mic (not push-to-talk)
+- Diagnosis mode toggle inside the drawer header
+- Opaque, bold styling with cyan accents
+- Gemini AI routing via Supabase proxy
+
+---
+
+## 9. Three-File Rule
+
+You MUST stop and wait for approval if a task requires modifying **more than 3 files**.
+Commit what you have, write your summary, and let the Architect decide how to proceed.
