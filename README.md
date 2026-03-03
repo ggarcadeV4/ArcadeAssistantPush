@@ -1,5 +1,5 @@
 # Arcade Assistant — Project README
-**Last Updated:** 2026-03-02 | **Build:** Engineering Bay Sidebars — All 6 panels complete | **Branch:** `master`
+**Last Updated:** 2026-03-03 | **Build:** Sidebar Standardization + TTS Pipeline + Gemini Migration | **Branch:** `master`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -51,25 +51,25 @@ cd frontend && npm run dev
 
 ## Persona Roster
 
-| # | Persona | Panel File | Status |
-|---|---------|-----------|--------|
-| 1 | **Dewey** (Arcade Historian) | `panels/dewey/` | ✅ V2.5 |
-| 2 | **LaunchBox LoRa** | `panels/launchbox/` | 🔶 Stub |
-| 3 | **ScoreKeeper Sam** | `panels/scorekeeper/` | ✅ Supabase realtime + TTS |
-| 4 | **Controller Chuck** | `panels/controller/` | ✅ FLIP UI + Diagnosis Mode Phase 1 |
-| 5 | **LED Blinky** | `components/led-blinky/` | ✅ Refactored |
-| 6 | **Gunner** | `panels/lightguns/` | ✅ Phase 1 UI |
-| 7 | **Console Wizard** | `panels/consolewizard/` | 🔶 Next up |
-| 8 | **Vicky** (Voice) | `panels/voice/` | 🔶 Partial |
-| 9 | **Doc** (Diagnostics) | `panels/doc/` | 🔶 Partial |
+| # | Persona | Panel File | EB Sidebar | TTS |
+|---|---------|-----------|------------|-----|
+| 1 | **Dewey** (Arcade Historian) | `panels/dewey/` | N/A (custom) | ✅ ElevenLabs |
+| 2 | **LaunchBox LoRa** | `panels/launchbox/` | 🔶 Stub | ✅ ElevenLabs |
+| 3 | **ScoreKeeper Sam** | `panels/scorekeeper/` | N/A | ✅ ElevenLabs |
+| 4 | **Controller Chuck** | `panels/controller/` | ✅ Standardized | ✅ ElevenLabs |
+| 5 | **LED Blinky** | `components/led-blinky/` | ✅ Standardized | ✅ ElevenLabs |
+| 6 | **Gunner** | `components/gunner/` | ✅ Standardized | ✅ ElevenLabs |
+| 7 | **Console Wizard** | `panels/console-wizard/` | ✅ Standardized | ✅ ElevenLabs |
+| 8 | **Vicky** (Voice) | `panels/voice/` | ✅ Standardized | ✅ ElevenLabs |
+| 9 | **Doc** (Diagnostics) | `panels/system-health/` | ✅ Standardized | ✅ ElevenLabs |
 
 Route: `http://127.0.0.1:8787/assistants?agent=chuck` (replace `chuck` with persona ID)
 
 ---
 
-## Controller Chuck — Current State (as of 2026-03-02)
+## Controller Chuck — Current State (as of 2026-03-03)
 
-The most actively developed panel. Status: **Diagnosis Mode Phase 1 complete — frontend + backend.**
+The most actively developed panel. Status: **Diagnosis Mode Phase 1 + Standardized Sidebar + Gemini AI.**
 
 ### Implemented
 - **4P / 2P mode switcher** — identical compact card sizing in both modes
@@ -110,9 +110,10 @@ P3/P4: Top row → 1, 2         |  Bottom row → 3, 4
 This is the Rosetta Stone for all 45+ emulator configs. `ControllerBridge` hard-blocks any deviation.
 
 ### Pending / Next
-- Console Wizard panel build-out
+- Assign correct ElevenLabs voice ID for Chuck (`CHUCK_VOICE_ID` in `.env`)
 - Diagnosis Mode Phase 2: Supabase tables (`controller_mappings`, `encoder_devices`, `controller_mappings_history`)
 - Cascade diff UI inside the Diagnosis Mode sidebar
+- Wire real hardware data into `chuckContextAssembler.js`
 
 ### Key Files
 ```
@@ -162,8 +163,9 @@ backend/
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| Diagnosis Mode Phase 2 (Supabase tables) | 🔴 Next | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
-| Console Wizard panel | 🔴 Next | Stitch V2 design done; implementation queued |
+| ElevenLabs voice IDs | 🔴 Active | Chuck, Vicky, Gunner, Doc, Sam need custom voice IDs in `.env` |
+| ElevenLabs payment monitoring | 🟡 Medium | Payment lapse caused TTS outage; set up auto-renew |
+| Diagnosis Mode Phase 2 (Supabase tables) | 🟡 Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
 | `blinky/__init__.py` lazy exports | 🟡 Medium | Eagerly parses XML + HID on import → blocking |
 | LaunchBox LoRa | 🟡 Medium | Stub only |
 | ScoreKeeper gateway endpoints | 🟡 Medium | `/api/scorekeeper/supabase-sync`, `/scorekeeper/ws` — assumed to exist, not verified |

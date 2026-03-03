@@ -1,6 +1,48 @@
 # ROLLING LOG — Arcade Assistant
 
-## 2026-03-02 (PM3) | Engineering Bay Sidebars — All 6 Panels Complete
+## 2026-03-03 | Sidebar Standardization + TTS Pipeline + Gemini Migration
+
+**Net Progress**: Major multi-agent session with Gemini (architect) + Claude Code (executor). Standardized all chat sidebars to shared `EngineeringBaySidebar` component, fixed Controller Chuck layout, rewired Engineering Bay AI from Anthropic to Gemini, and built a brand-new TTS router bridging frontend to ElevenLabs via Supabase edge function.
+
+**Key Wins:**
+- **Sidebar Standardization (Tasks 01–05 via Claude Code)**:
+  - Task 01: Click-toggle mic fix in `EngineeringBaySidebar.jsx` (replaced push-to-talk)
+  - Task 02: Controller Chuck — replaced `ChuckSidebar.jsx` with `<EngineeringBaySidebar persona={CHUCK_PERSONA} />`
+  - Task 03: Console Wizard — replaced custom sidebar with `<EngineeringBaySidebar persona={WIZ_PERSONA} />`
+  - Task 04: Gunner — replaced custom sidebar with `<EngineeringBaySidebar persona={GUNNER_PERSONA} />`
+  - Task 05: Vicky Voice — replaced inline sidebar JSX with `<EngineeringBaySidebar persona={VICKY_PERSONA} />`
+  - Each persona config includes `voiceProfile` for correct TTS routing
+- **Chuck Layout Fix**: Found root cause of off-center player cards — `chuck-layout.css` was only imported in orphaned `ChuckSidebar.jsx`, never in `ControllerChuckPanel.jsx`. Added missing import. Also removed 180px height caps on player cards and switched rows to `flex: 1` to fill viewport.
+- **Gemini AI Migration**: Rewrote `backend/services/engineering_bay/ai.py` from Anthropic SDK to Gemini REST API via httpx. Uses `GOOGLE_API_KEY` env var, `gemini-2.0-flash` model, `system_instruction` for persona prompts. Added `chuck` and `wiz` to `VALID_PERSONAS` in both router and AI service.
+- **TTS Router** (`backend/routers/tts.py` — **NEW**): Built the missing `/api/voice/tts` endpoint that the frontend `speak()` function calls. Maps voice profiles to ElevenLabs voice IDs (reads from `.env` vars: `DEWEY_VOICE_ID`, `BLINKY_VOICE_ID`, etc.). Routes through Supabase edge function `elevenlabs-proxy`. Uses `eleven_turbo_v2` model + `optimize_streaming_latency: 3` for faster response.
+- **ElevenLabs Payment Fix**: Identified 401 `payment_issue` as root cause of robot voice fallback. User resolved payment; TTS now works.
+
+**Files Created:**
+- `backend/routers/tts.py` — NEW (TTS router, ElevenLabs via Supabase proxy)
+
+**Files Modified:**
+- `backend/services/engineering_bay/ai.py` — Rewritten (Anthropic → Gemini REST API)
+- `backend/routers/engineering_bay.py` — Added chuck, wiz to VALID_PERSONAS
+- `backend/app.py` — Added tts_router import + registration
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx` — Added missing `chuck-layout.css` import, CHUCK_PERSONA voiceProfile
+- `frontend/src/panels/controller/controller-chuck.css` — Removed 180px card caps, flex:1 rows
+- `frontend/src/panels/controller/chuck-layout.css` — Centering + padding adjustments  
+- `frontend/src/panels/_kit/EngineeringBaySidebar.jsx` — TTS voice_profile routing
+- `frontend/src/panels/console-wizard/ConsoleWizardPanel.jsx` — WIZ_PERSONA voiceProfile
+- `frontend/src/components/gunner/GunnerPanel.jsx` — GUNNER_PERSONA voiceProfile
+- `frontend/src/panels/voice/VoicePanel.jsx` — VICKY_PERSONA voiceProfile
+- `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx` — BLINKY_PERSONA voiceProfile
+
+**Commits**: `32eab74` layout import fix | `d151af5` persona registration | `a35b76b` Gemini rewrite | `ca5d64b` TTS router | `8929df5` env voice IDs | `da6df1c` turbo model
+
+**State of Union — What's Next (Priority Order):**
+1. ⚡ **Chuck Voice ID** — Need to find/assign the correct ElevenLabs voice ID for Controller Chuck (currently using default Rachel voice). Add `CHUCK_VOICE_ID=<id>` to `.env`.
+2. ⚡ **Remaining Voice IDs** — Vicky, Gunner, Doc, Sam all using default voice. Need custom voice IDs in `.env`.
+3. 🔶 **Supabase Chat History** — Frontend warns `VITE_SUPABASE_URL` missing; `.env` has it but Vite needs it at build time.
+4. 🌱 **contextAssembler data feeds** — Wire real hardware data into each panel's EB sidebar.
+5. 🌱 **ElevenLabs payment monitoring** — Consider auto-renew or payment alert to prevent future TTS outages.
+
+---
 
 **Net Progress**: Built the full Engineering Bay sidebar system end-to-end. Generic `EngineeringBaySidebar` component created, unified Claude AI backend, 4 new persona prompts, sticky sidebar applied to all remaining panels (Vicky, Doc, Blinky, Gunner). Build: ✅ 2.94s, 254 modules, 0 errors.
 
