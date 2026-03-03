@@ -75,7 +75,8 @@ async def text_to_speech(request: Request, payload: TTSRequest):
     if not resolved_voice_id:
         resolved_voice_id = "EXAVITQu4vr4xnSDxMaL"  # Default ElevenLabs voice
 
-    model_id = payload.model_id or "eleven_monolingual_v1"
+    # eleven_turbo_v2 is ~2x faster than eleven_monolingual_v1
+    model_id = payload.model_id or "eleven_turbo_v2"
 
     # Build request to Supabase Edge Function
     proxy_url = f"{supabase_url}/functions/v1/elevenlabs-proxy"
@@ -84,6 +85,7 @@ async def text_to_speech(request: Request, payload: TTSRequest):
         "text": payload.text,
         "voice_id": resolved_voice_id,
         "model_id": model_id,
+        "optimize_streaming_latency": 3,  # Max latency optimization (0-4)
     }
 
     try:
