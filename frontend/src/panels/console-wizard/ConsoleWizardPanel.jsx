@@ -7,8 +7,24 @@
 } from 'react';
 import './console-wizard.css';
 import { speak as ttsSpeak, stopSpeaking as stopTTS } from '../../services/ttsClient';
-import WizSidebar from './WizSidebar';
+import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
+import '../_kit/EngineeringBaySidebar.css';
+import { assembleWizContext } from './wizContextAssembler';
+import { WIZ_CHIPS } from './wizChips';
 import WizNavSidebar from './WizNavSidebar';
+
+/** WIZ persona config for EngineeringBaySidebar */
+const WIZ_PERSONA = {
+  id: 'wiz',
+  name: 'WIZ',
+  icon: '🧙',
+  icon2: '🎮',
+  accentColor: '#a78bfa',
+  accentGlow: 'rgba(167,139,250,0.35)',
+  scannerLabel: 'CONJURING...',
+  emptyHint: 'Ask WIZ about emulator configs, controller mapping, or RetroArch setup.',
+  chips: WIZ_CHIPS,
+};
 import DashboardTab from './DashboardTab';
 import VisualDiffTab from './VisualDiffTab';
 import ActivityLogTab from './ActivityLogTab';
@@ -1943,7 +1959,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
           <DevErrorModal error={devErrorDetails} onClose={handleCloseDevError} />
         )}
       </div>
-      <WizSidebar />
+      <EngineeringBaySidebar persona={WIZ_PERSONA} contextAssembler={assembleWizContext} />
     </div>
   );
 }
