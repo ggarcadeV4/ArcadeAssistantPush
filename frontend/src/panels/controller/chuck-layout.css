@@ -24,5 +24,7 @@
 .chuck-layout .chuck-main .chuck-toolbar,
 .chuck-layout .chuck-main .chuck-player-row {
     width: 100%;
-    max-width: 800px;
+    max-width: 1200px;
+    padding-left: 24px;
+    padding-right: 24px;
 }
