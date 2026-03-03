@@ -322,9 +322,9 @@
   display: none;
 }
 
-/* 2P player row: content-sized like 4P rows (no flex:1 stretching) */
+/* 2P player row: fills available space */
 .chuck-shell[data-mode="2p"] .chuck-player-row {
-  flex: 0 0 auto;
+  flex: 1;
   gap: 10px;
 }
 
@@ -334,9 +334,8 @@
   gap: 14px;
 }
 
-/* Same max-height as 4P so cards stay compact and consistent */
+/* Let 2P cards grow to fill available space */
 .chuck-shell[data-mode="2p"] .chuck-player-card {
-  max-height: 180px;
   overflow: hidden;
 }
 
@@ -1560,14 +1559,13 @@
 }
 
 .chuck-shell[data-mode="4p"] .chuck-player-row {
-  /* Content-sized — don't fill remaining vertical space */
-  flex: 0 0 auto;
+  /* Fill available vertical space */
+  flex: 1;
   gap: 10px;
 }
 
-/* Give each card a defined max-height so they stay compact */
+/* Let 4P cards grow to fill available space */
 .chuck-shell[data-mode="4p"] .chuck-player-card {
-  max-height: 180px;
   overflow: hidden;
 }
 
