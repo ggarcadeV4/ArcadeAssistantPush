@@ -3,9 +3,27 @@ import GunnerHeader from './GunnerHeader'
 import GunnerNav from './GunnerNav'
 import GunnerAlertBar from './GunnerAlertBar'
 import DevicesTab from './DevicesTab'
-import GunnerChatSidebar from './GunnerChatSidebar'
-import { useGunnerChat } from '../../hooks/useGunnerChat'
+import { EngineeringBaySidebar } from '../../panels/_kit/EngineeringBaySidebar'
+import '../../panels/_kit/EngineeringBaySidebar.css'
 import './GunnerPanel.css'
+
+/** Gunner persona config for EngineeringBaySidebar */
+const GUNNER_PERSONA = {
+    id: 'gunner',
+    name: 'GUNNER',
+    icon: '🔫',
+    icon2: '🎯',
+    accentColor: '#ef4444',
+    accentGlow: 'rgba(239, 68, 68, 0.35)',
+    scannerLabel: 'TARGETING...',
+    emptyHint: 'Ask Gunner about light gun setup, calibration, or Sinden/Gun4IR config.',
+    chips: [
+        { id: 'scan', label: 'Scan devices', prompt: 'Scan for all connected light gun devices.' },
+        { id: 'cal1', label: 'Calibrate Gun 1', prompt: 'Start calibration wizard for Gun 1.' },
+        { id: 'sinden', label: 'Sinden setup', prompt: 'Show me how to configure a Sinden light gun.' },
+        { id: 'gun4ir', label: 'Gun4IR config', prompt: 'Help me set up Gun4IR configuration.' },
+    ],
+};
 
 /**
  * GunnerPanel — Main Retro Shooter Control Center
@@ -21,16 +39,10 @@ import './GunnerPanel.css'
 export default function GunnerPanel() {
     const [activeTab, setActiveTab] = useState('devices')
     const [alertMessage, setAlertMessage] = useState('Gun 2P low battery (20%)')
-    const chatState = useGunnerChat()
 
     const handleScan = useCallback(() => {
         console.log('[GunnerPanel] Scan Hardware triggered')
-        chatState.send('Scan for all connected light gun devices.')
-    }, [chatState.send])
-
-    const handleChatSend = useCallback((text) => {
-        chatState.send(text)
-    }, [chatState.send])
+    }, [])
 
     // Render active tab content
     const renderTabContent = () => {
@@ -79,11 +91,7 @@ export default function GunnerPanel() {
                 <main className="gunner-main">
                     {renderTabContent()}
                 </main>
-                <GunnerChatSidebar
-                    chatState={chatState}
-                    onSend={handleChatSend}
-                    style={{ height: '100vh', position: 'sticky', top: 0, flexShrink: 0 }}
-                />
+                <EngineeringBaySidebar persona={GUNNER_PERSONA} />
             </div>
 
             {/* Footer Status Bar */}
