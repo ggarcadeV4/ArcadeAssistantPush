@@ -31,6 +31,7 @@ import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
 import { chuckContextAssembler } from './chuckContextAssembler';
 import { chuckChips } from './chuckChips';
 import './controller-chuck.css';
+import './chuck-layout.css';
 import './chuck-sidebar.css';
 import '../_kit/EngineeringBaySidebar.css';
 
