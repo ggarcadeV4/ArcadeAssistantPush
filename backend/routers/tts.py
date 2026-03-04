@@ -29,12 +29,12 @@ def _get_voice_profiles() -> dict:
         "dewey":   os.getenv("DEWEY_VOICE_ID",  "pNInz6obpgDQGcFmaJgB"),
         "lora":    os.getenv("LORA_VOICE_ID",    "EXAVITQu4vr4xnSDxMaL"),
         "blinky":  os.getenv("BLINKY_VOICE_ID",  "DTKMou8ccj1ZaWGBiotd"),
-        "chuck":   os.getenv("CHUCK_VOICE_ID",   DEFAULT_VOICE),   # Needs correct ID
+        "chuck":   os.getenv("CHUCK_VOICE_ID",   "phSUs0Ah98iCO2AAb9T2"),  # Bill — gruff mechanic
         "wiz":     os.getenv("WIZ_VOICE_ID",     "CwhRBWXzGAHq8TQ4Fs17"),
-        "vicky":   os.getenv("VICKY_VOICE_ID",   DEFAULT_VOICE),   # Needs correct ID
-        "gunner":  os.getenv("GUNNER_VOICE_ID",  DEFAULT_VOICE),   # Needs correct ID
-        "doc":     os.getenv("DOC_VOICE_ID",     DEFAULT_VOICE),   # Needs correct ID
-        "sam":     os.getenv("SAM_VOICE_ID",     DEFAULT_VOICE),   # Needs correct ID
+        "vicky":   os.getenv("VICKY_VOICE_ID",   "21m00Tcm4TlvDq8ikWAM"),  # Rachel — assistant
+        "gunner":  os.getenv("GUNNER_VOICE_ID",  "VR6Aewuayv9S8yAnA6Wf"),  # Arnold — tactical
+        "doc":     os.getenv("DOC_VOICE_ID",     "pNInz6obpgDQGcFmaJgB"),  # Adam — calm engineer
+        "sam":     os.getenv("SAM_VOICE_ID",     "N2lVS1wzUtoExuCqn9ee"),  # Callum — announcer
     }
 
 
