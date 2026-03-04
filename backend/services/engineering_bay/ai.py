@@ -30,22 +30,49 @@ _VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc", "chuck", "wiz"}
 # Doc is always in diagnosis mode — no chat variant needed
 _ALWAYS_DIAGNOSIS = {"doc"}
 
-# Gemini configuration
-_GEMINI_MODEL = "gemini-2.0-flash"
+# Gemini configuration — 2.5 Flash for better instruction following
+_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 _GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL}:generateContent"
+
+# Persona ID → prompt filename mapping
+# Some personas use different names for their prompt files
+_PROMPT_FILENAMES = {
+    "chuck": "controller_chuck",
+    "wiz":   "controller_wizard",
+    # All others use their persona ID directly (e.g., gunner → gunner.prompt)
+}
 
 
 def _load_prompt(persona: str) -> None:
     if persona in _prompt_cache:
         return
 
-    root = Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local"))
-    prompt_file = root / "prompts" / f"{persona}.prompt"
+    # Resolve prompt filename (some personas have different file names)
+    filename = _PROMPT_FILENAMES.get(persona, persona)
 
-    if not prompt_file.exists():
+    # Try multiple paths to find the prompt file:
+    # 1. Project-relative (backend/services/engineering_bay/ai.py → ../../.. → prompts/)
+    # 2. AA_DRIVE_ROOT-based
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    candidates = [
+        project_root / "prompts" / f"{filename}.prompt",
+        Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local")) / "prompts" / f"{filename}.prompt",
+    ]
+
+    prompt_file = None
+    for candidate in candidates:
+        if candidate.exists():
+            prompt_file = candidate
+            break
+
+    if prompt_file is None:
         fallback = f"You are {persona.capitalize()}, an Arcade Assistant specialist. Help the user."
         _prompt_cache[persona] = {"chat": fallback, "diagnosis": fallback}
-        logger.warning("Prompt file not found for persona '%s' at %s", persona, prompt_file)
+        logger.warning(
+            "Prompt file not found for persona '%s'. Tried: %s",
+            persona,
+            [str(c) for c in candidates],
+        )
         return
 
     raw = prompt_file.read_text(encoding="utf-8")
