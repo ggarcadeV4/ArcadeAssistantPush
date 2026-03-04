@@ -1888,7 +1888,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
 
   return (
     <div className="wiz-layout" style={{ display: 'flex', width: '100%', alignItems: 'flex-start' }}>
-      <WizNavSidebar activeTab={activeNav} onTabChange={setActiveNav} />
+      <WizNavSidebar activeTab={activeNav} onTabChange={setActiveNav} onChatToggle={() => setChatOpen(v => !v)} />
       <div className="console-wizard-panel" style={{ flex: 1, minWidth: 0 }}>
         <header className="console-wizard-header">
           <div className="panel-heading">
@@ -1960,7 +1960,11 @@ Current context: ${JSON.stringify(contextInfo)}`;
           <DevErrorModal error={devErrorDetails} onClose={handleCloseDevError} />
         )}
       </div>
-      <EngineeringBaySidebar persona={WIZ_PERSONA} contextAssembler={assembleWizContext} />
+      <div className={`chuck-sidebar-backdrop ${chatOpen ? 'chuck-sidebar-backdrop--visible' : ''}`} onClick={() => setChatOpen(false)} />
+      <div className={`chuck-drawer ${chatOpen ? 'chuck-drawer--open' : ''}`}>
+        <button type='button' className='chuck-drawer__close' onClick={() => setChatOpen(false)} aria-label='Close sidebar'>✕</button>
+        <EngineeringBaySidebar persona={WIZ_PERSONA} contextAssembler={assembleWizContext} />
+      </div>
     </div>
   );
 }

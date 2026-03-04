@@ -15,7 +15,7 @@
     height: 100vh;
     position: sticky;
     top: 0;
-    background: #060609;
+    background: #0a0c10;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     overflow: hidden;
     transition: border-color 0.4s, box-shadow 0.4s;
