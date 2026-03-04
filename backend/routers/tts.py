@@ -12,7 +12,7 @@ import os
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -90,8 +90,14 @@ async def text_to_speech(request: Request, payload: TTSRequest):
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
+
+        # Use streaming to start sending audio bytes to the frontend immediately
+        # instead of buffering the entire response
+        client = httpx.AsyncClient(timeout=30.0)
+
+        try:
+            req = client.build_request(
+                "POST",
                 proxy_url,
                 json=proxy_payload,
                 headers={
@@ -99,28 +105,42 @@ async def text_to_speech(request: Request, payload: TTSRequest):
                     "Content-Type": "application/json",
                 },
             )
+            response = await client.send(req, stream=True)
 
-        if response.status_code == 429:
-            raise HTTPException(status_code=429, detail="ElevenLabs daily quota exceeded")
+            if response.status_code == 429:
+                await response.aclose()
+                await client.aclose()
+                raise HTTPException(status_code=429, detail="ElevenLabs daily quota exceeded")
 
-        if response.status_code != 200:
-            logger.error(
-                "ElevenLabs proxy error: %s — %s",
-                response.status_code,
-                response.text[:200],
+            if response.status_code != 200:
+                body = (await response.aread()).decode("utf-8", errors="replace")[:200]
+                await response.aclose()
+                await client.aclose()
+                logger.error("ElevenLabs proxy error: %s — %s", response.status_code, body)
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"ElevenLabs proxy returned {response.status_code}",
+                )
+
+            content_type = response.headers.get("content-type", "audio/mpeg")
+
+            async def audio_stream():
+                try:
+                    async for chunk in response.aiter_bytes(chunk_size=4096):
+                        yield chunk
+                finally:
+                    await response.aclose()
+                    await client.aclose()
+
+            return StreamingResponse(
+                audio_stream(),
+                media_type=content_type,
+                headers={"Cache-Control": "no-cache"},
             )
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"ElevenLabs proxy returned {response.status_code}",
-            )
 
-        # Return audio bytes directly
-        content_type = response.headers.get("content-type", "audio/mpeg")
-        return Response(
-            content=response.content,
-            media_type=content_type,
-            headers={"Cache-Control": "no-cache"},
-        )
+        except Exception:
+            await client.aclose()
+            raise
 
     except httpx.HTTPError as exc:
         logger.error("TTS proxy request failed: %s", exc)

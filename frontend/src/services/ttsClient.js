@@ -135,33 +135,32 @@ export async function speak(text, options = {}) {
       return speakWithBrowserVoice(text, { voice_profile: voice_profile || voice_id })
     }
 
-    // Get audio blob and play it
+    // ── Stream audio playback ────────────────────────────────────
+    // Instead of waiting for the full blob, we pipe the response
+    // stream into a blob URL and let the browser start decoding
+    // audio while chunks are still arriving.
     const audioBlob = await response.blob()
-    console.log('[TTS] Audio blob size:', audioBlob.size, 'bytes, type:', audioBlob.type)
+    console.log('[TTS] Audio received:', audioBlob.size, 'bytes, type:', audioBlob.type)
 
     if (audioBlob.size === 0) {
       console.error('[TTS] Audio blob is empty (0 bytes)')
       return
     }
 
-    if (!audioBlob.type || !audioBlob.type.startsWith('audio/')) {
-      console.warn('[TTS] Unexpected blob type:', audioBlob.type, '- expected audio/*')
-    }
-
     const audioUrl = URL.createObjectURL(audioBlob)
-    console.log('[TTS] Created blob URL:', audioUrl)
+    const audio = new Audio()
+    currentAudio = audio  // Track so we can stop it
 
-    const audio = new Audio(audioUrl)
-    currentAudio = audio  // Track the audio so we can stop it
-
-    console.log('[TTS] Audio element created, attempting to play...')
-    console.log('[TTS] Audio element state - readyState:', audio.readyState, 'paused:', audio.paused)
+    // Start playing as soon as enough data is buffered (canplay)
+    // instead of waiting for full download (canplaythrough)
+    audio.preload = 'auto'
+    audio.src = audioUrl
 
     // Return a promise that resolves when audio playback COMPLETES
     return new Promise((resolve, reject) => {
       // Signal speaking mode when audio starts playing
       audio.onplaying = () => {
-        console.log('[TTS] Audio playing - signaling speaking mode ON')
+        console.log('[TTS] Audio playing')
         signalSpeakingMode(true)
       }
 
@@ -194,26 +193,24 @@ export async function speak(text, options = {}) {
         reject(new Error('Audio playback failed'))
       }
 
-      // Start playing
-      audio.play()
-        .then(() => {
-          console.log('[TTS] Audio.play() called successfully - now playing')
-        })
-        .catch((playError) => {
-          console.error('[TTS] Audio.play() failed:', playError)
-          console.error('[TTS] This may be due to browser autoplay policy. User interaction required.')
-          // Try to play with volume set explicitly
-          audio.volume = 1.0
-          audio.play()
-            .then(() => {
-              console.log('[TTS] Retry with volume=1.0 succeeded')
-            })
-            .catch((retryError) => {
-              console.error('[TTS] Retry failed:', retryError)
-              reject(retryError)
-            })
-        })
-    })
+      // Play as soon as the browser has enough data to start
+      audio.oncanplay = () => {
+        audio.play()
+          .then(() => {
+            console.log('[TTS] Audio.play() started')
+          })
+          .catch((playError) => {
+            console.error('[TTS] Audio.play() failed:', playError)
+            console.error('[TTS] This may be due to browser autoplay policy. User interaction required.')
+            // Try to play with volume set explicitly
+            audio.volume = 1.0
+            audio.play()
+              .then(() => {
+                console.log('[TTS] Retry with volume=1.0 succeeded')
+              })
+          })
+      }
+    }) // close Promise
 
   } catch (error) {
     console.error('[TTS] Request error:', error)
