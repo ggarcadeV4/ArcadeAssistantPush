@@ -1,5 +1,27 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-04 | Prompt Fix + Voice IDs + TTS Streaming + Jules Workflow Launch
+
+**Net Progress**: Found and fixed the root cause of all 9 personas giving generic responses (double path mismatch in prompt loading). Upgraded to Gemini 2.5 Flash. Configured distinct ElevenLabs voices for all 9 personas. Optimized TTS pipeline with streaming audio. Created V1 Master Execution Plan (10-day sprint). Launched Jules overnight workflow with dedicated repo `Arcade-Assistant-0304-2026`.
+
+**Key Wins:**
+- **Prompt Path Fix (Root Cause)**: `AA_DRIVE_ROOT=A:\` resolved to `A:\prompts\` instead of `A:\Arcade Assistant Local\prompts\`. Also `chuck` → `chuck.prompt` but file is `controller_chuck.prompt`. Both fixed via project-relative path + filename mapping.
+- **Gemini 2.5 Flash**: Upgraded from 2.0 Flash for better instruction following (configurable via `GEMINI_MODEL` env var).
+- **Voice IDs**: Chuck=Bill, Vicky=Rachel, Gunner=Arnold, Doc=Adam, Sam=Callum — all in `.env` + TTS router.
+- **TTS Streaming**: Backend `StreamingResponse` + frontend `oncanplay` — audio plays as data arrives.
+- **Jules Repo**: `Arcade-Assistant-0304-2026` created as clean dev repo. Jules completed 7 overnight tasks:
+  1. Solid sidebar backgrounds + per-persona accent colors
+  2. Scrubbed mojibake from ScoreKeeperPanel
+  3. Scrubbed mojibake from VickyVoicePanel + fixed player ordering
+  4. Removed hardcoded mock data from Gunner
+  5. Fixed Wiz sidebar drawer retraction
+  6. Blinky identity: purple accent + solid bg
+  7. Gunner theme: purple accent + solid bg
+
+**Commits**: `827c99c` → `d782ea7` → `1d51a0f` → `6904e70` → `144f7c0` (us) | `6227ba4` (Jules)
+
+**Next Session (Day 2)**: ScoreKeeper Sam backend — validation, async file watchers, Pydantic score models, WebSocket auto-commentary.
+
 ## 2026-03-03 | Sidebar Standardization + TTS Pipeline + Gemini Migration
 
 **Net Progress**: Major multi-agent session with Gemini (architect) + Claude Code (executor). Standardized all chat sidebars to shared `EngineeringBaySidebar` component, fixed Controller Chuck layout, rewired Engineering Bay AI from Anthropic to Gemini, and built a brand-new TTS router bridging frontend to ElevenLabs via Supabase edge function.
