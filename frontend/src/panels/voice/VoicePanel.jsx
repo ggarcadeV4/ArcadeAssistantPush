@@ -16,10 +16,10 @@ const GATEWAY = window.location.port === '5173' ? 'http://localhost:8787' : wind
 
 // Helper functions - must be defined before component
 const buildDefaultPlayers = () => ([
-  { user: 'Dad', controller: 'Joystick 1' },
-  { user: 'Kid Y', controller: 'Joystick 2' },
-  { user: 'None', controller: 'Not Assigned' },
-  { user: 'None', controller: 'Not Assigned' }
+  { user: 'None', controller: 'Joystick 1' },
+  { user: 'None', controller: 'Joystick 2' },
+  { user: 'None', controller: 'Joystick 3' },
+  { user: 'None', controller: 'Joystick 4' }
 ])
 
 const createDefaultPreferences = () => ({
@@ -381,7 +381,7 @@ export default function VoicePanel() {
     }
   }, [players, addMessage, primaryUserId, primaryUserName])
 
-  // Handoff effect (handles Dewey â†’ Voice context handoff)
+  // Handoff effect (handles Dewey → Voice context handoff)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const handoffContext = urlParams.get('context')
@@ -598,7 +598,7 @@ export default function VoicePanel() {
   const formatTendencyValue = (value) => {
     if (Array.isArray(value)) return value.join(', ')
     if (value && typeof value === 'object') {
-      return Object.entries(value).map(([k, v]) => `${formatTendencyLabel(k)}: ${v}`).join(' â€¢ ')
+      return Object.entries(value).map(([k, v]) => `${formatTendencyLabel(k)}: ${v}`).join(' • ')
     }
     return String(value ?? '')
   }
@@ -717,15 +717,15 @@ export default function VoicePanel() {
       }
 
       // Show success toast
-      setSaveToast('Primary user saved and broadcast to Arcade Assistant âœ“')
-      addMessage('âœ… Profile saved and broadcast to all agents!', 'assistant')
+      setSaveToast('Primary user saved and broadcast to Arcade Assistant ✓')
+      addMessage('✅ Profile saved and broadcast to all agents!', 'assistant')
 
       // Auto-hide toast after 4 seconds
       setTimeout(() => setSaveToast(''), 4000)
     } catch (e) {
       console.error('[Voice Panel] Profile save error:', e)
       setSaveToast(`Error: ${e.message || 'Failed to save profile'}`)
-      addMessage('âŒ Failed to save profile.', 'assistant')
+      addMessage('❌ Failed to save profile.', 'assistant')
 
       // Auto-hide error toast after 6 seconds
       setTimeout(() => setSaveToast(''), 6000)
@@ -845,7 +845,7 @@ export default function VoicePanel() {
               title="Open AI Chat Assistant"
               aria-label="Open AI Chat Assistant"
             >
-              <span className="chat-icon">ðŸ’¬</span>
+              <span className="chat-icon">💬</span>
               <span className="chat-label">Chat with AI</span>
             </button>
           }
@@ -855,7 +855,7 @@ export default function VoicePanel() {
               <div className="consent-overlay" role="dialog" aria-modal="true" aria-label="Permissions & Consent" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.9)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: '680px', maxWidth: '95vw', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 20, color: '#e5e7eb' }}>
                   <h2 style={{ marginTop: 0, color: '#c8ff00' }}>Join the Arcade Assistant Network</h2>
-                  <p style={{ marginTop: 8, marginBottom: 12 }}>By opting in, you agree that your display name and scores may be shared across connected cabinets for public leaderboards. You can manage or revoke permissions anytime in Settings â†’ Permissions.</p>
+                  <p style={{ marginTop: 8, marginBottom: 12 }}>By opting in, you agree that your display name and scores may be shared across connected cabinets for public leaderboards. You can manage or revoke permissions anytime in Settings → Permissions.</p>
                   <ul style={{ lineHeight: '1.6' }}>
                     <li>Shares: display name, scores, timestamps, and cabinet ID.</li>
                     <li>No sensitive data is collected. Local play remains available.</li>
@@ -872,12 +872,12 @@ export default function VoicePanel() {
                     </label>
                   </div>
                   <p style={{ fontSize: '0.85em', color: '#9ca3af', marginTop: 12 }}>
-                    By checking the boxes above, you consent to the data sharing described. Your data is stored securely and you can revoke consent anytime via Settings â†’ Permissions.
+                    By checking the boxes above, you consent to the data sharing described. Your data is stored securely and you can revoke consent anytime via Settings → Permissions.
                   </p>
                   {consentError && (
                     <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 6, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>{consentError}</span>
-                      <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">Ã—</button>
+                      <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">×</button>
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
@@ -895,7 +895,7 @@ export default function VoicePanel() {
                 <div style={{ width: '800px', maxWidth: '95vw', maxHeight: '90vh', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 24, color: '#e5e7eb', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <h2 style={{ margin: 0, color: '#c8ff00' }}>Terms & Privacy (Local-First)</h2>
-                    <button type="button" onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5em', cursor: 'pointer' }} aria-label="Close">Ã—</button>
+                    <button type="button" onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5em', cursor: 'pointer' }} aria-label="Close">×</button>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9em', lineHeight: 1.6 }}>
                     <p><strong>Operator / Publisher:</strong> G & G Arcade ("G&G," "we," "us")<br />
@@ -984,7 +984,7 @@ export default function VoicePanel() {
               {warn && (
                 <div className="text-sm" style={{ color: '#fbbf24', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }} role="status" aria-live="polite">
                   <span>{warn}</span>
-                  <button type="button" onClick={() => setWarn('')} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss warning">Ã—</button>
+                  <button type="button" onClick={() => setWarn('')} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss warning">×</button>
                 </div>
               )}
               <div className="voice-transcript-box" style={{ padding: '8px', border: '1px solid #374151', borderRadius: 6, background: '#0b1020' }}>
@@ -1026,7 +1026,7 @@ export default function VoicePanel() {
                     <h3>{`${primaryUserName}'s Tendencies`}</h3>
                     <p className="tile-subtitle">Read-only insights</p>
                   </div>
-                  {tendenciesStatus === 'loading' && <p className="tendencies-note">Loading tendenciesâ€¦</p>}
+                  {tendenciesStatus === 'loading' && <p className="tendencies-note">Loading tendencies...</p>}
                   {tendenciesStatus === 'empty' && (
                     <p className="tendencies-note">No tendencies saved yet. They will appear here once recorded.</p>
                   )}
@@ -1114,7 +1114,7 @@ export default function VoicePanel() {
               </div>
               <div className="action-bar">
                 <button className="btn btn-secondary" onClick={handleCopySetup}>
-                  ðŸ“‹ Copy Setup Link
+                  📋 Copy Setup Link
                 </button>
                 <button className="btn" onClick={handleStartSession}>Start Session</button>
               </div>

@@ -7,7 +7,7 @@ const NAV_ITEMS = [
     { id: 'logs', icon: 'list_alt', label: 'Logs' },
 ]
 
-export default function WizNavSidebar({ activeTab, onTabChange }) {
+export default function WizNavSidebar({ activeTab, onTabChange, onChatToggle }) {
     return (
         <nav className="wiz-nav" role="tablist" aria-label="Console Wizard Navigation">
             <div className="wiz-nav__brand">
@@ -16,6 +16,10 @@ export default function WizNavSidebar({ activeTab, onTabChange }) {
             </div>
 
             <div className="wiz-nav__items">
+                <button type="button" className="wiz-nav__item" onClick={onChatToggle} title="Chat with Wiz">
+                    <span className="material-symbols-outlined">chat</span>
+                    <span className="wiz-nav__label">Chat</span>
+                </button>
                 {NAV_ITEMS.map(item => (
                     <button
                         key={item.id}

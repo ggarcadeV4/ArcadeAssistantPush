@@ -13,8 +13,8 @@ const GUNNER_PERSONA = {
     name: 'GUNNER',
     icon: '🔫',
     icon2: '🎯',
-    accentColor: '#ef4444',
-    accentGlow: 'rgba(239, 68, 68, 0.35)',
+    accentColor: '#A855F7',
+    accentGlow: 'rgba(168, 85, 247, 0.35)',
     scannerLabel: 'TARGETING...',
     voiceProfile: 'gunner',
     emptyHint: 'Ask Gunner about light gun setup, calibration, or Sinden/Gun4IR config.',
@@ -39,7 +39,7 @@ const GUNNER_PERSONA = {
  */
 export default function GunnerPanel() {
     const [activeTab, setActiveTab] = useState('devices')
-    const [alertMessage, setAlertMessage] = useState('Gun 2P low battery (20%)')
+    const [alertMessage, setAlertMessage] = useState(null)
 
     const handleScan = useCallback(() => {
         console.log('[GunnerPanel] Scan Hardware triggered')

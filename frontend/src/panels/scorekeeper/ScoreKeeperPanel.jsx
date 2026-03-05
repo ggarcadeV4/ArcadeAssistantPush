@@ -18,7 +18,7 @@ const ROUND_KEY_MAP = {
   32: ['round1', 'round2', 'quarterfinals', 'semifinals', 'finals']
 }
 
-function formatScoreValue(value, fallback = '�') {
+function formatScoreValue(value, fallback = '--') {
   if (value === '' || value === null || value === undefined) return fallback
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? n.toLocaleString() : fallback
@@ -247,13 +247,13 @@ function buildLocalBracket(playerCount, names) {
 const BracketMatch = React.memo(({ match, roundType, onPlayerClick }) => (
   <div className="bracket-match">
     <div
-      className={`player ${match.winner?.id === match.player1.id ? 'winner' : ''}`}
+      className={`player ${match.winner?.id === match.player1.id ? 'winner' : '--'}`}
       onClick={() => match.player1.id && onPlayerClick(match.id, match.player1.id, roundType)}
     >
       {match.player1.name}
     </div>
     <div
-      className={`player ${match.winner?.id === match.player2.id ? 'winner' : ''}`}
+      className={`player ${match.winner?.id === match.player2.id ? 'winner' : '--'}`}
       onClick={() => match.player2.id && onPlayerClick(match.id, match.player2.id, roundType)}
     >
       {match.player2.name}
@@ -324,7 +324,7 @@ export default function ScoreKeeperPanel() {
   const [tournamentList, setTournamentList] = useState([])
 
   // Score submission state
-  const [scoreForm, setScoreForm] = useState({ game: '', player: '', score: '' })
+  const [scoreForm, setScoreForm] = useState({ game: '--', player: '--', score: '--' })
   const [scorePreview, setScorePreview] = useState(null)
 
   // Undo state for tracking last backup
@@ -490,7 +490,7 @@ export default function ScoreKeeperPanel() {
       setProfileData(prev => ({
         ...prev,
         displayName: sharedProfile.displayName,
-        initials: sharedProfile.initials || '',
+        initials: sharedProfile.initials || '--',
         userId: sharedProfile.userId || 'guest'
       }))
       setUseProfileForScore(true)
@@ -798,13 +798,13 @@ export default function ScoreKeeperPanel() {
                       : item)
                     : prev
                   )
-                  addChatMessage('system', `? Match recorded: ${winner.name} advances`)
+                  addChatMessage('system', `Match recorded: ${winner.name} advances`)
 
                   if (serverData.status === 'completed') {
                     const finalWinner = typeof serverData.winner === 'string'
                       ? serverData.winner
                       : serverData.winner?.name || winner.name
-                    addChatMessage('assistant', `?? Tournament Complete! Winner: ${finalWinner}`)
+                    addChatMessage('assistant', `Tournament Complete! Winner: ${finalWinner}`)
                   }
                 } catch (err) {
                   console.error('[ScoreKeeper] Failed to fetch updated tournament:', err)
@@ -895,7 +895,7 @@ export default function ScoreKeeperPanel() {
               status: result.tournament.status,
               player_count: result.tournament.player_count,
               created_at: result.tournament.created_at,
-              path: ''
+              path: '--'
             },
             ...existing
           ]
@@ -1089,7 +1089,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
                     <td style={{ padding: 12 }}>
-                      {entry.player || entry.bestPlayer || '?'}
+                      {entry.player || entry.bestPlayer || '--'}
                       {(entry.player || entry.bestPlayer) && (
                         <span style={{
                           marginLeft: 8,
@@ -1103,7 +1103,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                       )}
                     </td>
                     <td style={{ padding: 12 }}>{formatScoreValue(entry.score ?? entry.bestScore)}</td>
-                    <td style={{ padding: 12 }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '�'}</td>
+                    <td style={{ padding: 12 }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '--'}</td>
                   </tr>
                 )
               })}
@@ -1142,13 +1142,13 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 className={activeView === 'highscores' ? 'active' : 'inactive'}
                 onClick={() => setActiveView('highscores')}
               >
-                ?? High Scores
+                High Scores
               </button>
               <button
                 className={activeView === 'tournament' ? 'active' : 'inactive'}
                 onClick={() => setActiveView('tournament')}
               >
-                ?? Tournament
+                Tournament
               </button>
             </div>
             {/* Resume Last Tournament */}
@@ -1168,12 +1168,12 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 }}
                 title="Resume Last Tournament"
               >
-                ? Resume
+                Resume
               </button>
             )}
             {/* Chat Toggle */}
             <button className="chat-toggle-btn" onClick={handleChatOpen}>
-              ?? Sam
+              Sam
             </button>
             {/* Sam Avatar */}
             <div className="sam-avatar-container">
@@ -1186,7 +1186,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
         {/* Plugin Paused Banner */}
         {(pluginPaused || scoresCached || paused) && (
           <div className="scorekeeper-paused-banner">
-            ? Plugin offline � showing cached results
+            Plugin offline -- showing cached results
           </div>
         )}
 
@@ -1218,12 +1218,12 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   </thead>
                   <tbody>
                     {(leaderboardData || []).map((entry, idx) => {
-                      const playerName = entry.player || entry.bestPlayer || '�'
+                      const playerName = entry.player || entry.bestPlayer || '--'
                       const score = formatScoreValue(entry.score ?? entry.bestScore)
-                      const dateStr = entry.timestamp ? new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '�'
+                      const dateStr = entry.timestamp ? new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '--'
                       const gid = entry.gameId || entry.game_id
 
-                      // Rank 1 � Gold
+                      // Rank 1 -- Gold
                       if (idx === 0) {
                         return (
                           <tr key={idx} className="sam-rank-row rank-1" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
@@ -1252,7 +1252,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                         )
                       }
 
-                      // Rank 2 � Silver
+                      // Rank 2 -- Silver
                       if (idx === 1) {
                         return (
                           <tr key={idx} className="sam-rank-row rank-2" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
@@ -1279,7 +1279,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                         )
                       }
 
-                      // Rank 3 � Bronze
+                      // Rank 3 -- Bronze
                       if (idx === 2) {
                         return (
                           <tr key={idx} className="sam-rank-row rank-3" onClick={() => gid && fetchByGame(gid)} style={{ cursor: gid ? 'pointer' : 'default' }}>
@@ -1343,7 +1343,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   <div>
                     <p className="stat-label">High Score</p>
                     <p className="stat-value-large">
-                      {leaderboardData.length > 0 ? formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore) : '�'}
+                      {leaderboardData.length > 0 ? formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore) : '--'}
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1385,7 +1385,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     <div key={idx} className="sam-record-item">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden', flex: 1 }}>
                         <div className={`record-rank ${idx < 3 ? 'highlight' : 'standard'}`}>#{idx + 1}</div>
-                        <span className="record-name">{entry.player || entry.bestPlayer || '?'}</span>
+                        <span className="record-name">{entry.player || entry.bestPlayer || '--'}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span className="record-score">{formatScoreValue(entry.score ?? entry.bestScore)}</span>
@@ -1494,7 +1494,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                         <div className="round-label">FINALS</div>
                         <BracketMatch match={tournament.bracket.finals[0]} roundType="finals" onPlayerClick={advancePlayer} />
                         <div className="tournament-winner-display">
-                          <div className="trophy-icon">??</div>
+                          <div className="trophy-icon">🏆</div>
                           <div style={{ fontSize: '1.25rem', fontWeight: 700, color: tournament.winner ? '#ffd700' : 'var(--sam-text-muted)' }}>
                             {tournament.winner ? tournament.winner.name : 'TBD'}
                           </div>
@@ -1520,10 +1520,10 @@ Current tournament context will be provided. Use it to give specific advice.`,
 
               <div className="section-title">Quick Start</div>
               <div className="preset-buttons">
-                <button className="preset-btn" onClick={() => alert('Family Tournament preset � Available soon')}>?? Family</button>
-                <button className="preset-btn" onClick={() => alert('Friends Night preset � Available soon')}>?? Friends</button>
-                <button className="preset-btn" onClick={() => alert('Random Players � Available soon')}>?? Random</button>
-                <button className="preset-btn" onClick={() => alert('Load Saved Group � Available soon')}>?? Load Saved</button>
+                <button className="preset-btn" onClick={() => alert('Family Tournament preset -- Available soon')}>Family</button>
+                <button className="preset-btn" onClick={() => alert('Friends Night preset -- Available soon')}>Friends</button>
+                <button className="preset-btn" onClick={() => alert('Random Players -- Available soon')}>Random</button>
+                <button className="preset-btn" onClick={() => alert('Load Saved Group -- Available soon')}>Load Saved</button>
               </div>
 
               <div className="section-title">Player Count</div>
@@ -1531,7 +1531,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 {PLAYER_COUNTS.map(count => (
                   <button
                     key={count}
-                    className={`player-count-btn ${selectedPlayerCount === count ? 'selected' : ''}`}
+                    className={`player-count-btn ${selectedPlayerCount === count ? 'selected' : '--'}`}
                     onClick={() => setSelectedPlayerCount(count)}
                   >
                     {count}P
@@ -1554,7 +1554,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     }}
                     disabled={!profileData}
                   />
-                  Use Profile {profileData?.displayName ? `(${profileData.displayName})` : ''}
+                  Use Profile {profileData?.displayName ? `(${profileData.displayName})` : '--'}
                 </label>
               </div>
               <input type="text" className="player-input" placeholder="Game" value={scoreForm.game} onChange={(e) => setScoreForm({ ...scoreForm, game: e.target.value })} />
@@ -1582,7 +1582,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     const result = await applyScoreSubmit(payload)
                     if (result.backup_path) { setLastBackup(result.backup_path); addChatMessage('assistant', `Score submitted for ${scoreForm.player}!`) }
                     else { addChatMessage('assistant', `Score submitted for ${scoreForm.player}!`) }
-                    setScoreForm({ game: '', player: '', score: '' })
+                    setScoreForm({ game: '--', player: '--', score: '--' })
                     setScorePreview(null)
                     const leaderboard = await getLeaderboard({ limit: 10 })
                     setLeaderboardData(leaderboard.scores || [])
@@ -1615,7 +1615,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
               </div>
               <div className="player-inputs">
                 {Array.from({ length: selectedPlayerCount }, (_, index) => (
-                  <input key={index} type="text" className="player-input" placeholder={`Player ${index + 1}`} value={playerNames[selectedPlayerCount][index] || ''} onChange={(e) => updatePlayerName(index, e.target.value)} />
+                  <input key={index} type="text" className="player-input" placeholder={`Player ${index + 1}`} value={playerNames[selectedPlayerCount][index] || '--'} onChange={(e) => updatePlayerName(index, e.target.value)} />
                 ))}
               </div>
 
@@ -1627,7 +1627,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
           </div>
         )}
 
-        {/* ========== FOOTER � Quick Score Entry (High Scores view only) ========== */}
+        {/* ========== FOOTER -- Quick Score Entry (High Scores view only) ========== */}
         {activeView === 'highscores' && (
           <footer className="sam-footer glass-panel">
             <form className="sam-score-form" onSubmit={(e) => { e.preventDefault() }}>
@@ -1682,7 +1682,7 @@ Current tournament context will be provided. Use it to give specific advice.`,
                     const result = await applyScoreSubmit(payload)
                     if (result?.backup_path) setLastBackup(result.backup_path)
                     addChatMessage('assistant', `Score submitted for ${scoreForm.player || 'Guest'}!`)
-                    setScoreForm({ game: '', player: '', score: '' })
+                    setScoreForm({ game: '--', player: '--', score: '--' })
                     setScorePreview(null)
                     const leaderboard = await getLeaderboard({ limit: 10 })
                     setLeaderboardData(leaderboard.scores || [])
