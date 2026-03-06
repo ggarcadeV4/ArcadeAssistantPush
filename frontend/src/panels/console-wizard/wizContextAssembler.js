@@ -13,6 +13,7 @@ const ENDPOINTS = {
     health: '/api/local/console_wizard/health',
     emulators: '/api/local/console_wizard/emulators',
     controllers: '/api/local/console/controllers',
+    chuckSync: '/api/local/console_wizard/status/chuck',
 };
 
 const PANEL_HEADERS = {
@@ -46,10 +47,11 @@ export async function assembleWizContext() {
     };
 
     // Tier 2 — fetched in parallel
-    const [healthData, emulatorData, controllerData] = await Promise.allSettled([
+    const [healthData, emulatorData, controllerData, chuckSyncData] = await Promise.allSettled([
         safeFetch(ENDPOINTS.health),
         safeFetch(ENDPOINTS.emulators),
         safeFetch(ENDPOINTS.controllers),
+        safeFetch(ENDPOINTS.chuckSync),
     ]);
 
     // Emulator health
@@ -85,11 +87,23 @@ export async function assembleWizContext() {
         ctx.detectedControllers = [];
     }
 
+    // Chuck sync status — critical for detecting stale configs
+    const chuckSync = chuckSyncData.status === 'fulfilled' ? chuckSyncData.value : null;
+    if (chuckSync) {
+        ctx.chuckSyncStatus = {
+            isOutOfSync: chuckSync.isOutOfSync ?? false,
+            currentMappingHash: chuckSync.currentMappingHash ?? null,
+            lastSyncedHash: chuckSync.lastSyncedHash ?? null,
+        };
+    }
+
     // Tier 3 — static capability hint
     ctx.availableActions = [
         'Propose emulator config fix via action block',
         'Guide user through Scan / Preview / Apply flow',
         'Advise on Chuck sync gaps',
+        'Restore individual or all emulators to Golden defaults',
+        'Generate TeknoParrot per-game profiles',
     ];
 
     return ctx;

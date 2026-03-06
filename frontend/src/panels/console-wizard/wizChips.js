@@ -7,13 +7,23 @@
 
 export const WIZ_CHIPS = [
     {
+        id: 'fix_buttons',
+        label: 'Fix My Buttons',
+        prompt: 'My buttons work on the cabinet but they\'re wrong in the emulator. Can you fix the config?',
+    },
+    {
+        id: 'sync_chuck',
+        label: 'Sync from Chuck',
+        prompt: 'I just remapped buttons in Controller Chuck. Sync all my emulator configs to match.',
+    },
+    {
         id: 'scan_devices',
         label: 'Scan Devices',
         prompt: 'Scan connected controllers and check their driver profiles.',
     },
     {
         id: 'view_drivers',
-        label: 'View Drivers',
+        label: 'Check Health',
         prompt: 'Show me the current emulator health and any configs that have drifted from defaults.',
     },
     {
@@ -23,7 +33,7 @@ export const WIZ_CHIPS = [
     },
     {
         id: 'reset_profile',
-        label: 'Reset Profile',
-        prompt: 'I need to restore an emulator config back to its default snapshot.',
+        label: 'Restore Defaults',
+        prompt: 'I need to restore all emulator configs back to their default Golden state.',
     },
 ];

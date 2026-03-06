@@ -1,8 +1,8 @@
 # ROLLING LOG — Arcade Assistant
 
-## 2026-03-05 | Controller Chuck RAG Knowledge Base + Gem Integration + Blocker Fixes (B2/B4/B5)
+## 2026-03-05 | Chuck RAG KB + Gem Integration + Blocker Fixes + Console Wizard RAG KB
 
-**Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic).
+**Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic). Built Console Wizard RAG knowledge base (`wiz_knowledge.md` → 500+ lines, 16 sections) focused on customer-facing "wow" fix flows. Enhanced Wiz prompt with Rapid Fix Protocol and customer-first rules.
 
 **Key Wins:**
 - **`chuck_knowledge.md`** (770+ lines, 16 sections): Full RAG knowledge base covering Sacred Numbering, emulator config paths, encoder boards (I-PAC/Brook/Xin-Mo/Zero Delay), input testing tools, recovery procedures, and the Golden Drive onboarding workflow.
@@ -16,6 +16,10 @@
 
 **Files Created/Modified:**
 - `prompts/chuck_knowledge.md` — MODIFIED (770+ lines, 16 sections, Gem integration)
+- `prompts/wiz_knowledge.md` — NEW (500+ lines, 16 sections, customer-facing wow flows)
+- `prompts/controller_wizard.prompt` — MODIFIED (customer-first rules, Rapid Fix Protocol)
+- `frontend/src/panels/console-wizard/wizContextAssembler.js` — MODIFIED (Chuck sync status, expanded actions)
+- `frontend/src/panels/console-wizard/wizChips.js` — MODIFIED (6 chips: Fix My Buttons, Sync from Chuck, etc.)
 - `plugin/src/Bridge/HttpBridge.cs` — MODIFIED (B2: outbound POST + HttpClient)
 - `backend/services/game_lifecycle.py` — MODIFIED (B5: GENRE_ANIMATION_MAP)
 - `backend/services/voice/service.py` — MODIFIED (B4: _sync_led_state to Supabase)
