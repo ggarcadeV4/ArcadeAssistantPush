@@ -16,6 +16,9 @@ import { ExecutionCard } from '../controller/ExecutionCard';
 import { assembleWizContext } from './wizContextAssembler';
 import { WIZ_CHIPS } from './wizChips';
 
+// ── Wiz TTS Voice ─────────────────────────────────────────────────────────────
+const WIZ_VOICE_ID = 'CwhRBWXzGAHq8TQ4Fs17';
+
 // ── API ───────────────────────────────────────────────────────────────────────
 async function wizardAIChat({ message, history, isDiagnosisMode, extraContext }) {
     const res = await fetch('/api/local/console_wizard/chat', {
@@ -103,6 +106,7 @@ export default function WizSidebar({ className = '' }) {
         contextAssembler: assembleWizContext,
         entryGreeting: 'Diagnosis Mode activated. Your emulator health and controllers are loaded. What needs fixing?',
         chips: WIZ_CHIPS,
+        voiceId: WIZ_VOICE_ID,
         ttsSpeak: speak,
         ttsStop: stopSpeaking,
         onTimeout: handleTimeout,
@@ -152,9 +156,9 @@ export default function WizSidebar({ className = '' }) {
             if (action) setPendingAction(action);
 
             if (diag.diagMode) {
-                speak(cleanText.split('.')[0]);  // First sentence only in Diagnosis Mode
+                speak(cleanText.split('.')[0], { voice_id: WIZ_VOICE_ID });  // First sentence only in Diagnosis Mode
             } else {
-                speak(cleanText);
+                speak(cleanText, { voice_id: WIZ_VOICE_ID });
             }
 
             // Log to Supabase
