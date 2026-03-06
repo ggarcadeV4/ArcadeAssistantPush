@@ -157,7 +157,17 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             .map(m => ({ role: m.role, content: m.content }));
 
         try {
-            const extraContext = diag.context ?? null;
+            // Always include hardware context — even outside Diagnosis Mode.
+            // This gives the AI awareness of connected controllers, emulator
+            // health, etc. so it can proactively offer help ("wow moments").
+            let extraContext = diag.context ?? null;
+            if (!extraContext && contextAssembler) {
+                try {
+                    extraContext = await contextAssembler();
+                } catch {
+                    extraContext = null; // Non-fatal — AI still works without it
+                }
+            }
             const { reply } = await engineeringBayChat({
                 persona: persona.id,
                 message: trimmed,
