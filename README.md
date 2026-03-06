@@ -1,5 +1,5 @@
 # Arcade Assistant — Project README
-**Last Updated:** 2026-03-05 | **Build:** Chuck RAG KB + Gem Integration + Blocker Fixes (B2/B4/B5) | **Branch:** `master`
+**Last Updated:** 2026-03-05 (evening) | **Build:** Console Wizard RAG KB + LED Priority Arbiter | **Branch:** `master` | **Commit:** `1d3993d`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -163,15 +163,15 @@ backend/
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| Console Wizard panel | 🔴 Next Session | Primary target for next session |
-| LED Blinky updates | 🔴 Next Session | User has new info to share |
+| LED Blinky panel + RAG KB | 🔴 Next Session | Primary target — arbiter built, needs frontend + sidebar |
+| Gunner Phase 2 | 🟡 After LED Blinky | Calibration tab, profiles tab, retro modes |
+| Doc (Diagnostics) panel | 🟡 After Gunner | Full system diagnostic panel |
 | B6/B7 Wake Word & TTS Dropping | 🟡 Medium | Voice panel fixes |
 | Handoff Protocol URL standard | 🟡 Medium | Inter-panel communication |
 | Diagnosis Mode Phase 2 (Supabase tables) | 🟡 Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
 | `blinky/__init__.py` lazy exports | 🟡 Medium | Eagerly parses XML + HID on import → blocking |
 | F9 Overlay Z-Index | 🟢 Backlog | Electron `setAlwaysOnTop` |
-| Genre differentiation wiring | 🟢 Backlog | Connect `GENRE_ANIMATION_MAP` to game lifecycle pipeline |
-| Gunner Phase 2 | 🟢 Backlog | Calibration tab, profiles tab, retro modes |
+| LaunchBox LoRa deep build | 🟢 Backlog | Most complex panel — future session |
 
 ### Recently Closed Blockers (2026-03-05)
 | Blocker | Fix | File |
@@ -179,6 +179,8 @@ backend/
 | B2 — HttpBridge outbound | `NotifyBackendGameStart()` fire-and-forget POST | `HttpBridge.cs` |
 | B4 — Voice Hardware Unlock | `_sync_led_state()` + Supabase fleet mirroring | `voice/service.py` |
 | B5 — Genre LED Animation | `GENRE_ANIMATION_MAP` (8 genre codes) | `game_lifecycle.py` |
+| Console Wizard RAG KB | `wiz_knowledge.md` (500+ lines) + enhanced prompt | `prompts/` |
+| LED Priority Arbiter | Circuit breaker (VOICE>GAME>ATTRACT>IDLE) + throttle | `led_priority_arbiter.py` |
 
 ---
 
