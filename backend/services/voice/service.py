@@ -8,6 +8,7 @@ import structlog
 from .models import LightingIntent, LightingCommand
 from .parser import get_parser
 from .command_buffer import get_command_buffer
+from backend.services.led_priority_arbiter import get_led_arbiter, LEDPriority
 
 logger = structlog.get_logger(__name__)
 
@@ -104,7 +105,25 @@ class VoiceService:
 
             # Apply via LED service
             if self.led_service:
+                # LED Priority Arbiter — Vicky claims highest priority
+                try:
+                    arbiter = get_led_arbiter()
+                    await arbiter.claim(
+                        LEDPriority.VOICE,
+                        animation_code="9",  # Vicky's signature Magenta pulse
+                        label="Vicky Voice Active",
+                    )
+                except Exception as arb_err:
+                    logger.warning("led_arbiter_claim_failed", error=str(arb_err))
+
                 success = await self._apply_to_led_service(intent)
+
+                # Release VOICE priority — game animation resumes if active
+                try:
+                    arbiter = get_led_arbiter()
+                    await arbiter.release(LEDPriority.VOICE)
+                except Exception as arb_err:
+                    logger.warning("led_arbiter_release_failed", error=str(arb_err))
             else:
                 # Mock mode
                 logger.info("mock_mode_apply", intent=intent.dict())

@@ -24,6 +24,8 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 import httpx
 
+from backend.services.led_priority_arbiter import get_led_arbiter, LEDPriority
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,6 +139,21 @@ class GameLifecycleService:
         logger.info(
             f"Tracking game: {game_title} (pid={pid}, mame={is_mame})"
         )
+
+        # LED Priority Arbiter — claim LEDs at GAME priority
+        try:
+            tags = getattr(tracked, 'tags', []) or []
+            animation = get_animation_for_game(tags)
+            arbiter = get_led_arbiter()
+            asyncio.create_task(
+                arbiter.claim(
+                    LEDPriority.GAME,
+                    animation_code=animation,
+                    label=f"Game: {game_title}",
+                )
+            )
+        except Exception as e:
+            logger.warning(f"LED arbiter claim failed (non-fatal): {e}")
     
     def untrack_game(self, pid: int) -> Optional[TrackedGame]:
         """Stop tracking a game and return its info."""
@@ -187,6 +204,13 @@ class GameLifecycleService:
     async def _on_game_exit(self, tracked: TrackedGame) -> None:
         """Handle game exit - trigger appropriate score capture."""
         play_duration = (datetime.now(timezone.utc) - tracked.started_at).total_seconds()
+
+        # LED Priority Arbiter — release GAME priority (attract mode resumes)
+        try:
+            arbiter = get_led_arbiter()
+            await arbiter.release(LEDPriority.GAME)
+        except Exception as e:
+            logger.warning(f"LED arbiter release failed (non-fatal): {e}")
         
         logger.info(
             f"Game exited: {tracked.game_title} after {play_duration:.0f}s "

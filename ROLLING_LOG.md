@@ -2,7 +2,7 @@
 
 ## 2026-03-05 | Chuck RAG KB + Gem Integration + Blocker Fixes + Console Wizard RAG KB
 
-**Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic). Built Console Wizard RAG knowledge base (`wiz_knowledge.md` → 500+ lines, 16 sections) focused on customer-facing "wow" fix flows. Enhanced Wiz prompt with Rapid Fix Protocol and customer-first rules.
+**Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic). Built Console Wizard RAG knowledge base (`wiz_knowledge.md` → 500+ lines, 16 sections) focused on customer-facing "wow" fix flows. Enhanced Wiz prompt with Rapid Fix Protocol and customer-first rules. Built **LED Priority Arbiter** — circuit breaker preventing LED state conflicts between game animations and Vicky voice commands.
 
 **Key Wins:**
 - **`chuck_knowledge.md`** (770+ lines, 16 sections): Full RAG knowledge base covering Sacred Numbering, emulator config paths, encoder boards (I-PAC/Brook/Xin-Mo/Zero Delay), input testing tools, recovery procedures, and the Golden Drive onboarding workflow.
@@ -10,6 +10,7 @@
 - **Gem Integration — Puppeteer Protocol**: Complete spec: 4 commands (`QUIT_KEY`, `SAVE_STATE`, `LOAD_STATE`, `RUNAHEAD_TOGGLE`), safe shutdown sequence (`SAVE_STATE → 100ms → QUIT_KEY`), zombie recovery (force-kill PID + NVRAM restore from `.aa/backups/`).
 - **Gem Integration — Field Failure Scenarios ("2 AM Calls")**: 5 real-world failure scenarios with step-by-step resolutions: buttons swapped, Vicky silent, scores not updating, lights stuck, black screen.
 - **Gem Integration — Hardware Failure Modes**: LED HID pipe simultaneity, INI vs XML corruption, encoder mode shifting, Vulkan/GL shader cross-loading.
+- **LED Priority Arbiter** (`led_priority_arbiter.py` — 250 lines): Circuit breaker pattern with priority stack (VOICE > GAME > ATTRACT > IDLE). Vicky always overrides game animations, resumes on release. Includes 300ms scroll throttle to prevent HID buffer overflow during rapid LaunchBox browsing. Wired into `game_lifecycle.py` (claim/release on game start/stop) and `voice/service.py` (claim/release around LED writes).
 - **B2 Fix (`HttpBridge.cs`)**: Added `NotifyBackendGameStart()` — fire-and-forget POST to `localhost:8000/api/game/start` after `PlayGame()`. Bridge now talks outbound.
 - **B4 Fix (`voice/service.py`)**: Codebase was 90% done already (real HID calls, DI wiring in `voice.py` router). Added `_sync_led_state()` — mirrors LED state to Supabase `led_states` table for fleet visibility.
 - **B5 Fix (`game_lifecycle.py`)**: Added `GENRE_ANIMATION_MAP` — 8 distinct LEDBlinky animation codes per genre (Fighting=strobe, Racing=chase, Shooter=pulse, etc.) + `get_animation_for_game(tags)` function.
