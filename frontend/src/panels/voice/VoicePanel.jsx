@@ -33,7 +33,7 @@ const DEFAULT_USER_OPTIONS = ['None', 'Dad', 'Mom', 'Kid Y', 'Kid Z', 'Guest']
 
 /** Vicky persona config for EngineeringBaySidebar */
 const VICKY_PERSONA = {
-  id: 'voice',
+  id: 'vicky',
   name: 'VICKY',
   icon: '🎙️',
   icon2: '🗣️',
@@ -59,7 +59,7 @@ export default function VoicePanel() {
   ])
   const [input, setInput] = useState('')
   const [warn, setWarn] = useState('')
-  const [consent, setConsent] = useState({ accepted: false, consentVersion: '1.0', scopes: [] })
+  const [consent, setConsent] = useState({ accepted: false, consentVersion: '2.0', scopes: [] })
   const [showConsent, setShowConsent] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
   const [agreeNetwork, setAgreeNetwork] = useState(false)
@@ -89,6 +89,7 @@ export default function VoicePanel() {
   const [shareFeedback, setShareFeedback] = useState('')
   const [saveToast, setSaveToast] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [addUserModal, setAddUserModal] = useState({ open: false, playerIndex: null, value: '' })
 
   // Refs
   const vocabRef = useRef(null)
@@ -503,17 +504,7 @@ export default function VoicePanel() {
 
   const handlePlayerUserChange = useCallback((playerIndex, selectedValue) => {
     if (selectedValue === ADD_USER_OPTION_VALUE) {
-      if (typeof window === 'undefined') return
-      const newName = window.prompt('Enter new user name for this player?')
-      const cleaned = (newName || '').trim()
-      if (!cleaned) return
-      setPlayers(prev => {
-        const next = [...prev]
-        next[playerIndex] = { ...next[playerIndex], user: cleaned }
-        return next
-      })
-      setCustomUsers(prev => (prev.includes(cleaned) ? prev : [...prev, cleaned]))
-      addMessage(`Added ${cleaned} to Player ${playerIndex + 1}.`, 'assistant')
+      setAddUserModal({ open: true, playerIndex, value: '' })
       return
     }
     setPlayers(prev => {
@@ -521,7 +512,21 @@ export default function VoicePanel() {
       next[playerIndex] = { ...next[playerIndex], user: selectedValue }
       return next
     })
-  }, [addMessage])
+  }, [])
+
+  const handleAddUserConfirm = useCallback(() => {
+    const cleaned = (addUserModal.value || '').trim()
+    if (!cleaned) return
+    const playerIndex = addUserModal.playerIndex
+    setPlayers(prev => {
+      const next = [...prev]
+      next[playerIndex] = { ...next[playerIndex], user: cleaned }
+      return next
+    })
+    setCustomUsers(prev => (prev.includes(cleaned) ? prev : [...prev, cleaned]))
+    addMessage(`Added ${cleaned} to Player ${playerIndex + 1}.`, 'assistant')
+    setAddUserModal({ open: false, playerIndex: null, value: '' })
+  }, [addUserModal, addMessage])
 
   // Load consent/profile on mount
   useEffect(() => {
@@ -786,7 +791,7 @@ export default function VoicePanel() {
         'Acknowledge it briefly and offer a helpful follow-up suggestion.'
       ].join(' ')
       const result = await aiChat({
-        provider: 'claude',
+        provider: 'gemini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: transcript }
@@ -841,49 +846,82 @@ export default function VoicePanel() {
           headerActions={
             <button
               className="chat-toggle-btn"
-              onClick={() => setChatOpen(true)}
-              title="Open AI Chat Assistant"
-              aria-label="Open AI Chat Assistant"
+              onClick={() => setChatOpen(prev => !prev)}
+              title={chatOpen ? "Close AI Chat" : "Open AI Chat Assistant"}
+              aria-label={chatOpen ? "Close AI Chat" : "Open AI Chat Assistant"}
+              aria-pressed={chatOpen}
+              style={{ color: '#ffffff', fontSize: '15px', fontWeight: 700 }}
             >
-              <span className="chat-icon">💬</span>
-              <span className="chat-label">Chat with AI</span>
+              <span className="chat-icon">{chatOpen ? '✕' : '💬'}</span>
+              <span className="chat-label">{chatOpen ? 'Close Chat' : 'Chat with AI'}</span>
             </button>
           }
         >
           <div className="voice-panel">
             {showConsent && (
-              <div className="consent-overlay" role="dialog" aria-modal="true" aria-label="Permissions & Consent" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.9)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '680px', maxWidth: '95vw', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 20, color: '#e5e7eb' }}>
-                  <h2 style={{ marginTop: 0, color: '#c8ff00' }}>Join the Arcade Assistant Network</h2>
-                  <p style={{ marginTop: 8, marginBottom: 12 }}>By opting in, you agree that your display name and scores may be shared across connected cabinets for public leaderboards. You can manage or revoke permissions anytime in Settings → Permissions.</p>
-                  <ul style={{ lineHeight: '1.6' }}>
-                    <li>Shares: display name, scores, timestamps, and cabinet ID.</li>
-                    <li>No sensitive data is collected. Local play remains available.</li>
-                  </ul>
-                  <div style={{ marginTop: 12 }}>
-                    <label style={{ display: 'block', marginBottom: 6 }}>
-                      <input type="checkbox" checked={agreeNetwork} onChange={(e) => setAgreeNetwork(e.target.checked)} /> I agree to join the Arcade Assistant Network.
+              <div className="consent-overlay" role="dialog" aria-modal="true" aria-label="Permissions & Consent" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.92)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '720px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', background: '#0b1020', border: '1px solid #243144', borderRadius: 12, padding: '28px 32px', color: '#e5e7eb' }}>
+                  <h2 style={{ marginTop: 0, color: '#c8ff00', fontSize: '1.4em' }}>Welcome to the Arcade Assistant Network</h2>
+                  <p style={{ marginTop: 8, marginBottom: 16, fontSize: '1em', lineHeight: 1.7, color: '#d1d5db' }}>
+                    This cabinet is powered by <strong style={{ color: '#ffffff' }}>Arcade Assistant</strong>, built by <strong style={{ color: '#ffffff' }}>G&G Arcade</strong>.
+                    By opting in below, you agree to connect this cabinet to the Arcade Assistant Network — enabling shared leaderboards,
+                    score syncing across cabinets, and personalized AI features. <strong style={{ color: '#c8ff00' }}>Opting in is completely optional.</strong> The
+                    cabinet works fully offline without it.
+                  </p>
+
+                  <div style={{ background: 'rgba(200,255,0,0.06)', border: '1px solid rgba(200,255,0,0.2)', borderRadius: 8, padding: '14px 18px', marginBottom: 16 }}>
+                    <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#c8ff00', fontSize: '0.95em' }}>What We Collect (if you opt in):</p>
+                    <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, fontSize: '0.92em' }}>
+                      <li>Display name and initials you provide</li>
+                      <li>Game scores and timestamps</li>
+                      <li>Cabinet ID (for cross-cabinet syncing)</li>
+                      <li>Basic session data (player count, game played)</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.15)', borderRadius: 8, padding: '14px 18px', marginBottom: 20 }}>
+                    <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#00e5ff', fontSize: '0.95em' }}>What We Do NOT Collect:</p>
+                    <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, fontSize: '0.92em' }}>
+                      <li>Real names, government IDs, or biometric data</li>
+                      <li>Payment information or financial data</li>
+                      <li>Permanent voice recordings (audio is processed transiently)</li>
+                      <li>Location data or device identifiers beyond cabinet ID</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
+                      <input type="checkbox" checked={agreeNetwork} onChange={(e) => setAgreeNetwork(e.target.checked)} style={{ marginTop: 3, accentColor: '#c8ff00' }} />
+                      <span><strong style={{ color: '#ffffff' }}>Join the Arcade Assistant Network</strong> — I consent to having my display name, scores, and session data shared across connected cabinets operated by G&G Arcade.</span>
                     </label>
-                    <label style={{ display: 'block', marginBottom: 6 }}>
-                      <input type="checkbox" checked={agreeLeaderboard} onChange={(e) => setAgreeLeaderboard(e.target.checked)} /> I agree my scores may be shown on public leaderboards.
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
+                      <input type="checkbox" checked={agreeLeaderboard} onChange={(e) => setAgreeLeaderboard(e.target.checked)} style={{ marginTop: 3, accentColor: '#c8ff00' }} />
+                      <span><strong style={{ color: '#ffffff' }}>Public Leaderboards</strong> — I agree that my display name and scores may appear on publicly visible leaderboards within the Arcade Assistant Network.</span>
                     </label>
-                    <label style={{ display: 'block', marginBottom: 6 }}>
-                      <input type="checkbox" checked={agreeContact} onChange={(e) => setAgreeContact(e.target.checked)} /> Optional: I agree to receive updates (email/SMS).
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
+                      <input type="checkbox" checked={agreeContact} onChange={(e) => setAgreeContact(e.target.checked)} style={{ marginTop: 3, accentColor: '#c8ff00' }} />
+                      <span><strong style={{ color: '#ffffff' }}>Communications (Optional)</strong> — I agree to receive occasional updates, event notifications, or promotions from G&G Arcade via email or SMS. I can unsubscribe at any time.</span>
                     </label>
                   </div>
-                  <p style={{ fontSize: '0.85em', color: '#9ca3af', marginTop: 12 }}>
-                    By checking the boxes above, you consent to the data sharing described. Your data is stored securely and you can revoke consent anytime via Settings → Permissions.
+
+                  <p style={{ fontSize: '0.82em', color: '#9ca3af', lineHeight: 1.6, marginBottom: 4 }}>
+                    By clicking "I Agree," you confirm that you have read and accept the <span style={{ color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowTerms(true)}>Terms of Service & Privacy Policy</span>.
+                    Your consent is recorded with a timestamp and can be revoked at any time via <strong>Settings → Permissions</strong>.
+                    G&G Arcade reserves the right to update these terms; material changes will require renewed consent.
+                    This cabinet is intended for use in a public arcade environment. If you are under the age of 16, please ask a parent or guardian before opting in.
                   </p>
+
                   {consentError && (
                     <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 6, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>{consentError}</span>
                       <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">×</button>
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+
+                  <div style={{ display: 'flex', gap: 12, marginTop: 18, alignItems: 'center' }}>
                     <button className="btn" disabled={!canApplyConsent || consentSaving} onClick={handleApplyConsent} aria-label="Agree and continue">{consentSaving ? 'Saving...' : 'I Agree'}</button>
                     <button className="btn btn-secondary" onClick={() => { setShowConsent(false); setWarn(''); }} aria-label="Continue offline">Continue Offline</button>
-                    <button type="button" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowTerms(true)}>Terms & Privacy</button>
+                    <button type="button" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9em' }} onClick={() => setShowTerms(true)}>Full Terms & Privacy →</button>
                   </div>
                 </div>
               </div>
@@ -900,7 +938,7 @@ export default function VoicePanel() {
                   <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9em', lineHeight: 1.6 }}>
                     <p><strong>Operator / Publisher:</strong> G & G Arcade ("G&G," "we," "us")<br />
                       <strong>Software:</strong> Arcade Assistant<br />
-                      <strong>Version:</strong> v1.0 | <strong>Effective:</strong> 2025-12-13</p>
+                      <strong>Version:</strong> v2.0 | <strong>Effective:</strong> 2026-03-05</p>
 
                     <h3 style={{ color: '#93c5fd', marginTop: 16 }}>1) Local-First Default</h3>
                     <p>The Software functions fully offline. No account required for local play. Declining consent does not block basic cabinet use. Online Features are optional.</p>
@@ -946,6 +984,36 @@ export default function VoicePanel() {
                   </div>
                   <div style={{ marginTop: 16, textAlign: 'right' }}>
                     <button className="btn" onClick={() => setShowTerms(false)}>Close</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add User Name Modal */}
+            {addUserModal.open && (
+              <div role="dialog" aria-modal="true" aria-label="Add new user" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.88)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '420px', maxWidth: '90vw', background: '#0b1020', border: '1px solid #243144', borderRadius: 12, padding: '24px 28px', color: '#e5e7eb' }}>
+                  <h3 style={{ margin: '0 0 8px', color: '#c8ff00', fontSize: '1.15em' }}>Add New Player Name</h3>
+                  <p style={{ margin: '0 0 16px', fontSize: '0.9em', color: '#9ca3af' }}>
+                    Enter a name for Player {addUserModal.playerIndex !== null ? addUserModal.playerIndex + 1 : ''}:
+                  </p>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={addUserModal.value}
+                    onChange={(e) => setAddUserModal(prev => ({ ...prev, value: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddUserConfirm() }}
+                    placeholder="e.g. Alex, Coach, GamerTag..."
+                    maxLength={24}
+                    style={{
+                      width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(200,255,0,0.3)', borderRadius: 8, color: '#ffffff',
+                      fontSize: '1em', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'flex-end' }}>
+                    <button className="btn btn-secondary" onClick={() => setAddUserModal({ open: false, playerIndex: null, value: '' })}>Cancel</button>
+                    <button className="btn" disabled={!(addUserModal.value || '').trim()} onClick={handleAddUserConfirm}>Add Player</button>
                   </div>
                 </div>
               </div>
@@ -1067,50 +1135,54 @@ export default function VoicePanel() {
                 <h2>Current Session</h2>
               </div>
               <div className="player-grid">
-                {players.map((player, index) => (
-                  <div key={index} className="player-slot">
-                    <div className="player-header">
-                      <div className="player-number">P{index + 1}</div>
-                      <div className="player-label">Player {index + 1}</div>
+                {/* Arcade-authentic layout: P3/P4 top row, P1/P2 bottom row */}
+                {[2, 3, 0, 1].map((index) => {
+                  const player = players[index]
+                  return (
+                    <div key={index} className="player-slot">
+                      <div className="player-header">
+                        <div className="player-number">P{index + 1}</div>
+                        <div className="player-label">Player {index + 1}</div>
+                      </div>
+                      <div className="form-group">
+                        <label>User</label>
+                        <select
+                          className="form-control"
+                          value={player.user}
+                          onChange={(e) => handlePlayerUserChange(index, e.target.value)}
+                        >
+                          {userOptions.map(option => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                          <option value={ADD_USER_OPTION_VALUE}>+ Add user</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Controller</label>
+                        <select
+                          className="form-control"
+                          value={player.controller}
+                          onChange={(e) => setPlayers(prev => {
+                            const next = [...prev]
+                            next[index] = { ...next[index], controller: e.target.value }
+                            return next
+                          })}
+                        >
+                          <option value="Not Assigned">Not Assigned</option>
+                          <option value="Joystick 1">Joystick 1</option>
+                          <option value="Joystick 2">Joystick 2</option>
+                          <option value="Joystick 3">Joystick 3</option>
+                          <option value="Joystick 4">Joystick 4</option>
+                          <option value="Xbox Pad 1">Xbox Pad 1</option>
+                          <option value="Xbox Pad 2">Xbox Pad 2</option>
+                          <option value="Keyboard">Keyboard</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>User</label>
-                      <select
-                        className="form-control"
-                        value={player.user}
-                        onChange={(e) => handlePlayerUserChange(index, e.target.value)}
-                      >
-                        {userOptions.map(option => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                        <option value={ADD_USER_OPTION_VALUE}>+ Add user</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Controller</label>
-                      <select
-                        className="form-control"
-                        value={player.controller}
-                        onChange={(e) => setPlayers(prev => {
-                          const next = [...prev]
-                          next[index] = { ...next[index], controller: e.target.value }
-                          return next
-                        })}
-                      >
-                        <option value="Not Assigned">Not Assigned</option>
-                        <option value="Joystick 1">Joystick 1</option>
-                        <option value="Joystick 2">Joystick 2</option>
-                        <option value="Joystick 3">Joystick 3</option>
-                        <option value="Joystick 4">Joystick 4</option>
-                        <option value="Xbox Pad 1">Xbox Pad 1</option>
-                        <option value="Xbox Pad 2">Xbox Pad 2</option>
-                        <option value="Keyboard">Keyboard</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
               <div className="action-bar">
                 <button className="btn btn-secondary" onClick={handleCopySetup}>
@@ -1230,7 +1302,7 @@ export default function VoicePanel() {
       </div>
 
       {/* Vicky AI Chat Sidebar */}
-      <EngineeringBaySidebar persona={VICKY_PERSONA} />
+      <EngineeringBaySidebar persona={VICKY_PERSONA} isOpen={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   )
 }

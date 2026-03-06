@@ -30,6 +30,7 @@ const ELEVENLABS_CONFIG = {
     adam: 'pNInz6obpgDQGcFmaJgB',
     blinky: process.env.BLINKY_VOICE_ID || 'DTKMou8ccj1ZaWGBiotd',
     godot: process.env.GODOT_VOICE_ID || 'OYWwCdDHouzDwiZJWOOu', // Godot voice
+    chuck: process.env.CHUCK_VOICE_ID || 'vDchjyOZZytffNeZXfZK',
     gunner: process.env.GUNNER_VOICE_ID || 'OYWwCdDHouzDwiZJWOOu' // Gunner uses Godot voice
   }
 };
@@ -81,7 +82,7 @@ router.post('/tts', async (req, res) => {
     let apiUrl, headers, body;
 
     // Optional override to force direct ElevenLabs (skip Supabase proxy)
-    const forceDirect = ['1','true','yes','on'].includes(String(process.env.TTS_FORCE_DIRECT || '').trim().toLowerCase())
+    const forceDirect = ['1', 'true', 'yes', 'on'].includes(String(process.env.TTS_FORCE_DIRECT || '').trim().toLowerCase())
 
     if (!forceDirect && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       // Use Supabase Edge Function

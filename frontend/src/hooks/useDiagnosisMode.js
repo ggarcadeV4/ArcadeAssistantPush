@@ -110,6 +110,10 @@ export function useDiagnosisMode({
     // ── Enter Diagnosis Mode ───────────────────────────────────────────────────
     const enterDiagMode = useCallback(async () => {
         if (diagModeRef.current) return;   // already active — no-op
+
+        // Kill any in-progress TTS to prevent echo/overlap
+        try { stopSpeaking(); } catch { /* noop */ }
+
         setIsTransitioning(true);
 
         // 1. Fetch Tier 1 context before doing anything visible
@@ -132,7 +136,7 @@ export function useDiagnosisMode({
 
         // 5. Speak greeting (TTS — confirmations / entries only per Q2)
         if (voiceId) {
-            try { await speak(greetingText, voiceId); }
+            try { await speak(greetingText, { voice_id: voiceId }); }
             catch (err) { console.warn('[useDiagnosisMode] TTS failed', err); }
         }
 
@@ -144,6 +148,9 @@ export function useDiagnosisMode({
     const exitDiagMode = useCallback(async () => {
         if (!diagModeRef.current) return;  // already inactive — no-op
 
+        // Kill any in-progress TTS to prevent echo/overlap
+        try { stopSpeaking(); } catch { /* noop */ }
+
         clearInterval(contextRefreshRef.current);
         clearInterval(softLockTimerRef.current);
 
@@ -153,7 +160,7 @@ export function useDiagnosisMode({
 
         // Farewell TTS (optional per panel)
         if (exitMessage && voiceId) {
-            try { await speak(exitMessage, voiceId); }
+            try { await speak(exitMessage, { voice_id: voiceId }); }
             catch { /* noop */ }
         }
     }, [exitMessage, voiceId]);

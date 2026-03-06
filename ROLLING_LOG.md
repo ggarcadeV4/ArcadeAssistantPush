@@ -1,5 +1,125 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-05 | Controller Chuck RAG Knowledge Base + Gem Integration + Blocker Fixes (B2/B4/B5)
+
+**Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic).
+
+**Key Wins:**
+- **`chuck_knowledge.md`** (770+ lines, 16 sections): Full RAG knowledge base covering Sacred Numbering, emulator config paths, encoder boards (I-PAC/Brook/Xin-Mo/Zero Delay), input testing tools, recovery procedures, and the Golden Drive onboarding workflow.
+- **Gem Integration — Cross-Emulator Translation Table**: Full Button 1-8 mapping across MAME (`P1_BUTTON1-8`), RetroArch (`B/A/Y/X/L1/R1/L2/R2`), and TeknoParrot (`<ButtonX>` XML tags).
+- **Gem Integration — Puppeteer Protocol**: Complete spec: 4 commands (`QUIT_KEY`, `SAVE_STATE`, `LOAD_STATE`, `RUNAHEAD_TOGGLE`), safe shutdown sequence (`SAVE_STATE → 100ms → QUIT_KEY`), zombie recovery (force-kill PID + NVRAM restore from `.aa/backups/`).
+- **Gem Integration — Field Failure Scenarios ("2 AM Calls")**: 5 real-world failure scenarios with step-by-step resolutions: buttons swapped, Vicky silent, scores not updating, lights stuck, black screen.
+- **Gem Integration — Hardware Failure Modes**: LED HID pipe simultaneity, INI vs XML corruption, encoder mode shifting, Vulkan/GL shader cross-loading.
+- **B2 Fix (`HttpBridge.cs`)**: Added `NotifyBackendGameStart()` — fire-and-forget POST to `localhost:8000/api/game/start` after `PlayGame()`. Bridge now talks outbound.
+- **B4 Fix (`voice/service.py`)**: Codebase was 90% done already (real HID calls, DI wiring in `voice.py` router). Added `_sync_led_state()` — mirrors LED state to Supabase `led_states` table for fleet visibility.
+- **B5 Fix (`game_lifecycle.py`)**: Added `GENRE_ANIMATION_MAP` — 8 distinct LEDBlinky animation codes per genre (Fighting=strobe, Racing=chase, Shooter=pulse, etc.) + `get_animation_for_game(tags)` function.
+
+**Files Created/Modified:**
+- `prompts/chuck_knowledge.md` — MODIFIED (770+ lines, 16 sections, Gem integration)
+- `plugin/src/Bridge/HttpBridge.cs` — MODIFIED (B2: outbound POST + HttpClient)
+- `backend/services/game_lifecycle.py` — MODIFIED (B5: GENRE_ANIMATION_MAP)
+- `backend/services/voice/service.py` — MODIFIED (B4: _sync_led_state to Supabase)
+
+**Blocker Scorecard:**
+- B2 (HttpBridge outbound POST) → ✅ DONE
+- B4 (Voice Hardware Unlock) → ✅ DONE
+- B5 (Genre LED Animation Map) → ✅ DONE
+
+**State of Union — What's Next (Priority Order):**
+1. ⚡ **Console Wizard panel** — Next session target
+2. ⚡ **LED Blinky news** — User has new info to share
+3. 🔶 **B6/B7 Wake Word & TTS Dropping** — Voice panel fixes
+4. 🔶 **Handoff Protocol URL standard** — Inter-panel communication
+5. 🌱 **F9 Overlay Z-Index** — Electron `setAlwaysOnTop`
+6. 🌱 **Genre differentiation codes** — Wire `GENRE_ANIMATION_MAP` into `game_lifecycle` pipeline
+
+### 🧠 AGENT NOTES: Panel Chat Sidebar Blueprint (The Proven Recipe)
+
+**This is the canonical pattern for adding a perfect chat window to ANY panel, including Diagnosis Mode. Follow this exactly — it is battle-tested on Chuck, Wiz, Vicky, Blinky, Gunner, and Doc.**
+
+#### Step 1 — Persona Config Object (in the panel's JSX file)
+```js
+const PERSONA = {
+  id: 'chuck',           // matches backend persona routing
+  name: 'Controller Chuck',
+  accent: '#FBBF24',     // CSS accent color (amber/green/purple/cyan/red/orange)
+  glow: 'rgba(251,191,36,0.3)',
+  icon: '🕹️',
+  voiceProfile: 'chuck', // maps to CHUCK_VOICE_ID in .env → TTS router
+};
+```
+
+#### Step 2 — Layout Wrapper (panel JSX)
+Wrap the panel's main content + sidebar in a flex container:
+```jsx
+<div className="eb-layout">
+  <div className="panel-main-content">...</div>
+  <EngineeringBaySidebar persona={PERSONA} contextAssembler={assembler} />
+</div>
+```
+CSS: `.eb-layout { display: flex; height: 100vh; }` — panel fills left, sidebar sticks right.
+
+#### Step 3 — Context Assembler (new file: `{persona}ContextAssembler.js`)
+Parallel-fetches real hardware data for the AI. Must stay **under 1500 tokens**. Three tiers:
+- **Tier 1 (always)**: timestamp, hardware status, active session
+- **Tier 2 (conditional)**: active profile, current mapping, error states
+- **Tier 3 (static)**: domain rules, sacred laws, available tools
+
+#### Step 4 — Suggestion Chips (new file: `{persona}Chips.js`)
+Array of 4-6 pre-built prompts specific to the persona's domain. Each chip pre-fills and auto-sends.
+
+#### Step 5 — Backend Prompt File (`prompts/{persona}.prompt`)
+Split with `---DIAGNOSIS---` delimiter:
+- **Top half** = Chat Mode (read-only, conversational, suggests escalation)
+- **Bottom half** = Diagnosis Mode (config-writing, action blocks, scope-locked)
+Exception: Doc is always in diagnosis mode (no delimiter needed).
+
+#### Step 6 — Backend AI Service (`services/{persona}/ai.py` or shared `engineering_bay/ai.py`)
+- `_resolve_prompt()` reads `isDiagnosisMode` from `extra_context`
+- Splits prompt on `---DIAGNOSIS---`, caches both variants
+- Uses Gemini 2.5 Flash via `gemini-proxy` edge function
+
+#### Step 7 — Shared Components (already built in `panels/_kit/`)
+These are **done** — just import them:
+| Component | File | What it does |
+|-----------|------|-------------|
+| `EngineeringBaySidebar` | `_kit/EngineeringBaySidebar.jsx` | The entire sidebar: KITT scanner, chat, mic, chips, diagnosis toggle |
+| `DiagnosisToggle` | `controller/DiagnosisToggle.jsx` | Amber pill toggle |
+| `ContextChips` | `controller/ContextChips.jsx` | Horizontal scrollable chip bar |
+| `MicButton` | `controller/MicButton.jsx` | Push-to-talk with Web Speech API |
+| `ExecutionCard` | `controller/ExecutionCard.jsx` | `[EXECUTE] [CANCEL]` gate for config writes |
+| `useDiagnosisMode` | `hooks/useDiagnosisMode.js` | Toggle lifecycle, TTS greeting, 5-min timeout, context refresh |
+
+#### Persona Color Palette (locked)
+| Persona | Accent | CSS var |
+|---------|--------|---------|
+| Chuck | `#FBBF24` (amber) | `--eb-accent` |
+| Wiz | `#22C55E` (green) | `--eb-accent` |
+| Vicky | `#A855F7` (purple) | `--eb-accent` |
+| Blinky | `#06B6D4` (cyan) | `--eb-accent` |
+| Gunner | `#EF4444` (red) | `--eb-accent` |
+| Doc | `#F97316` (orange) | `--eb-accent` |
+
+#### DI Wiring (already done in `routers/voice.py` — follow this pattern)
+```python
+def get_voice_service() -> VoiceService:
+    from ..services.led_hardware import LEDHardwareService
+    led_hw = LEDHardwareService()  # Singleton
+    supabase = get_supabase_client()  # Optional
+    return VoiceService(led_service=led_hw, supabase_client=supabase)
+```
+
+#### TL;DR — To add chat + diagnosis to a NEW panel:
+1. Create `PERSONA` config object in the panel JSX
+2. Wrap in `eb-layout` flex container
+3. Import `<EngineeringBaySidebar persona={PERSONA} />`
+4. Write `{persona}ContextAssembler.js` (1500 token budget)
+5. Write `{persona}Chips.js` (4-6 domain prompts)
+6. Write/split `prompts/{persona}.prompt` with `---DIAGNOSIS---`
+7. Done. ~50 lines of new code per panel.
+
+---
+
 ## 2026-03-04 | Prompt Fix + Voice IDs + TTS Streaming + Jules Workflow Launch
 
 **Net Progress**: Found and fixed the root cause of all 9 personas giving generic responses (double path mismatch in prompt loading). Upgraded to Gemini 2.5 Flash. Configured distinct ElevenLabs voices for all 9 personas. Optimized TTS pipeline with streaming audio. Created V1 Master Execution Plan (10-day sprint). Launched Jules overnight workflow with dedicated repo `Arcade-Assistant-0304-2026`.

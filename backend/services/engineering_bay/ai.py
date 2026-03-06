@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 
 _DIAGNOSIS_DELIMITER = "---DIAGNOSIS---"
 _prompt_cache: Dict[str, Dict[str, str]] = {}  # {persona: {"chat": ..., "diagnosis": ...}}
+_knowledge_cache: Dict[str, str] = {}  # {persona: knowledge_text}
+
+# Uncertainty markers — if response contains these, try Google Search grounding
+_UNCERTAINTY_MARKERS = [
+    "i'm not sure", "i don't have", "i'm not certain",
+    "you might want to check", "i don't know",
+    "beyond my current knowledge", "i cannot confirm",
+    "you should verify", "not covered in my knowledge",
+]
 
 _VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc", "chuck", "wiz"}
 
@@ -41,6 +50,38 @@ _PROMPT_FILENAMES = {
     "wiz":   "controller_wizard",
     # All others use their persona ID directly (e.g., gunner → gunner.prompt)
 }
+
+# Knowledge file mapping — override filename per persona
+_KNOWLEDGE_FILENAMES = {
+    "chuck": "chuck_knowledge",
+    # Others can have knowledge files too: "vicky": "vicky_knowledge", etc.
+}
+
+
+def _load_knowledge(persona: str) -> None:
+    """Load the knowledge base file for a persona (if it exists)."""
+    if persona in _knowledge_cache:
+        return
+
+    filename = _KNOWLEDGE_FILENAMES.get(persona, f"{persona}_knowledge")
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    candidates = [
+        project_root / "prompts" / f"{filename}.md",
+        Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local")) / "prompts" / f"{filename}.md",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                _knowledge_cache[persona] = candidate.read_text(encoding="utf-8")
+                logger.info("Loaded knowledge base for '%s' from %s (%d chars)",
+                            persona, candidate, len(_knowledge_cache[persona]))
+                return
+            except Exception as exc:
+                logger.warning("Failed to read knowledge file %s: %s", candidate, exc)
+
+    _knowledge_cache[persona] = ""  # No knowledge file found — cache empty string
+    logger.debug("No knowledge file found for persona '%s'", persona)
 
 
 def _load_prompt(persona: str) -> None:
@@ -99,6 +140,13 @@ def _resolve_prompt(persona: str, is_diagnosis_mode: bool) -> str:
 
 def _build_system(persona: str, is_diagnosis_mode: bool, extra_context: Optional[Dict[str, Any]]) -> str:
     base = _resolve_prompt(persona, is_diagnosis_mode)
+
+    # Inject knowledge base between prompt and context
+    _load_knowledge(persona)
+    knowledge = _knowledge_cache.get(persona, "")
+    if knowledge:
+        base = base + "\n\n--- KNOWLEDGE BASE ---\n" + knowledge
+
     if not extra_context:
         return base
 
@@ -190,17 +238,36 @@ async def engineering_bay_chat(
             response.raise_for_status()
             result = response.json()
 
-        # Parse Gemini response
-        candidates = result.get("candidates", [])
-        if not candidates:
-            raise ValueError("No response candidates from Gemini")
+        reply = _extract_reply(result)
 
-        content = candidates[0].get("content", {})
-        parts = content.get("parts", [])
-        if not parts:
-            raise ValueError("Empty response from Gemini")
+        # ── Pass 2: Google Search grounding fallback ──────────────────────
+        # If the reply shows uncertainty, retry with web search grounding
+        reply_lower = reply.lower()
+        if any(marker in reply_lower for marker in _UNCERTAINTY_MARKERS):
+            logger.info("[%s] Uncertainty detected — retrying with Google Search grounding", persona)
+            grounded_body = {
+                **request_body,
+                "tools": [{
+                    "google_search": {}
+                }],
+            }
+            try:
+                async with httpx.AsyncClient(timeout=45.0) as client:
+                    g_response = await client.post(
+                        f"{_GEMINI_ENDPOINT}?key={api_key}",
+                        json=grounded_body,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    g_response.raise_for_status()
+                    g_result = g_response.json()
+                grounded_reply = _extract_reply(g_result)
+                if grounded_reply:
+                    logger.info("[%s] Web grounded answer available (%d chars)", persona, len(grounded_reply))
+                    return grounded_reply
+            except Exception as g_exc:
+                logger.warning("[%s] Google Search grounding failed, using RAG answer: %s", persona, g_exc)
 
-        return parts[0].get("text", "").strip()
+        return reply
 
     except httpx.HTTPStatusError as exc:
         logger.error("Gemini API error (persona=%s): %s — %s", persona, exc.response.status_code, exc.response.text)
@@ -208,3 +275,17 @@ async def engineering_bay_chat(
     except Exception as exc:
         logger.error("Engineering Bay AI error (persona=%s): %s", persona, exc)
         raise
+
+
+def _extract_reply(result: Dict[str, Any]) -> str:
+    """Extract text from Gemini response JSON."""
+    candidates = result.get("candidates", [])
+    if not candidates:
+        raise ValueError("No response candidates from Gemini")
+
+    content = candidates[0].get("content", {})
+    parts = content.get("parts", [])
+    if not parts:
+        raise ValueError("Empty response from Gemini")
+
+    return parts[0].get("text", "").strip()

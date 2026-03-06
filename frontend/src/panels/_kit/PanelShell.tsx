@@ -30,7 +30,7 @@ export default function PanelShell({
           {icon && <span style={{ fontSize: '24px' }}>{icon}</span>}
           <div>
             <h2 style={{ color: '#ffffff' }}>{title}</h2>
-            {subtitle && <p style={{ fontSize: '12px', color: '#d1d5db', margin: 0 }}>{subtitle}</p>}
+            {subtitle && <p style={{ fontSize: '14px', color: '#d1d5db', margin: 0 }}>{subtitle}</p>}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

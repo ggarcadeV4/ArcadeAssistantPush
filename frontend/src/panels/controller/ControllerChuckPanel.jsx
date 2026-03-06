@@ -38,7 +38,7 @@ import '../_kit/EngineeringBaySidebar.css';
 // ── Constants ───────────────────────────────────────────────────────────────
 const API_BASE = '/api/local/controller';
 const HARDWARE_API = '/api/local/hardware';
-const CHUCK_VOICE_ID = 'f5HLTX707KIM4SzJYzSz';
+const CHUCK_VOICE_ID = 'vDchjyOZZytffNeZXfZK';
 
 const CHUCK_GREET = "Yo! Chuck here. Let's get this cabinet wired up right.";
 
@@ -52,6 +52,7 @@ const CHUCK_PERSONA = {
   accentGlow: 'rgba(34,197,94,0.35)',
   scannerLabel: 'ANALYZING...',
   voiceProfile: 'chuck',
+  voiceId: CHUCK_VOICE_ID,
   emptyHint: 'Ask Chuck about controller mappings, GPIO, or arcade setup.',
   chips: chuckChips,
 };

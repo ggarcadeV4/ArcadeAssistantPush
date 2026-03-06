@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { speak, stopSpeaking } from '../services/ttsClient';
 
 const CONTROLLER_BASE = '/api/local/controller';
-const CHUCK_VOICE_ID = 'f5HLTX707KIM4SzJYzSz';
+const CHUCK_VOICE_ID = 'vDchjyOZZytffNeZXfZK';
 const POLL_INTERVAL_MS = 200; // Poll backend every 200ms for captured keys
 
 /**

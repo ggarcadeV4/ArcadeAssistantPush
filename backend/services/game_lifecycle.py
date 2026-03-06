@@ -27,6 +27,37 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+# ── B5 FIX: Genre-Aware LED Animation Codes for LEDBlinky ────────────
+# Each genre tag maps to a distinct animation code that makes the cabinet
+# "feel" different per game type. Code "1" is the fallback (static ON).
+GENRE_ANIMATION_MAP = {
+    "LED:FIGHTING":   "3",    # Aggressive strobing
+    "LED:RACING":     "4",    # Circular chase
+    "LED:SHOOTER":    "5",    # Rapid pulse
+    "LED:SPORTS":     "6",    # Slow sweep
+    "LED:LIGHTGUN":   "7",    # Target flash
+    "LED:PLATFORMER": "8",    # Color cycle
+    "LED:PUZZLE":     "9",    # Breathing
+    "LED:STANDARD":   "1",    # Static ON (default)
+}
+
+
+def get_animation_for_game(tags: list) -> str:
+    """Select the best LEDBlinky animation code based on a game's genre tags.
+
+    Args:
+        tags: List of cinema/genre tags from the game metadata
+              (e.g., ["LED:FIGHTING", "CABINET:VEWLIX"])
+
+    Returns:
+        Animation code string (e.g. "3" for fighting games)
+    """
+    for tag in tags:
+        if tag in GENRE_ANIMATION_MAP:
+            return GENRE_ANIMATION_MAP[tag]
+    return GENRE_ANIMATION_MAP["LED:STANDARD"]
+
+
 @dataclass
 class TrackedGame:
     """Represents a game being monitored for exit."""

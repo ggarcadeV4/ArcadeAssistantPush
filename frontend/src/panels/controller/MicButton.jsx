@@ -7,20 +7,26 @@
  *   Q3  — No always-on listening; mic is cold until pressed
  *   Q11 — PTT is the gate; TTS auto-disabled while mic is hot;
  *          confidence threshold ≥ 0.7 before passing transcript
+ *
+ * startRef — optional ref that the parent can call to programmatically
+ *            start listening (used for hands-free diagnostic auto-resume).
+ * autoMode — when true, single-click toggles listening on/off instead
+ *            of requiring hold-to-speak.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './MicButton.css';
 
 const MIN_CONFIDENCE = 0.7;
 
-export function MicButton({ onTranscript, onListeningChange, disabled, stopTTS }) {
+export function MicButton({ onTranscript, onListeningChange, disabled, stopTTS, startRef, autoMode = false }) {
     const [listening, setListening] = useState(false);
     const [micError, setMicError] = useState(null);
     const recognitionRef = useRef(null);
 
     // ── Start listening ────────────────────────────────────────────────────────
     const startListening = useCallback(() => {
+        if (listening) return;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             setMicError('Speech recognition not supported in this browser.');
@@ -69,7 +75,7 @@ export function MicButton({ onTranscript, onListeningChange, disabled, stopTTS }
         setListening(true);
         setMicError(null);
         onListeningChange?.(true);
-    }, [onTranscript, onListeningChange, stopTTS]);
+    }, [listening, onTranscript, onListeningChange, stopTTS]);
 
     // ── Stop listening ─────────────────────────────────────────────────────────
     const stopListening = useCallback(() => {
@@ -78,19 +84,38 @@ export function MicButton({ onTranscript, onListeningChange, disabled, stopTTS }
         onListeningChange?.(false);
     }, [onListeningChange]);
 
+    // ── Expose startListening to parent via ref ────────────────────────────────
+    useEffect(() => {
+        if (startRef) startRef.current = startListening;
+    }, [startRef, startListening]);
+
+    // ── Toggle handler for autoMode ────────────────────────────────────────────
+    const handleClick = useCallback(() => {
+        if (listening) {
+            stopListening();
+        } else {
+            startListening();
+        }
+    }, [listening, startListening, stopListening]);
+
     return (
         <div className="mic-btn-wrap">
             <button
                 type="button"
                 className={`mic-btn ${listening ? 'mic-btn--hot' : ''}`}
-                onMouseDown={startListening}
-                onMouseUp={stopListening}
-                onMouseLeave={listening ? stopListening : undefined}
-                onTouchStart={startListening}
-                onTouchEnd={stopListening}
+                {...(autoMode
+                    ? { onClick: handleClick }
+                    : {
+                        onMouseDown: startListening,
+                        onMouseUp: stopListening,
+                        onMouseLeave: listening ? stopListening : undefined,
+                        onTouchStart: startListening,
+                        onTouchEnd: stopListening,
+                    }
+                )}
                 disabled={disabled}
-                aria-label={listening ? 'Listening — release to send' : 'Hold to speak'}
-                title="Push-to-talk — hold while speaking"
+                aria-label={listening ? 'Listening — release to send' : (autoMode ? 'Click to speak' : 'Hold to speak')}
+                title={autoMode ? 'Click to speak — auto-listen mode' : 'Push-to-talk — hold while speaking'}
             >
                 {/* Ripple rings while hot */}
                 {listening && (

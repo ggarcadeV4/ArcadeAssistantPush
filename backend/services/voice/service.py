@@ -140,6 +140,7 @@ class VoiceService:
                 color_rgb = self._hex_to_rgb(intent.color)
                 logger.info("applying_color", target=intent.target, rgb=color_rgb)
                 hw.write_port(0, port, color_rgb)
+                await self._sync_led_state(port, color_rgb, "vicky_voice")
                 return True
 
             elif intent.action == 'flash':
@@ -153,12 +154,14 @@ class VoiceService:
             elif intent.action == 'off':
                 logger.info("turning_off", target=intent.target)
                 hw.write_port(0, port, (0, 0, 0))
+                await self._sync_led_state(port, (0, 0, 0), "vicky_voice")
                 return True
 
             elif intent.action == 'dim':
                 logger.info("dimming", target=intent.target)
                 # Dim = 20% brightness (scale current color)
                 hw.write_port(0, port, (12, 12, 12))
+                await self._sync_led_state(port, (12, 12, 12), "vicky_voice")
                 return True
 
             elif intent.action == 'pattern':
@@ -178,6 +181,25 @@ class VoiceService:
         except Exception as e:
             logger.error("led_service_apply_failed", error=str(e))
             return False
+
+    async def _sync_led_state(
+        self, port: int, rgb: tuple, triggered_by: str
+    ) -> None:
+        """Mirror LED state to Supabase for fleet visibility (Pillar 4)."""
+        if not self.supabase:
+            return
+        try:
+            import os
+            await asyncio.to_thread(
+                self.supabase.table("led_states").insert({
+                    "device_id": os.getenv("AA_DEVICE_ID", "unknown"),
+                    "port": port,
+                    "hex": f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}",
+                    "triggered_by": triggered_by,
+                }).execute
+            )
+        except Exception as e:
+            logger.debug("led_state_sync_failed", error=str(e))
 
     def _hex_to_rgb(self, hex_color: str) -> tuple:
         """Convert hex color to RGB tuple."""

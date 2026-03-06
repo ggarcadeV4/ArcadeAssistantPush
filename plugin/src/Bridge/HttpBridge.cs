@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ArcadeAssistant.Plugin.Bridge
 {
@@ -15,6 +18,7 @@ namespace ArcadeAssistant.Plugin.Bridge
     private static CancellationTokenSource? _cts;
     private static int _port = 9999;
     private static readonly int _fallbackPort = 10099;
+    private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
 
     /// <summary>
     /// Gets the current active port (reflects fallback if primary port was unavailable)
@@ -178,6 +182,9 @@ namespace ArcadeAssistant.Plugin.Bridge
 
           // Launch the game using LaunchBoxMainViewModel
           Unbroken.LaunchBox.Plugins.PluginHelper.LaunchBoxMainViewModel.PlayGame(matchingGame, null, null, string.Empty);
+
+          // B2 FIX: Notify Python backend of game start (fire-and-forget)
+          _ = Task.Run(() => NotifyBackendGameStart(matchingGame.Id, matchingGame.Platform, matchingGame.Title));
 
           Log($"Successfully launched: {matchingGame.Title}");
           TryWrite(ctx, 200, Json(new {
@@ -744,6 +751,37 @@ namespace ArcadeAssistant.Plugin.Bridge
         try { _listener!.Close(); } catch { }
         try { _listener = new HttpListener(); } catch { }
         return false;
+      }
+    }
+
+    /// <summary>
+    /// B2 FIX: Outbound notification to Python backend when a game starts.
+    /// Fire-and-forget — if backend is offline, fail silently to prevent LaunchBox crash.
+    /// </summary>
+    private static async Task NotifyBackendGameStart(string gameId, string platform, string title)
+    {
+      try
+      {
+        var payload = new
+        {
+          game_id = gameId,
+          platform = platform,
+          title = title,
+          source = "launchbox_bridge",
+          timestamp = (int)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        // POST to the Python Hands API Router
+        await _httpClient.PostAsync("http://localhost:8000/api/game/start", content);
+        Log($"Backend notified of game start: {title}");
+      }
+      catch (Exception ex)
+      {
+        // Backend offline — fail silently to prevent LaunchBox crash
+        Log($"Backend notification failed (non-critical): {ex.Message}");
       }
     }
   }

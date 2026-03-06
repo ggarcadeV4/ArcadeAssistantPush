@@ -34,7 +34,7 @@ import './chuck-layout.css';
 import './ExecutionCard.css';
 
 
-const CHUCK_VOICE_ID = 'f5HLTX707KIM4SzJYzSz';
+const CHUCK_VOICE_ID = 'vDchjyOZZytffNeZXfZK';
 const MAX_VISIBLE_MSGS = 80;   // trim history to avoid memory bloat
 
 // ── Message bubble ─────────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ export function ChuckSidebar({ panelState = {}, className = '', isOpen = false, 
     const [executeLoading, setExecuteLoading] = useState(false);
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
+    const micStartRef = useRef(null);  // programmatic mic trigger for hands-free
 
     // ── Add a message to history ───────────────────────────────────────────────
     const addMessage = useCallback((text, role = 'assistant', opts = {}) => {
@@ -105,9 +106,17 @@ export function ChuckSidebar({ panelState = {}, className = '', isOpen = false, 
         timeoutMinutes: 5,
     });
 
+    // ── TTS stop on sidebar close ──────────────────────────────────────────────
+    useEffect(() => {
+        if (!isOpen) {
+            stopSpeaking();
+            try { /* kill any active recognition */ } catch { /* noop */ }
+        }
+    }, [isOpen]);
+
     // ── Auto-scroll to latest message ─────────────────────────────────────────
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, [messages]);
 
     // ── Send a message (text or chip prompt) ──────────────────────────────────
@@ -143,9 +152,13 @@ export function ChuckSidebar({ panelState = {}, className = '', isOpen = false, 
                 setPendingAction(parsed.proposal);
             } else {
                 addMessage(replyRaw, 'assistant');
-                // Q2: speak in Diag Mode only — 1-2 sentence confirmations
+                // Q2: speak in Diag Mode only — then auto-resume mic (hands-free)
                 if (diag.diagMode) {
-                    try { await speak(replyRaw, CHUCK_VOICE_ID); } catch { /* noop */ }
+                    try {
+                        await speak(replyRaw, { voice_id: CHUCK_VOICE_ID });
+                        // Hands-free auto-resume: start listening after TTS finishes
+                        setTimeout(() => micStartRef.current?.(), 300);
+                    } catch { /* noop */ }
                 }
             }
 
@@ -320,6 +333,8 @@ export function ChuckSidebar({ panelState = {}, className = '', isOpen = false, 
                     onListeningChange={setIsListening}
                     stopTTS={stopSpeaking}
                     disabled={loading || diag.softLocked}
+                    startRef={micStartRef}
+                    autoMode={diag.diagMode}
                 />
 
                 <button

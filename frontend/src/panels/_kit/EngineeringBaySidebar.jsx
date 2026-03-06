@@ -84,7 +84,7 @@ MessageBubble.displayName = 'EBMessageBubble';
  * @param {function} [contextAssembler] - async fn returning extra context payload
  * @param {string} [className]
  */
-export function EngineeringBaySidebar({ persona, contextAssembler, className = '' }) {
+export function EngineeringBaySidebar({ persona, contextAssembler, className = '', isOpen, onClose, onToggle }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -96,7 +96,21 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const recognitionRef = useRef(null);
     const inputRef = useRef(null);
     const messagesRef = useRef(messages);
+    const sendMessageRef = useRef(null);
+    const startListeningRef = useRef(null);
     useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+    // ── Stop everything when chat is closed ──────────────────────────────────
+    useEffect(() => {
+        if (typeof isOpen !== 'undefined' && !isOpen) {
+            stopSpeaking();
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch { /* noop */ }
+                recognitionRef.current = null;
+            }
+            setIsVoiceRecording(false);
+        }
+    }, [isOpen]);
 
     // ── Diagnosis Mode hook ───────────────────────────────────────────────────
     const handleTimeout = useCallback(() => {
@@ -107,6 +121,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         panelId: persona.id,
         contextAssembler,
         chips: persona.chips ?? [],
+        voiceId: persona.voiceId ?? null,
         ttsSpeak: speak,
         ttsStop: stopSpeaking,
         onTimeout: handleTimeout,
@@ -115,7 +130,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     });
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, [messages, loading]);
 
     const addMessage = useCallback((content, role = 'assistant') => {
@@ -155,14 +170,22 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             addMessage(cleanText, 'assistant');
             if (action) setPendingAction(action);
 
-            // TTS: first sentence only in Diagnosis Mode
-            const ttsOpts = persona.voiceProfile
-                ? { voice_profile: persona.voiceProfile }
-                : {};
-            if (diag.diagMode || persona.diagPermanent) {
-                speak(cleanText.split('.')[0], ttsOpts);
-            } else {
-                speak(cleanText, ttsOpts);
+            // TTS response
+            const ttsOpts = persona.voiceId
+                ? { voice_id: persona.voiceId }
+                : persona.voiceProfile
+                    ? { voice_profile: persona.voiceProfile }
+                    : {};
+            const isDiag = diag.diagMode || persona.diagPermanent;
+            try {
+                await speak(cleanText, ttsOpts);
+            } catch (ttsErr) {
+                console.warn('[EngineeringBaySidebar] TTS failed:', ttsErr);
+            }
+
+            // Hands-Free Loop: auto-resume mic after TTS in Diagnosis Mode
+            if (isDiag && diagModeRef.current) {
+                setTimeout(() => { if (diagModeRef.current) startListeningRef.current?.(); }, 400);
             }
         } catch (err) {
             addMessage(`⚠️ ${err.message ?? `${persona.name} is unreachable.`}`, 'system');
@@ -170,6 +193,9 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             setLoading(false);
         }
     }, [loading, diag, addMessage, persona]);
+
+    // Keep sendMessageRef in sync
+    useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
     // ── Execute action ────────────────────────────────────────────────────────
     const handleExecuteAction = useCallback(async (action) => {
@@ -207,23 +233,20 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
     }, [input, sendMessage]);
 
-    // ── Click-toggle voice input (adapted from LED Blinky) ─────────────────────
-    const toggleVoiceInput = useCallback(() => {
-        if (isVoiceRecording) {
-            if (recognitionRef.current) recognitionRef.current.stop();
-            setIsVoiceRecording(false);
-            return;
-        }
+    // ── Diagnosis Mode ref (readable inside async callbacks) ─────────────────
+    const diagModeRef = useRef(false);
+    useEffect(() => { diagModeRef.current = diag.diagMode || persona.diagPermanent; }, [diag.diagMode, persona.diagPermanent]);
 
+    // ── Start listening (reusable — called by toggle AND auto-resume) ──────────
+    const startListening = useCallback(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             addMessage('Voice input not supported in this browser.', 'system');
             return;
         }
+        if (recognitionRef.current) return; // already listening
 
         try {
-            // Stop TTS before recording to prevent feedback
-            stopSpeaking();
 
             const recognition = new SpeechRecognition();
             recognition.continuous = false;
@@ -243,7 +266,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 if (!transcript.trim()) return;
 
                 diag.resetInteraction?.();
-                sendMessage(transcript);
+                sendMessageRef.current?.(transcript);
             };
 
             recognition.onerror = (event) => {
@@ -262,11 +285,27 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             console.error('[EngineeringBaySidebar] Failed to start voice input:', err);
             setIsVoiceRecording(false);
         }
-    }, [isVoiceRecording, addMessage, sendMessage, diag]);
+    }, [addMessage, diag]);
+
+    // Keep startListeningRef in sync
+    useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+
+    // ── Click-toggle voice input ───────────────────────────────────────────────
+    const toggleVoiceInput = useCallback(() => {
+        if (isVoiceRecording) {
+            if (recognitionRef.current) recognitionRef.current.stop();
+            setIsVoiceRecording(false);
+            return;
+        }
+        stopSpeaking(); // Cut any playing TTS when manually clicking mic
+        startListening();
+    }, [isVoiceRecording, startListening]);
 
     // ── Active state: diagnosis OR always-on (Doc) ────────────────────────────
     const isActive = diag.diagMode || persona.diagPermanent;
-    const sidebarClass = ['eb-sidebar', isActive ? 'eb-sidebar--active' : '', className].join(' ').trim();
+    // If isOpen is provided, use it; otherwise sidebar is always visible
+    const isControlled = typeof isOpen !== 'undefined';
+    const sidebarClass = ['eb-sidebar', isActive ? 'eb-sidebar--active' : '', isControlled && !isOpen ? 'eb-sidebar--collapsed' : '', className].join(' ').trim();
     const cssVars = { '--eb-accent': persona.accentColor, '--eb-glow': persona.accentGlow };
 
     const pillLabel = persona.diagLabel ?? (persona.diagPermanent ? 'SYS' : 'DIAG');
@@ -293,6 +332,15 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                         disabled={loading}
                         accentColor={persona.accentColor}
                     />
+                )}
+                {isControlled && onClose && (
+                    <button
+                        type="button"
+                        className="eb-header__close"
+                        onClick={onClose}
+                        aria-label={`Close ${persona.name} chat`}
+                        title="Close chat"
+                    >✕</button>
                 )}
             </div>
 
