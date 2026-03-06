@@ -31,7 +31,8 @@ const ELEVENLABS_CONFIG = {
     blinky: process.env.BLINKY_VOICE_ID || 'DTKMou8ccj1ZaWGBiotd',
     godot: process.env.GODOT_VOICE_ID || 'OYWwCdDHouzDwiZJWOOu', // Godot voice
     chuck: process.env.CHUCK_VOICE_ID || 'vDchjyOZZytffNeZXfZK',
-    gunner: process.env.GUNNER_VOICE_ID || 'OYWwCdDHouzDwiZJWOOu' // Gunner uses Godot voice
+    gunner: process.env.GUNNER_VOICE_ID || 'OYWwCdDHouzDwiZJWOOu', // Gunner uses Godot voice
+    wiz: process.env.WIZ_VOICE_ID || 'CwhRBWXzGAHq8TQ4Fs17' // Console Wizard voice
   }
 };
 
