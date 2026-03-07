@@ -308,6 +308,7 @@ export default function DeweyPanel() {
 
 
   // Refs
+  const isMounted = useRef(true)
   const messagesContainerRef = useRef(null)
   const inputRef = useRef(null)
   const messagesRef = useRef(messages)
@@ -585,8 +586,8 @@ export default function DeweyPanel() {
       )
       addMessage(formatted, 'dewey')
 
-      // Speak the response if voice is enabled
-      if (voiceEnabled && cleanReply) {
+      // Speak the response if voice is enabled and component is still mounted
+      if (voiceEnabled && cleanReply && isMounted.current) {
         const plainTextReply = htmlToPlainText(cleanReply)
         speakAsDewey(plainTextReply).catch(err => {
           console.warn('TTS failed:', err)
@@ -617,7 +618,11 @@ export default function DeweyPanel() {
 
   // Cleanup TTS on unmount
   useEffect(() => {
-    return () => { try { stopSpeaking() } catch { } }
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+      try { stopSpeaking() } catch { }
+    }
   }, [])
 
   // Handle Enter Key
