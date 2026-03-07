@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { getHeadlines, getSources, getTrending } from '../../../services/newsClient'
-import NewsChatSidebar from './NewsChatSidebar'
 import './GamingNews.css'
 
 export default function GamingNews({ onExit }) {
@@ -14,7 +13,6 @@ export default function GamingNews({ onExit }) {
   const [view, setView] = useState('headlines') // 'headlines', 'trending', or 'by-source'
   const [trending, setTrending] = useState(null)
   const [cacheInfo, setCacheInfo] = useState(null)
-  const [chatOpen, setChatOpen] = useState(false)
   const [sourceStats, setSourceStats] = useState({})
   const [isInitialLoad, setIsInitialLoad] = useState(true)
 
@@ -143,9 +141,6 @@ export default function GamingNews({ onExit }) {
           </div>
         </div>
         <div className="header-actions">
-          <button className="chat-btn" onClick={() => setChatOpen(true)}>
-            💬 Chat with Dewey
-          </button>
           <button className="exit-btn" onClick={onExit}>
             ← Back to Dewey
           </button>
@@ -330,12 +325,6 @@ export default function GamingNews({ onExit }) {
         )}
       </div>
 
-      {/* Chat Sidebar */}
-      <NewsChatSidebar
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        headlines={headlines}
-      />
     </div>
   )
 }

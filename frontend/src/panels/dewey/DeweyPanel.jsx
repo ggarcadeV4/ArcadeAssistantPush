@@ -339,6 +339,13 @@ export default function DeweyPanel() {
     }
   }, [])
 
+  // Stop TTS when panel unmounts (prevents audio echo after exit)
+  useEffect(() => {
+    return () => {
+      stopSpeaking()
+    }
+  }, [])
+
   // Add System Message (for notifications)
   const pushMessage = (message) => {
     setMessages(prev => {

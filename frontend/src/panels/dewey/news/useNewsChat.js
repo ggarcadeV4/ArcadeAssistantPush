@@ -57,7 +57,7 @@ export function useNewsChat(headlines = []) {
       }))
 
       const response = await aiChat({
-        provider: 'claude',
+        provider: 'gemini',
         scope: 'state',
         messages: [
           { role: 'system', content: systemPrompt },
