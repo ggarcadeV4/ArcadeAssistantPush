@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
+// v2 — chat sidebar removed (2026-03-07)
 import { getHeadlines, getSources, getTrending } from '../../../services/newsClient'
 import './GamingNews.css'
 
