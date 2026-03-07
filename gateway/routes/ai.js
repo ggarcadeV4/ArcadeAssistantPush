@@ -44,13 +44,25 @@ export default function registerAIRoutes(app) {
       const input = { messages, temperature, max_tokens, timeout_ms, metadata, tools, system };
       let out;
       const startTime = Date.now();
-      if (provider === 'gpt' || provider === 'openai') {
-        out = await openaiChat(input);
-      } else if (provider === 'gemini' || provider === 'google') {
-        out = await geminiChat(input);
-      } else {
-        // Default to anthropic (Claude)
-        out = await anthropicChat(input);
+
+      // Helper to call the right provider
+      const callProvider = async (p, inp) => {
+        if (p === 'gpt' || p === 'openai') return openaiChat(inp);
+        if (p === 'gemini' || p === 'google') return geminiChat(inp);
+        return anthropicChat(inp); // Claude / default
+      };
+
+      try {
+        out = await callProvider(provider, input);
+      } catch (providerErr) {
+        // Auto-fallback to Gemini if primary provider fails
+        if (provider !== 'gemini' && provider !== 'google' && ensureConfigured('gemini')) {
+          console.log(`[AI] Provider ${provider} failed (${providerErr.message}), falling back to Gemini`);
+          provider = 'gemini';
+          out = await callProvider('gemini', input);
+        } else {
+          throw providerErr;
+        }
       }
       const latencyMs = Date.now() - startTime;
 
