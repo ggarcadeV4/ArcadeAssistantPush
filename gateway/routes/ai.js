@@ -11,11 +11,22 @@ export default function registerAIRoutes(app) {
   // Primary unified AI chat endpoint
   app.post('/api/ai/chat', async (req, res) => {
     try {
-      const scope = req.header('x-scope');
-      if (scope !== 'state') throw errors.badRequest('x-scope=state required');
+      // x-scope is preferred but not required (legacy clients may omit it)
+      const scope = req.header('x-scope') || 'state';
 
-      let { provider = env.AI_DEFAULT_PROVIDER, messages, temperature, max_tokens, timeout_ms, metadata, tools, system } = req.body || {};
-      if (!Array.isArray(messages) || messages.length === 0) throw errors.badRequest('messages[] required');
+      let { provider = env.AI_DEFAULT_PROVIDER, messages, message, systemPrompt, temperature, max_tokens, timeout_ms, metadata, tools, system } = req.body || {};
+
+      // Support legacy clients that send { message: "text" } instead of { messages: [...] }
+      if (!Array.isArray(messages) || messages.length === 0) {
+        const singleMsg = message || (typeof req.body?.prompt === 'string' ? req.body.prompt : null);
+        if (singleMsg && typeof singleMsg === 'string') {
+          messages = [{ role: 'user', content: singleMsg }];
+          // Also pick up systemPrompt if system wasn't set
+          if (!system && systemPrompt) system = systemPrompt;
+        } else {
+          throw errors.badRequest('messages[] or message required');
+        }
+      }
 
       // Golden Drive: Auto-fallback to Gemini when Claude/GPT not configured
       // This allows cabinets to use Gemini as primary brain via Supabase secrets
