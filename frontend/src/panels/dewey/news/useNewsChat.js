@@ -21,8 +21,11 @@ export default function useNewsChat(headlines = []) {
 
     // Build system prompt from current headlines
     const buildSystemPrompt = () => {
+        if (!headlines || headlines.length === 0) {
+            return `You are Dewey, a friendly arcade gaming assistant. The user opened the Gaming News chat. No headlines are loaded yet — help them with general gaming news topics, or suggest they wait a moment for headlines to appear on the page.`
+        }
         const topHeadlines = headlines.slice(0, 10).map((h, i) =>
-            `${i + 1}. ${h.title} (${h.source || 'Unknown'}) – ${h.description || ''}`
+            `${i + 1}. ${h.title} (${h.source || 'Unknown'}) – ${h.summary || ''}`
         ).join('\n')
         return `You are Dewey, a friendly arcade gaming assistant. The user is viewing gaming news headlines. Here are the current top headlines:\n\n${topHeadlines}\n\nHelp the user discuss, summarize, or explore these gaming news stories. Be conversational, warm, and knowledgeable about gaming. Keep responses concise but informative.`
     }
