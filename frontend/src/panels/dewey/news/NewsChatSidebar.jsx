@@ -3,7 +3,10 @@ import useNewsChat from './useNewsChat'
 import './NewsChatSidebar.css'
 
 export default function NewsChatSidebar({ headlines, onClose }) {
-    const { messages, input, setInput, loading, sendMessage, scrollRef } = useNewsChat(headlines)
+    const {
+        messages, input, setInput, loading,
+        sendMessage, scrollRef, isRecording, toggleMic
+    } = useNewsChat(headlines)
 
     const handleSubmit = (e) => {
         e.preventDefault()
@@ -24,6 +27,7 @@ export default function NewsChatSidebar({ headlines, onClose }) {
                     <div className="news-chat-empty">
                         <span className="empty-icon">🎮</span>
                         Ask Dewey about today&apos;s gaming news!
+                        <span className="empty-hint">Try: &quot;Summarize the top stories&quot; or &quot;What&apos;s trending?&quot;</span>
                     </div>
                 )}
                 {messages.map((msg, i) => (
@@ -38,12 +42,20 @@ export default function NewsChatSidebar({ headlines, onClose }) {
 
             {/* Input */}
             <form className="news-chat-input-area" onSubmit={handleSubmit}>
+                <button
+                    type="button"
+                    className={`news-chat-mic ${isRecording ? 'recording' : ''}`}
+                    onClick={toggleMic}
+                    title={isRecording ? 'Stop listening' : 'Voice input'}
+                >
+                    {isRecording ? '⏹' : '🎤'}
+                </button>
                 <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about these headlines..."
-                    disabled={loading}
+                    placeholder={isRecording ? 'Listening...' : 'Ask about these headlines...'}
+                    disabled={loading || isRecording}
                     autoFocus
                 />
                 <button type="submit" className="news-chat-send" disabled={loading || !input.trim()}>
