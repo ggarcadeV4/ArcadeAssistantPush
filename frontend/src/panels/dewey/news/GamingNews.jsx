@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
-// v2 — chat sidebar removed (2026-03-07)
+import NewsChatSidebar from './NewsChatSidebar'
 import { getHeadlines, getSources, getTrending } from '../../../services/newsClient'
 import './GamingNews.css'
 
@@ -16,6 +16,7 @@ export default function GamingNews({ onExit }) {
   const [cacheInfo, setCacheInfo] = useState(null)
   const [sourceStats, setSourceStats] = useState({})
   const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [chatOpen, setChatOpen] = useState(false)
 
   // Load headlines on mount and when filters change
   useEffect(() => {
@@ -142,6 +143,9 @@ export default function GamingNews({ onExit }) {
           </div>
         </div>
         <div className="header-actions">
+          <button className="chat-btn" onClick={() => setChatOpen(true)}>
+            💬 Chat with Dewey
+          </button>
           <button className="exit-btn" onClick={onExit}>
             ← Back to Dewey
           </button>
@@ -325,6 +329,12 @@ export default function GamingNews({ onExit }) {
           </div>
         )}
       </div>
+      {chatOpen && (
+        <NewsChatSidebar
+          headlines={headlines}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
 
     </div>
   )
