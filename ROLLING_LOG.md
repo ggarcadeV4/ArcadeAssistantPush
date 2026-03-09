@@ -1,6 +1,114 @@
 # ROLLING LOG — Arcade Assistant
 
-## 2026-03-05 | Chuck RAG KB + Gem Integration + Blocker Fixes + Console Wizard RAG KB
+## 2026-03-08/09 | Dewey Stabilization + LaunchBox LoRa Hardening + Hypseus Migration + Panel Extraction
+
+**Net Progress**: Dewey voice/overlay behavior stabilized. LaunchBox LoRa panel received a full code audit (8,860 lines across 4 layers), followed by a 15-item punch list — all 15 resolved. Panel decomposed from 2,635 lines to 1,966 lines via hook/component extraction. Hypseus migration path implemented for Daphne launchers. Build verified clean throughout.
+
+**Key Wins:**
+- **Dewey Overlay Routing**: Overlay mode now routes directly to Dewey (`/assistants?agent=dewey&mode=overlay`) instead of Home. Singleton behavior in Electron prevents duplicate instances.
+- **F9 Hotkey Hardening**: Debounce + dual trigger paths (Electron global shortcut + backend hotkey WebSocket fallback). Overlay-allowed process detection expanded to include `BigBox.exe` and `LaunchBox.exe`.
+- **Dewey Voice Stability**: Resolved ElevenLabs loop/replay behavior. Microphone interruption now overrides long assistant playback. Responses tuned shorter.
+- **Dewey Handoff UX**: Chip handoff flow supports compact-to-fullscreen transition. Overlay close/exit control flow hardened.
+- **LaunchBox LoRa Full Audit** (conducted by AI-Hub agent): Audited all 4 layers — `LaunchBoxPanel.jsx` (2,635 lines), `launchbox.py` router (3,978 lines, 111 functions), `launcher.py` service (1,587 lines, 3-tier fallback), `launchbox_parser.py` (660 lines). Identified 15 improvement items.
+- **15-Item Punch List — All Complete**:
+  - #1: `LaunchBoxErrorBoundary.jsx` created (39 lines, `getDerivedStateFromError` + Reload button)
+  - #2: Encoding artifacts (`dY"?`) replaced with proper emoji
+  - #3: Dead `mockGames` array removed (~50 lines)
+  - #9: Duplicate `sendMessage`/`sendMessageWithText` merged into single `sendChatMessage(text, {speakResponse})`
+  - #10: `resolveAndLaunch` double-spacing cleaned
+  - #11: `isSupportedPlatform` improved — now rejects `pinball fx` and `flash` platforms
+  - #12: Sort options expanded from 2 to 5 (Title, Year, Platform, Last Played, Most Played)
+  - #13: Visual LoRa state indicator added (status pill: Ready/Listening/Thinking/Launching + lock warning + processing hint)
+  - #14: `displayName` added to `ChatMessage` and `GameCard` memo components
+- **Structural Extraction Pass (Items #4–#8)**:
+  - `hooks/useVoiceRecording.js` (380 lines) — Web Speech API, MediaRecorder, WebSocket, VAD
+  - `hooks/useLaunchLock.js` (45 lines) — localStorage cross-tab lock
+  - `hooks/usePluginHealth.js` (61 lines) — Plugin health check with 30s cache
+  - `components/LoraChatDrawer.jsx` (110 lines) — Sliding chat panel
+  - `components/ShaderPreviewModal.jsx` (57 lines) — Shader diff viewer dialog
+- **Hypseus Migration**: For Daphne/Laserdisc `.ahk` wrappers that call `daphne.exe`, backend now routes to `hypseus.exe` directly. Singe-oriented wrappers remain on AHK path. Verified: BadLands → Hypseus direct, Cliff Hanger HD → AHK/Singe (as intended).
+- **AHK Relaunch Guard**: Cooldown guard added to prevent duplicate-script instance popups on rapid repeat launch.
+
+**Files Created:**
+- `frontend/src/panels/launchbox/LaunchBoxErrorBoundary.jsx` — NEW
+- `frontend/src/panels/launchbox/hooks/useVoiceRecording.js` — NEW
+- `frontend/src/panels/launchbox/hooks/useLaunchLock.js` — NEW
+- `frontend/src/panels/launchbox/hooks/usePluginHealth.js` — NEW
+- `frontend/src/panels/launchbox/components/LoraChatDrawer.jsx` — NEW
+- `frontend/src/panels/launchbox/components/ShaderPreviewModal.jsx` — NEW
+
+**Files Modified:**
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx` — MODIFIED (2,635→1,966 lines, all extractions wired)
+- `frontend/src/panels/launchbox/launchbox.css` — MODIFIED (status pill + input row styles)
+- `frontend/src/panels/dewey/DeweyPanel.jsx` — MODIFIED (voice stability, overlay routing)
+- `frontend/electron/main.cjs` — MODIFIED (F9 hardening, singleton overlay)
+- `backend/routers/hotkey.py` — MODIFIED (WebSocket fallback)
+- `backend/services/hotkey_manager.py` — MODIFIED (idempotent callbacks)
+- `backend/services/activity_guard.py` — MODIFIED (overlay lifecycle)
+- `backend/routers/launchbox.py` — MODIFIED (Hypseus routing, AHK guard)
+- `backend/services/adapters/direct_app_adapter.py` — MODIFIED (Hypseus migration)
+
+**LaunchBox Panel Final Structure:**
+```
+launchbox/
+├── components/
+│   ├── LoraChatDrawer.jsx          (110 lines)
+│   └── ShaderPreviewModal.jsx      (57 lines)
+├── hooks/
+│   ├── useLaunchLock.js            (45 lines)
+│   ├── usePluginHealth.js          (61 lines)
+│   └── useVoiceRecording.js        (380 lines)
+├── LaunchBoxPanel.jsx              (1,966 lines — orchestrator)
+├── LaunchBoxErrorBoundary.jsx      (39 lines)
+├── launchbox.css                   (2,087 lines)
+└── ContentDisplayManager.jsx
+```
+
+**State of Union — What's Next (Priority Order):**
+1. ⚡ **Validate F9 overlay** — End-to-end test inside true Big Box fullscreen on basement hardware
+2. ⚡ **Hypseus smoke test** — Confirm Daphne titles launch correctly via Hypseus on real hardware
+3. 🔶 **LED Blinky depth pass** — Primary queued panel work
+4. 🔶 **Gunner logic audit** — Pending after LED Blinky
+5. 🔶 **Doc telemetry expansion** — System health panel enrichment
+6. 🌱 **LaunchBox LoRa visual polish** — Icon/readability consistency pass
+
+---
+
+## 2026-03-07 | Dewey Chat Sidebar + Gateway AI Fallback + Jules Integration
+
+**Net Progress**: Integrated Jules's Dewey fixes (chat button removal + TTS echo cleanup). Discovered persistent browser caching issue that prevents new frontend builds from loading. Rebuilt a complete News Chat sidebar stack (Gemini-backed). Made gateway `/api/ai/chat` lenient for legacy clients and added auto-fallback from Claude to Gemini when provider fails at runtime.
+
+**Key Wins:**
+- **Jules Cherry-pick** (`6a93660` → `817e8e7`): Merged Jules's "Remove Chat with Dewey button and fix TTS echo on exit" commit. Deleted 3 dead files (`NewsChatSidebar.jsx`, `.css`, `useNewsChat.js`), cleaned `DeweyPanel.jsx` and `GamingNews.css`. 894 lines removed.
+- **News Chat Sidebar V2** (`6a303ec`): Rebuilt complete chat stack — `useNewsChat.js` (Gemini via `/api/ai/chat`, Web Speech API mic, auto-send), `NewsChatSidebar.jsx` (slide-in panel), `NewsChatSidebar.css` (dark theme + indigo accents). Wired into `GamingNews.jsx` with `chatOpen` state and `.chat-btn` CSS.
+- **Gateway API Shim** (`a3a44f9`): Made `/api/ai/chat` in `gateway/routes/ai.js` lenient — `x-scope` header optional, accepts both `message` (string) and `messages[]` (array), picks up `systemPrompt` as fallback for `system`.
+- **Auto-Fallback to Gemini** (`22e7f09`): Provider dispatch now wrapped in try-catch. If Claude/GPT fails at runtime (e.g., model 404), auto-retries with Gemini. This protects every panel's chat from provider outages.
+- **Field Name Fix** (`5a97547`): News chat system prompt fixed from `.description` to `.summary` (matching actual headline object shape from RSS feeds).
+
+**Struggles & Unresolved:**
+- **🔴 Gateway Serves Stale `index.html`**: The #1 blocker. Despite deleting `dist/`, rebuilding with new content hashes, and restarting the gateway, the browser loads OLD JavaScript bundles. The disk has `index-528fec9f.js` → `Assistants-81fd34ca.js` but the browser loads `index-77e85326.js` → `Assistants-4d0f57a2.js`. Clearing browser cache, incognito, and different browsers did NOT fix it. Root cause is likely in how `express.static()` serves or caches `index.html` in `gateway/server.js`.
+- **Cached Claude Request**: The old cached frontend sends `provider: "claude"` but `claude-3-5-haiku-20241022` returns 404. Gateway fallback to Gemini was added but could not be verified end-to-end due to the stale `index.html` issue above.
+
+**Files Created:**
+- `frontend/src/panels/dewey/news/useNewsChat.js` — NEW (Gemini chat hook + Web Speech mic)
+- `frontend/src/panels/dewey/news/NewsChatSidebar.jsx` — NEW (slide-in chat panel)
+- `frontend/src/panels/dewey/news/NewsChatSidebar.css` — NEW (dark theme styling)
+
+**Files Modified:**
+- `gateway/routes/ai.js` — MODIFIED (lenient params, auto-fallback to Gemini)
+- `frontend/src/panels/dewey/news/GamingNews.jsx` — MODIFIED (chat button + sidebar wiring)
+- `frontend/src/panels/dewey/news/GamingNews.css` — MODIFIED (`.chat-btn` styles)
+- `frontend/src/panels/dewey/DeweyPanel.jsx` — MODIFIED (TTS cleanup on unmount via Jules)
+
+**Commits**: `817e8e7` (Jules cherry-pick) → `6a303ec` (news chat V2) → `6171861` (API fix + mic) → `5a97547` (.summary fix) → `a3a44f9` (lenient API) → `22e7f09` (Gemini fallback)
+
+**State of Union — What's Next (Priority Order):**
+1. 🔴 **Gateway stale `index.html` investigation** — Inspect `express.static()` config in `gateway/server.js`. Determine why the gateway serves an old `index.html` after rebuild + restart. This blocks ALL frontend changes.
+2. 🟡 **Verify TTS echo fix** — Once browser loads new code, confirm `speechSynthesis.cancel()` fires on Dewey unmount.
+3. 🟡 **Verify News Chat works end-to-end** — Once new JS loads, confirm Gemini responds with headline context.
+4. 🟡 **Verify Gemini auto-fallback** — Test that old cached clients get real responses via the fallback path.
+
+---
 
 **Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic). Built Console Wizard RAG knowledge base (`wiz_knowledge.md` → 500+ lines, 16 sections) focused on customer-facing "wow" fix flows. Enhanced Wiz prompt with Rapid Fix Protocol and customer-first rules. Built **LED Priority Arbiter** — circuit breaker preventing LED state conflicts between game animations and Vicky voice commands.
 

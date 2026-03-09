@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { getHeadlines, getSources, getTrending } from '../../../services/newsClient'
+import { stopSpeaking } from '../../../services/ttsClient'
 import NewsChatSidebar from './NewsChatSidebar'
 import './GamingNews.css'
 
@@ -122,6 +123,18 @@ export default function GamingNews({ onExit }) {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  const handleExit = () => {
+    stopSpeaking()
+    setChatOpen(false)
+    onExit()
+  }
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking()
+    }
+  }, [])
+
   return (
     <div className="gaming-news-wrapper">
       {/* Header */}
@@ -146,7 +159,7 @@ export default function GamingNews({ onExit }) {
           <button className="chat-btn" onClick={() => setChatOpen(true)}>
             💬 Chat with Dewey
           </button>
-          <button className="exit-btn" onClick={onExit}>
+          <button className="exit-btn" onClick={handleExit}>
             ← Back to Dewey
           </button>
         </div>

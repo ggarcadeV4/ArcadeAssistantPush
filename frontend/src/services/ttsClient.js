@@ -4,13 +4,18 @@
  */
 
 const TTS_ENDPOINT = '/api/voice/tts'
+const TTS_DUPLICATE_SUPPRESS_MS = 7000
 
 // Force module inclusion
 console.log('[TTS Client] Module loaded')
 
 // Track currently playing audio so we can stop it
 let currentAudio = null
+let currentAudioCancel = null
 let fallbackUtterance = null
+let fallbackCancel = null
+let lastSpokenText = ''
+let lastSpokenAtMs = 0
 
 /**
  * Signal speaking mode to backend (fire-and-forget, non-blocking)
@@ -26,32 +31,97 @@ function signalSpeakingMode(enabled) {
   })
 }
 
+function dedupeLeadingSentence(text) {
+  const normalized = (text || '').trim()
+  if (!normalized) return ''
+  const repeat = normalized.match(/^([^.!?]{4,180}[.!?])(?:\s+\1)+\s*/i)
+  if (!repeat) return normalized
+  const tail = normalized.slice(repeat[0].length).trim()
+  return [repeat[1], tail].filter(Boolean).join(' ')
+}
+
+function trimDeweyFiller(text) {
+  let out = (text || '').trim()
+  if (!out) return out
+
+  // Remove common over-polite lead-ins that make users feel talked over.
+  const fillerPatterns = [
+    /^that's a great question[!.:\-\s]*/i,
+    /^great question[!.:\-\s]*/i,
+    /^excellent question[!.:\-\s]*/i,
+    /^good question[!.:\-\s]*/i,
+    /^absolutely[!.:\-\s]*/i,
+    /^sure[!.:\-\s]*/i,
+    /^well[,!\-\s]*/i
+  ]
+
+  for (const re of fillerPatterns) {
+    out = out.replace(re, '').trim()
+  }
+
+  // If we trimmed too aggressively, keep original.
+  return out || text.trim()
+}
+
+function normalizeSpeechText(text, { trimFiller = false } = {}) {
+  let out = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!out) return ''
+  out = dedupeLeadingSentence(out)
+  if (trimFiller) {
+    out = trimDeweyFiller(out)
+  }
+  return out
+}
+
+function isRapidDuplicateSpeech(text, windowMs = TTS_DUPLICATE_SUPPRESS_MS) {
+  const now = Date.now()
+  if (!text) return false
+  const duplicate = lastSpokenText === text && (now - lastSpokenAtMs) < windowMs
+  lastSpokenText = text
+  lastSpokenAtMs = now
+  return duplicate
+}
+
 /**
- * Stop any currently playing TTS audio
- * Uses try-catch to prevent any errors from bubbling up
+ * Stop any currently playing TTS audio.
  */
 export function stopSpeaking() {
+  try {
+    if (typeof currentAudioCancel === 'function') {
+      currentAudioCancel()
+    }
+  } catch (err) {
+    console.warn('[TTS] Error while cancelling active audio promise:', err)
+  } finally {
+    currentAudioCancel = null
+  }
+
   if (currentAudio) {
     console.log('[TTS] Stopping current audio playback')
     signalSpeakingMode(false)
     try {
-      // Store reference and clear immediately to prevent race conditions
       const audio = currentAudio
       currentAudio = null
-
-      // Only manipulate audio if it's in a valid state
       if (audio.readyState > 0) {
         audio.pause()
-        // Only seek if not already at start (avoids potential Windows audio driver issues)
         if (audio.currentTime > 0) {
           audio.currentTime = 0
         }
       }
     } catch (err) {
       console.warn('[TTS] Error while stopping audio (non-fatal):', err)
-      // Ensure currentAudio is cleared even if there was an error
       currentAudio = null
     }
+  }
+
+  try {
+    if (typeof fallbackCancel === 'function') {
+      fallbackCancel()
+    }
+  } catch (err) {
+    console.warn('[TTS] Error while cancelling browser speech promise:', err)
+  } finally {
+    fallbackCancel = null
   }
 
   if (fallbackUtterance && typeof window !== 'undefined' && window.speechSynthesis) {
@@ -66,11 +136,16 @@ export function stopSpeaking() {
 }
 
 /**
- * Check if TTS is currently speaking
+ * Check if TTS is currently speaking.
  * @returns {boolean}
  */
 export function isSpeaking() {
-  return currentAudio !== null && !currentAudio.paused
+  const audioSpeaking = currentAudio !== null && !currentAudio.paused
+  const browserSpeaking = typeof window !== 'undefined' &&
+    !!fallbackUtterance &&
+    !!window.speechSynthesis &&
+    window.speechSynthesis.speaking
+  return audioSpeaking || browserSpeaking
 }
 
 /**
@@ -80,24 +155,41 @@ export function isSpeaking() {
  * @param {string} options.voice_profile - Named voice profile (e.g., 'lora', 'adam')
  * @param {string} options.voice_id - Direct ElevenLabs voice ID (overrides profile)
  * @param {string} options.model_id - ElevenLabs model ID
- * @returns {Promise<void>} - Resolves when audio playback COMPLETES
+ * @param {number} options.maxDurationMs - Optional hard timeout for speech playback
+ * @param {boolean} options.trimFiller - Optional lead-in trimming for concise delivery
+ * @param {boolean} options.allowRapidRepeat - Allow repeated identical speech inside suppression window
+ * @returns {Promise<void>} - Resolves when playback completes or is stopped
  */
 export async function speak(text, options = {}) {
-  // Stop any currently playing audio before starting new one
   stopSpeaking()
-  if (!text || typeof text !== 'string') {
-    console.warn('[TTS] No text provided')
-    return
-  }
 
-  const { voice_profile, voice_id, model_id } = options
-
-  console.log('[TTS] Speaking:', {
-    text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+  const {
     voice_profile,
     voice_id,
     model_id,
-    textLength: text.length
+    maxDurationMs,
+    trimFiller = false,
+    allowRapidRepeat = false
+  } = options
+
+  const speechText = normalizeSpeechText(text, { trimFiller })
+  if (!speechText) {
+    console.warn('[TTS] No text provided after normalization')
+    return
+  }
+
+  if (!allowRapidRepeat && isRapidDuplicateSpeech(speechText)) {
+    console.warn('[TTS] Suppressing rapid duplicate speech playback')
+    return
+  }
+
+  console.log('[TTS] Speaking:', {
+    text: speechText.substring(0, 50) + (speechText.length > 50 ? '...' : ''),
+    voice_profile,
+    voice_id,
+    model_id,
+    textLength: speechText.length,
+    maxDurationMs: maxDurationMs || null
   })
 
   try {
@@ -109,7 +201,7 @@ export async function speak(text, options = {}) {
         'x-device-id': getDeviceId()
       },
       body: JSON.stringify({
-        text,
+        text: speechText,
         voice_profile,
         voice_id,
         model_id
@@ -119,8 +211,11 @@ export async function speak(text, options = {}) {
     console.log('[TTS] Response status:', response.status, 'Content-Type:', response.headers.get('content-type'))
 
     if (response.status === 501) {
-      console.warn('[TTS] TTS not configured (missing ElevenLabs API key) - falling back to browser speech if available')
-      return speakWithBrowserVoice(text, { voice_profile: voice_profile || voice_id })
+      console.warn('[TTS] TTS not configured; falling back to browser speech if available')
+      return speakWithBrowserVoice(speechText, {
+        voice_profile: voice_profile || voice_id,
+        maxDurationMs
+      })
     }
 
     if (response.status === 429) {
@@ -132,13 +227,12 @@ export async function speak(text, options = {}) {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Unknown error' }))
       console.error('[TTS] Error:', error)
-      return speakWithBrowserVoice(text, { voice_profile: voice_profile || voice_id })
+      return speakWithBrowserVoice(speechText, {
+        voice_profile: voice_profile || voice_id,
+        maxDurationMs
+      })
     }
 
-    // ── Stream audio playback ────────────────────────────────────
-    // Instead of waiting for the full blob, we pipe the response
-    // stream into a blob URL and let the browser start decoding
-    // audio while chunks are still arriving.
     const audioBlob = await response.blob()
     console.log('[TTS] Audio received:', audioBlob.size, 'bytes, type:', audioBlob.type)
 
@@ -149,35 +243,67 @@ export async function speak(text, options = {}) {
 
     const audioUrl = URL.createObjectURL(audioBlob)
     const audio = new Audio()
-    currentAudio = audio  // Track so we can stop it
+    currentAudio = audio
 
-    // Start playing as soon as enough data is buffered (canplay)
-    // instead of waiting for full download (canplaythrough)
     audio.preload = 'auto'
+    audio.loop = false
     audio.src = audioUrl
 
-    // Return a promise that resolves when audio playback COMPLETES
     return new Promise((resolve, reject) => {
-      // Signal speaking mode when audio starts playing
+      let settled = false
+      let forceStopTimer = null
+      let playRequested = false
+
+      const cleanup = () => {
+        if (forceStopTimer) {
+          clearTimeout(forceStopTimer)
+          forceStopTimer = null
+        }
+        try { URL.revokeObjectURL(audioUrl) } catch {}
+        if (currentAudio === audio) {
+          currentAudio = null
+        }
+        if (currentAudioCancel) {
+          currentAudioCancel = null
+        }
+      }
+
+      const settle = (type, payload) => {
+        if (settled) return
+        settled = true
+        signalSpeakingMode(false)
+        cleanup()
+        if (type === 'reject') {
+          reject(payload)
+        } else {
+          resolve(payload)
+        }
+      }
+
+      currentAudioCancel = () => {
+        try {
+          if (audio.readyState > 0) {
+            audio.pause()
+            if (audio.currentTime > 0) {
+              audio.currentTime = 0
+            }
+          }
+        } catch {}
+        settle('resolve')
+      }
+
       audio.onplaying = () => {
         console.log('[TTS] Audio playing')
         signalSpeakingMode(true)
       }
 
-      // Clean up URL after playing
       audio.onended = () => {
         console.log('[TTS] Audio playback completed')
-        signalSpeakingMode(false)
-        URL.revokeObjectURL(audioUrl)
-        if (currentAudio === audio) {
-          currentAudio = null
-        }
-        resolve() // Resolve when audio finishes
+        settle('resolve')
       }
 
       audio.onerror = (err) => {
         console.error('[TTS] Audio playback error:', err)
-        signalSpeakingMode(false)
         console.error('[TTS] Audio error details:', {
           code: audio.error?.code,
           message: audio.error?.message,
@@ -186,35 +312,47 @@ export async function speak(text, options = {}) {
           MEDIA_ERR_DECODE: audio.error?.code === 3,
           MEDIA_ERR_SRC_NOT_SUPPORTED: audio.error?.code === 4
         })
-        URL.revokeObjectURL(audioUrl)
-        if (currentAudio === audio) {
-          currentAudio = null
-        }
-        reject(new Error('Audio playback failed'))
+        settle('reject', new Error('Audio playback failed'))
       }
 
-      // Play as soon as the browser has enough data to start
+      if (Number.isFinite(maxDurationMs) && maxDurationMs > 0) {
+        forceStopTimer = setTimeout(() => {
+          console.warn('[TTS] Max playback duration reached; stopping speech')
+          if (typeof currentAudioCancel === 'function') {
+            currentAudioCancel()
+          }
+        }, maxDurationMs)
+      }
+
       audio.oncanplay = () => {
+        if (playRequested || settled) return
+        playRequested = true
+        audio.oncanplay = null
+
         audio.play()
           .then(() => {
             console.log('[TTS] Audio.play() started')
           })
           .catch((playError) => {
             console.error('[TTS] Audio.play() failed:', playError)
-            console.error('[TTS] This may be due to browser autoplay policy. User interaction required.')
-            // Try to play with volume set explicitly
             audio.volume = 1.0
             audio.play()
               .then(() => {
                 console.log('[TTS] Retry with volume=1.0 succeeded')
               })
+              .catch((retryError) => {
+                settle('reject', retryError)
+              })
           })
       }
-    }) // close Promise
+    })
 
   } catch (error) {
     console.error('[TTS] Request error:', error)
-    const fallback = speakWithBrowserVoice(text, { voice_profile: options.voice_profile || options.voice_id })
+    const fallback = speakWithBrowserVoice(speechText, {
+      voice_profile: options.voice_profile || options.voice_id,
+      maxDurationMs
+    })
     if (fallback) return fallback
     throw error
   }
@@ -249,7 +387,7 @@ function pickBrowserVoice(voices, hint) {
     voices[0]
 }
 
-function speakWithBrowserVoice(text, { voice_profile } = {}) {
+function speakWithBrowserVoice(text, { voice_profile, maxDurationMs } = {}) {
   if (!text || !canUseBrowserSpeech()) {
     return null
   }
@@ -266,7 +404,31 @@ function speakWithBrowserVoice(text, { voice_profile } = {}) {
     utterance.pitch = 1
 
     return new Promise((resolve, reject) => {
+      let settled = false
+      let forceStopTimer = null
+
+      const settle = (type, payload) => {
+        if (settled) return
+        settled = true
+        signalSpeakingMode(false)
+        if (forceStopTimer) {
+          clearTimeout(forceStopTimer)
+          forceStopTimer = null
+        }
+        fallbackUtterance = null
+        fallbackCancel = null
+        if (type === 'reject') {
+          reject(payload)
+        } else {
+          resolve(payload)
+        }
+      }
+
       fallbackUtterance = utterance
+      fallbackCancel = () => {
+        try { synth.cancel() } catch {}
+        settle('resolve')
+      }
 
       utterance.onstart = () => {
         console.log('[TTS] Browser speech started - signaling speaking mode ON')
@@ -275,15 +437,21 @@ function speakWithBrowserVoice(text, { voice_profile } = {}) {
 
       utterance.onend = () => {
         console.log('[TTS] Browser speech ended - signaling speaking mode OFF')
-        signalSpeakingMode(false)
-        fallbackUtterance = null
-        resolve()
+        settle('resolve')
       }
+
       utterance.onerror = (err) => {
         console.error('[TTS] Browser speech synthesis failed:', err)
-        signalSpeakingMode(false)
-        fallbackUtterance = null
-        reject(err.error || err)
+        settle('reject', err.error || err)
+      }
+
+      if (Number.isFinite(maxDurationMs) && maxDurationMs > 0) {
+        forceStopTimer = setTimeout(() => {
+          console.warn('[TTS] Browser speech max duration reached; stopping')
+          if (typeof fallbackCancel === 'function') {
+            fallbackCancel()
+          }
+        }, maxDurationMs)
       }
 
       try {
@@ -291,6 +459,7 @@ function speakWithBrowserVoice(text, { voice_profile } = {}) {
         synth.speak(utterance)
       } catch (err) {
         fallbackUtterance = null
+        fallbackCancel = null
         reject(err)
       }
     })
@@ -329,7 +498,10 @@ export function speakAsDoc(text) {
  * @param {string} text - Text to speak
  */
 export function speakAsDewey(text) {
-  return speak(text, { voice_id: 'bVMeCyTHy58xNoL34h3p' })
+  return speak(text, {
+    voice_id: 'bVMeCyTHy58xNoL34h3p',
+    trimFiller: true
+  })
 }
 
 /**

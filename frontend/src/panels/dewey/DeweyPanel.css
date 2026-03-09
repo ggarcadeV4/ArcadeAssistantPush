@@ -1,5 +1,5 @@
 /* ============================================================
-   Dewey: Arcade Historian — Gallery Canvas
+   Dewey: Arcade Historian - Gallery Canvas
    Scoped under .dewey-historian to avoid global collisions.
    ============================================================ */
 
@@ -170,7 +170,7 @@
 
 /* Custom dropdown arrow */
 .dewey-historian .dh-profile-select-wrap::after {
-  content: '▾';
+  content: 'v';
   position: absolute;
   right: 10px;
   bottom: 5px;
@@ -979,7 +979,7 @@
   }
 }
 
-/* Idle state — gentle pulse */
+/* Idle state - gentle pulse */
 .dewey-historian .dh-input-left .dh-eq-icon {
   color: rgba(0, 242, 255, 0.6);
   animation: dh-pulse 2s infinite;
@@ -1047,6 +1047,53 @@
   color: rgba(57, 255, 20, 0.8);
 }
 
+.dewey-historian .dh-status-pill.speaking {
+  border-color: rgba(0, 242, 255, 0.5);
+  background: rgba(0, 242, 255, 0.12);
+}
+
+.dewey-historian .dh-status-dot.speaking {
+  background: var(--dh-primary);
+  animation: dh-pulse 1s infinite;
+  box-shadow: 0 0 10px rgba(0, 242, 255, 0.9);
+}
+
+.dewey-historian .dh-status-label.speaking {
+  color: rgba(0, 242, 255, 0.95);
+}
+
+.dewey-historian .dh-stop-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 242, 255, 0.3);
+  background: rgba(10, 24, 42, 0.6);
+  color: rgba(0, 242, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.dewey-historian .dh-stop-btn.visible {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.dewey-historian .dh-stop-btn:hover:not(:disabled) {
+  border-color: rgba(0, 242, 255, 0.65);
+  color: var(--dh-primary);
+}
+
+.dewey-historian .dh-stop-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .dewey-historian .dh-send-btn {
   width: 48px;
   height: 48px;

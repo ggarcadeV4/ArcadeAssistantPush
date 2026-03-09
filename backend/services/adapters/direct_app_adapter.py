@@ -11,13 +11,13 @@ Supports:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, Tuple
 import platform
 import re
 import os
 import shutil
+import shlex
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.constants.drive_root import get_drive_root
@@ -33,7 +33,7 @@ def _norm_path(p: str) -> Path:
         return Path("")
     s = p.replace("\\", "/")
     if _is_wsl():
-        # A:/ → /mnt/a/, generic X:/ → /mnt/x/
+        # A:/ -> /mnt/a/, generic X:/ -> /mnt/x/
         s = s.replace("A:/", "/mnt/a/")
         m = re.match(r"^([A-Za-z]):/(.*)$", s)
         if m:
@@ -60,8 +60,7 @@ def _extract_teknoparrot_profile_from_ahk(ahk_path: Path) -> Optional[str]:
         for line in content.split("\n"):
             line = line.strip()
             if "TeknoParrotUi.exe" in line and "--profile=" in line:
-                # Extract profile name
-                match = re.search(r'--profile=([^\s]+)', line)
+                match = re.search(r"--profile=([^\s]+)", line)
                 if match:
                     return match.group(1)
     except Exception:
@@ -89,24 +88,113 @@ def _get_teknoparrot_exe_from_manifest(manifest: Optional[Dict[str, Any]]) -> Op
     return None
 
 
+def _extract_run_target_from_ahk(ahk_path: Path) -> Tuple[Optional[str], Optional[list[str]]]:
+    """Extract executable/command target and argument tokens from the first Run line."""
+    try:
+        content = ahk_path.read_text(encoding="utf-8-sig")
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            lower = line.lower()
+            if not (lower.startswith("run,") or lower.startswith("runwait,")):
+                continue
+
+            parts = line.split(",", 1)
+            if len(parts) < 2:
+                continue
+
+            command_text = parts[1].strip()
+            # AHK Run syntax allows extra fields separated by commas. Keep command field only.
+            if "," in command_text:
+                command_text = command_text.split(",", 1)[0].strip()
+            if not command_text:
+                continue
+
+            try:
+                tokens = shlex.split(command_text, posix=False)
+            except Exception:
+                tokens = command_text.split()
+            if not tokens:
+                continue
+
+            target = tokens[0].strip().strip('"')
+            args = [tok.strip() for tok in tokens[1:]]
+            return target, args
+    except Exception:
+        pass
+    return None, None
+
+
+def _get_hypseus_exe_from_manifest(manifest: Optional[Dict[str, Any]]) -> Optional[Path]:
+    """Find hypseus executable from manifest, then standard fallback locations."""
+    if manifest and isinstance(manifest, dict):
+        try:
+            emus = manifest.get("emulators") or {}
+            if isinstance(emus, dict):
+                cfg = emus.get("hypseus")
+                if isinstance(cfg, dict):
+                    exe_path = cfg.get("exe")
+                    if exe_path:
+                        p = _norm_path(str(exe_path))
+                        if p.exists():
+                            return p
+        except Exception:
+            pass
+
+    candidates = [
+        LaunchBoxPaths.EMULATORS_ROOT / "Hypseus" / "hypseus.exe",
+        LaunchBoxPaths.EMULATORS_ROOT / "Hypseus" / "Hypseus Singe" / "hypseus.exe",
+        LaunchBoxPaths.EMULATORS_ROOT / "Hypseus Singe" / "hypseus.exe",
+        LaunchBoxPaths.EMULATORS_ROOT / "Daphne" / "hypseus.exe",
+        LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "Hypseus" / "hypseus.exe",
+        LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "Hypseus" / "Hypseus Singe" / "hypseus.exe",
+        LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "Hypseus Singe" / "hypseus.exe",
+    ]
+    for candidate in candidates:
+        p = _norm_path(str(candidate))
+        if p.exists():
+            return p
+    return None
+
+
+def _rewrite_framefile_arg(args: list[str], script_dir: Path) -> list[str]:
+    """Convert relative -framefile argument to an absolute path."""
+    rewritten = list(args)
+    for idx, token in enumerate(rewritten):
+        low = token.lower()
+        if low == "-framefile" and idx + 1 < len(rewritten):
+            frame_val = rewritten[idx + 1].strip().strip('"')
+            frame_path = Path(frame_val.replace("\\", "/"))
+            if not frame_path.is_absolute():
+                frame_path = (script_dir / frame_path).resolve()
+            rewritten[idx + 1] = str(_norm_path(str(frame_path)))
+            return rewritten
+        if low.startswith("-framefile="):
+            frame_val = token.split("=", 1)[1].strip().strip('"')
+            frame_path = Path(frame_val.replace("\\", "/"))
+            if not frame_path.is_absolute():
+                frame_path = (script_dir / frame_path).resolve()
+            rewritten[idx] = f"-framefile={_norm_path(str(frame_path))}"
+            return rewritten
+    return rewritten
+
+
 def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
     """Check if game has ApplicationPath configured in LaunchBox.
 
     This adapter handles games that use custom launch scripts or standalone executables.
     Supports: Taito Type X, Daphne, American Laser Games
     """
-    # Only handle if game has an ApplicationPath
     app_path = _get(game, "application_path")
     if not app_path:
         return False
 
-    # Only handle when ApplicationPath points to a script/launcher we can execute directly
     ext = Path(app_path).suffix.lower()
     allowed_exts = {".ahk", ".exe", ".bat", ".cmd", ".lnk"}
     if ext not in allowed_exts:
         return False
 
-    # Handle platforms that use AHK scripts or custom launchers
     platform_name = (_get(game, "platform") or "").strip().lower()
     supported_platforms = [
         "taito type x",
@@ -116,13 +204,12 @@ def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
         "windows",
         "windows games",
         "ms-dos",
-        "dos"
+        "dos",
     ]
 
     if platform_name in supported_platforms:
         return True
 
-    # Also handle any game with .exe ApplicationPath (standalone PC games)
     if ext == ".exe":
         return True
 
@@ -138,52 +225,54 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     if not app_path:
         return {}
 
-    # ApplicationPath in LaunchBox XML is relative to LaunchBox root
-    # Format: ..\Roms\TTX\_AHK Gamepad\Akai Katana Shin.ahk
-    # The ".." means go up from LaunchBox root, not from Data/Platforms
-
-    # Normalize backslashes to forward slashes for cross-platform compatibility
     app_path = app_path.replace("\\", "/")
 
-    # Resolve relative path against LaunchBox root (not Data/Platforms)
     launchbox_root = LaunchBoxPaths.LAUNCHBOX_ROOT
     resolved_path = (launchbox_root / app_path).resolve()
 
-    # Normalize for WSL/Windows
     normalized_path = _norm_path(str(resolved_path))
 
     if not normalized_path.exists():
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"ApplicationPath not found: {normalized_path}")
         return {}
 
-    # Determine how to launch based on file extension
     ext = normalized_path.suffix.lower()
 
     if ext == ".ahk":
-        # Special handling for TeknoParrot AHK scripts
-        # Parse the script to extract the profile name and launch directly
-        # This avoids issues with hardcoded paths in AHK scripts
         profile_name = _extract_teknoparrot_profile_from_ahk(normalized_path)
         if profile_name:
-            # Launch TeknoParrot directly with the profile
             tp_exe = _get_teknoparrot_exe_from_manifest(manifest)
             if tp_exe and tp_exe.exists():
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.info(f"Bypassing AHK script, launching TeknoParrot directly with profile: {profile_name}")
 
-                # Use cmd.exe to handle the launch
                 cmd_exe = Path(os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe"))
                 return {
                     "exe": str(_norm_path(str(cmd_exe))),
                     "args": ["/c", "start", "/D", f'"{tp_exe.parent}"', '""', f'"{tp_exe}"', "-run", f"--profile={profile_name}"],
-                    "cwd": str(_norm_path(str(tp_exe.parent)))
+                    "cwd": str(_norm_path(str(tp_exe.parent))),
                 }
 
-        # Fall back to launching AHK script directly if profile extraction fails
-        # Drive-letter agnostic: try AHK_PATH env, shutil.which, then Tools folder
+        platform_name = (_get(game, "platform") or "").strip().lower()
+        if platform_name in {"daphne", "hypseus", "laserdisc"}:
+            run_target, run_args = _extract_run_target_from_ahk(normalized_path)
+            if run_target and run_args is not None:
+                target_name = Path(run_target).name.lower()
+                if target_name in {"daphne.exe", "daphne"}:
+                    hypseus_exe = _get_hypseus_exe_from_manifest(manifest)
+                    if hypseus_exe and hypseus_exe.exists():
+                        return {
+                            "exe": str(_norm_path(str(hypseus_exe))),
+                            "args": _rewrite_framefile_arg(run_args, normalized_path.parent),
+                            # Match AHK SetWorkingDir %A_ScriptDir% behavior.
+                            "cwd": str(normalized_path.parent),
+                        }
+
         ahk_exe = None
         ahk_env = os.environ.get("AHK_PATH")
         if ahk_env and Path(ahk_env).exists():
@@ -193,14 +282,11 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
             if ahk_which:
                 ahk_exe = Path(ahk_which)
         if not ahk_exe:
-            # Try drive letter root Tools folder (A:\Tools, not project folder)
             drive_root = get_drive_root(allow_cwd_fallback=True)
-            # Extract drive letter root (e.g., A:\ from A:\Arcade Assistant Local)
             if drive_root.drive:
                 drive_letter_root = Path(drive_root.drive + "\\")
             else:
                 drive_letter_root = drive_root
-            # Check multiple possible AHK locations
             ahk_candidates = [
                 drive_letter_root / "Tools" / "AutoHotkey" / "AutoHotkey.exe",
                 drive_letter_root / "Tools" / "AutoHotkey" / "AutoHotkeyU64.exe",
@@ -216,39 +302,35 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
                 "error": "AutoHotkey not found. Set AHK_PATH env var or install AutoHotkey.",
                 "exe": None,
                 "args": [],
-                "cwd": str(normalized_path.parent)
+                "cwd": str(normalized_path.parent),
             }
 
         return {
             "exe": str(_norm_path(str(ahk_exe))),
             "args": [str(normalized_path)],
-            "cwd": str(normalized_path.parent)
+            "cwd": str(normalized_path.parent),
         }
 
-    elif ext == ".exe":
-        # Direct executable
+    if ext == ".exe":
         return {
             "exe": str(normalized_path),
             "args": [],
-            "cwd": str(normalized_path.parent)
+            "cwd": str(normalized_path.parent),
         }
 
-    elif ext in [".bat", ".cmd"]:
-        # Batch file - run via cmd.exe
+    if ext in [".bat", ".cmd"]:
         cmd_exe = Path(os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe"))
         return {
             "exe": str(_norm_path(str(cmd_exe))),
             "args": ["/c", str(normalized_path)],
-            "cwd": str(normalized_path.parent)
+            "cwd": str(normalized_path.parent),
         }
 
-    else:
-        # Unknown extension - try launching directly
-        return {
-            "exe": str(normalized_path),
-            "args": [],
-            "cwd": str(normalized_path.parent)
-        }
+    return {
+        "exe": str(normalized_path),
+        "args": [],
+        "cwd": str(normalized_path.parent),
+    }
 
 
 def launch(game: Any, manifest: Dict[str, Any], runner) -> Dict[str, Any]:

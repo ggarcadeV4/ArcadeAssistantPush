@@ -540,8 +540,20 @@ async function handleLoRaChat(req, res) {
           const resolved = resolveData.game;
           const resolvedNorm = normalizeTitleForMatch(resolved.title);
 
-          // Only auto-launch on a clear exact match (protect against wrong-title launches)
-          if (resolveData.source === 'cache_exact' || requestedNorm === resolvedNorm) {
+          // Auto-launch when resolver indicates a deterministic/safe match.
+          const trustedResolveSources = new Set([
+            'cache_exact',
+            'cache_fuzzy_strict_title',
+            'cache_fuzzy_score_leader',
+            'cache_fuzzy_canonical_default'
+          ]);
+          const confidence = Number(resolved.confidence || 0);
+          const shouldAutoLaunch =
+            trustedResolveSources.has(resolveData.source) ||
+            requestedNorm === resolvedNorm ||
+            confidence >= 0.97;
+
+          if (shouldAutoLaunch) {
             const launchResp = await fetch(`${backendUrl}/api/launchbox/launch/${resolved.id}`, {
               method: 'POST',
               headers: {
@@ -607,33 +619,52 @@ async function handleLoRaChat(req, res) {
         if (resolveData && resolveData.status === 'platform_disambiguation') {
           sess.chatState = 'PENDING_SELECTION';
 
-          // Flatten all suggestions into a numbered list for selection
+          // Flatten all suggestions into a numbered list for selection, dedupe, and cap display length.
+          const dedupe = new Set();
           const allOptions = [];
           for (const group of resolveData.suggestions || []) {
             for (const game of group.games || []) {
-              allOptions.push({
+              const option = {
                 ...game,
                 platform: group.platform
-              });
+              };
+              const key = `${normalizeTitleForMatch(option.title || '')}::${(option.platform || '').toLowerCase()}::${option.year || ''}`;
+              if (dedupe.has(key)) continue;
+              dedupe.add(key);
+              allOptions.push(option);
             }
           }
 
+          const shownOptions = allOptions.slice(0, 8);
           sess.pendingLaunch = {
             requestedTitle: gameName,
-            candidates: allOptions,
+            candidates: shownOptions,
             originalCandidates: allOptions,
             createdAt: Date.now()
           };
 
+          if (shownOptions.length === 0) {
+            return res.json({
+              success: true,
+              response: `I could not find a confident match for "${gameName}" on ${resolveData.requested_platform}. Try adding platform or year.`,
+              rounds: 0,
+              game_launched: false
+            });
+          }
+
           // Format the clarifying question
           const platformList = (resolveData.available_on || []).join(', ');
-          let optionText = allOptions
-            .map((g, idx) => `${idx + 1}) ${g.title} — ${g.platform}`)
+          const optionText = shownOptions
+            .map((g, idx) => `${idx + 1}) ${g.title} - ${g.platform}`)
             .join('\n');
+          const overflowCount = Math.max(0, allOptions.length - shownOptions.length);
+          const overflowNote = overflowCount > 0
+            ? `\n...and ${overflowCount} more. You can also reply with platform/year.`
+            : '';
 
           return res.json({
             success: true,
-            response: `I couldn't find "${gameName}" on ${resolveData.requested_platform}, but I found similar games on other platforms:\n${optionText}\n\nWhich one did you mean? Reply with the number.`,
+            response: `I could not find "${gameName}" on ${resolveData.requested_platform}, but I found close matches on ${platformList}:\n${optionText}${overflowNote}\n\nReply with the number you want.`,
             rounds: 0,
             game_launched: false
           });

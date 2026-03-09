@@ -5,6 +5,85 @@ import openaiChat, { chat as streamOpenAI } from '../adapters/openai.js';
 import geminiChat from '../adapters/gemini.js';
 import { sendTelemetry } from '../services/supabase_client.js';
 
+function normalizeProvider(provider) {
+  const p = String(provider || '').toLowerCase().trim();
+  if (p === 'openai') return 'gpt';
+  if (p === 'google') return 'gemini';
+  if (p === 'anthropic') return 'claude';
+  return p || 'claude';
+}
+
+function normalizeLegacyMessages(body = {}) {
+  if (Array.isArray(body.messages) && body.messages.length > 0) {
+    return body.messages;
+  }
+
+  const out = [];
+  const sys = [
+    body.system,
+    body.systemPrompt,
+    body.system_prompt
+  ].find((v) => typeof v === 'string' && v.trim().length > 0);
+
+  if (sys) {
+    out.push({ role: 'system', content: sys.trim() });
+  }
+
+  if (Array.isArray(body.history)) {
+    for (const item of body.history) {
+      if (!item || typeof item !== 'object') continue;
+      const role = item.role === 'assistant' ? 'assistant' : 'user';
+      const content = typeof item.content === 'string'
+        ? item.content
+        : (typeof item.message === 'string' ? item.message : '');
+      if (content.trim()) {
+        out.push({ role, content: content.trim() });
+      }
+    }
+  }
+
+  const promptLike = [
+    body.message,
+    body.prompt,
+    body.input
+  ].find((v) => typeof v === 'string' && v.trim().length > 0);
+
+  if (promptLike) {
+    out.push({ role: 'user', content: promptLike.trim() });
+  }
+
+  return out;
+}
+
+function responseText(out = {}) {
+  const c = out?.message?.content;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) {
+    return c
+      .map((item) => item?.text || item?.content || '')
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  return '';
+}
+
+async function executeChat(provider, input) {
+  if (provider === 'gpt') {
+    return openaiChat(input);
+  }
+  if (provider === 'gemini') {
+    return geminiChat(input);
+  }
+  return anthropicChat(input);
+}
+
+function shouldFallbackToGemini(provider, err) {
+  if (provider !== 'claude') return false;
+  const message = String(err?.message || '');
+  const code = String(err?.code || '');
+  return /model.*not\s*found/i.test(message) || /anthropic 404/i.test(message) || code === 'PROVIDER_ERROR';
+}
 
 // Function-style registration per spec
 export default function registerAIRoutes(app) {
@@ -12,14 +91,31 @@ export default function registerAIRoutes(app) {
   app.post('/api/ai/chat', async (req, res) => {
     try {
       const scope = req.header('x-scope');
-      if (scope !== 'state') throw errors.badRequest('x-scope=state required');
+      if (scope && scope !== 'state') throw errors.badRequest('x-scope must be "state" when provided');
 
-      let { provider = env.AI_DEFAULT_PROVIDER, messages, temperature, max_tokens, timeout_ms, metadata, tools, system } = req.body || {};
+      const body = req.body || {};
+      let {
+        provider = env.AI_DEFAULT_PROVIDER,
+        temperature,
+        max_tokens,
+        timeout_ms,
+        metadata,
+        tools,
+        system
+      } = body;
+      const requestedProvider = normalizeProvider(provider);
+      provider = requestedProvider;
+
+      const messages = normalizeLegacyMessages(body);
       if (!Array.isArray(messages) || messages.length === 0) throw errors.badRequest('messages[] required');
+
+      if (!system && typeof body.systemPrompt === 'string' && body.systemPrompt.trim()) {
+        system = body.systemPrompt.trim();
+      }
 
       // Golden Drive: Auto-fallback to Gemini when Claude/GPT not configured
       // This allows cabinets to use Gemini as primary brain via Supabase secrets
-      if ((provider === 'claude' || provider === 'anthropic') && !process.env.ANTHROPIC_API_KEY) {
+      if (provider === 'claude' && !process.env.ANTHROPIC_API_KEY) {
         console.log('[AI] Claude key not in local .env, using Supabase proxy (Gemini fallback available)');
       }
 
@@ -31,28 +127,42 @@ export default function registerAIRoutes(app) {
       }
 
       const input = { messages, temperature, max_tokens, timeout_ms, metadata, tools, system };
-      let out;
+      let out = null;
+      let usedProvider = provider;
       const startTime = Date.now();
-      if (provider === 'gpt' || provider === 'openai') {
-        out = await openaiChat(input);
-      } else if (provider === 'gemini' || provider === 'google') {
-        out = await geminiChat(input);
-      } else {
-        // Default to anthropic (Claude)
-        out = await anthropicChat(input);
+
+      try {
+        out = await executeChat(provider, input);
+      } catch (err) {
+        if (shouldFallbackToGemini(provider, err) && ensureConfigured('gemini')) {
+          console.warn(`[AI] ${provider} failed (${err.message}); retrying with gemini`);
+          usedProvider = 'gemini';
+          out = await executeChat('gemini', input);
+        } else {
+          throw err;
+        }
       }
       const latencyMs = Date.now() - startTime;
+      const modelUsed = out.model
+        || out.message?.model
+        || (usedProvider === 'gemini'
+          ? (process.env.GEMINI_MODEL || 'gemini-2.0-flash')
+          : usedProvider === 'gpt'
+            ? (process.env.OPENAI_MODEL || 'gpt-4o-mini')
+            : (process.env.ANTHROPIC_MODEL || 'claude-3-7-sonnet-latest'));
+
+      console.log(`[AI] provider requested=${requestedProvider} used=${usedProvider} model=${modelUsed} latency=${latencyMs}ms`);
 
       // Send AI telemetry (fire-and-forget)
       const cabinetId = req.headers['x-device-id'] || process.env.AA_DEVICE_ID;
       if (cabinetId) {
-        sendTelemetry(cabinetId, 'INFO', 'AI_CALL', `${provider} chat: ${latencyMs}ms`, {
-          provider,
-          model: out.model || out.message?.model || 'unknown',
+        sendTelemetry(cabinetId, 'INFO', 'AI_CALL', `${usedProvider} chat: ${latencyMs}ms`, {
+          provider: usedProvider,
+          model: modelUsed,
           latency_ms: latencyMs,
           input_tokens: out.usage?.prompt_tokens || out.usage?.input_tokens || null,
           output_tokens: out.usage?.completion_tokens || out.usage?.output_tokens || null
-        }, req.body.panel || 'api').catch(() => { });
+        }, body.panel || 'api').catch(() => { });
       }
 
       res.status(200).json(out);
@@ -62,43 +172,55 @@ export default function registerAIRoutes(app) {
     }
   });
 
-
   // Legacy alias for backward compatibility: /api/local/claude/chat
   // Returns { response, model, usage } format for older clients
   app.post('/api/local/claude/chat', async (req, res) => {
     try {
-      const scope = req.header('x-scope') || 'state'; // default if missing
-      const body = req.body || {};
-      let { messages, temperature, max_tokens, timeout_ms, metadata } = body;
-
-      if (!Array.isArray(messages)) {
-        const prompt = typeof body.prompt === 'string' ? body.prompt : undefined;
-        const system = typeof body.system === 'string' ? body.system : undefined;
-        if (prompt && prompt.trim().length > 0) {
-          messages = [];
-          if (system && system.trim().length > 0) {
-            messages.push({ role: 'system', content: system.trim() });
-          }
-          messages.push({ role: 'user', content: prompt.trim() });
-        }
+      const scope = req.header('x-scope');
+      if (scope && scope !== 'state') {
+        throw errors.badRequest('x-scope must be "state" when provided');
       }
+
+      const body = req.body || {};
+      const { temperature, max_tokens, timeout_ms, metadata } = body;
+      const messages = normalizeLegacyMessages(body);
 
       if (!Array.isArray(messages) || messages.length === 0) {
         throw errors.badRequest('messages[] required');
       }
-      if (!ensureConfigured('claude')) throw errors.notConfigured('claude');
 
       const effectiveTimeout = clamp(parseInt(timeout_ms || env.AI_TIMEOUT_MS, 10), 3000, env.AI_TIMEOUT_MS_MAX);
       const startTime = Date.now();
-      const out = await anthropicChat({ messages, temperature, max_tokens, timeout_ms: effectiveTimeout, metadata });
+      let out = null;
+      let usedProvider = 'claude';
+
+      try {
+        if (!ensureConfigured('claude')) throw errors.notConfigured('claude');
+        out = await anthropicChat({ messages, temperature, max_tokens, timeout_ms: effectiveTimeout, metadata });
+      } catch (err) {
+        if (shouldFallbackToGemini('claude', err) && ensureConfigured('gemini')) {
+          console.warn(`[AI] legacy claude route failed (${err.message}); retrying with gemini`);
+          usedProvider = 'gemini';
+          out = await geminiChat({ messages, temperature, max_tokens, timeout_ms: effectiveTimeout, metadata });
+        } else if (!ensureConfigured('claude') && ensureConfigured('gemini')) {
+          console.warn('[AI] legacy claude route not configured; using gemini');
+          usedProvider = 'gemini';
+          out = await geminiChat({ messages, temperature, max_tokens, timeout_ms: effectiveTimeout, metadata });
+        } else {
+          throw err;
+        }
+      }
+
       const latencyMs = Date.now() - startTime;
 
       // Send AI telemetry (fire-and-forget)
       const cabinetId = req.headers['x-device-id'] || process.env.AA_DEVICE_ID;
-      const modelUsed = process.env.ANTHROPIC_MODEL || 'claude-3-7-sonnet-latest';
+      const modelUsed = usedProvider === 'gemini'
+        ? (process.env.GEMINI_MODEL || 'gemini-2.0-flash')
+        : (process.env.ANTHROPIC_MODEL || 'claude-3-7-sonnet-latest');
       if (cabinetId) {
-        sendTelemetry(cabinetId, 'INFO', 'AI_CALL', `anthropic ${modelUsed}: ${latencyMs}ms`, {
-          provider: 'anthropic',
+        sendTelemetry(cabinetId, 'INFO', 'AI_CALL', `${usedProvider} ${modelUsed}: ${latencyMs}ms`, {
+          provider: usedProvider,
           model: modelUsed,
           latency_ms: latencyMs,
           input_tokens: out.usage?.prompt_tokens || null,
@@ -107,7 +229,7 @@ export default function registerAIRoutes(app) {
       }
 
       return res.status(200).json({
-        response: out.message?.content || '',
+        response: responseText(out),
         model: modelUsed,
         usage: out.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
       });

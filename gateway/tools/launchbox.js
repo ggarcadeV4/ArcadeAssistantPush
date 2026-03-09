@@ -60,6 +60,18 @@ const platformSynonyms = {
   'psx': 'Sony Playstation',
   'ps2': 'Sony Playstation 2',
   'ps3': 'Sony Playstation 3',
+  'ps 3': 'Sony Playstation 3',
+  'playstation 3': 'Sony Playstation 3',
+  'sony playstation 3': 'Sony Playstation 3',
+  'rpcs3': 'Sony Playstation 3',
+  'teknoparrot': 'TeknoParrot',
+  'tekno parrot': 'TeknoParrot',
+  'daphne': 'Daphne',
+  'hypseus': 'Daphne',
+  'laserdisc': 'Daphne',
+  'laser disc': 'Daphne',
+  'american laser games': 'American Laser Games',
+  'alg': 'American Laser Games',
   'gamecube': 'Nintendo GameCube',
   'gc': 'Nintendo GameCube',
   'wii': 'Nintendo Wii',
@@ -120,14 +132,18 @@ function extractPlatformFromQuery(q) {
   // common verbs
   let t = s.replace(/^\s*(please\s*)?(can you|could you|would you|please|kindly)?\s*(launch|play|start|open)\s*/i, '').trim();
   // capture platform with "on|for|from <platform>"
-  const m = t.match(/\s+(?:on|for|from)\s+(?:the\s+)?([^,.;]+)$/i);
+  const m = t.match(/\s+(?:on|for|from|in)\s+(?:the\s+)?([^,.;]+)$/i);
   let platformHint;
   if (m && m[1]) {
     platformHint = normalizePlatformName(m[1]);
     t = t.slice(0, m.index).trim();
   }
   // strip trailing polite words
-  t = t.replace(/\s*(please|thanks)\.?$/i, '').trim();
+  t = t
+    .replace(/\s+(?:arcade|mame)\s+(?:version|edition)\s*$/i, '')
+    .replace(/\s+(?:version|edition|release)\s*$/i, '')
+    .replace(/\s*(please|thanks)\.?$/i, '')
+    .trim();
   return { cleanedTitle: t, platformHint };
 }
 

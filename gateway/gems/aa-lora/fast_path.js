@@ -31,7 +31,7 @@ import { fetchWithRetry } from '../../lib/http.js';
  */
 export const FAST_PATH_PATTERNS = {
     // Pattern 1: Direct commands ("launch X", "play X", "start X")
-    direct: /(?:can you |please |could you |would you )?(?:launch|play|start|run)\s+(.+?)(?:\s+please)?$/i,
+    direct: /(?:can you |please |could you |would you )?(?:launch|play|start|run|open|load|boot)\s+(.+?)(?:\s+please)?$/i,
 
     // Pattern 2: "I want to play X"
     wantToPlay: /(?:i want to|i'd like to|let's|how about)\s+(?:play|launch|start)?\s*(.+?)(?:\s+please)?$/i,
@@ -108,7 +108,7 @@ export function extractGameName(msgRaw) {
 
         gameName = gameName
             .replace(/^(?:the|a|an)\s+/i, '')
-            .replace(/\s+(?:game|please|thanks|thank you|again)$/i, '')
+            .replace(/\s+(?:game|please|thanks|thank you|again|for me)$/i, '')
             .trim();
 
         // Skip if it looks like a complex query (not a game name)
@@ -295,8 +295,20 @@ export async function processFastPathLaunch(ctx, session, gameName, platformHint
             const resolved = resolveData.game;
             const resolvedNorm = normalizeTitleForMatch(resolved.title);
 
-            // Only auto-launch on exact match
-            if (resolveData.source === 'cache_exact' || requestedNorm === resolvedNorm) {
+            // Auto-launch when resolver indicates a deterministic/safe match.
+            const trustedResolveSources = new Set([
+                'cache_exact',
+                'cache_fuzzy_strict_title',
+                'cache_fuzzy_score_leader',
+                'cache_fuzzy_canonical_default'
+            ]);
+            const confidence = Number(resolved.confidence || 0);
+            const shouldAutoLaunch =
+                trustedResolveSources.has(resolveData.source) ||
+                requestedNorm === resolvedNorm ||
+                confidence >= 0.97;
+
+            if (shouldAutoLaunch) {
                 const launchData = await launchGame(ctx, resolved.id);
                 if (launchData.success) {
                     session.pendingLaunch = null;
@@ -365,3 +377,4 @@ export default {
     handleRelaunch,
     processFastPathLaunch
 };
+

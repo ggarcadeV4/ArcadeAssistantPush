@@ -101,6 +101,14 @@ def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
     Also checks for .txt or .m2v file extensions in the ROM path.
     """
     plat = (_get(game, "platform") or "").strip().lower()
+
+    # Many Daphne entries in this build are AHK launch wrappers; those should
+    # route to direct_app_adapter instead of Hypseus framefile mode.
+    rom_path = _get(game, "rom_path") or _get(game, "application_path") or ""
+    if rom_path:
+        ext = Path(str(rom_path)).suffix.lower()
+        if ext in (".ahk", ".bat", ".cmd"):
+            return False
     
     # Match platform names
     if any(term in plat for term in ("daphne", "hypseus", "laserdisc")):
@@ -148,16 +156,17 @@ def _find_hypseus_exe(manifest: Optional[Dict[str, Any]] = None) -> Optional[Pat
             if exe_path:
                 p = _norm_path(str(exe_path))
                 if p.exists():
-                    return p
-    
-    # Standard locations
+                    return p    # Standard locations
     candidates = [
         LaunchBoxPaths.EMULATORS_ROOT / "Hypseus" / "hypseus.exe",
+        LaunchBoxPaths.EMULATORS_ROOT / "Hypseus" / "Hypseus Singe" / "hypseus.exe",
         LaunchBoxPaths.EMULATORS_ROOT / "Hypseus Singe" / "hypseus.exe",
         LaunchBoxPaths.EMULATORS_ROOT / "Daphne" / "hypseus.exe",
         LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "Hypseus" / "hypseus.exe",
+        LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "Hypseus" / "Hypseus Singe" / "hypseus.exe",
+        LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "Hypseus Singe" / "hypseus.exe",
     ]
-    
+
     for candidate in candidates:
         if candidate.exists():
             return candidate

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import './DeweyPanel.css'
 import { chat as aiChat } from '../../services/aiClient'
 import { speakAsDewey, stopSpeaking, isSpeaking } from '../../services/ttsClient'
@@ -12,12 +12,20 @@ import { searchArcadeLore } from '../../services/deweySearchClient'
 
 
 const MAX_HISTORY_MESSAGES = 12
+const DEFAULT_PROFILE_OPTIONS = [
+  { userId: 'guest', displayName: 'Guest', initials: 'GU' },
+  { userId: 'dad', displayName: 'Dad', initials: 'DA' },
+  { userId: 'mom', displayName: 'Mom', initials: 'MO' },
+  { userId: 'tim', displayName: 'Tim', initials: 'TI' },
+  { userId: 'sarah', displayName: 'Sarah', initials: 'SA' }
+]
 
 const AGENT_SUMMARY = [
   'Available specialists:',
   '* Vicky - voice macros and general introductions.',
   '* LoRa - LaunchBox librarian for launching/importing games.',
-  '* Controller Chuck - controller remapping and hardware pairing.',
+  '* Control-a-Chuck - arcade panel controls, joystick/buttons, wiring, and pin mapping.',
+  '* Control-a-Wizard - gamepad/controller setup (Xbox/PlayStation/8BitDo), profiles, and remapping.',
   '* LED Blinky - cabinet & LED lighting scenes.',
   '* Gunner - light gun calibration.',
   '* Scorekeeper Sam - tournaments, stats, and leaderboards.',
@@ -27,115 +35,195 @@ const AGENT_SUMMARY = [
 
 const PANEL_CAPABILITIES = [
   {
-    id: 'interface',
-    label: 'Arcade Interface (Diagnostics)',
-    keywords: [
-      // General terms
-      'button', 'buttons', 'joystick', 'stick', 'control', 'controls',
-      // Specific arcade hardware
-      'arcade button', 'arcade buttons', 'arcade stick', 'arcade joystick',
-      'cabinet controls', 'control panel', 'panel button', 'cabinet button',
-      // Issues
-      'button not working', 'button stuck', 'button sticking', 'button broken',
-      'joystick broken', 'control not working', 'broken button'
-    ]
-  },
-  {
     id: 'controller_chuck',
-    label: 'Controller Chuck (Pin Mapping)',
-    keywords: [
-      // Specific to pin mapping and wiring
-      'encoder', 'pin mapping', 'wiring', 'ipac', 'ultimarc',
-      'remap', 'map button', 'button mapping', 'pin assignment'
-    ]
+    label: 'Control-a-Chuck (Arcade Panel)',
+    keywords: []
   },
   {
     id: 'console_wizard',
-    label: 'Console Wizard',
-    keywords: ['controller', 'game controller', 'gamepad', 'xbox', 'playstation', 'ps4', 'ps5', '8bitdo', '8-bitdo', 'handheld controller', 'emulator', 'retroarch', 'nes', 'snes', 'controller profile', 'console config', 'xinput', 'dinput', 'controller not working', 'my controller']
+    label: 'Control-a-Wizard (Controllers)',
+    keywords: []
+  },
+  {
+    id: 'interface',
+    label: 'Arcade Interface (Diagnostics)',
+    keywords: []
   },
   {
     id: 'gunner',
     label: 'Gunner (Lightguns)',
-    keywords: [
-      'gun', 'guns', 'lightgun', 'light gun', 'shooting',
-      'aim', 'aiming', 'crosshair', 'calibration', 'calibrate',
-      'gun not hitting', 'gun not accurate', 'gun broken', 'gun not working'
-    ]
+    keywords: []
   },
   {
     id: 'led-blinky',
     label: 'LED Blinky',
-    keywords: [
-      'led', 'leds', 'light', 'lights', 'lighting',
-      'button lights', 'button light', 'colors', 'color',
-      'blinky', 'brightness', 'dim', 'not lit'
-    ]
+    keywords: []
   },
   {
     id: 'launchbox',
     label: 'LaunchBox LoRa',
-    keywords: [
-      'game', 'games', 'launch', 'play', 'launchbox',
-      'library', 'rom', 'roms', 'import', 'platform',
-      'find a game', 'show me games', 'random game'
-    ]
+    keywords: []
   },
   {
     id: 'scorekeeper',
     label: 'ScoreKeeper Sam',
-    keywords: [
-      'score', 'scores', 'tournament', 'leaderboard', 'ranking',
-      'high score', 'points', 'stats', 'statistics', 'competition',
-      'bracket', 'match', 'champion', 'winner'
-    ]
+    keywords: []
   },
   {
     id: 'voice',
     label: 'Vicky Voice',
-    keywords: [
-      'voice', 'microphone', 'mic', 'speak', 'talk',
-      'voice control', 'voice assistant', 'vicky',
-      'speech', 'listen', 'hearing', 'audio input'
-    ]
+    keywords: []
   },
   {
     id: 'system-health',
     label: 'Doc (System Health)',
-    keywords: [
-      'slow', 'lag', 'lagging', 'stutter', 'stuttering',
-      'performance', 'fps', 'framerate', 'freeze', 'freezing',
-      'cpu', 'memory', 'ram', 'temperature', 'overheating',
-      'hot', 'crash', 'crashing', 'error', 'errors',
-      'diagnostics', 'diagnostic', 'check', 'system', 'health',
-      'status', 'monitor', 'monitoring', 'computer', 'pc',
-      'problem', 'issue', 'wrong', 'broken', 'fix',
-      'troubleshoot', 'debug', 'hardware', 'software',
-      'technical', 'help', 'not working', 'failing'
-    ]
+    keywords: []
   }
 ]
 
-const getPanelRecommendationsFromText = (text = '') => {
-  const lower = (text || '').toLowerCase()
-  const matches = []
+const PANEL_LOOKUP = new Map(PANEL_CAPABILITIES.map(panel => [panel.id, panel]))
+const ROUTING_CHIP_LIMIT = 3
+const ROUTING_PRIMARY_MIN_SCORE = 60
+const ROUTING_SECONDARY_MIN_SCORE = 70
+const ROUTING_SCORE_SPREAD_LIMIT = 28
 
-  for (const panel of PANEL_CAPABILITIES) {
-    const hit = panel.keywords.some(kw => lower.includes(kw))
-    if (hit) matches.push(panel)
+const includesAny = (text = '', terms = []) => terms.some(term => text.includes(term))
+const countMatches = (text = '', terms = []) => terms.reduce((count, term) => count + (text.includes(term) ? 1 : 0), 0)
+const normalizePanels = (panels = []) => {
+  const deduped = []
+  for (const panel of panels) {
+    if (!panel?.id) continue
+    if (deduped.some(existing => existing.id === panel.id)) continue
+    deduped.push(panel)
+    if (deduped.length >= ROUTING_CHIP_LIMIT) break
+  }
+  return deduped
+}
+const enforceRoutingGuardrailReply = (text = '', recommendations = []) => {
+  const reply = (text || '').trim()
+  if (!reply) return reply
+
+  const primaryPanel = recommendations?.[0]?.id
+  if (primaryPanel !== 'console_wizard' && primaryPanel !== 'controller_chuck') {
+    return reply
   }
 
-  const unique = []
-  const seen = new Set()
-  for (const panel of matches) {
-    if (!seen.has(panel.id)) {
-      seen.add(panel.id)
-      unique.push(panel)
+  let normalizedReply = reply
+  if (primaryPanel === 'console_wizard') {
+    normalizedReply = normalizedReply.replace(/control-a-chuck/ig, 'Control-a-Wizard')
+    if (!/control-a-wizard/i.test(normalizedReply)) {
+      normalizedReply = 'I am routing this to Control-a-Wizard for controller setup.\n\n' + normalizedReply
+    }
+  } else {
+    normalizedReply = normalizedReply.replace(/control-a-wizard/ig, 'Control-a-Chuck')
+    if (!/control-a-chuck/i.test(normalizedReply)) {
+      normalizedReply = 'I am routing this to Control-a-Chuck for arcade panel controls.\n\n' + normalizedReply
     }
   }
-  const result = unique.slice(0, 3)
-  console.log('[Dewey] Panel recommendations for:', text, '→', result.map(p => p.label))
-  return result
+
+  return normalizedReply
+}
+const getPanelRecommendationsFromText = (text = '') => {
+  const lower = (text || '').toLowerCase()
+  const normalized = lower.replace(/[^a-z0-9\s]/g, ' ')
+  const has = (terms) => includesAny(normalized, terms)
+
+  const controllerTerms = [
+    'controller', 'gamepad', 'xbox', 'playstation', 'ps4', 'ps5',
+    '8bitdo', '8 bitdo', 'xinput', 'dinput', 'retroarch', 'analog stick',
+    'thumbstick', 'deadzone', 'trigger', 'button map', 'controller profile'
+  ]
+
+  const arcadePanelTerms = [
+    'arcade panel', 'control panel', 'cabinet controls', 'arcade button',
+    'arcade joystick', 'joystick', 'stick', 'button stuck', 'button not working',
+    'panel button', 'cabinet button', 'coin button', 'start button'
+  ]
+
+  const pinMappingTerms = [
+    'encoder', 'ipac', 'ultimarc', 'pin mapping', 'pin assignment',
+    'wiring', 'wire', 'harness', 'terminal block', 'remap', 'button mapping'
+  ]
+
+  const lightgunTerms = ['light gun', 'lightgun', 'crosshair', 'aim', 'sinden', 'gun4ir']
+  const ledTerms = ['led', 'lighting', 'button lights', 'blinky', 'rgb', 'marquee lights']
+  const launchboxTerms = ['launchbox', 'rom', 'library', 'launch game', 'platform wheel']
+  const scoreTerms = ['score', 'leaderboard', 'tournament', 'bracket', 'high score', 'rank']
+  const voiceTerms = ['voice', 'mic', 'microphone', 'speech recognition', 'listen mode']
+
+  const interfaceTerms = [
+    'ui', 'user interface', 'menu', 'screen layout', 'panel ui',
+    'hud', 'overlay', 'interface bug', 'button placement'
+  ]
+
+  const systemHealthTerms = [
+    'slow', 'lag', 'stutter', 'freeze', 'crash', 'overheating',
+    'cpu', 'memory', 'ram', 'fps', 'framerate', 'temperature'
+  ]
+
+  const scoredHits = []
+  const add = (id, score) => {
+    const existing = scoredHits.find(hit => hit.id === id)
+    if (existing) {
+      existing.score = Math.max(existing.score, score)
+      return
+    }
+    scoredHits.push({ id, score })
+  }
+
+  const controllerMatchCount = countMatches(normalized, controllerTerms)
+  const arcadePanelMatchCount = countMatches(normalized, arcadePanelTerms)
+  const pinMappingMatchCount = countMatches(normalized, pinMappingTerms)
+  const arcadeMatchCount = arcadePanelMatchCount + pinMappingMatchCount
+
+  if (controllerMatchCount > 0) add('console_wizard', 100 + controllerMatchCount * 6)
+  if (arcadeMatchCount > 0) add('controller_chuck', 95 + arcadeMatchCount * 6)
+  if (has(lightgunTerms)) add('gunner', 90)
+  if (has(ledTerms)) add('led-blinky', 88)
+  if (has(launchboxTerms)) add('launchbox', 75)
+  if (has(scoreTerms)) add('scorekeeper', 72)
+  if (has(voiceTerms)) add('voice', 70)
+  if (has(interfaceTerms)) add('interface', 65)
+  if (has(systemHealthTerms)) add('system-health', 60)
+
+  // Hard guardrail: if intent is clearly one route, suppress the other to avoid mixed signals.
+  if (controllerMatchCount > 0 && arcadeMatchCount === 0) {
+    for (let i = scoredHits.length - 1; i >= 0; i -= 1) {
+      if (scoredHits[i].id === 'controller_chuck') scoredHits.splice(i, 1)
+    }
+  } else if (arcadeMatchCount > 0 && controllerMatchCount === 0) {
+    for (let i = scoredHits.length - 1; i >= 0; i -= 1) {
+      if (scoredHits[i].id === 'console_wizard') scoredHits.splice(i, 1)
+    }
+  }
+
+  const hasControllerSpecific = scoredHits.some(hit => hit.id === 'console_wizard')
+  const hasArcadePanelSpecific = scoredHits.some(hit => hit.id === 'controller_chuck')
+
+  const filtered = (hasControllerSpecific || hasArcadePanelSpecific)
+    ? scoredHits.filter(hit => hit.id !== 'system-health' && hit.id !== 'interface')
+    : scoredHits
+
+  const sorted = filtered.sort((a, b) => b.score - a.score)
+  const topScore = sorted[0]?.score ?? 0
+  const confidenceFiltered = sorted.filter((hit, index) => {
+    if (index === 0) return hit.score >= ROUTING_PRIMARY_MIN_SCORE
+    const withinSpread = (topScore - hit.score) <= ROUTING_SCORE_SPREAD_LIMIT
+    return hit.score >= ROUTING_SECONDARY_MIN_SCORE && withinSpread
+  })
+
+  const selected = confidenceFiltered.length > 0 ? confidenceFiltered : sorted.slice(0, 1)
+  const result = selected
+    .slice(0, ROUTING_CHIP_LIMIT)
+    .map(hit => {
+      const panel = PANEL_LOOKUP.get(hit.id)
+      if (!panel) return null
+      return { ...panel, score: hit.score }
+    })
+    .filter(Boolean)
+
+  console.log('[Dewey] Panel recommendations for:', text, '->', result.map(p => `${p.label} (${p.score || 0})`))
+  return normalizePanels(result)
 }
 
 const htmlToPlainText = (value = '') => {
@@ -245,15 +333,18 @@ const buildSystemPrompt = (user) => {
     '',
     '=== ROUTING MODE ===',
     'For technical issues (controllers, LEDs, guns, performance), acknowledge briefly and note a specialist chip will appear.',
+    'Routing truth: control panel, arcade buttons/joystick, wiring, or pin mapping -> Control-a-Chuck.',
+    'Routing truth: gamepad/controller, Xbox/PlayStation/8BitDo, xinput/dinput, or controller profiles -> Control-a-Wizard.',
+    'Recommend at most 2 helper chips; prefer 1 when intent is clear.',
     'For general chat, news, or trivia, respond normally with 2-3 sentences.',
     '',
     'Guidelines:',
     '- Keep conversational replies SHORT (2-3 sentences, under 60 words)',
-    '- NEVER say you cannot show images, pictures, or visuals — your gallery does this automatically',
+    '- NEVER say you cannot show images, pictures, or visuals - your gallery does this automatically',
     '- DO NOT ask follow-up questions for technical issues - let specialists handle details',
     '- The UI will automatically show specialist chips based on keywords',
     '- For game queries, ALWAYS include the ```json block so the gallery can render',
-    '- Be enthusiastic about showing off arcade history — you are a museum curator with a digital exhibit'
+    '- Be enthusiastic about showing off arcade history - you are a museum curator with a digital exhibit'
   ].join('\n')
 }
 
@@ -276,8 +367,13 @@ const buildClaudeMessages = ({ history, systemPrompt, userText }) => {
 
 export default function DeweyPanel() {
   // Get shared profile from context (reactive tenancy)
-  const { profile: sharedProfile } = useProfileContext()
+  const { profile: sharedProfile, setProfileSnapshot, refreshProfile } = useProfileContext()
   const navigate = useNavigate()
+  const location = useLocation()
+  const isOverlayMode = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('mode') === 'overlay'
+  }, [location.search])
 
   // State management
   const [triviaMode, setTriviaMode] = useState(false)
@@ -285,10 +381,11 @@ export default function DeweyPanel() {
   const [isDeweyResponding, setIsDeweyResponding] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [isDeweySpeaking, setIsDeweySpeaking] = useState(false)
   const [messages, setMessages] = useState([
     {
       role: 'dewey',
-      text: "Hey there! I'm Dewey, your gaming companion. 🎮<br><br>I can chat about gaming culture, recommend games based on your interests, share the latest gaming news, and tell you all about G&G Arcade!<br><br>What would you like to talk about today?",
+      text: "Hey there! I'm Dewey, your gaming companion.<br><br>I can chat about gaming culture, recommend games based on your interests, share the latest gaming news, and tell you all about G&G Arcade!<br><br>What would you like to talk about today?",
       timestamp: new Date()
     }
   ])
@@ -323,7 +420,93 @@ export default function DeweyPanel() {
     }
   }), [sharedProfile])
 
+  const profileOptions = useMemo(() => {
+    const merged = new Map()
+
+    for (const option of DEFAULT_PROFILE_OPTIONS) {
+      merged.set(option.userId, option)
+    }
+
+    const activeUserId = (sharedProfile?.userId || '').trim().toLowerCase()
+    const activeName = (sharedProfile?.displayName || '').trim()
+    if (activeUserId || activeName) {
+      const fallbackId = activeName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+      const userId = activeUserId || fallbackId || 'guest'
+      const displayName = activeName || userId || 'Guest'
+      const initials = (sharedProfile?.initials || displayName.slice(0, 2)).toUpperCase()
+      merged.set(userId, { userId, displayName, initials })
+    }
+
+    return Array.from(merged.values())
+  }, [sharedProfile])
+
+  const [selectedProfileId, setSelectedProfileId] = useState(currentUser.id)
+
+  useEffect(() => {
+    setSelectedProfileId(currentUser.id)
+  }, [currentUser.id])
+
+  const handleProfileSelect = useCallback(async (event) => {
+    const nextId = event.target.value
+    setSelectedProfileId(nextId)
+
+    const selected = profileOptions.find(option => option.userId === nextId)
+    if (!selected) return
+
+    const initials = (selected.initials || selected.displayName.slice(0, 2)).toUpperCase()
+
+    setProfileSnapshot({
+      ...(sharedProfile || {}),
+      userId: selected.userId,
+      displayName: selected.displayName,
+      initials,
+      preferences: sharedProfile?.preferences || {}
+    })
+
+    try {
+      const response = await fetch('/api/local/profile/primary', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-scope': 'state'
+        },
+        body: JSON.stringify({
+          user_id: selected.userId,
+          display_name: selected.displayName,
+          initials,
+          voice_prefs: sharedProfile?.preferences?.voiceAssignments || {},
+          vocabulary: [],
+          training_phrases: []
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`profile switch failed (${response.status})`)
+      }
+
+      refreshProfile()
+    } catch (err) {
+      console.warn('[Dewey] Failed to persist selected profile:', err)
+    }
+  }, [profileOptions, refreshProfile, setProfileSnapshot, sharedProfile])
+
   const systemPrompt = useMemo(() => buildSystemPrompt(currentUser), [currentUser])
+
+  const interruptSpeech = useCallback(() => {
+    try { stopSpeaking() } catch { }
+    setIsDeweySpeaking(false)
+  }, [])
+
+  useEffect(() => {
+    const syncSpeaking = () => {
+      const speakingNow = isSpeaking()
+      setIsDeweySpeaking(prev => (prev === speakingNow ? prev : speakingNow))
+    }
+
+    syncSpeaking()
+    const speakingInterval = window.setInterval(syncSpeaking, 200)
+    return () => window.clearInterval(speakingInterval)
+  }, [])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -371,15 +554,16 @@ export default function DeweyPanel() {
   }
 
   // ========================================
-  // useGemSpeech — Gem Architecture STT
+  // useGemSpeech - Gem Architecture STT
   // ========================================
   const handleGemTranscript = useCallback((text) => {
     if (text.trim() && !isDeweyResponding) {
+      interruptSpeech()
       addMessage(text, 'user')
       setInput('')
       deweyRespond(text)
     }
-  }, [isDeweyResponding])
+  }, [isDeweyResponding, interruptSpeech])
 
   const {
     isRecording, wsConnected, lastTranscript, warning: speechWarning,
@@ -426,6 +610,7 @@ export default function DeweyPanel() {
     const message = input.trim()
 
     if (message && !isDeweyResponding) {
+      interruptSpeech()
       addMessage(message, 'user')
       setInput('')
 
@@ -444,7 +629,7 @@ export default function DeweyPanel() {
     setIsLoading(true)
 
     try {
-      // Detect if this is a lore/game query → trigger parallel search
+      // Detect if this is a lore/game query -> trigger parallel search
       const loreKeywords = [
         'tell me about', 'what is', 'what was', 'history of', 'who made',
         'when was', 'how did', 'cabinet', 'arcade game', 'arcade machine',
@@ -509,7 +694,7 @@ export default function DeweyPanel() {
         scope: 'state',
         messages: claudeMessages,
         temperature: 0.4,
-        max_tokens: 800,
+        max_tokens: 260,
         metadata: {
           panel: 'dewey',
           persona: 'dewey',
@@ -553,34 +738,23 @@ export default function DeweyPanel() {
       }
 
       const nextRecommendations = getPanelRecommendationsFromText(trimmed)
-
-      // Parse gallery / lore media payload from AI response
-      const { cleanText: reply, gallery, lore } = parseMediaPayload(rawReply)
-
-      // Populate media stage state
-      if (gallery) {
-        setGalleryItems(gallery)
-        setActiveCardIndex(0)
-      }
-      if (lore) {
-        setLoreText(lore)
-      }
+      const guardedReply = enforceRoutingGuardrailReply(cleanReply, nextRecommendations)
 
       // Update recommendations and context
       if (nextRecommendations.length > 0) {
-        setRecommendedPanels(nextRecommendations)
+        setRecommendedPanels(normalizePanels(nextRecommendations))
         const summary = buildHandoffSummary(trimmed, { maxChars: 200, maxSentences: 2 })
         if (summary) setHandoffText(summary)
       }
 
       const formatted = formatAssistantResponse(
-        cleanReply || "I'm still reaching out to the arcade braintrust. Mind rephrasing that?"
+        guardedReply || "I'm still reaching out to the arcade braintrust. Mind rephrasing that?"
       )
       addMessage(formatted, 'dewey')
 
       // Speak the response if voice is enabled
-      if (voiceEnabled && cleanReply) {
-        const plainTextReply = htmlToPlainText(cleanReply)
+      if (voiceEnabled && guardedReply) {
+        const plainTextReply = htmlToPlainText(guardedReply)
         speakAsDewey(plainTextReply).catch(err => {
           console.warn('TTS failed:', err)
         })
@@ -608,10 +782,13 @@ export default function DeweyPanel() {
   }
 
 
-  // Cleanup TTS on unmount
+  // Cleanup speech and recording on unmount
   useEffect(() => {
-    return () => { try { stopSpeaking() } catch { } }
-  }, [])
+    return () => {
+      try { stopRecording() } catch { }
+      interruptSpeech()
+    }
+  }, [stopRecording, interruptSpeech])
 
   // Handle Enter Key
   const handleKeyPress = (event) => {
@@ -620,10 +797,19 @@ export default function DeweyPanel() {
     }
   }
 
+  const handleInputChange = (event) => {
+    if (isDeweySpeaking) interruptSpeech()
+    setInput(event.target.value)
+  }
+
+  const handleInputFocus = () => {
+    if (isDeweySpeaking) interruptSpeech()
+  }
+
   // Voice Input with Recording State
   const startVoice = () => {
     if (!isRecording) {
-      try { stopSpeaking() } catch { }
+      interruptSpeech()
       startRecording()
     } else {
       stopRecording()
@@ -688,11 +874,13 @@ export default function DeweyPanel() {
   const triggerQuickAction = (promptText, metadata) => {
     if (isDeweyResponding) return
 
+    interruptSpeech()
     addMessage(promptText, 'user')
     deweyRespond(promptText, metadata)
   }
 
   const getNewsHeadlines = () => {
+    interruptSpeech()
     setNewsMode(true)
   }
 
@@ -711,6 +899,7 @@ export default function DeweyPanel() {
   }
 
   const getGameTrivia = () => {
+    interruptSpeech()
     setTriviaMode(true)
   }
 
@@ -729,7 +918,7 @@ export default function DeweyPanel() {
     // Update lore text to match the new center card
     if (item.eraDescription) setLoreText(item.eraDescription)
     if (item.era) setEraTitle(item.era)
-    else setEraTitle(`${item.title} · ${item.year}`)
+    else setEraTitle(`${item.title} - ${item.year}`)
 
     console.log('[Dewey] Carousel rotated to:', item.title)
   }, [galleryItems, activeCardIndex])
@@ -771,7 +960,8 @@ export default function DeweyPanel() {
         setRecommendedPanels(prev => {
           const hasDoc = prev.some(p => p.id === 'system-health')
           if (hasDoc) return prev
-          return [...prev, { id: 'system-health', label: 'Doc (Hardware Diagnostics)' }]
+          const next = [{ id: 'system-health', label: 'Doc (Hardware Diagnostics)', score: 92 }, ...prev]
+          return normalizePanels(next)
         })
         setHandoffText(`Hardware deep-dive on ${game.title}: ${game.cpu || 'arcade PCB'}`)
       }
@@ -903,9 +1093,9 @@ export default function DeweyPanel() {
         for (const chip of hesChips) {
           if (!merged.some(p => p.id === chip.id)) merged.push(chip)
         }
-        return merged
+        return normalizePanels(merged)
       })
-      setHandoffText(`Exploring ${primary.title} (${primary.year}) — ${primary.publisher}`)
+      setHandoffText(`Exploring ${primary.title} (${primary.year}) - ${primary.publisher}`)
     }
   }, [showGallery, galleryItems, recommendedPanels])
 
@@ -959,14 +1149,31 @@ export default function DeweyPanel() {
 
   const handleOpenPanel = useCallback(async (panel) => {
     if (!panel?.id) return
+    interruptSpeech()
     console.log('[Dewey] Opening panel:', panel.label, 'ID:', panel.id, 'with context:', handoffText)
     await sendHandoffToServer(panel.id, handoffText)
+
     const contextParam = handoffText ? `&context=${encodeURIComponent(handoffText)}` : ''
-    const url = `/assistants?agent=${encodeURIComponent(panel.id)}${contextParam}`
-    console.log('[Dewey] Navigating to URL:', url)
+    const targetUrl = `/assistants?agent=${encodeURIComponent(panel.id)}${contextParam}`
+
+    // In compact overlay mode, chip handoff should expand to full-size panel.
+    if (isOverlayMode && typeof window !== 'undefined') {
+      try {
+        const cmd = new URL(window.location.href)
+        cmd.searchParams.set('__overlay_cmd', 'expand')
+        cmd.searchParams.set('target', targetUrl)
+        cmd.searchParams.set('_', String(Date.now()))
+        window.location.assign(cmd.toString())
+        return
+      } catch (error) {
+        console.warn('[Dewey] Overlay expand command failed, using in-place navigation', error)
+      }
+    }
+
+    console.log('[Dewey] Navigating to URL:', targetUrl)
     console.log('[Dewey] Agent parameter will be:', panel.id)
-    navigate(url)
-  }, [navigate, handoffText])
+    navigate(targetUrl)
+  }, [navigate, handoffText, interruptSpeech, isOverlayMode])
 
   // Format timestamp
   const formatTime = (date) => {
@@ -976,12 +1183,14 @@ export default function DeweyPanel() {
     })
   }
 
-  const defaultInputHint = 'Press Enter to send ��� Use quick buttons for common requests'
+  const defaultInputHint = 'Press Enter to send - use quick buttons for common requests'
   const speechSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices
   const micStatusMessage = !speechSupported
     ? 'Voice input is not supported in this browser.'
     : ''
   const micButtonTitle = micStatusMessage || (isRecording ? 'Stop voice input' : 'Start voice input')
+  const stopSpeechTitle = isDeweySpeaking ? 'Stop Dewey voice' : 'Dewey voice is idle'
+  const statusLabel = isDeweySpeaking ? 'Speaking' : 'Active'
   const inputHintText = micStatusMessage || defaultInputHint
   const shouldShowHandoff = recommendedPanels.length > 0 && Boolean(handoffText)
 
@@ -990,11 +1199,17 @@ export default function DeweyPanel() {
       {triviaMode ? (
         <TriviaExperience
           currentUser={currentUser}
-          onExit={() => setTriviaMode(false)}
+          onExit={() => {
+            interruptSpeech()
+            setTriviaMode(false)
+          }}
         />
       ) : newsMode ? (
         <GamingNews
-          onExit={() => setNewsMode(false)}
+          onExit={() => {
+            interruptSpeech()
+            setNewsMode(false)
+          }}
         />
       ) : (
         <>
@@ -1013,9 +1228,18 @@ export default function DeweyPanel() {
                 </div>
                 <div className="dh-profile-select-wrap">
                   <span className="dh-profile-select-tag">Identity</span>
-                  <span className="dh-profile-select" aria-label="Current profile">
-                    {currentUser.name || 'Guest'}
-                  </span>
+                  <select
+                    className="dh-profile-select"
+                    aria-label="Select profile"
+                    value={selectedProfileId}
+                    onChange={handleProfileSelect}
+                  >
+                    {profileOptions.map((option) => (
+                      <option key={option.userId} value={option.userId}>
+                        {option.displayName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="dh-header-session">
@@ -1031,7 +1255,7 @@ export default function DeweyPanel() {
           <main className="dh-main">
             <div className="dh-scroll-area" ref={messagesContainerRef}>
 
-              {/* Gallery carousel — shown when a lore search returns results */}
+              {/* Gallery carousel - shown when a lore search returns results */}
               {showGallery && galleryItems.length > 0 && (() => {
                 const primary = galleryItems[0]
                 const showLeft = galleryItems.length >= 2 ? galleryItems[1] : null
@@ -1157,7 +1381,7 @@ export default function DeweyPanel() {
                       <h3>{eraTitle}</h3>
                       <p>{loreText}</p>
                     </div>
-                    {/* Technical Briefing — expanded stat deep-dive */}
+                    {/* Technical Briefing - expanded stat deep-dive */}
                     {techBriefingLoading && (
                       <div className="dh-tech-briefing dh-tech-loading">
                         <span className="material-symbols-outlined dh-tech-icon">science</span>
@@ -1263,7 +1487,7 @@ export default function DeweyPanel() {
                             aria-label={micButtonTitle}
                             aria-pressed={isRecording}
                             type="button"
-                            disabled={isDeweyResponding || !speechSupported}
+                            disabled={!speechSupported}
                           >
                             <span className="material-symbols-outlined dh-eq-icon">graphic_eq</span>
                           </button>
@@ -1271,18 +1495,29 @@ export default function DeweyPanel() {
                             ref={inputRef}
                             type="text"
                             value={input}
-                            onChange={(e) => setInput(e.target.value)}
+                            onChange={handleInputChange}
+                            onFocus={handleInputFocus}
                             onKeyPress={handleKeyPress}
                             placeholder="Tell me about the first arcade hit."
                             autoComplete="off"
-                            disabled={isDeweyResponding}
+                            disabled={false}
                           />
                         </div>
                         <div className="dh-input-right">
-                          <div className="dh-status-pill">
-                            <div className="dh-status-dot"></div>
-                            <span className="dh-status-label">Active</span>
+                          <div className={`dh-status-pill ${isDeweySpeaking ? 'speaking' : ''}`}>
+                            <div className={`dh-status-dot ${isDeweySpeaking ? 'speaking' : ''}`}></div>
+                            <span className={`dh-status-label ${isDeweySpeaking ? 'speaking' : ''}`}>{statusLabel}</span>
                           </div>
+                          <button
+                            className={`dh-stop-btn ${isDeweySpeaking ? 'visible' : ''}`}
+                            onClick={interruptSpeech}
+                            title={stopSpeechTitle}
+                            aria-label={stopSpeechTitle}
+                            type="button"
+                            disabled={!isDeweySpeaking}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>stop_circle</span>
+                          </button>
                           <button
                             className="dh-send-btn"
                             onClick={sendMessage}
@@ -1294,7 +1529,6 @@ export default function DeweyPanel() {
                         </div>
                       </div>
                     </div>
-
                     {/* Quick-action pills */}
                     <div className="dh-pills">
                       <button className="dh-pill" onClick={getNewsHeadlines}>
@@ -1343,9 +1577,3 @@ export default function DeweyPanel() {
     </div>
   )
 }
-
-
-
-
-
-

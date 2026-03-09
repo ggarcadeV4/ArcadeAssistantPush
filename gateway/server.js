@@ -91,6 +91,7 @@ async function createServer() {
     // Security middleware
     app.disable('x-powered-by');
     app.set('trust proxy', 1);
+    app.set('etag', false);
 
     // Enforce no local writes at gateway layer
     installNoLocalWritesGuard();
@@ -143,7 +144,7 @@ async function createServer() {
     app.use('/api/ai/health', aiHealthRoutes);
     // Do not register local config routes; proxy all /api/local/* to FastAPI
     // This enforces the invariant: Gateway performs no direct file I/O
-    console.log('ℹ️ Using FastAPI for /api/local/* via proxy');
+    console.log('[INFO] Using FastAPI for /api/local/* via proxy');
     app.use('/api/local/led', ledRoutes);
     app.use('/api/local/gunner', gunnerRoutes);
     app.use('/api/local/health', healthProxyRoutes);
@@ -173,7 +174,7 @@ async function createServer() {
     // Frontend requests: /api/launchbox/image/{uuid}
     const launchboxImages = 'A:/LaunchBox/Images';
     if (fs.existsSync(launchboxImages)) {
-      console.log('📷 Serving LaunchBox images at /api/launchbox/image from:', launchboxImages);
+      console.log('[INFO] Serving LaunchBox images at /api/launchbox/image from:', launchboxImages);
       app.use('/api/launchbox/image', express.static(launchboxImages, {
         maxAge: '1d',  // Cache for 24 hours (images rarely change)
         immutable: true
@@ -182,9 +183,46 @@ async function createServer() {
 
     // Serve frontend static files (AFTER API routes)
     const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+    const indexPath = path.join(frontendDist, 'index.html');
     const isProduction = process.env.NODE_ENV === 'production';
+
+    const sendSpaShell = (res) => {
+      if (!fs.existsSync(indexPath)) {
+        res.status(404).json({
+          error: 'Frontend not built',
+          message: 'Run npm run build:frontend first'
+        });
+        return;
+      }
+
+      // Prevent caching/revalidation of SPA shell to avoid stale hashed asset refs.
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+      const html = fs.readFileSync(indexPath, 'utf8');
+      res.type('html');
+      res.send(html);
+    };
+
     if (fs.existsSync(frontendDist)) {
+      try {
+        const indexHtml = fs.readFileSync(indexPath, 'utf8');
+        const jsEntry = indexHtml.match(/\/assets\/index-[a-f0-9]{8}\.js/i)?.[0] || 'none';
+        const cssEntry = indexHtml.match(/\/assets\/index-[a-f0-9]{8}\.css/i)?.[0] || 'none';
+        console.log('[Gateway SPA] Serving dist from:', frontendDist);
+        console.log('[Gateway SPA] index path:', indexPath);
+        console.log('[Gateway SPA] index entries:', jsEntry, '|', cssEntry);
+      } catch (err) {
+        console.warn('[Gateway SPA] Failed to inspect index.html:', err?.message || err);
+      }
+
+      app.get(['/index.html'], (req, res) => sendSpaShell(res));
+
       app.use(express.static(frontendDist, {
+        index: false,
+        etag: false,
+        lastModified: false,
         setHeaders: (res, filePath) => {
           const fileName = path.basename(filePath);
           const extension = path.extname(filePath).toLowerCase();
@@ -195,6 +233,7 @@ async function createServer() {
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
+            res.setHeader('Surrogate-Control', 'no-store');
             return;
           }
 
@@ -227,19 +266,7 @@ async function createServer() {
 
     // Frontend fallback (SPA)
     app.get('*', (req, res) => {
-      const indexPath = path.join(frontendDist, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        // Prevent caching of SPA shell to avoid stale hashed asset refs
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).json({
-          error: 'Frontend not built',
-          message: 'Run npm run build:frontend first'
-        });
-      }
+      sendSpaShell(res);
     });
 
     // Error handling
@@ -268,13 +295,13 @@ async function createServer() {
         };
 
         server = https.createServer(httpsOptions, app);
-        console.log('✅ Using HTTPS with dev certificates');
+        console.log('[OK] Using HTTPS with dev certificates');
       } else {
         throw new Error('Dev certificates not found');
       }
     } catch (certError) {
-      console.log('⚠️ HTTPS certs not found, falling back to HTTP');
-      console.log('📋 To enable HTTPS, create dev certificates in gateway/certs/');
+      console.log('[WARN] HTTPS certs not found, falling back to HTTP');
+      console.log('[INFO] To enable HTTPS, create dev certificates in gateway/certs/');
       console.log('   openssl req -x509 -newkey rsa:4096 -keyout dev.key -out dev.crt -days 365 -nodes');
 
       server = http.createServer(app);
@@ -308,9 +335,9 @@ async function createServer() {
     const host = process.env.AA_HOST || '127.0.0.1';
     server.listen(port, host, () => {
       const protocol = server instanceof https.Server ? 'https' : 'http';
-      console.log(`🚀 Gateway running on ${protocol}://${host}:${port}`);
-      console.log(`📡 FastAPI proxy: ${app.locals.fastapiUrl}`);
-      console.log('✅ Ready for requests');
+      console.log('[INFO] Gateway running on ' + protocol + '://' + host + ':' + port);
+      console.log('[INFO] FastAPI proxy: ' + app.locals.fastapiUrl);
+      console.log('[OK] Ready for requests');
     });
 
     // Setup graceful shutdown
@@ -319,7 +346,7 @@ async function createServer() {
     return server;
 
   } catch (error) {
-    console.error('❌ Failed to start gateway:', error);
+    console.error('[ERROR] Failed to start gateway:', error);
     process.exit(1);
   }
 }

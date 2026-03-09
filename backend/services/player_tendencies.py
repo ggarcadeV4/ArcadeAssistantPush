@@ -96,6 +96,69 @@ def _save_session_to_disk(session: Optional[Dict[str, Any]]) -> None:
         return
 
 
+
+def _slugify_player_id(value: Optional[str], fallback: str) -> str:
+    """Create a stable, URL-safe-ish player identifier."""
+    raw = str(value or "").strip().lower()
+    if not raw:
+        raw = fallback
+    cleaned = []
+    for ch in raw:
+        if ch.isalnum():
+            cleaned.append(ch)
+        elif ch in {"_", "-", " "}:
+            cleaned.append("_")
+    slug = "".join(cleaned).strip("_")
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return (slug or fallback)[:64]
+
+
+def _normalize_players(players: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Normalize session roster data into canonical P1-P4 records."""
+    if not isinstance(players, list):
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    for index, raw in enumerate(players[:4]):
+        if not isinstance(raw, dict):
+            continue
+
+        fallback_position = index + 1
+        try:
+            position = int(raw.get("position") or raw.get("slot") or fallback_position)
+        except Exception:
+            position = fallback_position
+        if position < 1 or position > 4:
+            position = fallback_position
+
+        user = str(raw.get("user") or raw.get("name") or "None").strip() or "None"
+        occupied = str(raw.get("occupied", "")).strip().lower() == "true"
+        if "occupied" not in raw:
+            occupied = user.lower() != "none"
+
+        name = str(raw.get("name") or (user if occupied else f"Open Seat {position}")).strip()
+        if not name:
+            name = f"Open Seat {position}"
+
+        candidate_id = raw.get("id") or raw.get("player_id")
+        fallback_id = f"guest_p{position}" if not occupied else f"player_{position}"
+        player_id = _slugify_player_id(str(candidate_id or (user if occupied else fallback_id)), fallback_id)
+
+        controller = str(raw.get("controller") or f"Joystick {position}").strip() or f"Joystick {position}"
+
+        normalized.append({
+            "id": player_id,
+            "name": name,
+            "user": user,
+            "controller": controller,
+            "position": position,
+            "seat": f"P{position}",
+            "occupied": occupied,
+        })
+
+    normalized.sort(key=lambda item: item.get("position", 99))
+    return normalized
 class PlayerTendencyService:
     """Service for managing player tendency files and sessions."""
     
@@ -323,15 +386,17 @@ def set_active_player(
 ) -> Dict[str, Any]:
     """Set the active player for the current session."""
     global _active_session
-    
+
     now = datetime.now()
     expires_at = now + timedelta(minutes=SESSION_TIMEOUT_MINUTES)
-    
+    normalized_players = _normalize_players(players)
+    resolved_player_id = player_id or _slugify_player_id(player_name, "guest")
+
     _active_session = {
         "player_name": player_name,
-        "player_id": player_id,
+        "player_id": resolved_player_id,
         "voice_id": voice_id,
-        "players": players or [],
+        "players": normalized_players,
         "started_at": now.isoformat(),
         "last_activity": now.isoformat(),
         "expires_at": expires_at.isoformat(),
@@ -339,10 +404,9 @@ def set_active_player(
     }
 
     _save_session_to_disk(_active_session)
-    
+
     logger.info(f"Started session for {player_name} (expires at {expires_at})")
     return _active_session
-
 
 def extend_session() -> None:
     """Extend the current session by resetting the expiry timer."""
@@ -375,17 +439,18 @@ def get_active_session() -> Optional[Dict[str, Any]]:
     # Phase 5 Split-Brain Fix: Check Supabase first
     supabase_player = _get_supabase_active_player()
     if supabase_player and supabase_player.get("player_name"):
-        # Return a session-like dict from Supabase data
-        from datetime import datetime, timedelta
+        local_session = _active_session or _load_session_from_disk() or {}
+        local_players = _normalize_players(local_session.get("players"))
         now = datetime.now()
         return {
             "player_name": supabase_player["player_name"],
             "player_id": supabase_player.get("player_id"),
+            "voice_id": local_session.get("voice_id"),
+            "players": local_players,
             "source": "supabase",
-            "started_at": now.isoformat(),
+            "started_at": local_session.get("started_at") or now.isoformat(),
             "expires_at": (now + timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()
         }
-    
     # Fallback to local session
     if not _active_session:
         _active_session = _load_session_from_disk()

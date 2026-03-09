@@ -1,17 +1,13 @@
 /**
  * useBlinkyGameSelection - Frontend debounce for LED game selection
- * 
- * This hook provides network-layer throttling (100ms) before sending
- * game selection events to the backend. The backend then applies its
- * own hardware-layer debounce (250ms) before firing CLI commands.
- * 
- * Why two layers?
- * - Frontend: Protects network stack from scroll spam
- * - Backend: Protects hardware from process spawn spam
+ *
+ * Supports both legacy calls:
+ *   gameSelected('sf2', 'MAME')
+ * and rich game payloads:
+ *   gameSelected({ id, title, platform, rom_path, application_path })
  */
 import { useState, useRef, useCallback } from 'react'
 
-// API base URL helper
 const getApiBase = () => {
     if (typeof window === 'undefined' || !window.location) {
         return 'http://localhost:8787'
@@ -29,89 +25,120 @@ const resolveDeviceId = () => {
     return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
 }
 
-// Frontend debounce: 100ms
 const FRONTEND_DEBOUNCE_MS = 100
 
-/**
- * Hook for debounced game selection LED events
- */
+const cleanText = (value) => {
+    if (value === null || value === undefined) return ''
+    return String(value).trim()
+}
+
+const romFromPath = (value) => {
+    const text = cleanText(value)
+    if (!text) return ''
+    const unquoted = text.replace(/^['\"]+|['\"]+$/g, '')
+    const normalized = unquoted.replace(/\\/g, '/')
+    const fileName = normalized.split('/').pop() || normalized
+    const withoutExt = fileName.replace(/\.[^/.]+$/, '')
+    return cleanText(withoutExt)
+}
+
+const toGamePayload = (gameOrRom, emulator = 'MAME') => {
+    if (typeof gameOrRom === 'string' || typeof gameOrRom === 'number') {
+        const rom = cleanText(gameOrRom)
+        return {
+            rom,
+            title: rom,
+            emulator: cleanText(emulator) || 'MAME'
+        }
+    }
+
+    const game = (gameOrRom && typeof gameOrRom === 'object') ? gameOrRom : {}
+    const emu = cleanText(game.emulator || game.platform || emulator) || 'MAME'
+    const rom = romFromPath(
+        game.rom ||
+        game.rom_path ||
+        game.romPath ||
+        game.application_path ||
+        game.applicationPath
+    )
+
+    return {
+        rom,
+        gameId: cleanText(game.gameId || game.id),
+        title: cleanText(game.title || rom),
+        emulator: emu
+    }
+}
+
 export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
     const [isLoading, setIsLoading] = useState(false)
     const [lastSelectedGame, setLastSelectedGame] = useState(null)
     const debounceTimerRef = useRef(null)
 
-    /**
-     * Called when user hovers/scrolls to a game.
-     * Debounced at 100ms before network call.
-     */
-    const gameSelected = useCallback((rom, emulator = 'MAME') => {
-        console.log('[Blinky] gameSelected called:', rom, emulator)
+    const postBlinkyEvent = useCallback(async (eventName, payload) => {
+        const response = await fetch(`${getApiBase()}/api/local/led/blinky/${eventName}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-scope': 'config',
+                'x-panel': 'led-blinky',
+                'x-device-id': resolveDeviceId()
+            },
+            body: JSON.stringify(payload)
+        })
 
-        // Clear any pending debounce
+        if (!response.ok) {
+            throw new Error(`${eventName} failed: ${response.status}`)
+        }
+
+        return await response.json().catch(() => ({}))
+    }, [])
+
+    const gameSelected = useCallback((gameOrRom, emulator = 'MAME') => {
+        const payload = toGamePayload(gameOrRom, emulator)
+        if (!payload.rom && !payload.gameId && !payload.title) {
+            return
+        }
+
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)
         }
 
-        // Start new debounce timer
         debounceTimerRef.current = setTimeout(async () => {
-            console.log('[Blinky] Debounce fired, calling API for:', rom)
             setIsLoading(true)
             try {
-                const url = `${getApiBase()}/api/local/led/blinky/game-selected`
-                console.log('[Blinky] Fetching:', url)
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-scope': 'config',
-                        'x-panel': 'led-blinky',
-                        'x-device-id': resolveDeviceId()
-                    },
-                    body: JSON.stringify({ rom, emulator })
-                })
-
-                console.log('[Blinky] Response status:', response.status)
-                if (response.ok) {
-                    setLastSelectedGame(rom)
-                }
+                await postBlinkyEvent('game-selected', payload)
+                setLastSelectedGame(payload.title || payload.rom || payload.gameId)
             } catch (err) {
                 console.warn('[Blinky] Game selection failed:', err)
             } finally {
                 setIsLoading(false)
             }
         }, FRONTEND_DEBOUNCE_MS)
-    }, [])
+    }, [postBlinkyEvent])
 
-    /**
-     * Called when a game is actually launched.
-     * No debounce - immediately fires.
-     */
-    const gameLaunch = useCallback(async (rom, emulator = 'MAME') => {
-        // Cancel any pending selection debounce
+    const gameLaunch = useCallback(async (gameOrRom, emulator = 'MAME') => {
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)
             debounceTimerRef.current = null
         }
 
+        const payload = toGamePayload(gameOrRom, emulator)
+        const label = payload.title || payload.rom || payload.gameId || 'game'
+
         setIsLoading(true)
         try {
-            const response = await fetch(`${getApiBase()}/api/local/led/blinky/game-launch`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                },
-                body: JSON.stringify({ rom, emulator })
-            })
-
-            if (!response.ok) {
-                throw new Error(`Game launch failed: ${response.status}`)
+            // Best-effort preview right before launch so LoRa voice/text launches
+            // have the same LED preview path as hover-driven launches.
+            try {
+                await postBlinkyEvent('game-selected', payload)
+                setLastSelectedGame(label)
+            } catch (previewErr) {
+                console.warn('[Blinky] Pre-launch preview failed:', previewErr)
             }
 
-            const data = await response.json()
-            onToast(`LED lighting activated for ${rom}`, 'success')
+            const data = await postBlinkyEvent('game-launch', payload)
+            onToast(`LED lighting activated for ${label}`, 'success')
             return data
         } catch (err) {
             onToast(`LED launch failed: ${err.message}`, 'error')
@@ -119,11 +146,8 @@ export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
         } finally {
             setIsLoading(false)
         }
-    }, [onToast])
+    }, [onToast, postBlinkyEvent])
 
-    /**
-     * Called when returning from a game to the frontend.
-     */
     const gameStop = useCallback(async () => {
         setIsLoading(true)
         try {
@@ -147,9 +171,6 @@ export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
         }
     }, [])
 
-    /**
-     * Cleanup pending timers (call on unmount)
-     */
     const cleanup = useCallback(() => {
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)

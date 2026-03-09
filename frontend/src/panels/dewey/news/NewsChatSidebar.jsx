@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react'
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react'
 import PropTypes from 'prop-types'
+import { stopSpeaking } from '../../../services/ttsClient'
 import { useNewsChat } from './useNewsChat'
 import './NewsChatSidebar.css'
 
@@ -10,6 +11,7 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
   )
   const { messages, loading, isSpeaking, send } = useNewsChat(headlineContext)
   const messagesEndRef = useRef(null)
+  const sendRef = useRef(send)
   const [isRecording, setIsRecording] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(true)
   const recognitionRef = useRef(null)
@@ -18,12 +20,15 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
   const micStatusAlertsRef = useRef({ unsupportedNotified: false })
   const hasHeadlineContext = headlineContext.length > 0
   const inputPlaceholder = !hasHeadlineContext
-    ? 'Loading gaming headlines...'
+    ? 'Headlines are syncing... you can still ask a follow-up.'
     : isRecording
       ? 'Listening...'
       : 'Ask Dewey about the news...'
 
-  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    sendRef.current = send
+  }, [send])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -34,7 +39,6 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
     }
   }, [headlines])
 
-  // Initialize Speech Recognition
   const initializeSpeechRecognition = () => {
     if (typeof window === 'undefined') return null
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -55,15 +59,11 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
         const transcript = result[0].transcript
 
         if (!result.isFinal) {
-          console.log('[NewsChatSidebar] Interim:', transcript)
           setInput(transcript)
           return
         }
 
-        console.log('[NewsChatSidebar] Final Transcribed:', transcript)
-
         if (processingTranscriptRef.current || transcript === lastTranscriptRef.current) {
-          console.log('[NewsChatSidebar] Duplicate transcript ignored')
           return
         }
 
@@ -74,7 +74,7 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
 
         setTimeout(() => {
           if (transcript.trim()) {
-            send(transcript)
+            sendRef.current(transcript)
             setInput('')
             setTimeout(() => {
               processingTranscriptRef.current = false
@@ -85,16 +85,9 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
         }, 100)
       }
 
-      recognition.onerror = (event) => {
-        console.error('[NewsChatSidebar] Speech recognition error:', event.error)
+      recognition.onerror = () => {
         setIsRecording(false)
         processingTranscriptRef.current = false
-
-        if (event.error === 'not-allowed') {
-          console.warn('[NewsChatSidebar] Microphone permission denied')
-        } else if (event.error === 'no-speech') {
-          console.warn('[NewsChatSidebar] No speech detected')
-        }
       }
 
       recognition.onend = () => {
@@ -104,38 +97,40 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
       recognitionRef.current = recognition
       setSpeechSupported(true)
       return recognition
-    } catch (error) {
-      console.error('[NewsChatSidebar] Failed to initialize speech recognition:', error)
+    } catch {
       setSpeechSupported(false)
       return null
     }
   }
 
-  // Initialize speech recognition on mount
   useEffect(() => {
     initializeSpeechRecognition()
     return () => {
-      if (recognitionRef.current) {
-        try {
+      try {
+        if (recognitionRef.current) {
           recognitionRef.current.abort()
-        } catch {}
-      }
+        }
+      } catch {}
+      stopSpeaking()
     }
   }, [])
 
-  // Start/stop voice recording
-  const toggleVoice = () => {
-    if (!hasHeadlineContext) {
-      console.warn('[NewsChatSidebar] Voice input unavailable until headlines load')
-      return
+  const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
     }
+    setIsRecording(false)
+  }, [])
 
+  const toggleVoice = () => {
     if (!isRecording) {
+      // Mic takes precedence: immediately interrupt TTS before listening.
+      stopSpeaking()
+
       const recognitionInstance = recognitionRef.current || initializeSpeechRecognition()
 
       if (!recognitionInstance) {
         if (!micStatusAlertsRef.current.unsupportedNotified) {
-          console.warn('[NewsChatSidebar] Speech recognition not supported in this browser')
           micStatusAlertsRef.current.unsupportedNotified = true
         }
         setIsRecording(false)
@@ -143,12 +138,10 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
       }
 
       setIsRecording(true)
-      console.log('[NewsChatSidebar] Recording started...')
 
       try {
         recognitionInstance.start()
-      } catch (error) {
-        console.error('[NewsChatSidebar] Failed to start recognition:', error)
+      } catch {
         setIsRecording(false)
       }
     } else {
@@ -156,26 +149,26 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
     }
   }
 
-  const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-    }
-    setIsRecording(false)
-    console.log('[NewsChatSidebar] Recording stopped')
-  }
-
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!hasHeadlineContext || !input.trim() || loading || isRecording) return
+    if (!input.trim() || loading || isRecording) return
+
+    // Typing a follow-up also interrupts any ongoing speech.
+    stopSpeaking()
     send(input.trim())
     setInput('')
+  }
+
+  const handleClose = () => {
+    stopRecording()
+    stopSpeaking()
+    onClose()
   }
 
   if (!isOpen) return null
 
   return (
     <div className="news-chat-sidebar" role="dialog" aria-label="Chat with Dewey about gaming news">
-      {/* Header */}
       <div className="news-chat-header">
         <div className="chat-header-left">
           <img
@@ -186,20 +179,19 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
           <div className="chat-header-info">
             <h3>Chat with Dewey</h3>
             <span className="chat-subtitle">
-              {isSpeaking ? '🔊 Speaking...' : 'Discuss Gaming News'}
+              {isSpeaking ? 'Speaking...' : 'Discuss Gaming News'}
             </span>
           </div>
         </div>
         <button
           className="chat-close-btn"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Close chat"
         >
-          ✕
+          X
         </button>
       </div>
 
-      {/* Messages Area */}
       <div className="news-chat-messages">
         {!hasHeadlineContext && (
           <div className="chat-loading-state" role="status">
@@ -211,12 +203,12 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
         {messages.length === 0 && hasHeadlineContext && (
           <div className="chat-welcome">
             <img src="/dewey-avatar.jpeg" alt="Dewey" className="welcome-avatar" />
-            <p>Hey! Ask me about any of these gaming news stories, industry trends, or what it all means for gamers!</p>
+            <p>Ask me about these stories, trends, or likely impact on the industry.</p>
             <div className="quick-questions">
               <button onClick={() => send("What's the most important news today?")}>
                 What's most important?
               </button>
-              <button onClick={() => send("Any big announcements?")}>
+              <button onClick={() => send('Any big announcements?')}>
                 Big announcements?
               </button>
               <button onClick={() => send("What's trending?")}>
@@ -259,7 +251,6 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       <form className="news-chat-input-form" onSubmit={handleSubmit}>
         <input
           type="text"
@@ -267,7 +258,7 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
           placeholder={inputPlaceholder}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={loading || isRecording || !hasHeadlineContext}
+          disabled={loading || isRecording}
           aria-label="Chat input"
         />
         {speechSupported && (
@@ -275,17 +266,17 @@ export default function NewsChatSidebar({ isOpen, onClose, headlines }) {
             type="button"
             className={`news-chat-mic-btn ${isRecording ? 'recording' : ''}`}
             onClick={toggleVoice}
-            disabled={loading || !hasHeadlineContext}
+            disabled={loading}
             aria-label={isRecording ? 'Stop recording' : 'Start voice input'}
             title={isRecording ? 'Stop recording' : 'Voice input'}
           >
-            🎤
+            Mic
           </button>
         )}
         <button
           type="submit"
           className="news-chat-send-btn"
-          disabled={loading || !input.trim() || isRecording || !hasHeadlineContext}
+          disabled={loading || !input.trim() || isRecording}
           aria-label="Send message"
         >
           {loading ? '...' : 'Send'}

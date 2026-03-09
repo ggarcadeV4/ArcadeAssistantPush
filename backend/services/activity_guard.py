@@ -22,6 +22,9 @@ import subprocess
 
 def _default_emulator_names() -> list[str]:
     return [
+        # Frontends (allow overlay in launcher UI too)
+        "bigbox.exe", "bigbox",
+        "launchbox.exe", "launchbox",
         # Retro
         "retroarch.exe", "retroarch",
         # Arcade

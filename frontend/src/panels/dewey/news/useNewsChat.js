@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { chat as aiChat } from '../../../services/aiClient'
-import { speakAsDewey } from '../../../services/ttsClient'
+import { speakAsDewey, stopSpeaking } from '../../../services/ttsClient'
 
 const MAX_CONTEXT_MESSAGES = 12
 
@@ -10,15 +10,50 @@ export function useNewsChat(headlines = []) {
   const [error, setError] = useState(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
 
+  const messagesRef = useRef(messages)
+  const cachedHeadlinesRef = useRef(Array.isArray(headlines) ? headlines : [])
+  const speakTokenRef = useRef(0)
+  const lastSpokenContentRef = useRef('')
+  const lastSpokenAtRef = useRef(0)
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => {
+    if (Array.isArray(headlines) && headlines.length > 0) {
+      cachedHeadlinesRef.current = headlines
+    }
+  }, [headlines])
+
+  useEffect(() => {
+    return () => {
+      // Prevent any late TTS completion handlers from mutating state after unmount.
+      speakTokenRef.current += 1
+      setIsSpeaking(false)
+      stopSpeaking()
+    }
+  }, [])
+
   const send = useCallback(async (userText) => {
     const trimmed = userText.trim()
     if (!trimmed) return
 
-    // Add user message
+    if (isSpeaking) {
+      stopSpeaking()
+      setIsSpeaking(false)
+    }
+
     const userMessage = { role: 'user', content: trimmed, timestamp: new Date() }
     setMessages(prev => [...prev, userMessage])
 
-    if (!Array.isArray(headlines) || headlines.length === 0) {
+    const activeHeadlines = Array.isArray(headlines) && headlines.length > 0
+      ? headlines
+      : cachedHeadlinesRef.current
+
+    // Only block the very first turn when we have zero headline context.
+    // Follow-up turns continue with conversation context.
+    if ((!Array.isArray(activeHeadlines) || activeHeadlines.length === 0) && messagesRef.current.length === 0) {
       const waitingMessage = {
         role: 'assistant',
         content: "I'm still loading today's gaming headlines so I can give you the real scoop. Give me a moment and try again once they appear!",
@@ -33,39 +68,39 @@ export function useNewsChat(headlines = []) {
     setError(null)
 
     try {
-      // Build context with headlines
-      const headlinesContext = headlines.slice(0, 10).map((h, i) =>
-        `${i + 1}. ${h.source}: "${h.title}" (${h.published_relative})`
-      ).join('\n')
+      const headlinesContext = (Array.isArray(activeHeadlines) ? activeHeadlines : [])
+        .slice(0, 10)
+        .map((h, i) => `${i + 1}. ${h.source}: "${h.title}" (${h.published_relative})`)
+        .join('\n')
 
       const systemPrompt = [
         'You are Dewey, the gaming companion at G&G Arcade.',
-        'You are helping users discuss gaming news and understand industry trends.',
-        'Keep responses conversational and insightful (2-3 short paragraphs max).',
+        'You explain gaming industry news clearly and directly.',
+        'Keep responses concise: 2-4 sentences, usually under 90 words unless asked for detail.',
+        'Do not ramble, do not repeat yourself, and avoid long preambles.',
         '',
         'CURRENT GAMING HEADLINES:',
-        headlinesContext || '(No headlines loaded yet)',
+        headlinesContext || '(No headlines loaded yet - use chat context and note headlines are still syncing if needed.)',
         '',
-        'When discussing news, reference specific headlines by source and title.',
-        'Provide context, analysis, and implications of gaming industry news.',
-        'Be enthusiastic but balanced - hype and criticism where appropriate.'
+        'When possible, reference specific headlines by source and title.',
+        'Focus on impact, risks, and what it means for players/developers.'
       ].join('\n')
 
-      const chatHistory = messages.slice(-MAX_CONTEXT_MESSAGES).map(msg => ({
+      const chatHistory = messagesRef.current.slice(-MAX_CONTEXT_MESSAGES).map(msg => ({
         role: msg.role,
         content: msg.content
       }))
 
       const response = await aiChat({
-        provider: 'claude',
+        provider: 'gemini',
         scope: 'state',
         messages: [
           { role: 'system', content: systemPrompt },
           ...chatHistory,
           { role: 'user', content: trimmed }
         ],
-        temperature: 0.7,
-        max_tokens: 500,
+        temperature: 0.5,
+        max_tokens: 260,
         metadata: { panel: 'gaming-news', character: 'dewey' }
       })
 
@@ -77,15 +112,33 @@ export function useNewsChat(headlines = []) {
 
       setMessages(prev => [...prev, assistantMessage])
 
-      // Speak the response using TTS
-      setIsSpeaking(true)
-      speakAsDewey(assistantMessage.content)
-        .catch(err => {
-          console.warn('[useNewsChat] TTS failed:', err)
-        })
-        .finally(() => {
-          setIsSpeaking(false)
-        })
+      const speechText = (assistantMessage.content || '').trim()
+      if (speechText) {
+        const now = Date.now()
+        const isRapidDuplicate =
+          speechText === lastSpokenContentRef.current &&
+          (now - lastSpokenAtRef.current) < 7000
+
+        if (isRapidDuplicate) {
+          console.warn('[useNewsChat] Suppressing rapid duplicate TTS playback')
+        } else {
+          lastSpokenContentRef.current = speechText
+          lastSpokenAtRef.current = now
+
+          const token = ++speakTokenRef.current
+          setIsSpeaking(true)
+
+          speakAsDewey(speechText)
+            .catch(err => {
+              console.warn('[useNewsChat] TTS failed:', err)
+            })
+            .finally(() => {
+              if (speakTokenRef.current === token) {
+                setIsSpeaking(false)
+              }
+            })
+        }
+      }
     } catch (err) {
       console.error('News chat error:', err)
       setError(err.message || 'Failed to get response')
@@ -100,7 +153,7 @@ export function useNewsChat(headlines = []) {
     } finally {
       setLoading(false)
     }
-  }, [headlines, messages])
+  }, [headlines, isSpeaking])
 
   const clearMessages = useCallback(() => {
     setMessages([])

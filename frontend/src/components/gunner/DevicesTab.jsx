@@ -3,13 +3,16 @@ import DeviceCard from './DeviceCard'
 import SensorGrid from './SensorGrid'
 import ConnectionMatrix from './ConnectionMatrix'
 
-
+const DEFAULT_DEVICES = [
+    { player: '1P', name: 'Retro Blaster', model: 'Sinden v2.1', connected: true, battery: 85, firmware: '2.1.3' },
+    { player: '2P', name: 'Retro Blaster', model: 'Gun4IR', connected: true, battery: 42, firmware: '1.4.1' },
+]
 
 /**
  * DevicesTab — Devices tab content
  * Shows gun cards, sensor grid, connection matrix, and scan action
  */
-export default function DevicesTab({ devices = [], sensors = [], onScan }) {
+export default function DevicesTab({ devices = DEFAULT_DEVICES, sensors = [], onScan }) {
     const sensorCount = sensors.filter(s => s.status === 'optimal').length
     const totalSensors = sensors.length
 

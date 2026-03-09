@@ -12,7 +12,8 @@ import { DiagnosisToggle } from '../controller/DiagnosisToggle';
 import { ContextChips } from '../controller/ContextChips';
 import { ExecutionCard } from '../controller/ExecutionCard';
 
-// ── API ────────────────────────────────────────────────────────────────────────
+const MAX_VISIBLE_DIAG_CHIPS = 3;
+
 async function engineeringBayChat({ persona, message, history, isDiagnosisMode, extraContext }) {
     const res = await fetch('/api/local/engineering-bay/chat', {
         method: 'POST',
@@ -31,7 +32,6 @@ async function engineeringBayChat({ persona, message, history, isDiagnosisMode, 
     return res.json();
 }
 
-// ── Action block parser ────────────────────────────────────────────────────────
 function parseActionBlock(text) {
     const match = text.match(/```action\s*([\s\S]*?)```/);
     if (!match) return { action: null, cleanText: text };
@@ -44,7 +44,6 @@ function parseActionBlock(text) {
     }
 }
 
-// ── Message bubble ─────────────────────────────────────────────────────────────
 const MessageBubble = memo(({ msg, persona }) => {
     const ts = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -59,6 +58,7 @@ const MessageBubble = memo(({ msg, persona }) => {
             </div>
         );
     }
+
     if (msg.role === 'system') {
         return (
             <div className="eb-msg eb-msg--system">
@@ -66,6 +66,7 @@ const MessageBubble = memo(({ msg, persona }) => {
             </div>
         );
     }
+
     return (
         <div className="eb-msg eb-msg--user">
             <p className="eb-msg__text">{msg.content}</p>
@@ -75,15 +76,6 @@ const MessageBubble = memo(({ msg, persona }) => {
 });
 MessageBubble.displayName = 'EBMessageBubble';
 
-// ── Main component ─────────────────────────────────────────────────────────────
-/**
- * EngineeringBaySidebar — generic AI chat sidebar for all Engineering Bay personas.
- *
- * @param {object} persona - Config: { id, name, icon, icon2, accentColor, accentGlow,
- *                           scannerLabel, diagLabel, diagPermanent, emptyHint, chips }
- * @param {function} [contextAssembler] - async fn returning extra context payload
- * @param {string} [className]
- */
 export function EngineeringBaySidebar({ persona, contextAssembler, className = '', isOpen, onClose, onToggle }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -91,6 +83,8 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const [pendingAction, setPendingAction] = useState(null);
     const [executeLoading, setExecuteLoading] = useState(false);
     const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [chipPage, setChipPage] = useState(0);
 
     const bottomRef = useRef(null);
     const recognitionRef = useRef(null);
@@ -98,24 +92,35 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const messagesRef = useRef(messages);
     const sendMessageRef = useRef(null);
     const startListeningRef = useRef(null);
+    const diagModeRef = useRef(false);
+    const pendingAutoListenRef = useRef(false);
+    const prevDiagActiveRef = useRef(false);
+
+    const addMessage = useCallback((content, role = 'assistant') => {
+        setMessages(prev => [
+            ...prev,
+            { id: Date.now() + Math.random(), role, content, timestamp: new Date().toISOString() },
+        ]);
+    }, []);
+
     useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-    // ── Stop everything when chat is closed ──────────────────────────────────
     useEffect(() => {
         if (typeof isOpen !== 'undefined' && !isOpen) {
             stopSpeaking();
+            pendingAutoListenRef.current = false;
             if (recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch { /* noop */ }
+                try { recognitionRef.current.stop(); } catch { }
                 recognitionRef.current = null;
             }
             setIsVoiceRecording(false);
+            setIsSpeaking(false);
         }
     }, [isOpen]);
 
-    // ── Diagnosis Mode hook ───────────────────────────────────────────────────
     const handleTimeout = useCallback(() => {
-        addMessage('⏱️ Diagnosis Mode timed out.', 'system');
-    }, []);
+        addMessage('Diagnosis mode timed out.', 'system');
+    }, [addMessage]);
 
     const diag = useDiagnosisMode({
         panelId: persona.id,
@@ -125,25 +130,20 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         ttsSpeak: speak,
         ttsStop: stopSpeaking,
         onTimeout: handleTimeout,
-        // Doc is always active — user can never toggle off
         ...(persona.diagPermanent ? { forcedActive: true } : {}),
     });
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, [messages, loading]);
+    }, [messages, loading, isSpeaking]);
 
-    const addMessage = useCallback((content, role = 'assistant') => {
-        setMessages(prev => [
-            ...prev,
-            { id: Date.now() + Math.random(), role, content, timestamp: new Date().toISOString() },
-        ]);
-    }, []);
-
-    // ── Send ──────────────────────────────────────────────────────────────────
     const sendMessage = useCallback(async (text) => {
         const trimmed = (text ?? '').trim();
-        if (!trimmed || loading) return;
+        if (!trimmed || loading || executeLoading) return;
+
+        stopSpeaking();
+        setIsSpeaking(false);
+        pendingAutoListenRef.current = false;
 
         setInput('');
         diag.resetInteraction?.();
@@ -157,17 +157,15 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             .map(m => ({ role: m.role, content: m.content }));
 
         try {
-            // Always include hardware context — even outside Diagnosis Mode.
-            // This gives the AI awareness of connected controllers, emulator
-            // health, etc. so it can proactively offer help ("wow moments").
             let extraContext = diag.context ?? null;
             if (!extraContext && contextAssembler) {
                 try {
                     extraContext = await contextAssembler();
                 } catch {
-                    extraContext = null; // Non-fatal — AI still works without it
+                    extraContext = null;
                 }
             }
+
             const { reply } = await engineeringBayChat({
                 persona: persona.id,
                 message: trimmed,
@@ -177,37 +175,40 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             });
 
             const { action, cleanText } = parseActionBlock(reply);
-            addMessage(cleanText, 'assistant');
+            if (cleanText) addMessage(cleanText, 'assistant');
             if (action) setPendingAction(action);
 
-            // TTS response
+            setLoading(false);
+
             const ttsOpts = persona.voiceId
                 ? { voice_id: persona.voiceId }
                 : persona.voiceProfile
                     ? { voice_profile: persona.voiceProfile }
                     : {};
-            const isDiag = diag.diagMode || persona.diagPermanent;
-            try {
-                await speak(cleanText, ttsOpts);
-            } catch (ttsErr) {
-                console.warn('[EngineeringBaySidebar] TTS failed:', ttsErr);
+
+            if (cleanText?.trim()) {
+                setIsSpeaking(true);
+                try {
+                    await speak(cleanText, ttsOpts);
+                } catch (ttsErr) {
+                    console.warn('[EngineeringBaySidebar] TTS failed:', ttsErr);
+                } finally {
+                    setIsSpeaking(false);
+                }
             }
 
-            // Hands-Free Loop: auto-resume mic after TTS in Diagnosis Mode
-            if (isDiag && diagModeRef.current) {
-                setTimeout(() => { if (diagModeRef.current) startListeningRef.current?.(); }, 400);
+            if (diagModeRef.current) {
+                pendingAutoListenRef.current = true;
             }
         } catch (err) {
-            addMessage(`⚠️ ${err.message ?? `${persona.name} is unreachable.`}`, 'system');
-        } finally {
             setLoading(false);
+            setIsSpeaking(false);
+            addMessage(`Error: ${err.message ?? `${persona.name} is unreachable.`}`, 'system');
         }
-    }, [loading, diag, addMessage, persona]);
+    }, [loading, executeLoading, diag, addMessage, persona, contextAssembler]);
 
-    // Keep sendMessageRef in sync
     useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
-    // ── Execute action ────────────────────────────────────────────────────────
     const handleExecuteAction = useCallback(async (action) => {
         setExecuteLoading(true);
         try {
@@ -225,39 +226,40 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 const err = await res.json().catch(() => ({ detail: res.statusText }));
                 throw new Error(err.detail ?? 'Action failed');
             }
-            addMessage(`✅ ${action.description ?? 'Fix applied.'}`, 'system');
+            addMessage(`OK: ${action.description ?? 'Fix applied.'}`, 'system');
             setPendingAction(null);
         } catch (err) {
-            addMessage(`❌ Execute failed: ${err.message}`, 'system');
+            addMessage(`Error: Execute failed: ${err.message}`, 'system');
         } finally {
             setExecuteLoading(false);
         }
     }, [addMessage, persona.id]);
 
     const handleCancelAction = useCallback(() => {
-        addMessage('❌ Cancelled.', 'system');
+        addMessage('Cancelled.', 'system');
         setPendingAction(null);
     }, [addMessage]);
 
     const handleKeyDown = useCallback((e) => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage(input);
+        }
     }, [input, sendMessage]);
 
-    // ── Diagnosis Mode ref (readable inside async callbacks) ─────────────────
-    const diagModeRef = useRef(false);
-    useEffect(() => { diagModeRef.current = diag.diagMode || persona.diagPermanent; }, [diag.diagMode, persona.diagPermanent]);
+    useEffect(() => {
+        diagModeRef.current = diag.diagMode || persona.diagPermanent;
+    }, [diag.diagMode, persona.diagPermanent]);
 
-    // ── Start listening (reusable — called by toggle AND auto-resume) ──────────
     const startListening = useCallback(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             addMessage('Voice input not supported in this browser.', 'system');
             return;
         }
-        if (recognitionRef.current) return; // already listening
+        if (recognitionRef.current) return;
 
         try {
-
             const recognition = new SpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
@@ -297,36 +299,98 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         }
     }, [addMessage, diag]);
 
-    // Keep startListeningRef in sync
     useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+    useEffect(() => { setChipPage(0); }, [persona.id, diag.diagMode, diag.chips]);
 
-    // ── Click-toggle voice input ───────────────────────────────────────────────
+    const isActive = diag.diagMode || persona.diagPermanent;
+    const isControlled = typeof isOpen !== 'undefined';
+    const isVisible = !isControlled || isOpen;
+
+    useEffect(() => {
+        const becameActive = isActive && !prevDiagActiveRef.current;
+        const becameInactive = !isActive && prevDiagActiveRef.current;
+
+        if (becameActive) {
+            pendingAutoListenRef.current = true;
+        }
+
+        if (becameInactive) {
+            pendingAutoListenRef.current = false;
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch { }
+                recognitionRef.current = null;
+            }
+            setIsVoiceRecording(false);
+        }
+
+        prevDiagActiveRef.current = isActive;
+    }, [isActive]);
+
+    useEffect(() => {
+        if (!isVisible || !isActive) return;
+        if (!pendingAutoListenRef.current) return;
+        if (loading || executeLoading || isSpeaking || isVoiceRecording) return;
+        if (recognitionRef.current) return;
+
+        pendingAutoListenRef.current = false;
+        startListeningRef.current?.();
+    }, [isVisible, isActive, loading, executeLoading, isSpeaking, isVoiceRecording]);
+
     const toggleVoiceInput = useCallback(() => {
         if (isVoiceRecording) {
             if (recognitionRef.current) recognitionRef.current.stop();
             setIsVoiceRecording(false);
+            pendingAutoListenRef.current = false;
             return;
         }
-        stopSpeaking(); // Cut any playing TTS when manually clicking mic
+        stopSpeaking();
+        setIsSpeaking(false);
+        pendingAutoListenRef.current = false;
         startListening();
     }, [isVoiceRecording, startListening]);
 
-    // ── Active state: diagnosis OR always-on (Doc) ────────────────────────────
-    const isActive = diag.diagMode || persona.diagPermanent;
-    // If isOpen is provided, use it; otherwise sidebar is always visible
-    const isControlled = typeof isOpen !== 'undefined';
-    const sidebarClass = ['eb-sidebar', isActive ? 'eb-sidebar--active' : '', isControlled && !isOpen ? 'eb-sidebar--collapsed' : '', className].join(' ').trim();
+    const sidebarClass = [
+        'eb-sidebar',
+        isActive ? 'eb-sidebar--active' : '',
+        isControlled && !isOpen ? 'eb-sidebar--collapsed' : '',
+        className,
+    ].join(' ').trim();
     const cssVars = { '--eb-accent': persona.accentColor, '--eb-glow': persona.accentGlow };
 
     const pillLabel = persona.diagLabel ?? (persona.diagPermanent ? 'SYS' : 'DIAG');
     const placeholder = isActive
-        ? `${persona.name} DIAG — what needs fixing?`
-        : `Ask ${persona.name}… (Enter to send)`;
+        ? `${persona.name} DIAG - what needs fixing?`
+        : `Ask ${persona.name}... (Enter to send)`;
+
+    const showScanner = loading || isSpeaking || isVoiceRecording || isActive;
+    const scannerLabel = loading
+        ? (persona.scannerLabel ?? 'Scanning...')
+        : isVoiceRecording
+            ? 'Listening...'
+            : isSpeaking
+                ? 'Speaking...'
+                : 'Standby';
+
+    const modeLabel = isActive ? `${pillLabel} mode` : 'Chat mode';
+    const statusLabel = loading
+        ? 'Thinking'
+        : isVoiceRecording
+            ? 'Listening'
+            : isSpeaking
+                ? 'Speaking'
+                : 'Ready';
+
+    const chips = Array.isArray(diag.chips) ? diag.chips : [];
+    const chipPageCount = chips.length ? Math.ceil(chips.length / MAX_VISIBLE_DIAG_CHIPS) : 1;
+    const chipStart = chipPage * MAX_VISIBLE_DIAG_CHIPS;
+    const visibleChips = chips.slice(chipStart, chipStart + MAX_VISIBLE_DIAG_CHIPS);
+
+    const showHandsFreeHint = isActive && !loading && !isVoiceRecording && !isSpeaking;
+    const micLabel = isVoiceRecording ? 'Stop' : (isActive ? 'Talk' : 'Mic');
+    const showSendButton = !isActive;
 
     return (
         <aside className={sidebarClass} style={cssVars} aria-label={`${persona.name} AI Sidebar`}>
-
-            {/* Header */}
             <div className="eb-header">
                 <div className="eb-header__title">
                     <span className="eb-header__icon">{persona.icon}</span>
@@ -334,15 +398,17 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                     {persona.icon2 && <span className="eb-header__icon2">{persona.icon2}</span>}
                     {isActive && <span className="eb-header__pill">{pillLabel}</span>}
                 </div>
+
                 {!persona.diagPermanent && (
                     <DiagnosisToggle
                         active={diag.diagMode}
                         isTransitioning={diag.isTransitioning}
                         onToggle={diag.toggleDiagMode}
-                        disabled={loading}
+                        disabled={loading || executeLoading}
                         accentColor={persona.accentColor}
                     />
                 )}
+
                 {isControlled && onClose && (
                     <button
                         type="button"
@@ -350,11 +416,19 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                         onClick={onClose}
                         aria-label={`Close ${persona.name} chat`}
                         title="Close chat"
-                    >✕</button>
+                    >X</button>
                 )}
             </div>
 
-            {/* Messages */}
+            <div className="eb-mode-row">
+                <span className={`eb-mode-row__pill ${isActive ? 'eb-mode-row__pill--diag' : ''}`}>{modeLabel}</span>
+                <span className={`eb-mode-row__status ${(loading || isVoiceRecording || isSpeaking) ? 'eb-mode-row__status--live' : ''}`}>{statusLabel}</span>
+            </div>
+
+            {showHandsFreeHint && (
+                <div className="eb-hf-hint">Hands-free active. Tap Talk to interrupt and speak.</div>
+            )}
+
             <div className="eb-messages" role="log" aria-live="polite">
                 {messages.length === 0 && (
                     <div className="eb-empty">
@@ -362,23 +436,24 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                         {persona.emptyHint ?? `Ask ${persona.name} anything.`}
                     </div>
                 )}
+
                 {messages.map(msg => (
                     <MessageBubble key={msg.id} msg={msg} persona={persona} />
                 ))}
-                {/* Always-on ambient scanner */}
-                <div className={`eb-kitt ${loading ? '' : 'eb-kitt--ambient'}`}
-                    aria-label={loading ? `${persona.name} thinking` : `${persona.name} standby`}>
-                    <span className="eb-kitt__label">
-                        {loading ? (persona.scannerLabel ?? 'Scanning…') : 'Standby'}
-                    </span>
-                    <div className="eb-kitt__track">
-                        <div className="eb-kitt__orb" />
+
+                {showScanner && (
+                    <div className={`eb-kitt ${(loading || isVoiceRecording || isSpeaking) ? '' : 'eb-kitt--ambient'}`}
+                        aria-label={`${persona.name} ${statusLabel.toLowerCase()}`}>
+                        <span className="eb-kitt__label">{scannerLabel}</span>
+                        <div className="eb-kitt__track">
+                            <div className="eb-kitt__orb" />
+                        </div>
                     </div>
-                </div>
+                )}
+
                 <div ref={bottomRef} />
             </div>
 
-            {/* Execution Card */}
             {pendingAction && (
                 <ExecutionCard
                     proposal={pendingAction}
@@ -388,12 +463,23 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 />
             )}
 
-            {/* Context chips */}
-            {isActive && persona.chips?.length > 0 && (
-                <ContextChips chips={diag.chips} onChipClick={sendMessage} disabled={loading} />
+            {isActive && chips.length > 0 && !loading && !isVoiceRecording && (
+                <div className="eb-chipbar">
+                    <ContextChips chips={visibleChips} onChipClick={sendMessage} disabled={loading || executeLoading} />
+                    {chipPageCount > 1 && (
+                        <button
+                            type="button"
+                            className="eb-chipbar__more"
+                            onClick={() => setChipPage(prev => (prev + 1) % chipPageCount)}
+                            disabled={loading || executeLoading}
+                            aria-label="Show more quick prompts"
+                        >
+                            More {chipPage + 1}/{chipPageCount}
+                        </button>
+                    )}
+                </div>
             )}
 
-            {/* Input row */}
             <div className="eb-input-row">
                 <textarea
                     ref={inputRef}
@@ -403,26 +489,28 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
                     rows={1}
-                    disabled={loading}
+                    disabled={loading || executeLoading}
                     aria-label="Chat input"
                 />
                 <button
                     type="button"
                     className={`eb-mic ${isVoiceRecording ? 'eb-mic--recording' : ''}`}
                     onClick={toggleVoiceInput}
-                    disabled={loading}
+                    disabled={executeLoading}
                     title={isVoiceRecording ? 'Stop recording' : 'Voice input'}
                     aria-label={isVoiceRecording ? 'Stop recording' : 'Voice input'}
                 >
-                    {isVoiceRecording ? '⏹' : '🎤'}
+                    {micLabel}
                 </button>
-                <button
-                    type="button"
-                    className="eb-send"
-                    onClick={() => sendMessage(input)}
-                    disabled={loading || !input.trim()}
-                    aria-label="Send message"
-                >➤</button>
+                {showSendButton && (
+                    <button
+                        type="button"
+                        className="eb-send"
+                        onClick={() => sendMessage(input)}
+                        disabled={loading || executeLoading || !input.trim()}
+                        aria-label="Send message"
+                    >Send</button>
+                )}
             </div>
         </aside>
     );
