@@ -140,6 +140,8 @@ print("DEBUG: Importing voice...")
 from backend.routers import voice
 print("DEBUG: Importing voice_advanced...")
 from backend.routers import voice_advanced
+print("DEBUG: Importing doc_diagnostics...")
+from backend.routers import doc_diagnostics
 print("DEBUG: Importing emulator (pause/save API)...")
 from backend.routers import emulator
 print("DEBUG: Importing hotkey...")
@@ -597,6 +599,7 @@ app.include_router(gunner.router)  # Light gun calibration and profiles
 app.include_router(gunner.router, prefix="/api/local", tags=["gunner"])
 app.include_router(voice.router, prefix="/api", tags=["voice"])  # Voice Vicky lighting commands (basic)
 app.include_router(voice_advanced.router, prefix="/api", tags=["voice-advanced"])  # Voice Vicky advanced NLP
+app.include_router(doc_diagnostics.router, prefix="/api", tags=["doc-diagnostics"])  # Doc: Hardware Bio & Vital Signs
 app.include_router(emulator.router, tags=["emulator"])  # Emulator control (pause/save)
 app.include_router(hotkey.router, tags=["hotkey"])  # V2: Global hotkey detection (A key for overlay)
 app.include_router(emulator_status_router.router)  # /api/local/emulator/status

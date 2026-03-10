@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
-import { getHeadlines, getSources, getTrending } from '../../../services/newsClient'
-import { stopSpeaking } from '../../../services/ttsClient'
 import NewsChatSidebar from './NewsChatSidebar'
+import { getHeadlines, getSources, getTrending } from '../../../services/newsClient'
 import './GamingNews.css'
 
 export default function GamingNews({ onExit }) {
@@ -15,9 +14,9 @@ export default function GamingNews({ onExit }) {
   const [view, setView] = useState('headlines') // 'headlines', 'trending', or 'by-source'
   const [trending, setTrending] = useState(null)
   const [cacheInfo, setCacheInfo] = useState(null)
-  const [chatOpen, setChatOpen] = useState(false)
   const [sourceStats, setSourceStats] = useState({})
   const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [chatOpen, setChatOpen] = useState(false)
 
   // Load headlines on mount and when filters change
   useEffect(() => {
@@ -123,18 +122,6 @@ export default function GamingNews({ onExit }) {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  const handleExit = () => {
-    stopSpeaking()
-    setChatOpen(false)
-    onExit()
-  }
-
-  useEffect(() => {
-    return () => {
-      stopSpeaking()
-    }
-  }, [])
-
   return (
     <div className="gaming-news-wrapper">
       {/* Header */}
@@ -159,7 +146,7 @@ export default function GamingNews({ onExit }) {
           <button className="chat-btn" onClick={() => setChatOpen(true)}>
             💬 Chat with Dewey
           </button>
-          <button className="exit-btn" onClick={handleExit}>
+          <button className="exit-btn" onClick={onExit}>
             ← Back to Dewey
           </button>
         </div>
@@ -342,13 +329,13 @@ export default function GamingNews({ onExit }) {
           </div>
         )}
       </div>
+      {chatOpen && (
+        <NewsChatSidebar
+          headlines={headlines}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
 
-      {/* Chat Sidebar */}
-      <NewsChatSidebar
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        headlines={headlines}
-      />
     </div>
   )
 }

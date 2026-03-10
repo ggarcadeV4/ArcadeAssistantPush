@@ -520,6 +520,77 @@ export default function VoicePanel() {
     })
   }, [sharedProfile?.displayName, sharedProfile?.userId, addMessage, sessionPlayers])
 
+  // ---- Doc & LoRa Real-time Event Listener ----
+  useEffect(() => {
+    let socket = null
+    let reconnectTimer = null
+
+    const connectDocWs = () => {
+      // Use the same GATEWAY logic but switch to ws/wss protocol
+      const wsUrl = GATEWAY.replace(/^http/, 'ws') + '/api/doc/ws/events'
+      console.log('[VoicePanel] Connecting to Doc Health stream:', wsUrl)
+
+      try {
+        socket = new WebSocket(wsUrl)
+
+        socket.onopen = () => {
+          console.log('[VoicePanel] Connected to Doc Health WebSocket')
+          socket.send('ping')
+        }
+
+        socket.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data)
+
+            // Handle Remediation Events (LoRa)
+            if (data.type === 'remediation') {
+              const { game, result } = data
+              if (result?.success) {
+                const msg = `LoRa detected a crash in ${game}. Applying a JIT workaround: ${result.fix_detail || 'CLI flag injection'}. Re-launching now.`
+                addMessage(msg, 'assistant')
+                await speakAsVicky(msg)
+              } else {
+                const msg = `LoRa failed to repair ${game}. The game engine might require manual surgery. I've logged the crash report for Doc.`
+                addMessage(msg, 'assistant')
+                await speakAsVicky(msg)
+              }
+            }
+
+            // Handle Hardware Detection Events (Doc)
+            if (data.type === 'board_detected') {
+              const { board_name } = data
+              const msg = `Doc has detected a new ${board_name || 'arcade controller'}. Machine bio updated.`
+              addMessage(msg, 'assistant')
+              await speakAsVicky(msg)
+            }
+
+          } catch (e) {
+            console.warn('[VoicePanel] Failed to parse Doc event:', e)
+          }
+        }
+
+        socket.onclose = () => {
+          console.log('[VoicePanel] Doc Health WS closed. Retrying in 5s...')
+          reconnectTimer = setTimeout(connectDocWs, 5000)
+        }
+
+        socket.onerror = (err) => {
+          console.error('[VoicePanel] Doc Health WS error:', err)
+          socket.close()
+        }
+      } catch (err) {
+        console.error('[VoicePanel] WebSocket setup failed:', err)
+      }
+    }
+
+    connectDocWs()
+
+    return () => {
+      if (socket) socket.close()
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+    }
+  }, [addMessage])
+
   const quickCommands = {
     galaga: 'I pronounce "Galaga" as [guh-LAH-guh]',
     fighter: 'When I say "fighter", I mean Street Fighter II',
