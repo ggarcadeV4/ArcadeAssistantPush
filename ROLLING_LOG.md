@@ -514,3 +514,13 @@ def get_voice_service() -> VoiceService:
 **Next**: Populate `personas[]` array in `Assistants.jsx` so `/assistants` shows agent selection grid. End-to-end consent UI flow test. Gunner Phase 2.
 
 
+
+
+## 2025-03-09 — Codebase Easy Wins
+- Gateway centralization: 24 files, `gateway.js` created
+- ArcadeWizard port bug fixed
+- getLiveScore stub added
+- Swallowed exceptions logged (5 catch blocks)
+- print->logger in 3 backend routers
+- Console Wizard refactor plan written for next session
+- Pushed: f5f0d3b
