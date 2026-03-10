@@ -1,6 +1,6 @@
 import React, { useEffect, useState, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelNew'
+import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelWrapper'
 import ErrorBoundary from './ErrorBoundary'
 // Old monolithic panel (preserved for rollback):
 // import LightGunsPanel from '../panels/lightguns/LightGunsPanel'

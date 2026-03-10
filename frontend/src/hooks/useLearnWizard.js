@@ -49,7 +49,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
 
         speakTimeoutRef.current = setTimeout(() => {
             lastSpokenRef.current = prompt;
-            try { stopSpeaking(); } catch (e) { }
+            try { stopSpeaking(); } catch (e) { console.warn('[LearnWizard] stopSpeaking:', e) }
             speak(prompt, { voice_id: CHUCK_VOICE_ID }).catch(() => { });
         }, 150);
     }, [voiceEnabled]);
@@ -230,7 +230,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
                 method: 'POST',
                 headers: { 'x-scope': 'state', 'x-panel': 'controller' }
             });
-        } catch (err) { }
+        } catch (err) { console.warn('[LearnWizard]', err) }
 
         setIsActive(false);
         setIsComplete(false);

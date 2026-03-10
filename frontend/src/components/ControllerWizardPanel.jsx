@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PanelShell from '../panels/_kit/PanelShell';
 import PropTypes from 'prop-types';
+import { getGatewayWsUrl } from '../services/gateway'
 
 /**
  * WebSocket manager for Controller Wizard - extracted outside component for performance
@@ -94,7 +95,7 @@ class ControllerWizardWebSocket {
 }
 
 // Create singleton instance
-const wsManager = new ControllerWizardWebSocket('ws://localhost:8787/controller_wizard/ws');
+const wsManager = new ControllerWizardWebSocket(getGatewayWsUrl('/controller_wizard/ws'));
 
 /**
  * Step indicator component for wizard progress

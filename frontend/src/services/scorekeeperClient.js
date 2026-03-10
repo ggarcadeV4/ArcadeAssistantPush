@@ -3,8 +3,10 @@
  * Routes: /scores/* and backend proxied to FastAPI
  */
 
+import { getGatewayUrl, getGatewayWsUrl } from './gateway'
+const GATEWAY_URL = getGatewayUrl()
+
 const BASE = '/api/local/scorekeeper'
-const GATEWAY_URL = 'http://localhost:8787'
 
 const resolveDeviceId = () => {
   if (typeof window === 'undefined') {
@@ -141,7 +143,7 @@ export async function listTournaments() {
 }
 
 export async function submitScoreViaPlugin({ gameId, player, score }) {
-  const GATEWAY_URL = 'http://localhost:8787'
+  const GATEWAY_URL = getGatewayUrl()
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/scores/submit`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-panel': 'scorekeeper' },
@@ -153,7 +155,7 @@ export async function submitScoreViaPlugin({ gameId, player, score }) {
 }
 
 export async function resolveGameByTitle(title) {
-  const GATEWAY_URL = 'http://localhost:8787'
+  const GATEWAY_URL = getGatewayUrl()
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/resolve`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-panel': 'scorekeeper' },
@@ -309,3 +311,9 @@ export async function resetMameScore(romName) {
   return await res.json()
 }
 
+
+// Stub: getLiveScore (referenced by LiveScoreWidget but not yet implemented)
+export const getLiveScore = async () => {
+  console.warn('[scorekeeperClient] getLiveScore not yet implemented')
+  return { score: 0, player: 'P1', game: 'Unknown' }
+}

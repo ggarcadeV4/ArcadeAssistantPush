@@ -4,9 +4,10 @@
 // @version: 2.0
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { getGatewayUrl } from '../../services/gateway'
 
 const API_BASE = window.location.port === '5173'
-  ? 'http://localhost:8787'
+  ? getGatewayUrl()
   : '';
 
 // Display phases

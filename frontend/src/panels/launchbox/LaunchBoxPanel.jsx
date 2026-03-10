@@ -17,6 +17,7 @@ import usePluginHealth from './hooks/usePluginHealth'
 import useVoiceRecording from './hooks/useVoiceRecording'
 import ShaderPreviewModal from './components/ShaderPreviewModal'
 import LoraChatDrawer from './components/LoraChatDrawer'
+import { getGatewayUrl } from '../../services/gateway'
 
 // Inline useDebounce hook since it's not available in the hooks folder
 function useDebounce(value, delay) {
@@ -34,7 +35,7 @@ const PROFILE_STORAGE_KEY = 'launchbox:active-profile'
 const RETROARCH_ALLOWED_STORAGE_KEY = 'launchbox:allow-retroarch'
 // Ensure API calls hit the gateway when running under Vite (5173)
 const GATEWAY = (typeof window !== 'undefined' && window.location && window.location.port === '5173')
-  ? 'http://localhost:8787'
+  ? getGatewayUrl()
   : ''
 
 const formatProfileLabel = (profile) => {

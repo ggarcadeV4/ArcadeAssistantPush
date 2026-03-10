@@ -7,13 +7,14 @@
  *   gameSelected({ id, title, platform, rom_path, application_path })
  */
 import { useState, useRef, useCallback } from 'react'
+import { getGatewayUrl } from '../services/gateway'
 
 const getApiBase = () => {
     if (typeof window === 'undefined' || !window.location) {
-        return 'http://localhost:8787'
+        return getGatewayUrl()
     }
     if (window.location.port === '5173') {
-        return 'http://localhost:8787'
+        return getGatewayUrl()
     }
     return window.location.origin
 }

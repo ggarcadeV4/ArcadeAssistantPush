@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAIAction } from '../_kit'
 import { getLeaderboard, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper } from '../../services/scorekeeperClient'
 import { useLocation } from 'react-router-dom'
@@ -6,7 +6,9 @@ import { getConsent, getProfile } from '../../services/profileClient'
 import { useProfileContext } from '../../context/ProfileContext'
 import { subscribeToScores } from '../../services/supabaseClient'
 import { speakAsSam, stopSpeaking, isSpeaking } from '../../services/ttsClient'
+import LiveScoreWidget from './LiveScoreWidget'
 import './scorekeeper.css'
+import { getGatewayWsUrl } from '../../services/gateway'
 
 // Constants
 const PLAYER_COUNTS = [4, 8, 16, 32]
@@ -515,7 +517,7 @@ export default function ScoreKeeperPanel() {
     const isDev = window.location.port === '5173'
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrl = isDev
-      ? 'ws://localhost:8787/scorekeeper/ws'
+      ? getGatewayWsUrl('/scorekeeper/ws')
       : `${proto}://${window.location.host}/scorekeeper/ws`
 
     let ws
@@ -798,13 +800,22 @@ export default function ScoreKeeperPanel() {
                       : item)
                     : prev
                   )
-                  addChatMessage('system', `Match recorded: ${winner.name} advances`)
+                  // Sam personality commentary
+                  const roundLabels = { round1: 'Round 2', round2: 'the Quarterfinals', quarterfinals: 'the Semifinals', semifinals: 'the Finals', finals: 'the Championship' }
+                  const loserName = winner.id === match.player1.id ? match.player2.name : match.player1.name
+                  const nextLabel = roundLabels[roundType] || 'the next round'
 
                   if (serverData.status === 'completed') {
                     const finalWinner = typeof serverData.winner === 'string'
                       ? serverData.winner
                       : serverData.winner?.name || winner.name
-                    addChatMessage('assistant', `Tournament Complete! Winner: ${finalWinner}`)
+                    const champMsg = `And the champion is ${finalWinner}! What a tournament!`
+                    addChatMessage('assistant', champMsg)
+                    speakAsSam(champMsg).catch(() => { })
+                  } else {
+                    const advanceMsg = `${winner.name} takes it over ${loserName}! They advance to ${nextLabel}.`
+                    addChatMessage('assistant', advanceMsg)
+                    speakAsSam(advanceMsg).catch(() => { })
                   }
                 } catch (err) {
                   console.error('[ScoreKeeper] Failed to fetch updated tournament:', err)
@@ -938,6 +949,26 @@ export default function ScoreKeeperPanel() {
       addChatMessage('assistant', `Created ${selectedPlayerCount} player bracket locally! Backend unavailable.`)
     }
   }, [selectedPlayerCount, playerNames, generateBracket, addChatMessage, tournament.name, applyBackendTournament])
+
+  // Derive current match info for status bar
+  const currentMatchInfo = useMemo(() => {
+    if (!tournament.bracket || tournament.status !== 'active') return null
+    const roundKey = tournament.currentRound
+    const roundMatches = tournament.bracket[roundKey]
+    if (!Array.isArray(roundMatches)) return null
+    const pendingMatch = roundMatches.find(m => !m.winner)
+    const completedCount = roundMatches.filter(m => m.winner).length
+    const totalCount = roundMatches.length
+    const roundLabels = { round1: 'Round 1', round2: 'Round 2', quarterfinals: 'Quarterfinals', semifinals: 'Semifinals', finals: 'Finals' }
+    return {
+      roundLabel: roundLabels[roundKey] || roundKey,
+      matchNumber: completedCount + 1,
+      totalMatches: totalCount,
+      player1: pendingMatch?.player1?.name || 'TBD',
+      player2: pendingMatch?.player2?.name || 'TBD',
+      allComplete: completedCount === totalCount
+    }
+  }, [tournament.bracket, tournament.currentRound, tournament.status])
 
   const processCommand = useCallback((message) => {
     const lowerMessage = message.toLowerCase()
@@ -1430,6 +1461,8 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   </div>
                 </div>
               </div>
+              {/* Live Score */}
+              <LiveScoreWidget />
             </aside>
           </div>
         )}
@@ -1448,6 +1481,30 @@ Current tournament context will be provided. Use it to give specific advice.`,
                   {tournament.status === 'active' ? '● Active' : tournament.status === 'completed' ? '✓ Completed' : '○ Setup'}
                 </span>
               </div>
+              {/* Match Status Bar */}
+              {currentMatchInfo && tournament.status === 'active' && (
+                <div className="sam-match-status-bar">
+                  <div className="match-status-round">
+                    <span className="match-status-dot" />
+                    {currentMatchInfo.roundLabel}
+                  </div>
+                  <div className="match-status-vs">
+                    <span className="match-status-player">{currentMatchInfo.player1}</span>
+                    <span className="match-status-divider">vs</span>
+                    <span className="match-status-player">{currentMatchInfo.player2}</span>
+                  </div>
+                  <div className="match-status-progress">
+                    Match {currentMatchInfo.matchNumber} of {currentMatchInfo.totalMatches}
+                    {currentMatchInfo.allComplete && ' ✓'}
+                  </div>
+                </div>
+              )}
+              {tournament.winner && (
+                <div className="sam-match-status-bar champion">
+                  <span className="material-symbols-outlined" style={{ color: '#ffd700' }}>emoji_events</span>
+                  <span className="match-status-champion">Champion: {tournament.winner.name}</span>
+                </div>
+              )}
               <div className="sam-bracket-body">
                 {tournament.status === 'setup' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem', color: 'var(--sam-text-muted)' }}>
@@ -1520,10 +1577,38 @@ Current tournament context will be provided. Use it to give specific advice.`,
 
               <div className="section-title">Quick Start</div>
               <div className="preset-buttons">
-                <button className="preset-btn" onClick={() => alert('Family Tournament preset -- Available soon')}>Family</button>
-                <button className="preset-btn" onClick={() => alert('Friends Night preset -- Available soon')}>Friends</button>
-                <button className="preset-btn" onClick={() => alert('Random Players -- Available soon')}>Random</button>
-                <button className="preset-btn" onClick={() => alert('Load Saved Group -- Available soon')}>Load Saved</button>
+                <button className="preset-btn" onClick={() => {
+                  const familyNames = ['Mom', 'Dad', 'Sarah', 'Mike', 'Tommy', 'Lisa', 'Alex', 'Jordan']
+                  const filled = familyNames.slice(0, selectedPlayerCount)
+                  while (filled.length < selectedPlayerCount) filled.push(`Player ${filled.length + 1}`)
+                  setPlayerNames(prev => ({ ...prev, [selectedPlayerCount]: filled }))
+                  addChatMessage('assistant', 'Family roster loaded! Hit Create Custom Bracket when ready.')
+                }}>Family</button>
+                <button className="preset-btn" onClick={() => {
+                  const names = Array.from({ length: selectedPlayerCount }, (_, i) => `Player ${i + 1}`)
+                  setPlayerNames(prev => ({ ...prev, [selectedPlayerCount]: names }))
+                  addChatMessage('assistant', 'Generic player names set. Rename them and hit Create!')
+                }}>Friends</button>
+                <button className="preset-btn" onClick={() => {
+                  const current = [...playerNames[selectedPlayerCount]]
+                  for (let i = current.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [current[i], current[j]] = [current[j], current[i]]
+                  }
+                  setPlayerNames(prev => ({ ...prev, [selectedPlayerCount]: current }))
+                  addChatMessage('assistant', 'Players shuffled! Seeding randomized.')
+                }}>Random</button>
+                <button className="preset-btn" onClick={async () => {
+                  if (tournamentList.length === 0) {
+                    addChatMessage('assistant', 'No saved tournaments found.')
+                    return
+                  }
+                  try {
+                    const last = tournamentList[0]
+                    const srv = await getTournament(last.id)
+                    applyBackendTournament(srv, { silent: false })
+                  } catch { addChatMessage('assistant', 'Failed to load saved tournament.') }
+                }}>Load Saved</button>
               </div>
 
               <div className="section-title">Player Count</div>

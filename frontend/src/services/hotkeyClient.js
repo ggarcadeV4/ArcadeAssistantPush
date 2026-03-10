@@ -1,3 +1,4 @@
+import { getGatewayHost } from './gateway'
 // Frontend Hotkey WebSocket client (singleton)
 // Connects via gateway to backend hotkey stream and notifies listeners
 
@@ -11,8 +12,8 @@ class HotkeyWebSocketClient {
     const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
     // Dynamic URL: use window.location.host to avoid 127.0.0.1 vs localhost mismatch
     const host = typeof window !== 'undefined'
-      ? (window.location.port === '5173' ? 'localhost:8787' : window.location.host)
-      : 'localhost:8787'
+      ? getGatewayHost()
+      : getGatewayHost()
     const scheme = isSecure ? 'wss' : 'ws'
     this._url = `${scheme}://${host}/ws/hotkey`
   }

@@ -9,6 +9,7 @@ import { getHeadlines } from '../../services/newsClient'
 import TriviaExperience from './trivia/TriviaExperience'
 import GamingNews from './news/GamingNews'
 import { searchArcadeLore } from '../../services/deweySearchClient'
+import { getGatewayHost } from '../../services/gateway'
 
 
 const MAX_HISTORY_MESSAGES = 12
@@ -821,7 +822,7 @@ export default function DeweyPanel() {
     if (typeof window === 'undefined') return
 
     const isSecure = window.location.protocol === 'https:'
-    const host = window.location.port === '5173' ? 'localhost:8787' : window.location.host
+    const host = getGatewayHost()
     const scheme = isSecure ? 'wss' : 'ws'
     const wsUrl = `${scheme}://${host}/ws/session`
 

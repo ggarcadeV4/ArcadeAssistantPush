@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { stopSpeaking } from '../../services/ttsClient'
+import { getGatewayWsUrl } from '../../services/gateway'
 
 // Helper functions for voice recording
 // (arrayBufferToBase64 removed - sending binary directly)
@@ -424,12 +425,12 @@ export default function DocVoiceControls({ onTranscript, ensureChatOpen }) {
 
   useEffect(() => {
     // Connect directly to gateway (port 8787) to bypass Vite's buggy WebSocket proxy
-    // In dev: ws://localhost:8787/ws/audio
+    // In dev: uses gateway WS URL
     // In prod: uses current host
     const isDev = window.location.port === '5173'
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrl = isDev
-      ? 'ws://localhost:8787/ws/audio'
+      ? getGatewayWsUrl('/ws/audio')
       : `${proto}://${window.location.host}/ws/audio`
 
     console.log('[Doc Voice] Connecting to WebSocket:', wsUrl)

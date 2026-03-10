@@ -10,9 +10,10 @@ import { chat as aiChat } from '../../services/aiClient'
 import { useProfileContext } from '../../context/ProfileContext'
 import { buildVickySystemPrompt } from './vickyPrompt'
 import useGemSpeech from '../../hooks/useGemSpeech'
+import { getGatewayUrl } from '../../services/gateway'
 
 // Use gateway port 8787 in dev mode, or current origin in production
-const GATEWAY = window.location.port === '5173' ? 'http://localhost:8787' : window.location.origin
+const GATEWAY = window.location.port === '5173' ? getGatewayUrl() : window.location.origin
 
 // Helper functions - must be defined before component
 const buildDefaultPlayers = () => ([

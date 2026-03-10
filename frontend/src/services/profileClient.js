@@ -1,5 +1,6 @@
 // Use gateway port 8787 in dev mode, or current origin in production
-const GATEWAY = window.location.port === '5173' ? 'http://localhost:8787' : window.location.origin
+import { getGatewayUrl } from './gateway'
+const GATEWAY = getGatewayUrl()
 
 export async function getProfile() {
   const r = await fetch(`${GATEWAY}/api/local/profile`, { headers: { 'content-type': 'application/json', 'x-panel': 'voice' } })
@@ -16,8 +17,8 @@ export async function getPrimaryProfile() {
 export async function previewProfile(profile) {
   const r = await fetch(`${GATEWAY}/api/local/profile/preview`, {
     method: 'POST',
-    headers: { 
-      'content-type': 'application/json', 
+    headers: {
+      'content-type': 'application/json',
       'x-panel': 'voice',
       'x-scope': 'state'
     },
@@ -51,8 +52,8 @@ export async function getConsent() {
 export async function previewConsent(consent) {
   const r = await fetch(`${GATEWAY}/api/local/consent/preview`, {
     method: 'POST',
-    headers: { 
-      'content-type': 'application/json', 
+    headers: {
+      'content-type': 'application/json',
       'x-panel': 'voice',
       'x-scope': 'state'
     },

@@ -140,7 +140,7 @@ class LEDConfigService:
         try:
             result = client.table("user_tendencies").select("preferences").eq("user_id", user_id).maybeSingle().execute()
             return result.data.get("preferences", {}) if result.data else {}
-        except: return {}
+        except Exception as e: logger.debug("Config read fallback: %s", e); return {}
 
     def _load_fallback_config(self, device_id: str, game: str, user_id: Optional[str]) -> Dict:
         """Load configuration from local fallback."""
@@ -150,7 +150,7 @@ class LEDConfigService:
                     configs = json.load(f)
                     key = f"{device_id}:{game}:{user_id or 'none'}"
                     return configs.get(key, self._get_default_config())
-        except: pass
+        except Exception as e: logger.debug("Config operation skipped: %s", e)
         return self._get_default_config()
 
     def _save_fallback_config(self, device_id: str, game: str, config: Dict, user_id: Optional[str]) -> bool:
@@ -173,7 +173,7 @@ class LEDConfigService:
         """Emit event to registered callbacks."""
         for callback in self._event_callbacks.get(event, []):
             try: callback(data)
-            except: pass
+            except Exception as e: logger.debug("Config operation skipped: %s", e)
 
 
 # Module-level singleton instance

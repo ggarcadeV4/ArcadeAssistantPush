@@ -79,6 +79,25 @@ def _list_process_names() -> list[str]:
         return []
 
 
+import time as _time
+
+# Cache to avoid calling tasklist on every F9 press
+_cached_process_names: list[str] = []
+_cache_expires_at: float = 0.0
+_CACHE_TTL_SECONDS = 3.0
+
+
+def _list_process_names_cached() -> list[str]:
+    """Return process names, using a 3s cache to avoid repeated subprocess calls."""
+    global _cached_process_names, _cache_expires_at
+    now = _time.monotonic()
+    if now < _cache_expires_at:
+        return _cached_process_names
+    _cached_process_names = _list_process_names()
+    _cache_expires_at = now + _CACHE_TTL_SECONDS
+    return _cached_process_names
+
+
 def overlay_allowed_now() -> bool:
     """Return True if overlay should activate at this moment."""
     require = os.getenv('OVERLAY_REQUIRE_EMULATOR', 'true').lower() in {'1', 'true', 'yes'}
@@ -88,7 +107,7 @@ def overlay_allowed_now() -> bool:
     configured = os.getenv('OVERLAY_EMULATOR_PROCESSES', '')
     names = [n.strip().lower() for n in configured.split(';') if n.strip()] or _default_emulator_names()
 
-    running = set(_list_process_names())
+    running = set(_list_process_names_cached())
     for n in names:
         # simple wildcard support for tekno*
         if n.endswith('*'):

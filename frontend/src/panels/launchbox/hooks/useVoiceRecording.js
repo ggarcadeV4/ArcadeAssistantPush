@@ -1,5 +1,6 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { stopSpeaking } from '../../../services/ttsClient'
+import { getGatewayWsUrl } from '../../../services/gateway'
 
 const pickRecorderOptions = () => {
   if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
@@ -318,7 +319,7 @@ export default function useVoiceRecording({ addMessage, showToast, onTranscript,
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const isDev = window.location.port === '5173'
     const wsUrl = isDev
-      ? 'ws://localhost:8787/ws/audio'
+      ? getGatewayWsUrl('/ws/audio')
       : `${proto}://${window.location.host}/ws/audio`
 
     console.log('[LaunchBox Voice] Connecting to WebSocket:', wsUrl)

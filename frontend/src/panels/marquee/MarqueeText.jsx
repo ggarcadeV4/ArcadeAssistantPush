@@ -4,9 +4,10 @@
 // @version: 1.0
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { getGatewayUrl } from '../../services/gateway'
 
 const API_BASE = window.location.port === '5173'
-    ? 'http://localhost:8787'
+    ? getGatewayUrl()
     : '';
 
 // Poll interval in milliseconds

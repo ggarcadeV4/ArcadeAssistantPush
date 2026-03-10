@@ -1,4 +1,5 @@
-﻿import React, { useState, useCallback } from 'react'
+﻿import React, { useState, useCallback, useEffect } from 'react'
+import { listDevices } from '../../services/gunnerClient'
 import GunnerHeader from './GunnerHeader'
 import GunnerNav from './GunnerNav'
 import GunnerAlertBar from './GunnerAlertBar'
@@ -39,15 +40,34 @@ export default function GunnerPanel() {
     const [activeTab, setActiveTab] = useState('devices')
     const [alertMessage, setAlertMessage] = useState(null)
     const [chatOpen, setChatOpen] = useState(false)
+    const [devices, setDevices] = useState([])
+    const [lastSync, setLastSync] = useState(null)
+    const [scanning, setScanning] = useState(false)
 
-    const handleScan = useCallback(() => {
-        console.log('[GunnerPanel] Scan Hardware triggered')
+    const handleScan = useCallback(async () => {
+        setScanning(true)
+        setAlertMessage(null)
+        try {
+            const result = await listDevices()
+            const devList = result?.devices || result || []
+            setDevices(devList)
+            setLastSync(new Date())
+            console.log('[GunnerPanel] Scan complete:', devList.length, 'devices')
+        } catch (err) {
+            console.error('[GunnerPanel] Scan error:', err)
+            setAlertMessage('⚠️ Hardware scan failed: ' + (err.message || 'Unknown error'))
+        } finally {
+            setScanning(false)
+        }
     }, [])
+
+    // Auto-scan on mount
+    useEffect(() => { handleScan() }, [handleScan])
 
     const renderTabContent = () => {
         switch (activeTab) {
             case 'devices':
-                return <DevicesTab onScan={handleScan} />
+                return <DevicesTab devices={devices.length > 0 ? devices : undefined} onScan={handleScan} />
             case 'calibration':
                 return <CalibrationTab />
             case 'profiles':
@@ -106,7 +126,9 @@ export default function GunnerPanel() {
 
             {/* Footer Status Bar */}
             <footer className="gunner-footer">
-                <span className="gunner-footer__sync">Last sync: Just now</span>
+                <span className="gunner-footer__sync">
+                    {scanning ? '⏳ Scanning...' : lastSync ? `Last sync: ${lastSync.toLocaleTimeString()}` : 'Last sync: Never'}
+                </span>
                 <span className="gunner-footer__golden">Golden Baseline: Active</span>
             </footer>
         </div>

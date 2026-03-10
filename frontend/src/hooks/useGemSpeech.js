@@ -8,11 +8,12 @@
  *   const { isRecording, wsConnected, startRecording, stopRecording, transcript, error } = useGemSpeech()
  */
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { getGatewayWsUrl } from '../services/gateway'
 
 const resolveWsUrl = () => {
-  if (typeof window === 'undefined') return 'ws://localhost:8787/ws/audio'
+  if (typeof window === 'undefined') return getGatewayWsUrl('/ws/audio')
   const isSecure = window.location.protocol === 'https:'
-  const host = window.location.port === '5173' ? 'localhost:8787' : window.location.host
+  const host = getGatewayHost()
   const scheme = isSecure ? 'wss' : 'ws'
   return `${scheme}://${host}/ws/audio`
 }

@@ -1154,7 +1154,7 @@ async def led_control_websocket(websocket: WebSocket):
             if action == "set_trim":
                 value = float(command.get("value", 1.0))
                 LEDCalibrationService.update_multiplier(value)
-                print(f"[WS] Trim Updated: {value:.2f}")
+                logger.debug("[WS] Trim Updated: %.2f", value)
                 await websocket.send_json({"type": "set_trim_ack", "value": value})
                 continue
 

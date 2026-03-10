@@ -29,6 +29,7 @@ const MARGIN_RIGHT = 24;
 const MARGIN_BOTTOM = 48;
 const MIN_TOGGLE_INTERVAL_MS = 120;
 const CROSS_SOURCE_DUPLICATE_MS = 400;
+const WS_PING_INTERVAL_MS = 15000;
 const OVERLAY_CMD_PARAM = '__overlay_cmd';
 
 // ============================================================================
@@ -43,6 +44,8 @@ let lastGlobalShortcutAt = 0;
 let lastBackendWsAt = 0;
 let hotkeyWs = null;
 let hotkeyReconnectTimer = null;
+let hotkeyReconnectDelay = 2000;
+let hotkeyPingTimer = null;
 let pendingShowTimer = null;
 
 // ============================================================================
@@ -94,7 +97,8 @@ function forceRevealWindow() {
         win.setAlwaysOnTop(true, 'screen-saver');
         win.show();
         if (typeof win.moveTop === 'function') win.moveTop();
-        win.focus();
+        // Intentionally NOT calling win.focus() — avoid stealing keyboard
+        // focus from the active game/emulator.
     } catch (error) {
         try { console.warn('[Dewey] forceRevealWindow failed:', error); } catch { }
     }
@@ -227,25 +231,30 @@ function toggleHud(source) {
     if (sourceKind === 'backend_ws') lastBackendWsAt = now;
 
     if (isVisible) {
-        win.setOpacity(0);
         win.setIgnoreMouseEvents(true);
+        win.hide();
         isVisible = false;
-        resetToCompactDeweyShell();
-        try { console.log('[Dewey] HUD hidden (source=' + source + ', expanded=' + isExpanded + ')'); } catch { }
+        // If we were expanded (e.g., Console Wizard), reset to compact Dewey
+        // shell so next reveal is clean.
+        if (isExpanded) {
+            resetToCompactDeweyShell();
+        }
+        try { console.log('[Dewey] HUD hidden (source=' + source + ', wasExpanded=' + isExpanded + ')'); } catch { }
     } else {
-        // Every reveal must reopen the compact Dewey shell first. This avoids
-        // resurfacing a stale expanded panel like Console Wizard on the next F9.
-        win.setOpacity(0);
+        // If expanded, reset to compact Dewey first (will reload URL).
+        if (isExpanded) {
+            resetToCompactDeweyShell();
+        }
         win.setIgnoreMouseEvents(false);
-        resetToCompactDeweyShell();
+        win.setOpacity(WINDOW_OPACITY);
+        applyCompactBounds();
         pendingShowTimer = setTimeout(() => {
             pendingShowTimer = null;
             if (!win || win.isDestroyed()) return;
-            win.setOpacity(WINDOW_OPACITY);
             forceRevealWindow();
             isVisible = true;
-            try { console.log('[Dewey] HUD shown (source=' + source + ', expanded=' + isExpanded + ')'); } catch { }
-        }, 140);
+            try { console.log('[Dewey] HUD shown (source=' + source + ')'); } catch { }
+        }, 50);
     }
 }
 
@@ -301,7 +310,9 @@ function scheduleHotkeyReconnect() {
     hotkeyReconnectTimer = setTimeout(() => {
         hotkeyReconnectTimer = null;
         connectHotkeyBridge();
-    }, 2000);
+    }, hotkeyReconnectDelay);
+    // Exponential backoff: 2s -> 4s -> 8s -> 16s -> 30s cap
+    hotkeyReconnectDelay = Math.min(hotkeyReconnectDelay * 2, 30000);
 }
 
 function connectHotkeyBridge() {
@@ -316,6 +327,15 @@ function connectHotkeyBridge() {
 
     hotkeyWs.on('open', () => {
         try { console.log(`[Dewey] Hotkey WS connected: ${wsUrl}`); } catch { }
+        // Reset backoff on successful connection
+        hotkeyReconnectDelay = 2000;
+        // Start heartbeat to detect dead connections
+        if (hotkeyPingTimer) clearInterval(hotkeyPingTimer);
+        hotkeyPingTimer = setInterval(() => {
+            if (hotkeyWs && hotkeyWs.readyState === WebSocket.OPEN) {
+                try { hotkeyWs.send('ping'); } catch { }
+            }
+        }, WS_PING_INTERVAL_MS);
     });
 
     hotkeyWs.on('message', (raw) => {
@@ -332,6 +352,7 @@ function connectHotkeyBridge() {
 
     hotkeyWs.on('close', () => {
         try { console.log('[Dewey] Hotkey WS closed'); } catch { }
+        if (hotkeyPingTimer) { clearInterval(hotkeyPingTimer); hotkeyPingTimer = null; }
         scheduleHotkeyReconnect();
     });
 
@@ -391,6 +412,7 @@ app.on('will-quit', () => {
     pendingShowTimer = null;
     if (hotkeyReconnectTimer) clearTimeout(hotkeyReconnectTimer);
     hotkeyReconnectTimer = null;
+    if (hotkeyPingTimer) { clearInterval(hotkeyPingTimer); hotkeyPingTimer = null; }
     if (hotkeyWs) {
         try { hotkeyWs.close(); } catch { }
     }

@@ -93,6 +93,33 @@ const LEDBlinkyPanel = () => {
         checkStatus()
     }, [])
 
+    // === Hardware detail state ===================================================
+    const [hwDetail, setHwDetail] = useState(null)
+    useEffect(() => {
+        getLEDStatus()
+            .then(s => setHwDetail(s))
+            .catch(() => setHwDetail(null))
+    }, [])
+
+    // === Calibration TTS =========================================================
+    const lastSpokenPort = useRef(0)
+    useEffect(() => {
+        if (panel.mode !== 'calibration') {
+            lastSpokenPort.current = 0
+            return
+        }
+        const port = panel.wizard.currentPort
+        if (port && port !== lastSpokenPort.current) {
+            lastSpokenPort.current = port
+            const total = panel.wizard.totalPorts || '??'
+            if (port === 1) {
+                speakAsBlinky(`Calibration started! Port 1 of ${total}. Click the button that is lit up on your cabinet.`)
+            } else {
+                speakAsBlinky(`Port ${port} of ${total}. Click the button that is blinking.`)
+            }
+        }
+    }, [panel.mode, panel.wizard.currentPort, panel.wizard.totalPorts])
+
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Brightness Handler ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     const handleBrightnessChange = useCallback((value) => {
         setBrightness(value)
@@ -378,18 +405,33 @@ const LEDBlinkyPanel = () => {
                     <div className="led-panel__footer">
                         {/* Idle ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ preset animation buttons */}
                         {panel.mode === 'idle' && (
-                            <div className="led-panel__presets">
-                                <span className="led-panel__control-label" style={{ marginRight: 4 }}>Animations:</span>
-                                {panel.PRESET_ANIMATIONS.map(preset => (
-                                    <button
-                                        key={preset.id}
-                                        className={`led-panel__preset-btn ${panel.activeAnimation === preset.id ? 'led-panel__preset-btn--active' : ''}`}
-                                        onClick={() => panel.playPreset(preset.id)}
-                                    >
-                                        {preset.label}
-                                    </button>
-                                ))}
-                            </div>
+                            <>
+                                {/* Hardware Status */}
+                                <div className="led-panel__presets" style={{ marginBottom: 6 }}>
+                                    <span className="led-panel__control-label">Hardware:</span>
+                                    <span className={`led-panel__preset-btn led-panel__preset-btn--active`} style={{
+                                        cursor: 'default',
+                                        borderColor: connectionStatus === 'connected' ? '#22c55e' : connectionStatus === 'simulated' ? '#eab308' : '#ef4444',
+                                        color: connectionStatus === 'connected' ? '#4ade80' : connectionStatus === 'simulated' ? '#fde047' : '#f87171'
+                                    }}>
+                                        {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'simulated' ? 'Simulated' : 'Disconnected'}
+                                    </span>
+                                    {hwDetail?.device_name && <span className="led-panel__preset-btn" style={{ cursor: 'default' }}>{hwDetail.device_name}</span>}
+                                    {hwDetail?.total_channels && <span className="led-panel__preset-btn" style={{ cursor: 'default' }}>{hwDetail.total_channels} ch</span>}
+                                </div>
+                                <div className="led-panel__presets">
+                                    <span className="led-panel__control-label" style={{ marginRight: 4 }}>Animations:</span>
+                                    {panel.PRESET_ANIMATIONS.map(preset => (
+                                        <button
+                                            key={preset.id}
+                                            className={`led-panel__preset-btn ${panel.activeAnimation === preset.id ? 'led-panel__preset-btn--active' : ''}`}
+                                            onClick={() => panel.playPreset(preset.id)}
+                                        >
+                                            {preset.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
                         )}
 
                         {/* Active ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ profile name + playtime */}

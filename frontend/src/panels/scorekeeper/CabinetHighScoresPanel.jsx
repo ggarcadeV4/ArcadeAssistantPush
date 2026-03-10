@@ -6,10 +6,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getGatewayUrl, getGatewayWsUrl } from '../../services/gateway'
 
 // API base URL - use gateway for consistent routing
 const API_BASE = window.location.port === '5173'
-    ? 'http://localhost:8787'
+    ? getGatewayUrl()
     : '';
 
 /**
@@ -110,7 +111,7 @@ export default function CabinetHighScoresPanel() {
         const isDev = window.location.port === '5173';
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const wsUrl = isDev
-            ? 'ws://localhost:8787/scorekeeper/ws'
+            ? getGatewayWsUrl('/scorekeeper/ws')
             : `${proto}://${window.location.host}/scorekeeper/ws`;
 
         let ws;

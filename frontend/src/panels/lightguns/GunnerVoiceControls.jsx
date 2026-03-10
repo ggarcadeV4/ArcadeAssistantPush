@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { stopSpeaking } from '../../services/ttsClient'
+import { getGatewayHost } from '../../services/gateway'
 
 const MAX_RECORD_MS = 15000
 const SILENCE_THRESHOLD = -50 // dB - audio below this is considered silence
@@ -33,7 +34,7 @@ const getWsUrl = () => {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const port = Number(window.location.port)
   const isVite = port >= 5173 && port <= 5179
-  const host = isVite ? 'localhost:8787' : window.location.host
+  const host = getGatewayHost()
   return `${proto}://${host}/ws/audio`
 }
 

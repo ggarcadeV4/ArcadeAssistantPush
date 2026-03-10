@@ -163,7 +163,7 @@ def load_json_file(filepath: Path, default: Any = None) -> Any:
             with open(filepath, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"[ContentManager] Error loading {filepath}: {e}")
+        logger.error("[ContentManager] Error loading %s: %s", filepath, e)
     return default if default is not None else {}
 
 
@@ -218,7 +218,7 @@ def save_json_file(filepath: Path, data: Any, create_backup: bool = True) -> boo
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = backup_dir / f"{filepath.stem}_{timestamp}.json"
             shutil.copy2(filepath, backup_path)
-            print(f"[ContentManager] Backup created: {backup_path}")
+            logger.info("[ContentManager] Backup created: %s", backup_path)
         
         # Write the file
         with open(filepath, "w", encoding="utf-8") as f:
@@ -228,7 +228,7 @@ def save_json_file(filepath: Path, data: Any, create_backup: bool = True) -> boo
         log_content_change(filepath.name, "save", True)
         return True
     except Exception as e:
-        print(f"[ContentManager] Error saving {filepath}: {e}")
+        logger.error("[ContentManager] Error saving %s: %s", filepath, e)
         log_content_change(filepath.name, "save", False, str(e))
         return False
 
@@ -252,7 +252,7 @@ def log_content_change(filename: str, action: str, success: bool, error: str = "
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
     except Exception as e:
-        print(f"[ContentManager] Failed to write audit log: {e}")
+        logger.error("[ContentManager] Failed to write audit log: %s", e)
 
 
 # Script paths
