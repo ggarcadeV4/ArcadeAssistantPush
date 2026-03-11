@@ -1,6 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
+import logging
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,8 +12,11 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-ScoreStrategyName = Literal["mame_hiscore", "mame_lua", "file_parser", "vision", "manual_only"]
+ScoreStrategyName = Literal["mame_hiscore", "mame_lua", "file_parser", "vision", "manual_only", "none"]
 ScoreAttemptStatus = Literal["captured_auto", "captured_manual", "pending_review", "unsupported", "failed"]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
@@ -85,6 +91,7 @@ class ScoreTrackingService:
         self.attempts_file = self.state_dir / "score_attempts.jsonl"
         self.sessions_file = self.state_dir / "active_score_sessions.json"
         self.strategy_overrides_file = self.drive_root / "configs" / "score_strategy_overrides.json"
+        self._cleanup_stale_sessions()
 
     def _read_json(self, path: Path, default: Any) -> Any:
         if not path.exists():
@@ -97,8 +104,21 @@ class ScoreTrackingService:
 
     def _write_json(self, path: Path, payload: Any) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2)
+        self._atomic_write(path, lambda handle: json.dump(payload, handle, indent=2))
+
+    def _atomic_write(self, path: Path, write_callback) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8", newline="\n") as handle:
+                write_callback(handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def _read_attempts(self) -> List[ScoreAttempt]:
         if not self.attempts_file.exists():
@@ -117,9 +137,10 @@ class ScoreTrackingService:
 
     def _write_attempts(self, attempts: List[ScoreAttempt]) -> None:
         self.attempts_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.attempts_file, "w", encoding="utf-8") as handle:
-            for attempt in attempts:
-                handle.write(attempt.model_dump_json() + "\n")
+        self._atomic_write(
+            self.attempts_file,
+            lambda handle: [handle.write(attempt.model_dump_json() + "\n") for attempt in attempts],
+        )
 
     def _load_active_sessions(self) -> Dict[str, Dict[str, Any]]:
         raw = self._read_json(self.sessions_file, {})
@@ -127,6 +148,42 @@ class ScoreTrackingService:
 
     def _save_active_sessions(self, sessions: Dict[str, Dict[str, Any]]) -> None:
         self._write_json(self.sessions_file, sessions)
+
+    def _parse_session_time(self, value: Optional[str]) -> datetime:
+        if not value:
+            return datetime.now(timezone.utc)
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return datetime.now(timezone.utc)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    def _cleanup_stale_sessions(self, max_age_hours: int = 24) -> None:
+        sessions = self._load_active_sessions()
+        if not sessions:
+            return
+
+        now = datetime.now(timezone.utc)
+        stale_ids: List[str] = []
+        for session_id, session in sessions.items():
+            started_at = self._parse_session_time(session.get("started_at"))
+            if (now - started_at).total_seconds() > max_age_hours * 3600:
+                stale_ids.append(session_id)
+
+        for session_id in stale_ids:
+            session = self.close_session(session_id=session_id)
+            if session:
+                self.record_failure(
+                    session,
+                    strategy_name="none",
+                    reason="stale_session_cleanup",
+                    details=f"Session was {max_age_hours}+ hours old at startup",
+                )
+
+        if stale_ids:
+            logger.info("Cleaned %s stale sessions on startup", len(stale_ids))
 
     def _load_strategy_overrides(self) -> Dict[str, Any]:
         raw = self._read_json(self.strategy_overrides_file, {})
@@ -293,37 +350,29 @@ class ScoreTrackingService:
         pid: Optional[int] = None,
         rom_name: Optional[str] = None,
         ended_at: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         sessions = self._load_active_sessions()
-        session = self.resolve_session(
-            session_id=session_id,
-            game_id=game_id,
-            title=title,
-            pid=pid,
-            rom_name=rom_name,
-        )
+        session = None
+        if session_id and session_id in sessions:
+            session = dict(sessions[session_id])
+        else:
+            for existing in reversed(list(sessions.values())):
+                if pid and existing.get("pid") == pid:
+                    session = dict(existing)
+                    break
+                if game_id and existing.get("game_id") == game_id:
+                    session = dict(existing)
+                    break
+                if rom_name and existing.get("rom_name") == rom_name:
+                    session = dict(existing)
+                    break
+                if title and existing.get("title") == title:
+                    session = dict(existing)
+                    break
+
         if not session:
-            strategy = self.resolve_strategy(
-                game_id=game_id,
-                title=title or "Unknown",
-                platform="Unknown",
-            )
-            return {
-                "session_id": session_id or str(uuid.uuid4()),
-                "source": "unknown",
-                "game_id": game_id,
-                "title": title or "Unknown",
-                "platform": "Unknown",
-                "emulator": None,
-                "pid": pid,
-                "launch_method": "unknown",
-                "started_at": None,
-                "ended_at": ended_at or _utc_now(),
-                "player": None,
-                "rom_name": rom_name,
-                "strategy": strategy.model_dump(),
-                "metadata": {},
-            }
+            logger.info("Session already closed or not found: %s", session_id or game_id or pid or rom_name or title)
+            return None
 
         session["ended_at"] = ended_at or _utc_now()
         sessions.pop(session["session_id"], None)
@@ -470,6 +519,7 @@ class ScoreTrackingService:
         *,
         strategy_name: ScoreStrategyName,
         reason: str,
+        details: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> ScoreAttempt:
         attempt = self.get_latest_attempt_for_session(session["session_id"]) or self.begin_attempt(session)
@@ -477,6 +527,8 @@ class ScoreTrackingService:
         attempt.status = "failed"
         attempt.updated_at = _utc_now()
         attempt.metadata["reason"] = reason
+        if details:
+            attempt.metadata["details"] = details
         attempt.metadata.update(metadata or {})
         return self._upsert_attempt(attempt)
 
@@ -575,4 +627,6 @@ def get_score_tracking_service(drive_root: Path) -> ScoreTrackingService:
     if root not in _services:
         _services[root] = ScoreTrackingService(Path(drive_root))
     return _services[root]
+
+
 

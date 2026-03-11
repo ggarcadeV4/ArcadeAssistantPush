@@ -69,6 +69,8 @@ class RetroArchConfigRequest(BaseModel):
     system: Optional[str] = None
     include_hotkeys: bool = True
     include_deadzones: bool = True
+    mappings: Optional[Dict[str, Any]] = None  # Custom button mappings from wizard
+    deadzone: Optional[float] = None  # Custom deadzone from calibration
 
 
 class RetroArchRestoreRequest(BaseModel):
@@ -1231,3 +1233,110 @@ async def classify_single_platform(platform: str):
     except Exception as e:
         logger.error(f"Platform classification error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed: {str(e)}")
+
+
+# ========== Gamepad Preference Persistence ==========
+
+
+class GamepadPreferencesRequest(BaseModel):
+    """Request model for saving gamepad wizard preferences"""
+    profile_id: str
+    gamepad_name: Optional[str] = None
+    mappings: Dict[str, Any]          # { "up": 12, "down": 13, "a": 0, ... }
+    deadzone: float = 0.15
+    calibration: Optional[Dict[str, Any]] = None  # stick range data
+
+
+def _prefs_path(drive_root: Path) -> Path:
+    """Canonical path for the gamepad preferences JSON file."""
+    return drive_root / ".aa" / "state" / "controller" / "gamepad_preferences.json"
+
+
+@router.get("/gamepad/preferences")
+async def get_gamepad_preferences(request: Request):
+    """Load previously saved gamepad preferences.
+
+    Returns the JSON blob written by the wizard, or status='none' if no
+    preferences have been saved yet.
+    """
+    try:
+        drive_root = request.app.state.drive_root
+        path = _prefs_path(drive_root)
+
+        if not path.exists():
+            return {"status": "none"}
+
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {"status": "ok", "preferences": data}
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"Corrupt gamepad preferences file: {e}")
+        return {"status": "corrupt", "error": str(e)}
+    except Exception as e:
+        logger.error(f"Failed to load gamepad preferences: {e}")
+        raise HTTPException(status_code=500, detail=f"Load failed: {str(e)}")
+
+
+@router.post("/gamepad/preferences")
+async def save_gamepad_preferences(request: Request, prefs: GamepadPreferencesRequest):
+    """Persist gamepad wizard preferences to disk.
+
+    Writes to A:/.aa/state/controller/gamepad_preferences.json using
+    the atomic temp-file + rename pattern.  This file becomes the single
+    source of truth that emulator config generators read from.
+    """
+    try:
+        drive_root = request.app.state.drive_root
+        path = _prefs_path(drive_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        payload = {
+            "version": 1,
+            "saved_at": datetime.now().isoformat(),
+            "profile_id": prefs.profile_id,
+            "gamepad_name": prefs.gamepad_name,
+            "mappings": prefs.mappings,
+            "deadzone": prefs.deadzone,
+            "calibration": prefs.calibration,
+        }
+
+        # Atomic write: temp file then rename
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(path.parent), suffix=".tmp", prefix="gamepad_prefs_"
+        )
+        try:
+            import os as _os
+            with _os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+            Path(tmp_path).replace(path)
+        except Exception:
+            # Clean up temp file on failure
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+
+        # Log the change
+        log_console_wizard_change(
+            request, drive_root, "gamepad_preferences_save",
+            {
+                "profile_id": prefs.profile_id,
+                "mapped_buttons": len(prefs.mappings),
+                "deadzone": prefs.deadzone,
+            },
+        )
+
+        logger.info(f"Gamepad preferences saved: profile={prefs.profile_id}, buttons={len(prefs.mappings)}")
+
+        return {
+            "status": "saved",
+            "path": str(path.relative_to(drive_root)),
+            "profile_id": prefs.profile_id,
+            "mapped_buttons": len(prefs.mappings),
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to save gamepad preferences: {e}")
+        raise HTTPException(status_code=500, detail=f"Save failed: {str(e)}")

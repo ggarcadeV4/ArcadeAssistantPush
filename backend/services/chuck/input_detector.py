@@ -474,7 +474,12 @@ class InputDetectionService:
             logger.error("Failed to load board mapping %s: %s", mapping_path, exc)
             data = {}
 
-        normalized = {self._canonicalize_name(key): int(value) for key, value in data.items()}
+        normalized = {}
+        for key, value in data.items():
+            try:
+                normalized[self._canonicalize_name(key)] = int(value)
+            except (ValueError, TypeError):
+                logger.debug("Skipping non-integer mapping entry: %s=%s", key, value)
         logger.info(
             "Loaded %d key mappings for board '%s' from %s",
             len(normalized),

@@ -29,6 +29,7 @@ const WIZ_PERSONA = {
 import DashboardTab from './DashboardTab';
 import VisualDiffTab from './VisualDiffTab';
 import ActivityLogTab from './ActivityLogTab';
+import GamepadSetupOverlay from './GamepadSetupOverlay';
 
 const arrayBufferToBase64 = (buffer) => {
   let binary = '';
@@ -1881,6 +1882,13 @@ Current context: ${JSON.stringify(contextInfo)}`;
         )
       case 'logs':
         return <ActivityLogTab logs={activityLogs} />
+      case 'controller-setup':
+        return (
+          <GamepadSetupOverlay
+            fetchJSON={fetchJSON}
+            onClose={() => setActiveNav('dashboard')}
+          />
+        )
       default:
         return null
     }

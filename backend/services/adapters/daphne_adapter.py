@@ -1,14 +1,7 @@
-from typing import Any, Dict
+"""Daphne Adapter - delegates to Hypseus adapter.
 
-def is_enabled(manifest: Dict[str, Any]) -> bool:
-    return False
+Daphne routing is handled by hypseus_adapter via launcher_registry aliasing.
+This module exists only as documentation and compatibility for direct imports.
+"""
 
-def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
-    return False
-
-def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
-    return {}
-
-def launch(game: Any, manifest: Dict[str, Any], runner) -> Dict[str, Any]:
-    return {"success": False, "message": "Daphne/Singe adapter stub (not enabled)"}
-
+from .hypseus_adapter import can_handle, is_enabled, launch, resolve

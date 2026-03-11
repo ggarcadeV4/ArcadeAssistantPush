@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, HTTPException, Request, Query, Body
+from fastapi import APIRouter, HTTPException, Request, Query, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pathlib import Path
@@ -1255,6 +1255,14 @@ async def get_score_attempt_review_queue(request: Request, limit: int = Query(de
         "count": len(items),
     }
 
+
+class ScoreAttemptReviewRequest(BaseModel):
+    """Review action for a pending score attempt."""
+    action: Literal["approve", "edit", "reject", "mark_unsupported"]
+    score: Optional[int] = None
+    player: Optional[str] = None
+    note: Optional[str] = None
+
 @router.post("/attempts/{attempt_id}/review")
 async def review_score_attempt(request: Request, attempt_id: str, review: ScoreAttemptReviewRequest):
     require_scope(request, "state")
@@ -2362,12 +2370,8 @@ class LaunchEndEvent(BaseModel):
     score: Optional[int] = None
 
 
-class ScoreAttemptReviewRequest(BaseModel):
-    """Review action for a pending score attempt."""
-    action: Literal["approve", "edit", "reject", "mark_unsupported"]
-    score: Optional[int] = None
-    player: Optional[str] = None
-    note: Optional[str] = None
+
+# NOTE: ScoreAttemptReviewRequest moved above review_score_attempt route (near line 1258)
 
 
 class PlayerSessionRequest(BaseModel):

@@ -37,7 +37,8 @@
       "Bash(done)",
       "Bash(npx vite build)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

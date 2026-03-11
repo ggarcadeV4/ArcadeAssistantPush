@@ -35,6 +35,7 @@ import './chuck-layout.css';
 import './chuck-sidebar.css';
 import '../_kit/EngineeringBaySidebar.css';
 
+
 // ── Constants ───────────────────────────────────────────────────────────────
 const API_BASE = '/api/local/controller';
 const HARDWARE_API = '/api/local/hardware';
@@ -373,6 +374,7 @@ export default function ControllerChuckPanel() {
   // Chat drawer
   const [chatOpen, setChatOpen] = useState(false);
 
+
   // Focus mode: which player card is active for mapping (null = all equal)
   const [activePlayer, setActivePlayer] = useState(null);
   const [returningPlayer, setReturningPlayer] = useState(null); // plays exit animation
@@ -697,6 +699,7 @@ export default function ControllerChuckPanel() {
                   <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
                   DETECT
                 </button>
+
                 <button
                   className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
                   onClick={() => setChatOpen(v => !v)}
@@ -813,6 +816,8 @@ export default function ControllerChuckPanel() {
           </div>
 
         </div>{/* end chuck-layout */}
+
+
 
 
       </div >

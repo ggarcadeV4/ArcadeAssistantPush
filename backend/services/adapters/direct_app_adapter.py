@@ -22,6 +22,7 @@ import logging
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.constants.drive_root import get_drive_root
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +36,6 @@ def _norm_path(p: str) -> Path:
         return Path("")
     s = p.replace("\\", "/")
     if _is_wsl():
-        # A:/ -> /mnt/a/, generic X:/ -> /mnt/x/
         s = s.replace("A:/", "/mnt/a/")
         m = re.match(r"^([A-Za-z]):/(.*)$", s)
         if m:
@@ -50,15 +50,9 @@ def _get(obj: Any, key: str) -> Optional[str]:
 
 
 def _extract_teknoparrot_profile_from_ahk(ahk_path: Path) -> Optional[str]:
-    """Parse AHK script to extract TeknoParrot profile name.
-
-    Looks for lines like:
-    Run, D:\Emulators\Teknoparrot Gamepad\TeknoParrotUi.exe --profile=BBCF.xml
-
-    Returns the profile name (e.g., "BBCF.xml") or None if not found.
-    """
+    """Parse AHK script to extract TeknoParrot profile name."""
     try:
-        content = ahk_path.read_text(encoding="utf-8-sig")  # Handle BOM
+        content = ahk_path.read_text(encoding="utf-8-sig")
         for line in content.split("\n"):
             line = line.strip()
             if "TeknoParrotUi.exe" in line and "--profile=" in line:
@@ -90,6 +84,22 @@ def _get_teknoparrot_exe_from_manifest(manifest: Optional[Dict[str, Any]]) -> Op
     return None
 
 
+def _extract_ahk_command_field(line: str) -> Optional[str]:
+    """Extract the first AHK Run/RunWait command field, respecting quoted commas."""
+    match = re.match(r"^(?:Run|RunWait)\s*,\s*", line, re.IGNORECASE)
+    if not match:
+        return None
+
+    remainder = line[match.end():]
+    in_quotes = False
+    for idx, char in enumerate(remainder):
+        if char == '"':
+            in_quotes = not in_quotes
+        elif char == "," and not in_quotes:
+            return remainder[:idx].strip()
+    return remainder.strip()
+
+
 def _extract_run_target_from_ahk(ahk_path: Path) -> Tuple[Optional[str], Optional[list[str]]]:
     """Extract executable/command target and argument tokens from the first Run line."""
     try:
@@ -102,14 +112,7 @@ def _extract_run_target_from_ahk(ahk_path: Path) -> Tuple[Optional[str], Optiona
             if not (lower.startswith("run,") or lower.startswith("runwait,")):
                 continue
 
-            parts = line.split(",", 1)
-            if len(parts) < 2:
-                continue
-
-            command_text = parts[1].strip()
-            # AHK Run syntax allows extra fields separated by commas. Keep command field only.
-            if "," in command_text:
-                command_text = command_text.split(",", 1)[0].strip()
+            command_text = _extract_ahk_command_field(line)
             if not command_text:
                 continue
 
@@ -128,15 +131,21 @@ def _extract_run_target_from_ahk(ahk_path: Path) -> Tuple[Optional[str], Optiona
     return None, None
 
 
-def _parse_daphne_ahk_command(ahk_path: Path) -> Optional[Dict[str, Any]]:
+def _parse_daphne_ahk_command(ahk_path: Path, manifest: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Parse Daphne/Hypseus/Singe AHK scripts into a direct executable launch."""
     run_target, run_args = _extract_run_target_from_ahk(ahk_path)
     if not run_target or run_args is None:
+        logger.debug("[DirectApp] AHK parse skip: no_run_command_found in %s", ahk_path)
         return None
 
-    exe_name = Path(run_target).name.lower()
+    target_name = Path(run_target).name
+    exe_name = target_name.lower()
     known_exes = {"daphne.exe", "daphne", "hypseus", "hypseus.exe", "singe.exe", "singe"}
     if exe_name not in known_exes:
+        logger.debug(
+            "[DirectApp] AHK parse skip: unsupported_target ('%s' not in allowed list)",
+            target_name,
+        )
         return None
 
     script_dir = ahk_path.parent
@@ -145,12 +154,25 @@ def _parse_daphne_ahk_command(ahk_path: Path) -> Optional[Dict[str, Any]]:
         exe_path = target_path
     else:
         exe_path = (script_dir / target_path).resolve()
-        if not exe_path.exists() and not exe_name.endswith(".exe"):
-            alt = (script_dir / f"{exe_name}.exe").resolve()
-            if alt.exists():
-                exe_path = alt
+
+    if not exe_path.exists() and not exe_path.suffix:
+        exe_candidate = exe_path.with_suffix(".exe")
+        if exe_candidate.exists():
+            exe_path = exe_candidate
 
     if not exe_path.exists():
+        manifest_exe = None
+        if exe_name in {"daphne", "daphne.exe", "hypseus", "hypseus.exe"}:
+            manifest_exe = _get_hypseus_exe_from_manifest(manifest)
+        if manifest_exe and Path(manifest_exe).exists():
+            exe_path = Path(manifest_exe)
+        else:
+            which_match = shutil.which(target_name) or shutil.which(f"{target_name}.exe")
+            if which_match:
+                exe_path = Path(which_match)
+
+    if not exe_path.exists():
+        logger.debug("[DirectApp] AHK parse skip: missing_executable (tried %s)", exe_path)
         return None
 
     return {
@@ -158,6 +180,7 @@ def _parse_daphne_ahk_command(ahk_path: Path) -> Optional[Dict[str, Any]]:
         "args": run_args,
         "cwd": str(_norm_path(str(script_dir))),
     }
+
 
 def _get_hypseus_exe_from_manifest(manifest: Optional[Dict[str, Any]]) -> Optional[Path]:
     """Find hypseus executable from manifest, then standard fallback locations."""
@@ -214,11 +237,7 @@ def _rewrite_framefile_arg(args: list[str], script_dir: Path) -> list[str]:
 
 
 def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
-    """Check if game has ApplicationPath configured in LaunchBox.
-
-    This adapter handles games that use custom launch scripts or standalone executables.
-    Supports: Taito Type X, Daphne, American Laser Games
-    """
+    """Check if game has ApplicationPath configured in LaunchBox."""
     app_path = _get(game, "application_path")
     if not app_path:
         return False
@@ -250,10 +269,7 @@ def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
 
 
 def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
-    """Resolve direct application launch config.
-
-    Returns a dict with keys: exe, args, cwd. Empty dict if cannot resolve.
-    """
+    """Resolve direct application launch config."""
     app_path = (_get(game, "application_path") or "").strip()
     if not app_path:
         return {}
@@ -262,29 +278,26 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
 
     launchbox_root = LaunchBoxPaths.LAUNCHBOX_ROOT
     resolved_path = (launchbox_root / app_path).resolve()
-
     normalized_path = _norm_path(str(resolved_path))
 
     if not normalized_path.exists():
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(f"ApplicationPath not found: {normalized_path}")
+        logger.warning("ApplicationPath not found: %s", normalized_path)
         return {}
 
     ext = normalized_path.suffix.lower()
 
     if ext == ".ahk":
-        daphne_cmd = _parse_daphne_ahk_command(normalized_path)
+        daphne_cmd = _parse_daphne_ahk_command(normalized_path, manifest)
         if daphne_cmd:
             logger.info("Bypassing AHK, launching Daphne-family exe directly: %s", daphne_cmd["exe"])
             return daphne_cmd
+        logger.debug("[DirectApp] AHK direct bypass unavailable for %s", normalized_path)
 
         profile_name = _extract_teknoparrot_profile_from_ahk(normalized_path)
         if profile_name:
             tp_exe = _get_teknoparrot_exe_from_manifest(manifest)
             if tp_exe and tp_exe.exists():
-                logger.info(f"Bypassing AHK script, launching TeknoParrot directly with profile: {profile_name}")
+                logger.info("Bypassing AHK script, launching TeknoParrot directly with profile: %s", profile_name)
 
                 cmd_exe = Path(os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe"))
                 return {

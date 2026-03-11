@@ -1,13 +1,13 @@
-"""Game Lifecycle Router — The Nervous System.
+"""Game Lifecycle Router - The Nervous System.
 
 Handles Playnite game start/stop events, triggers LEDBlinky
 Cinema Logic profiles, and bridges to GameLifecycleService
 for score capture on game exit.
 
 Endpoints:
-    POST /api/game/start  — Game launched (LED + score tracking)
-    POST /api/game/stop   — Game exited (LED reset + hiscore sync)
-    GET  /api/game/status  — Health check + active game list
+    POST /api/game/start  - Game launched (LED + score tracking)
+    POST /api/game/stop   - Game exited (LED reset + hiscore sync)
+    GET  /api/game/status  - Health check + active game list
 """
 
 from __future__ import annotations
@@ -206,7 +206,7 @@ async def _call_ledblinky(
         Status string: "ok", "not_found", "fallback_hid", or "error: <message>"
     """
     if not LEDBLINKY_EXE.exists():
-        logger.warning(f"LEDBlinky not found at {LEDBLINKY_EXE} — falling back to HID")
+        logger.warning(f"LEDBlinky not found at {LEDBLINKY_EXE} - falling back to HID")
         if cinema_tag:
             fb = await _apply_genre_theme(cinema_tag)
             return f"not_found|fallback_{fb}"
@@ -232,7 +232,7 @@ async def _call_ledblinky(
             logger.info(f"[LEDBlinky] Success: animation={animation_code} rom={rom_name}")
             return "ok"
         else:
-            logger.warning(f"[LEDBlinky] Non-zero exit: {result.returncode} — {result.stderr}")
+            logger.warning(f"[LEDBlinky] Non-zero exit: {result.returncode} - {result.stderr}")
             if cinema_tag:
                 fb = await _apply_genre_theme(cinema_tag)
                 logger.info(f"[LEDBlinky] Fallback to HID: {fb}")
@@ -362,6 +362,9 @@ async def _bridge_on_game_stop() -> str:
         pid=game_info.get("pid"),
         rom_name=rom_name,
     )
+    if not session:
+        logger.info(f"[Bridge] Score session already closed for {game_name} - skipping duplicate stop handling")
+        return "already_closed"
 
     is_mame = platform.lower() in ("arcade", "mame") or "mame" in platform.lower()
     status = "pending_review"
@@ -374,16 +377,37 @@ async def _bridge_on_game_stop() -> str:
             result = await asyncio.to_thread(watcher.sync_all)
             synced = list(result.keys()) if isinstance(result, dict) else []
             entries = watcher.get_game_scores(rom_name)
-            if entries:
+            top_entry = entries[0] if entries else None
+            strategy_name = "mame_hiscore"
+            if top_entry and str(top_entry.get("source", "")).lower() in {"mame_lua", "arcade_assistant_scores"}:
+                strategy_name = "mame_lua"
+            elif not top_entry and getattr(watcher, "_lua_scores_path", None):
+                sync_lua_scores = getattr(watcher, "_sync_lua_scores", None)
+                if callable(sync_lua_scores):
+                    try:
+                        sync_lua_scores(broadcast=False)
+                        entries = watcher.get_game_scores(rom_name)
+                        if entries:
+                            top_entry = next(
+                                (
+                                    entry for entry in entries
+                                    if str(entry.get("source", "")).lower() in {"mame_lua", "arcade_assistant_scores"}
+                                ),
+                                entries[0],
+                            )
+                            strategy_name = "mame_lua"
+                    except Exception as lua_error:
+                        logger.debug(f"[Bridge] MAME Lua fallback lookup failed: {lua_error}")
+            if top_entry:
                 tracking_service.record_auto_capture(
                     session,
-                    strategy_name="mame_hiscore",
-                    score=int(entries[0].get("score", 0)),
+                    strategy_name=strategy_name,
+                    score=int(top_entry.get("score", 0)),
                     confidence=1.0,
-                    player=player or entries[0].get("name"),
+                    player=player or top_entry.get("name"),
                     metadata={
                         "rom_name": rom_name,
-                        "source": "mame_hiscore",
+                        "source": top_entry.get("source") or strategy_name,
                         "synced_games": synced,
                     },
                 )
@@ -469,7 +493,7 @@ async def _bridge_on_game_stop() -> str:
 
 
 # ============================================================================
-# Session Bridge (Break 5 fix) � Write game context to Supabase session
+# Session Bridge (Break 5 fix) - Write game context to Supabase session
 # ============================================================================
 
 
@@ -489,7 +513,7 @@ async def _bridge_update_session(game_name: str, rom_name: Optional[str], platfo
         )
         logger.info(f"[SessionBridge] Context pushed to LoRa session: {game_name}")
     except Exception as e:
-        # Non-critical — session bridge is best-effort
+        # Non-critical - session bridge is best-effort
         logger.debug(f"[SessionBridge] Failed to update session (non-critical): {e}")
 
 
@@ -559,7 +583,7 @@ async def game_start(request: GameStartRequest):
         player=request.player,
     )
     
-    # Bridge to session store (Break 5 fix) — fire-and-forget
+    # Bridge to session store (Break 5 fix) - fire-and-forget
     asyncio.create_task(
         _bridge_update_session(request.game_name, request.rom_name, request.platform)
     )
@@ -582,7 +606,7 @@ async def game_stop():
     Triggers LEDBlinky quit animation (code 2) to reset LEDs
     to attract/idle mode, and triggers hiscore sync + score broadcast.
     """
-    logger.info("[GameStop] Game exited — resetting LEDs to attract mode")
+    logger.info("[GameStop] Game exited - resetting LEDs to attract mode")
     
     # Animation code 2 = Game Quit
     blinky_status = await _call_ledblinky("2")
@@ -593,7 +617,7 @@ async def game_stop():
     # Bridge to score pipeline (Break 1 fix)
     score_status = await _bridge_on_game_stop()
     
-    # Clear session context (Break 5 fix) — fire-and-forget
+    # Clear session context (Break 5 fix) - fire-and-forget
     asyncio.create_task(_bridge_clear_session())
     
     return GameLifecycleResponse(
@@ -601,7 +625,7 @@ async def game_stop():
         event="game_stop",
         ledblinky_status=blinky_status,
         score_tracking=score_status,
-        message="Game stopped — LEDs reset, hiscores synced",
+        message="Game stopped - LEDs reset, hiscores synced",
     )
 
 
@@ -632,7 +656,6 @@ async def game_lifecycle_status():
         "service_tracked_games": service_games,
         "endpoints": ["/api/game/start", "/api/game/stop", "/api/game/status"],
     }
-
 
 
 

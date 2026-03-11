@@ -3,6 +3,7 @@ import './WizNavSidebar.css'
 
 const NAV_ITEMS = [
     { id: 'dashboard', icon: 'dashboard', label: 'Overview' },
+    { id: 'controller-setup', icon: 'sports_esports', label: 'Controller' },
     { id: 'diff', icon: 'difference', label: 'Visual Diff' },
     { id: 'logs', icon: 'list_alt', label: 'Logs' },
 ]

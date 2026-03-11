@@ -30,7 +30,7 @@ from backend.services.score_tracking import CanonicalGameEvent, get_score_tracki
 logger = logging.getLogger(__name__)
 
 
-# ── B5 FIX: Genre-Aware LED Animation Codes for LEDBlinky ────────────
+# B5 FIX: Genre-Aware LED Animation Codes for LEDBlinky
 # Each genre tag maps to a distinct animation code that makes the cabinet
 # "feel" different per game type. Code "1" is the fallback (static ON).
 GENRE_ANIMATION_MAP = {
@@ -236,6 +236,11 @@ class GameLifecycleService:
     async def _on_game_exit(self, tracked: TrackedGame) -> None:
         """Handle game exit - detect crashes, trigger remediation, or score capture."""
         play_duration = (datetime.now(timezone.utc) - tracked.started_at).total_seconds()
+        tracking_service = None
+        try:
+            tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+        except Exception as tracking_error:
+            logger.warning(f"Score tracking service unavailable during exit handling: {tracking_error}")
 
         try:
             arbiter = get_led_arbiter()
@@ -278,6 +283,24 @@ class GameLifecycleService:
                     })
                 except Exception as ws_err:
                     logger.debug(f"Doc WS broadcast skipped: {ws_err}")
+                if tracking_service:
+                    try:
+                        session = tracking_service.close_session(
+                            session_id=tracked.session_id,
+                            game_id=tracked.game_id,
+                            title=tracked.game_title,
+                            pid=tracked.pid,
+                            rom_name=tracked.rom_name,
+                        )
+                        if session:
+                            tracking_service.record_failure(
+                                session,
+                                strategy_name="none",
+                                reason="early_exit_or_crash",
+                                details=f"Game exited within {play_duration:.1f}s",
+                            )
+                    except Exception as tracking_error:
+                        logger.warning(f"Score tracking early-exit failure recording failed: {tracking_error}")
                 await self._log_game_session(tracked, play_duration)
                 return
         except ImportError:
@@ -285,17 +308,16 @@ class GameLifecycleService:
         except Exception as exc:
             logger.error(f"Remediation check failed: {exc}")
 
-        tracking_service = None
         session = None
         try:
-            tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
-            session = tracking_service.close_session(
-                session_id=tracked.session_id,
-                game_id=tracked.game_id,
-                title=tracked.game_title,
-                pid=tracked.pid,
-                rom_name=tracked.rom_name,
-            )
+            if tracking_service:
+                session = tracking_service.close_session(
+                    session_id=tracked.session_id,
+                    game_id=tracked.game_id,
+                    title=tracked.game_title,
+                    pid=tracked.pid,
+                    rom_name=tracked.rom_name,
+                )
         except Exception as tracking_error:
             logger.warning(f"Score tracking close session failed: {tracking_error}")
 
@@ -306,13 +328,13 @@ class GameLifecycleService:
                 if mame_result and mame_result.get("score") is not None:
                     tracking_service.record_auto_capture(
                         session,
-                        strategy_name="mame_hiscore",
+                        strategy_name=mame_result.get("strategy_name", "mame_hiscore"),
                         score=int(mame_result.get("score")),
                         confidence=1.0,
                         player=tracked.player or mame_result.get("name"),
                         metadata={
                             "rom_name": tracked.rom_name,
-                            "source": "mame_hiscore",
+                            "source": mame_result.get("source", "mame_hiscore"),
                             "rank": mame_result.get("rank"),
                         },
                     )
@@ -381,10 +403,30 @@ class GameLifecycleService:
             result = watcher.sync_all()
             games = list(result.keys()) if isinstance(result, dict) else []
             top_entry = None
+            strategy_name = "mame_hiscore"
             if tracked.rom_name:
                 entries = watcher.get_game_scores(tracked.rom_name)
                 if entries:
                     top_entry = entries[0]
+                    if str(top_entry.get("source", "")).lower() in {"mame_lua", "arcade_assistant_scores"}:
+                        strategy_name = "mame_lua"
+                elif getattr(watcher, "_lua_scores_path", None):
+                    sync_lua_scores = getattr(watcher, "_sync_lua_scores", None)
+                    if callable(sync_lua_scores):
+                        try:
+                            sync_lua_scores(broadcast=False)
+                            entries = watcher.get_game_scores(tracked.rom_name)
+                            if entries:
+                                top_entry = next(
+                                    (
+                                        entry for entry in entries
+                                        if str(entry.get("source", "")).lower() in {"mame_lua", "arcade_assistant_scores"}
+                                    ),
+                                    entries[0],
+                                )
+                                strategy_name = "mame_lua"
+                        except Exception as lua_error:
+                            logger.debug(f"MAME Lua fallback lookup failed: {lua_error}")
 
             try:
                 await asyncio.to_thread(
@@ -401,6 +443,12 @@ class GameLifecycleService:
                 )
             except Exception as e:
                 logger.debug(f"Score broadcast failed (non-critical): {e}")
+            if top_entry:
+                return {
+                    **top_entry,
+                    "strategy_name": strategy_name,
+                    "source": top_entry.get("source") or strategy_name,
+                }
             return top_entry
         except Exception as e:
             logger.warning(f"MAME hiscore sync on exit failed: {e}")
@@ -608,6 +656,7 @@ def track_game_launch(
         player,
         session_id,
     )
+
 
 
 

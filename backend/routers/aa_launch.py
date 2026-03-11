@@ -7,7 +7,7 @@ Single entry point for all game launches:
 Routes to the correct adapter based on platform.
 
 Architecture:
-  Pegasus → aa_launch_pegasus.bat → POST /api/aa/launch → Adapter → Emulator
+  Pegasus -> aa_launch_pegasus.bat -> POST /api/aa/launch -> Adapter -> Emulator
 """
 
 from fastapi import APIRouter, HTTPException, Request
@@ -16,10 +16,12 @@ from typing import Any, Dict, Optional
 import logging
 import subprocess
 import os
+from pathlib import Path
 
 from backend.services.launchbox_parser import parser
 from backend.services.adapters import teknoparrot_universal_adapter
 from backend.routers import marquee as marquee_router
+from backend.services.score_tracking import CanonicalGameEvent, get_score_tracking_service
 from backend.services.runtime_state import update_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,16 @@ def _run_command(command: str, cwd: str = None) -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+def _derive_rom_name(game: Any) -> Optional[str]:
+    for candidate in (
+        getattr(game, "rom_name", None),
+        getattr(game, "rom_path", None),
+        getattr(game, "application_path", None),
+    ):
+        if candidate:
+            return Path(str(candidate)).stem or None
+    return None
 
 @router.post("/launch", response_model=LaunchResponse)
 async def launch_game(request: Request, payload: LaunchRequest) -> LaunchResponse:
@@ -197,6 +209,27 @@ async def launch_game(request: Request, payload: LaunchRequest) -> LaunchRespons
         run_result = _run_command(command, cwd)
         
         if run_result.get("success"):
+            session_id = None
+            rom_name = _derive_rom_name(game)
+            try:
+                tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+                session = tracking_service.record_launch(
+                    CanonicalGameEvent(
+                        source="aa_direct",
+                        game_id=game_id,
+                        title=title,
+                        platform=platform,
+                        emulator=cfg.get("emulator"),
+                        pid=run_result.get("pid", 0),
+                        launch_method="aa_launch",
+                        rom_name=rom_name,
+                        metadata={"adapter": cfg.get("adapter")},
+                    )
+                )
+                session_id = session.get("session_id")
+            except Exception as tracking_error:
+                logger.debug(f"AA direct score launch record failed: {tracking_error}")
+
             result = {
                 "success": True,
                 "adapter": cfg.get("adapter"),
@@ -204,7 +237,7 @@ async def launch_game(request: Request, payload: LaunchRequest) -> LaunchRespons
                 "profile": cfg.get("profile"),
                 "command": command,
             }
-            
+
             # Track game for lifecycle monitoring (Vision capture on exit)
             try:
                 from backend.services.game_lifecycle import track_game_launch
@@ -214,8 +247,10 @@ async def launch_game(request: Request, payload: LaunchRequest) -> LaunchRespons
                     platform=platform,
                     pid=run_result.get("pid", 0),
                     emulator=cfg.get("emulator"),
-                    source="aa_launch",
-                    launch_method=cfg.get("adapter") or "aa_launch"
+                    rom_name=rom_name,
+                    source="aa_direct",
+                    launch_method="aa_launch",
+                    session_id=session_id,
                 )
             except Exception as track_err:
                 logger.debug(f"Game tracking failed: {track_err}")
@@ -308,4 +343,5 @@ async def find_teknoparrot_profile(title: str) -> Dict[str, Any]:
         "profile": profile,
         "found": profile is not None,
     }
+
 
