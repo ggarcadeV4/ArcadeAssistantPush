@@ -513,16 +513,7 @@ class GameLauncher:
             LaunchResponse if successful, None if failed
         """
         try:
-            logger.info(
-                "Attempting launch via %s: title=%s platform=%s rom=%s application=%s",
-                method_name,
-                game.title,
-                game.platform,
-                getattr(game, "rom_path", ""),
-                getattr(game, "application_path", ""),
-            )
-            if (game.platform or "").strip().lower() == "nintendo wii u":
-                logger.info("WiiU launch path: method=%s title=%s", method_name, game.title)
+            logger.info(f"Attempting launch via {method_name}: {game.title}")
             if method_name == 'direct':
                 result = self._launch_direct(game, profile_hint)
             else:
@@ -591,13 +582,6 @@ class GameLauncher:
         # Launch via plugin with proper error handling
         try:
             result = self.plugin_client.launch_game(game.id)
-            logger.info(
-                "Plugin launch response: title=%s platform=%s launched=%s message=%s",
-                game.title,
-                game.platform,
-                result.get("launched", result.get("success", False)),
-                result.get("message", ""),
-            )
 
             # Check for both 'launched' and 'success' keys for compatibility
             launched = result.get("launched", False) or result.get("success", False)
@@ -636,15 +620,6 @@ class GameLauncher:
             raise ValueError(f"No emulator configured for platform: {game.platform}")
 
         emulator, mapping = result
-        logger.info(
-            "Detected emulator mapping: title=%s platform=%s emulator=%s mapping_flags=%r emulator_flags=%r default=%s",
-            game.title,
-            game.platform,
-            emulator.title,
-            mapping.command_line,
-            getattr(emulator, "command_line", ""),
-            getattr(mapping, "is_default", False),
-        )
 
         # Special-case PCSX2 to apply resolver + archive handling here too (consistency with direct)
         try:
@@ -705,24 +680,11 @@ class GameLauncher:
 
                 cleanup_cb = _cleanup
 
-            trap_result = self._run_adapter_process(str(emulator_exe), args, str(Path(emulator_exe).parent), cleanup_cb)
-            if not trap_result.get("success"):
-                return {
-                    "success": False,
-                    "command": " ".join([str(emulator_exe), *args]),
-                    "message": trap_result.get("stderr") or "Emulator process exited early",
-                    "stderr_trap": trap_result,
-                }
+            self._run_adapter_process(str(emulator_exe), args, str(Path(emulator_exe).parent), cleanup_cb)
             return {"success": True, "command": " ".join([str(emulator_exe), *args])}
 
         # Default path for other emulators
         command = self._build_emulator_command(game, emulator, mapping)
-        logger.info(
-            "Detected emulator command: title=%s platform=%s command=%s",
-            game.title,
-            game.platform,
-            command,
-        )
         self._execute_emulator(command, emulator)
         return {"success": True, "command": " ".join(command)}
 
@@ -754,16 +716,13 @@ class GameLauncher:
         # Build command line (optimized: pre-allocated list)
         command = [str(emulator_exe)]
 
-        pinball_command = self._build_pinball_command(game, emulator, mapping, emulator_exe)
-        if pinball_command:
-            return pinball_command
-
-        # Prefer platform mapping flags, then fall back to emulator-level flags.
-        command_line = (mapping.command_line or "").strip()
-        if not command_line:
-            command_line = (getattr(emulator, "command_line", "") or "").strip()
-        if command_line:
-            command.extend(shlex.split(command_line))
+        # Add command line args: mapping-level overrides emulator-level,
+        # but fall back to emulator-level if mapping has none.
+        # LaunchBox stores flags at EITHER level (e.g., Cemu has "-f -g"
+        # on the Emulator object, not the EmulatorPlatform mapping).
+        effective_cmd_line = mapping.command_line or getattr(emulator, 'command_line', '') or ''
+        if effective_cmd_line:
+            command.extend(shlex.split(effective_cmd_line))
 
         # Add ROM path (resolve relative paths against LaunchBox root)
         rom_path = self._get_rom_path(game)
@@ -778,72 +737,7 @@ class GameLauncher:
         except Exception:
             rom_final = Path(str(rom_path))
         command.append(str(rom_final))
-        logger.info(
-            "Resolved ROM path: title=%s platform=%s raw=%s final=%s",
-            game.title,
-            game.platform,
-            rom_path,
-            rom_final,
-        )
 
-        return command
-
-    def _build_pinball_command(
-        self, game: Game, emulator: Any, mapping: Any, emulator_exe: Path
-    ) -> Optional[List[str]]:
-        """Build platform-specific launch commands for Pinball FX variants."""
-        platform_key = normalize_key(getattr(game, "platform", "") or "")
-        if platform_key not in {"pinball fx3", "pinball fx2"}:
-            return None
-
-        raw_path = self._get_rom_path(game)
-        try:
-            rp = str(raw_path).replace('\\', '/')
-            is_abs = bool((len(rp) >= 3 and rp[1] == ':' and rp[2] == '/') or rp.startswith('/mnt/'))
-            if is_abs:
-                resolved_path = Path(rp)
-            else:
-                resolved_path = (self._get_launchbox_root() / rp).resolve()
-        except Exception:
-            resolved_path = Path(str(raw_path))
-
-        table_token = resolved_path.stem
-        if not table_token:
-            raise ValueError(f"No pinball table token found for {game.title}")
-
-        if platform_key == "pinball fx3":
-            command_line = (mapping.command_line or "").strip()
-            if not command_line:
-                command_line = (getattr(emulator, "command_line", "") or "").strip()
-            if not command_line:
-                command_line = "-applaunch 442120 -table_"
-
-            flags = shlex.split(command_line)
-            appended_token = False
-            for idx, flag in enumerate(flags):
-                if flag == "-table_" or flag.startswith("-table_"):
-                    flags[idx] = f"-table_{table_token}"
-                    appended_token = True
-                    break
-            if not appended_token:
-                flags.append(f"-table_{table_token}")
-
-            command = [str(emulator_exe), *flags]
-            logger.info(
-                "Pinball FX3 launch command: title=%s token=%s command=%s",
-                game.title,
-                table_token,
-                command,
-            )
-            return command
-
-        command = [str(emulator_exe), str(resolved_path)]
-        logger.info(
-            "Pinball FX2 launch command: title=%s table_file=%s command=%s",
-            game.title,
-            resolved_path,
-            command,
-        )
         return command
 
     def _get_launchbox_root(self) -> Path:
@@ -998,7 +892,7 @@ class GameLauncher:
             "command": " ".join(command),
         }
 
-    # Stderr Trap: 1.5s Watchdog
+    # ── Stderr Trap: 1.5s Watchdog ──────────────────────────────────────
 
     @staticmethod
     def _launch_with_stderr_trap(
@@ -1010,13 +904,13 @@ class GameLauncher:
 
         Wraps ``subprocess.Popen`` with ``stdout=PIPE, stderr=PIPE``.
         After 1.5 seconds:
-        - If the process is still running -> launch is healthy, release pipes.
-        - If the process exited with code 0 -> clean exit.
-        - If the process exited with non-zero code -> capture up to 4 KB stderr.
+        - If the process is still running → launch is healthy, release pipes.
+        - If the process exited with code 0 → clean exit.
+        - If the process exited with non-zero code → capture up to 4 KB stderr.
 
         Returns a ``StderrTrapResult`` dict:
             success (bool), command (str), return_code (int|None),
-            stderr (str, <=4 KB), timestamp (str ISO 8601).
+            stderr (str, ≤4 KB), timestamp (str ISO 8601).
         """
         from datetime import datetime, timezone
 
@@ -1050,9 +944,9 @@ class GameLauncher:
         try:
             proc.wait(timeout=WATCHDOG_SECONDS)
         except subprocess.TimeoutExpired:
-            # Process still running after watchdog window -> healthy launch
+            # Process still running after watchdog window → healthy launch
             logger.info(
-                "[StderrTrap] Process PID %d still running after %.1fs - launch OK",
+                "[StderrTrap] Process PID %d still running after %.1fs — launch OK",
                 proc.pid, WATCHDOG_SECONDS,
             )
             # Release pipes in a background thread so they don't block
@@ -1084,7 +978,7 @@ class GameLauncher:
                 "timestamp": ts,
             }
 
-        # Non-zero exit - capture stderr (bounded at 4 KB)
+        # Non-zero exit — capture stderr (bounded at 4 KB)
         stderr_output = ""
         try:
             raw = proc.stderr.read(MAX_STDERR_BYTES) if proc.stderr else b""
@@ -1362,23 +1256,9 @@ class GameLauncher:
                     if dry_run_enabled():
                         logger.info(f"[DIRECT] Adapter {adapter_name} DRY-RUN: {' '.join([exe, *[str(a) for a in args]])}")
                         return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
-                    trap_result = self._run_adapter_process(exe, args, cwd, cleanup_cb)
-                    command_str = " ".join([exe, *[str(a) for a in args]])
-                    if not trap_result.get("success"):
-                        logger.warning(
-                            "[DIRECT] Adapter %s exited early (code=%s)",
-                            adapter_name,
-                            trap_result.get("return_code"),
-                        )
-                        return {
-                            "success": False,
-                            "command": command_str,
-                            "message": trap_result.get("stderr") or f"{adapter_name} exited early",
-                            "stderr_trap": trap_result,
-                            "notes": (cfg or {}).get("notes", ""),
-                        }
-                    logger.info(f"[DIRECT] Adapter {adapter_name} launch SUCCESS: {command_str}")
-                    return {"success": True, "command": command_str, "notes": (cfg or {}).get("notes", "")}
+                    self._run_adapter_process(exe, args, cwd, cleanup_cb)
+                    logger.info(f"[DIRECT] Adapter {adapter_name} launch SUCCESS: {' '.join([exe, *[str(a) for a in args]])}")
+                    return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
 
             # No adapter handled this platform
             logger.warning(f"[DIRECT] No adapter found for platform={game.platform}, adapters_tried={adapters_tried}")
@@ -1393,18 +1273,24 @@ class GameLauncher:
                 pass
 
     @staticmethod
-    def _run_adapter_process(exe: str, args: List[str], cwd: Optional[str], on_exit: Optional[Callable[[], None]] = None) -> Dict[str, Any]:
-        """Execute adapter-provided command line and report early-exit failures."""
+    def _run_adapter_process(exe: str, args: List[str], cwd: Optional[str], on_exit: Optional[Callable[[], None]] = None) -> None:
+        """Execute adapter-provided command line.
+
+        Uses working directory if provided; otherwise defaults to exe parent.
+        Works in Windows and WSL interop environments.
+        """
         workdir = Path(cwd) if cwd else Path(exe).parent
         try:
+            # WSL interop: if running under WSL Linux and exe looks like Windows path, use cmd.exe start
             if platform.system() == 'Linux' and 'microsoft' in platform.release().lower() and (':' in exe or exe.lower().startswith('/mnt/')):
+                # Convert /mnt/x/... to X:\... for Windows
                 win_exe = exe
                 if exe.lower().startswith('/mnt/') and len(exe) > 6:
                     drive = exe[5].upper()
                     rest = exe[7:].replace('/', '\\')
                     sep = '\\' if (rest and not rest.startswith('\\')) else ''
                     win_exe = f"{drive}:{sep}{rest}"
-
+                # Convert any /mnt/x/... args to Windows paths as well
                 def _arg_to_win(a: Any) -> str:
                     try:
                         s = str(a)
@@ -1416,20 +1302,21 @@ class GameLauncher:
                         rest = s[7:].replace('/', '\\')
                         sep2 = '\\' if (rest and not rest.startswith('\\')) else ''
                         return f"{d}:{sep2}{rest}"
+                    # Also normalize X:/ style into X:\ style
                     if len(s) >= 3 and s[1] == ':' and s[2] == '/':
                         return s.replace('/', '\\')
                     return s
-
                 win_args = [_arg_to_win(a) for a in args]
+                # Quote arguments for Windows shell
                 safe_args = " ".join([f'"{str(a)}"' for a in win_args])
                 windows_cmd = f'cmd.exe /c start "" "{win_exe}" {safe_args}'
                 subprocess.Popen(windows_cmd, shell=True)
                 if on_exit:
+                    # No process handle; schedule delayed cleanup as best-effort
                     try:
                         ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
                     except Exception:
                         ttl = 900
-
                     def _delayed():
                         try:
                             time.sleep(max(1, ttl))
@@ -1438,48 +1325,46 @@ class GameLauncher:
                                 on_exit()
                             except Exception:
                                 pass
-
                     threading.Thread(target=_delayed, daemon=True).start()
-                return {
-                    "success": True,
-                    "command": windows_cmd,
-                    "return_code": None,
-                    "stderr": "",
-                    "pid": None,
-                }
-
-            full_command = [exe, *args]
-            win_command = _convert_wsl_paths_for_windows(full_command)
-            wsl_cwd = str(workdir)
-            trap_result = GameLauncher._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
-            if not trap_result["success"]:
-                logger.warning(
-                    "[Adapter] Process crashed (code %s): %s",
-                    trap_result.get("return_code"),
-                    trap_result.get("stderr", "")[:200],
-                )
-                GameLauncher._last_trap_result = trap_result
-            if on_exit:
-                if trap_result.get("pid"):
-                    def _await_then_cleanup(pid):
-                        try:
-                            import psutil
-                            p = psutil.Process(pid)
-                            p.wait()
-                        except Exception:
-                            pass
-                        finally:
+            else:
+                # Convert paths for WSL
+                full_command = [exe, *args]
+                win_command = _convert_wsl_paths_for_windows(full_command)
+                # Keep working directory in WSL format - subprocess.Popen needs WSL path
+                wsl_cwd = str(workdir)
+                # Use stderr trap for crash detection
+                trap_result = GameLauncher._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
+                if not trap_result["success"]:
+                    logger.warning(
+                        "[Adapter] Process crashed (code %s): %s",
+                        trap_result.get("return_code"),
+                        trap_result.get("stderr", "")[:200],
+                    )
+                    # Store trap result for remediation (caller can inspect)
+                    GameLauncher._last_trap_result = trap_result
+                if on_exit:
+                    # Schedule cleanup — process already exited or is running
+                    if trap_result.get("pid"):
+                        # Process still running, wait for it
+                        def _await_then_cleanup(pid):
                             try:
-                                on_exit()
+                                import psutil
+                                p = psutil.Process(pid)
+                                p.wait()
                             except Exception:
                                 pass
-                    threading.Thread(target=_await_then_cleanup, args=(trap_result["pid"],), daemon=True).start()
-                else:
-                    try:
-                        on_exit()
-                    except Exception:
-                        pass
-            return trap_result
+                            finally:
+                                try:
+                                    on_exit()
+                                except Exception:
+                                    pass
+                        threading.Thread(target=_await_then_cleanup, args=(trap_result["pid"],), daemon=True).start()
+                    else:
+                        # Process already exited, run cleanup now
+                        try:
+                            on_exit()
+                        except Exception:
+                            pass
         except OSError as e:
             raise RuntimeError(f"Failed to launch adapter process: {e}")
 
@@ -1565,7 +1450,7 @@ class GameLauncher:
                 cheat_path = cheat.get("path")
                 if isinstance(cheat_path, str) and cheat_path:
                     # Include path only if it exists on this system
-                    # Handle WSL path translation for A:/ -> /mnt/a/
+                    # Handle WSL path translation for A:/ → /mnt/a/
                     cpath = cheat_path
                     try:
                         if platform.system() == 'Linux' and 'microsoft' in platform.release().lower():

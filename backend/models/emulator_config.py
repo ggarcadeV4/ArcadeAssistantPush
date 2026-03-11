@@ -28,11 +28,12 @@ class EmulatorDefinition:
     executable_path: str
     command_line: str = ""
     working_directory: Optional[str] = None
+    command_line: str = ""
     source: str = "launchbox"
 
     def __hash__(self) -> int:
         """Make hashable for caching purposes."""
-        return hash((self.id, self.title, self.executable_path))
+        return hash((self.id, self.title, self.executable_path, self.command_line))
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -42,6 +43,7 @@ class EmulatorDefinition:
             "executable_path": self.executable_path,
             "command_line": self.command_line,
             "working_directory": self.working_directory,
+            "command_line": self.command_line,
             "source": self.source
         }
 
@@ -54,6 +56,7 @@ class EmulatorDefinition:
             executable_path=data["executable_path"],
             command_line=data.get("command_line", ""),
             working_directory=data.get("working_directory"),
+            command_line=data.get("command_line", ""),
             source=data.get("source", "manual")
         )
 

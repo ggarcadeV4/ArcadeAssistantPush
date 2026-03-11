@@ -169,13 +169,7 @@ ChatMessage.displayName = 'ChatMessage'
 
 // Memoized game card component to prevent unnecessary re-renders
 const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, pluginAvailable, launchDisabled }) => {
-  const isPinball = useMemo(() => (game.platform || '').toLowerCase().includes('pinball'), [game.platform])
-
-  const handleLaunch = useCallback((e) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
+  const handleLaunch = useCallback(() => {
     onLaunch(game)
   }, [game, onLaunch])
 
@@ -199,8 +193,11 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
   const isDisabled = !!launchDisabled
   const launchTooltip = `Launch ${game.title}`
 
+  // Pinball platforms need always-visible play button (no hover on touch cabinets)
+  const isPinball = (game.platform || '').toLowerCase().includes('pinball')
+
   return (
-    <div className={`game-card ${isPinball ? 'pinball-card' : ''}`} onMouseEnter={handleMouseEnter}>
+    <div className="game-card" onMouseEnter={handleMouseEnter}>
       {/* Game Box Art */}
       <div className="game-image-container">
         <img
@@ -233,9 +230,9 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
         </div>
       </div>
       <button
-        className={`game-play-btn ${isDisabled && !isPinball ? 'disabled' : ''} ${isPinball ? 'always-visible' : ''}`}
+        className={`game-play-btn ${isDisabled ? 'disabled' : ''} ${isPinball ? 'always-visible' : ''}`}
         onClick={handleLaunch}
-        disabled={isDisabled && !isPinball}
+        disabled={isDisabled}
         title={launchTooltip}
         aria-label={launchTooltip}
       >
@@ -411,7 +408,7 @@ function LaunchBoxPanelContent() {
     const normalized = platform.trim().toLowerCase()
     if (!normalized) return false
 
-    const unsupportedKeywords = ['flash']
+    const unsupportedKeywords = ['pinball fx', 'flash']
     return !unsupportedKeywords.some(keyword => normalized.includes(keyword))
   }, [])
 
