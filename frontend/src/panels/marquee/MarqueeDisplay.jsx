@@ -3,9 +3,10 @@
 // @data: Reads marquee config + runtime state; no media rendering yet.
 
 import React, { useEffect, useState } from 'react';
+import { getGatewayUrl } from '../../services/gateway'
 
 const API_BASE = window.location.port === '5173'
-  ? 'http://localhost:8787'
+  ? getGatewayUrl()
   : '';
 
 export default function MarqueeDisplay() {

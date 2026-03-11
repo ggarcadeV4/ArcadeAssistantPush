@@ -1,7 +1,7 @@
 /**
  * MODULE B: ARCADE WIZARD - WebSocket-based Controller Learning
  * 
- * This wizard uses the backend WebSocket (ws://localhost:8000/api/wizard/listen)
+ * This wizard uses the backend WebSocket for controller detection
  * for real-time input detection from arcade encoders (XInput/keyboard mode).
  * 
  * Governance:
@@ -30,8 +30,10 @@ const WIZARD_STEPS = [
 ]
 
 // WebSocket URL for the wizard input stream
-const WS_URL = 'ws://localhost:8000/api/wizard/listen'
-const API_BASE = 'http://localhost:8000'
+import { getGatewayWsUrl, getGatewayUrl } from '../../services/gateway'
+
+const WS_URL = getGatewayWsUrl('/api/wizard/listen')
+const API_BASE = getGatewayUrl()
 
 export default function ArcadeWizard({ onClose, playerCount = 1 }) {
     // Wizard state

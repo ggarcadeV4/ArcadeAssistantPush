@@ -164,26 +164,45 @@ def _is_lightgun_game(game: Any) -> bool:
 
 
 def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
-    """Predicate: claim TeknoParrot platforms (including light-gun variant).
+    """Predicate: claim TeknoParrot platforms (including light-gun variants).
 
-    This remains scoped to TeknoParrot only (won't claim MAME/console).
-    Checks both platform name pattern AND manifest platform list.
+    This remains scoped to TeknoParrot-adjacent arcade platforms and avoids
+    claiming generic arcade/console platforms.
     """
-    plat = (_get(game, "platform") or "").strip().lower()
+    plat_original = (_get(game, "platform") or "").strip()
+    plat = plat_original.lower()
 
-    # Check if "teknoparrot" is in platform name (original behavior)
-    if "teknoparrot" in plat:
+    # Broad built-in aliases so direct launch works even when manifest platform
+    # lists are incomplete.
+    known_aliases = {
+        "teknoparrot arcade",
+        "teknoparrot",
+        "teknoparrot (light guns)",
+        "taito type x",
+        "taito type x2",
+        "taito type x3",
+        "sega lindbergh",
+        "sega ringedge",
+        "sega ringedge 2",
+        "sega ringwide",
+        "sega nu",
+        "namco system es1",
+        "namco system es3",
+        "namco system 357",
+        "examu exboard",
+    }
+
+    if plat in known_aliases or "teknoparrot" in plat:
         return True
 
-    # Check manifest for additional platforms (e.g., "Taito Type X")
+    # Check manifest for additional platform aliases
     try:
         emus = (manifest.get("emulators") or {}) if isinstance(manifest, dict) else {}
         tp_config = emus.get("teknoparrot") if isinstance(emus, dict) else None
         if isinstance(tp_config, dict):
             platforms = tp_config.get("platforms", [])
-            if isinstance(platforms, list):
-                plat_original = (_get(game, "platform") or "").strip()
-                return plat_original in platforms
+            if isinstance(platforms, list) and plat_original in platforms:
+                return True
     except Exception:
         pass
 

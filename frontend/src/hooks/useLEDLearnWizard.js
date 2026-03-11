@@ -249,7 +249,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
                     'x-device-id': resolveDeviceId()
                 }
             });
-        } catch (err) { }
+        } catch (err) { console.warn('[LEDLearnWizard]', err) }
 
         setIsActive(false);
         setIsComplete(false);

@@ -11,14 +11,15 @@
  * 4. Mappings saved to JSON for physical-to-logical translation
  */
 import { useState, useCallback, useRef } from 'react'
+import { getGatewayUrl } from '../services/gateway'
 
 // API base URL helper
 const getApiBase = () => {
     if (typeof window === 'undefined' || !window.location) {
-        return 'http://localhost:8787'
+        return getGatewayUrl()
     }
     if (window.location.port === '5173') {
-        return 'http://localhost:8787'
+        return getGatewayUrl()
     }
     return window.location.origin
 }

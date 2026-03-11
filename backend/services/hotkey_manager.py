@@ -40,12 +40,19 @@ class HotkeyManager:
         )
 
     def register_callback(self, callback: Callable):
-        """Register async callback for hotkey press"""
+        """Register async callback for hotkey press."""
+        if callback in self.callbacks:
+            logger.info(f"Hotkey callback already registered: {callback.__name__}")
+            return
         self.callbacks.append(callback)
         logger.info(f"Registered hotkey callback: {callback.__name__}")
 
     async def start(self):
-        """Start listening for hotkey presses"""
+        """Start listening for hotkey presses."""
+        if self.is_active:
+            logger.info(f"[Hotkey] Listener already active for {self.hotkey.upper()} - skipping duplicate start")
+            return
+
         try:
             # Store reference to current event loop
             self._event_loop = asyncio.get_running_loop()
@@ -121,7 +128,10 @@ class HotkeyManager:
                 callback()
 
     def stop(self):
-        """Stop listening for hotkey presses"""
+        """Stop listening for hotkey presses."""
+        if not self.is_active:
+            return
+
         try:
             # Remove add_hotkey handler if present
             if self._hotkey_handle is not None:

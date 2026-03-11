@@ -1,3 +1,4 @@
+import { getGatewayUrl } from './gateway'
 /**
  * ledBlinkyClient: API client for LED Blinky operations
  * Routes: /led/*
@@ -24,10 +25,10 @@ export const resolveDeviceId = () => {
 
 const resolveOrigin = () => {
   if (typeof window === 'undefined' || !window.location) {
-    return 'http://localhost:8787'
+    return getGatewayUrl()
   }
   if (window.location.port === '5173') {
-    return 'http://localhost:8787'
+    return getGatewayUrl()
   }
   return window.location.origin
 }

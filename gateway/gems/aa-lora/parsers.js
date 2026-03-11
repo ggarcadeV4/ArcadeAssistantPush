@@ -1,9 +1,9 @@
 /**
  * Parsers Module - Text normalization and game request parsing
  * Part of: aa-lora gem (Gem-Agent Refactor)
- * 
+ *
  * Extracted from launchboxAI.js lines 139-237
- * 
+ *
  * REDLINES: API contract maintained via createResponse() in index.js
  */
 
@@ -52,6 +52,11 @@ export const PLATFORM_ALIASES = {
     'playstation 1': 'Sony Playstation',
     'ps2': 'Sony Playstation 2',
     'playstation 2': 'Sony Playstation 2',
+    'ps3': 'Sony Playstation 3',
+    'ps 3': 'Sony Playstation 3',
+    'playstation 3': 'Sony Playstation 3',
+    'sony playstation 3': 'Sony Playstation 3',
+    'rpcs3': 'Sony Playstation 3',
     'gamecube': 'Nintendo GameCube',
     'gc': 'Nintendo GameCube',
     'wii': 'Nintendo Wii',
@@ -70,6 +75,14 @@ export const PLATFORM_ALIASES = {
     'pc engine': 'TurboGrafx-16',
     'neo geo': 'SNK Neo Geo AES',
     'neogeo': 'SNK Neo Geo AES',
+    'teknoparrot': 'TeknoParrot',
+    'tekno parrot': 'TeknoParrot',
+    'daphne': 'Daphne',
+    'hypseus': 'Daphne',
+    'laserdisc': 'Daphne',
+    'laser disc': 'Daphne',
+    'american laser games': 'American Laser Games',
+    'alg': 'American Laser Games',
 };
 
 // Pre-sorted by length (longest first) for correct matching priority
@@ -90,7 +103,7 @@ export function parseRequestedGame(str) {
     // Check for platform aliases (prefer longer matches first)
     for (const alias of SORTED_PLATFORM_ALIASES) {
         // Match as word boundary (at start, end, or surrounded by spaces)
-        const pattern = new RegExp(`(^|\\s)${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`, 'i');
+        const pattern = new RegExp(`(^|\\s)${alias.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}(\\s|$)`, 'i');
         if (pattern.test(lower)) {
             platform = PLATFORM_ALIASES[alias];
             platformMatch = alias;
@@ -115,11 +128,14 @@ export function parseRequestedGame(str) {
 
     // Remove matched platform from title
     if (platformMatch) {
-        const platformPattern = new RegExp(`(^|\\s)${platformMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s+version)?\\s*`, 'gi');
+        const platformPattern = new RegExp(`(^|\\s)${platformMatch.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}(\\s+version)?\\s*`, 'gi');
         title = title.replace(platformPattern, ' ');
     }
 
     title = title
+        .replace(/\s+(?:arcade|mame)\s+(?:version|edition)\s*$/i, ' ')
+        .replace(/\s+(?:version|edition|release)\s*$/i, ' ')
+        .replace(/\s+for\s+me\s*$/i, ' ')
         .replace(/\s+version\s*$/i, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -138,7 +154,7 @@ export function stringifyCandidates(candidates, limit = 5) {
     return items
         .map((g, idx) => {
             const year = g.year ? `, ${g.year}` : '';
-            const platform = g.platform ? ` — ${g.platform}` : '';
+            const platform = g.platform ? ` - ${g.platform}` : '';
             return `${idx + 1}) ${g.title || 'Unknown'}${year}${platform}`;
         })
         .join('\n');

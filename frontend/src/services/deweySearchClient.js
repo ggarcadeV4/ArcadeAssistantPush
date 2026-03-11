@@ -3,7 +3,8 @@
  * for internet-backed arcade lore retrieval.
  */
 
-const GATEWAY = window.location.port === '5173' ? 'http://localhost:8787' : window.location.origin
+import { getGatewayUrl } from './gateway'
+const GATEWAY = getGatewayUrl()
 
 export async function searchArcadeLore(query) {
   if (!query || typeof query !== 'string' || query.trim().length === 0) {

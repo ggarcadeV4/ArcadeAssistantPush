@@ -194,6 +194,49 @@ def _resolve_frontend_source(request: Request, runtime_state: Dict[str, Any], is
             return frontend
     return 'unknown'
 
+def _consent_file(drive_root: Path) -> Path:
+    return drive_root / ".aa" / "state" / "profile" / "consent.json"
+
+
+def _load_consent(drive_root: Path) -> Dict[str, Any]:
+    path = _consent_file(drive_root)
+    if not path.exists():
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _consent_scopes(consent: Dict[str, Any]) -> set[str]:
+    raw = consent.get("scopes")
+    if not isinstance(raw, list):
+        return set()
+    return {str(scope).strip().lower() for scope in raw if str(scope).strip()}
+
+
+def _is_tracking_opted_in(drive_root: Path) -> bool:
+    """
+    User activity tracking gate.
+    Backward compatible: allows either legacy `network_participation`
+    or explicit `activity_tracking`.
+    """
+    consent = _load_consent(drive_root)
+    if not bool(consent.get("accepted")):
+        return False
+    scopes = _consent_scopes(consent)
+    return ("network_participation" in scopes) or ("activity_tracking" in scopes)
+
+
+def _is_public_leaderboard_opted_in(drive_root: Path) -> bool:
+    consent = _load_consent(drive_root)
+    if not bool(consent.get("accepted")):
+        return False
+    scopes = _consent_scopes(consent)
+    return "leaderboard_public" in scopes
+
 async def list_tournaments(drive_root: Path) -> List[Dict[str, Any]]:
     def _do_list():
         tdir = get_scorekeeper_dir(drive_root) / "tournaments"
@@ -1056,6 +1099,24 @@ async def apply_score_submit(request: Request, score_data: ScoreSubmit):
         device_id = _resolve_device_id(request)
         frontend_source = _resolve_frontend_source(request, runtime_state, is_fresh)
 
+        tracking_opted_in = _is_tracking_opted_in(drive_root)
+        public_leaderboard_opted_in = _is_public_leaderboard_opted_in(drive_root)
+
+        resolved_player_user_id = score_data.player_userId if tracking_opted_in else None
+        resolved_player_source = score_data.player_source if tracking_opted_in else "guest"
+        resolved_public_leaderboard_eligible = (
+            bool(score_data.publicLeaderboardEligible)
+            and tracking_opted_in
+            and public_leaderboard_opted_in
+        )
+
+        if (not tracking_opted_in) and (score_data.player_userId or score_data.player_source == "profile"):
+            logger.info(
+                "score_submit_identity_redacted_no_opt_in",
+                game=score_data.game,
+                player=score_data.player,
+            )
+
         # Game identifiers: use payload or hydrate from runtime_state if fresh
         game_title = score_data.game
         game_id = score_data.game_id
@@ -1096,12 +1157,11 @@ async def apply_score_submit(request: Request, score_data: ScoreSubmit):
             "score": score_data.score
         }
         # Optional metadata preserved
-        if score_data.player_userId:
-            entry["player_userId"] = score_data.player_userId
-        if score_data.player_source:
-            entry["player_source"] = score_data.player_source
-        if score_data.publicLeaderboardEligible is not None:
-            entry["publicLeaderboardEligible"] = score_data.publicLeaderboardEligible
+        if resolved_player_user_id:
+            entry["player_userId"] = resolved_player_user_id
+        if resolved_player_source:
+            entry["player_source"] = resolved_player_source
+        entry["publicLeaderboardEligible"] = resolved_public_leaderboard_eligible
 
         # Append to file
         def _do_append():
@@ -1125,9 +1185,9 @@ async def apply_score_submit(request: Request, score_data: ScoreSubmit):
                         'frontend_source': frontend_source,
                         'game_id': game_id,
                         'system': system_platform,
-                        'player_userId': score_data.player_userId,
-                        'player_source': score_data.player_source,
-                        'public_leaderboard_eligible': score_data.publicLeaderboardEligible,
+                        'player_userId': resolved_player_user_id,
+                        'player_source': resolved_player_source,
+                        'public_leaderboard_eligible': resolved_public_leaderboard_eligible,
                     }
                 )
         except Exception:
@@ -1944,6 +2004,13 @@ async def game_autosubmit(request: Request, submit_data: GameAutoSubmit):
         device_id = _resolve_device_id(request)
         frontend_source = _resolve_frontend_source(request, runtime_state, is_fresh)
 
+        tracking_opted_in = _is_tracking_opted_in(drive_root)
+        if not tracking_opted_in:
+            logger.info(
+                "autosubmit_identity_redacted_no_opt_in",
+                game_id=submit_data.game_id,
+                player=submit_data.player,
+            )
         game_title = (
             submit_data.game_title
             or runtime_state.get("game_title")
@@ -1958,29 +2025,30 @@ async def game_autosubmit(request: Request, submit_data: GameAutoSubmit):
         )
 
         player_user_id = None
-        player_source = None
-        active_session = get_active_session()
-        if active_session:
-            player_user_id = active_session.get("player_id")
-            if player_user_id:
-                player_source = "profile"
+        player_source = "guest"
 
-        primary_profile = None
-        if not player_user_id:
-            try:
-                primary_path = (
-                    drive_root / ".aa" / "state" / "profile" / "primary_user.json"
-                )
-                if primary_path.exists():
-                    with open(primary_path, "r", encoding="utf-8") as handle:
-                        primary_profile = json.load(handle)
-            except Exception:
-                primary_profile = None
-            if isinstance(primary_profile, dict):
-                player_user_id = primary_profile.get("user_id")
+        if tracking_opted_in:
+            active_session = get_active_session()
+            if active_session:
+                player_user_id = active_session.get("player_id")
                 if player_user_id:
                     player_source = "profile"
 
+            primary_profile = None
+            if not player_user_id:
+                try:
+                    primary_path = (
+                        drive_root / ".aa" / "state" / "profile" / "primary_user.json"
+                    )
+                    if primary_path.exists():
+                        with open(primary_path, "r", encoding="utf-8") as handle:
+                            primary_profile = json.load(handle)
+                except Exception:
+                    primary_profile = None
+                if isinstance(primary_profile, dict):
+                    player_user_id = primary_profile.get("user_id")
+                    if player_user_id:
+                        player_source = "profile"
         score_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "device_id": device_id,
@@ -2254,41 +2322,45 @@ class PlayerSessionRequest(BaseModel):
 async def track_launch_start(request: Request, event: LaunchStartEvent):
     """
     Track game launch for player tendencies.
-    
+
     Called when a game is launched through LoRa or LaunchBox.
     Attributes the launch to the active player session.
     """
     try:
         drive_root = request.app.state.drive_root
-        service = PlayerTendencyService(drive_root)
-        
-        # Get active player (or use provided override)
+        tracking_opted_in = _is_tracking_opted_in(drive_root)
         player_name = event.player or get_active_player()
-        
-        # Track the launch
-        service.track_launch(
-            player_name=player_name,
-            game_id=event.game_id,
-            game_title=event.game_title,
-            platform=event.platform,
-            genre=event.genre
-        )
-        
-        # Extend session if active
-        if get_active_session():
-            extend_session()
-        
-        logger.info(
-            "launch_tracked",
-            player=player_name,
-            game_id=event.game_id,
-            game_title=event.game_title
-        )
+
+        if tracking_opted_in:
+            service = PlayerTendencyService(drive_root)
+            service.track_launch(
+                player_name=player_name,
+                game_id=event.game_id,
+                game_title=event.game_title,
+                platform=event.platform,
+                genre=event.genre
+            )
+
+            # Extend session if active
+            if get_active_session():
+                extend_session()
+
+            logger.info(
+                "launch_tracked",
+                player=player_name,
+                game_id=event.game_id,
+                game_title=event.game_title
+            )
+        else:
+            logger.info(
+                "launch_tracking_skipped_no_opt_in",
+                player=player_name,
+                game_id=event.game_id,
+                game_title=event.game_title
+            )
 
         # Update runtime state (in-game)
         try:
-            drive_root = request.app.state.drive_root
-            # TODO: infer frontend more robustly (e.g., x-panel header 'retrofe'); default launchbox
             panel = (request.headers.get("x-panel") or "launchbox").strip().lower()
             frontend = "retrofe" if panel == "retrofe" else "launchbox"
             update_runtime_state({
@@ -2297,55 +2369,63 @@ async def track_launch_start(request: Request, event: LaunchStartEvent):
                 "system_id": event.platform or None,
                 "game_title": event.game_title,
                 "game_id": event.game_id,
-                "player": player_name,
+                "player": player_name if tracking_opted_in else None,
                 "elapsed_seconds": None,
             }, drive_root)
         except Exception:
             # Non-fatal; runtime state is best-effort
             pass
-        
-        return {
-            "status": "tracked",
+
+        response = {
+            "status": "tracked" if tracking_opted_in else "skipped",
             "player": player_name,
             "game_id": event.game_id
         }
-    
+        if not tracking_opted_in:
+            response["reason"] = "tracking_not_opted_in"
+        return response
+
     except Exception as e:
         logger.error("launch_track_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/events/launch-end")
 async def track_launch_end(request: Request, event: LaunchEndEvent):
     """
     Track game completion for player tendencies.
-    
+
     Called when a game exits. Updates play duration in tendency file.
     """
     try:
         drive_root = request.app.state.drive_root
-        service = PlayerTendencyService(drive_root)
-        
+        tracking_opted_in = _is_tracking_opted_in(drive_root)
         player_name = get_active_player()
-        
-        # Track completion
-        service.track_completion(
-            player_name=player_name,
-            game_id=event.game_id,
-            duration_seconds=event.duration_seconds,
-            score=event.score
-        )
-        
-        logger.info(
-            "completion_tracked",
-            player=player_name,
-            game_id=event.game_id,
-            duration=event.duration_seconds
-        )
+
+        if tracking_opted_in:
+            service = PlayerTendencyService(drive_root)
+            service.track_completion(
+                player_name=player_name,
+                game_id=event.game_id,
+                duration_seconds=event.duration_seconds,
+                score=event.score
+            )
+
+            logger.info(
+                "completion_tracked",
+                player=player_name,
+                game_id=event.game_id,
+                duration=event.duration_seconds
+            )
+        else:
+            logger.info(
+                "completion_tracking_skipped_no_opt_in",
+                player=player_name,
+                game_id=event.game_id,
+                duration=event.duration_seconds
+            )
 
         # Update runtime state to idle
         try:
-            drive_root = request.app.state.drive_root
             update_runtime_state({
                 "mode": "idle",
                 "game_title": None,
@@ -2356,18 +2436,20 @@ async def track_launch_end(request: Request, event: LaunchEndEvent):
             }, drive_root)
         except Exception:
             pass
-        
-        return {
-            "status": "tracked",
+
+        response = {
+            "status": "tracked" if tracking_opted_in else "skipped",
             "player": player_name,
             "game_id": event.game_id,
             "duration_seconds": event.duration_seconds
         }
-    
+        if not tracking_opted_in:
+            response["reason"] = "tracking_not_opted_in"
+        return response
+
     except Exception as e:
         logger.error("completion_track_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/session/start")
 async def start_player_session(request: Request, session_req: PlayerSessionRequest):

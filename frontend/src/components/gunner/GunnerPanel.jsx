@@ -1,8 +1,12 @@
-import React, { useState, useCallback } from 'react'
+﻿import React, { useState, useCallback, useEffect } from 'react'
+import { listDevices } from '../../services/gunnerClient'
 import GunnerHeader from './GunnerHeader'
 import GunnerNav from './GunnerNav'
 import GunnerAlertBar from './GunnerAlertBar'
 import DevicesTab from './DevicesTab'
+import CalibrationTab from './CalibrationTab'
+import ProfilesTab from './ProfilesTab'
+import RetroModesTab from './RetroModesTab'
 import { EngineeringBaySidebar } from '../../panels/_kit/EngineeringBaySidebar'
 import '../../panels/_kit/EngineeringBaySidebar.css'
 import './GunnerPanel.css'
@@ -13,8 +17,8 @@ const GUNNER_PERSONA = {
     name: 'GUNNER',
     icon: '🔫',
     icon2: '🎯',
-    accentColor: '#A855F7',
-    accentGlow: 'rgba(168, 85, 247, 0.35)',
+    accentColor: '#EF4444',
+    accentGlow: 'rgba(239, 68, 68, 0.35)',
     scannerLabel: 'TARGETING...',
     voiceProfile: 'gunner',
     emptyHint: 'Ask Gunner about light gun setup, calibration, or Sinden/Gun4IR config.',
@@ -29,45 +33,47 @@ const GUNNER_PERSONA = {
 /**
  * GunnerPanel — Main Retro Shooter Control Center
  *
- * Orchestrates all Gunner sub-components:
- * - Header with title & fleet status
- * - Tab navigation (Devices, Calibration, Profiles, Retro Modes)
- * - Active tab content
- * - AI chat sidebar
- * - Alert bar for critical warnings
- * - Scanline overlay for retro aesthetic
+ * Layout: Full-width tabs + overlay chat drawer from right.
+ * The chat sidebar slides in/out without affecting the tab content layout.
  */
 export default function GunnerPanel() {
     const [activeTab, setActiveTab] = useState('devices')
     const [alertMessage, setAlertMessage] = useState(null)
+    const [chatOpen, setChatOpen] = useState(false)
+    const [devices, setDevices] = useState([])
+    const [lastSync, setLastSync] = useState(null)
+    const [scanning, setScanning] = useState(false)
 
-    const handleScan = useCallback(() => {
-        console.log('[GunnerPanel] Scan Hardware triggered')
+    const handleScan = useCallback(async () => {
+        setScanning(true)
+        setAlertMessage(null)
+        try {
+            const result = await listDevices()
+            const devList = result?.devices || result || []
+            setDevices(devList)
+            setLastSync(new Date())
+            console.log('[GunnerPanel] Scan complete:', devList.length, 'devices')
+        } catch (err) {
+            console.error('[GunnerPanel] Scan error:', err)
+            setAlertMessage('⚠️ Hardware scan failed: ' + (err.message || 'Unknown error'))
+        } finally {
+            setScanning(false)
+        }
     }, [])
 
-    // Render active tab content
+    // Auto-scan on mount
+    useEffect(() => { handleScan() }, [handleScan])
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'devices':
-                return <DevicesTab onScan={handleScan} />
+                return <DevicesTab devices={devices.length > 0 ? devices : undefined} onScan={handleScan} />
             case 'calibration':
-                return (
-                    <div className="gunner-tab-placeholder">
-                        ⊕ Calibration Wizard — Coming Soon
-                    </div>
-                )
+                return <CalibrationTab />
             case 'profiles':
-                return (
-                    <div className="gunner-tab-placeholder">
-                        ⊕ Profile Manager — Coming Soon
-                    </div>
-                )
+                return <ProfilesTab />
             case 'retro-modes':
-                return (
-                    <div className="gunner-tab-placeholder">
-                        ⊕ Retro Mode Selector — Coming Soon
-                    </div>
-                )
+                return <RetroModesTab />
             default:
                 return null
         }
@@ -84,20 +90,45 @@ export default function GunnerPanel() {
             {/* Alert Bar */}
             <GunnerAlertBar message={alertMessage} />
 
-            {/* Tab Navigation */}
-            <GunnerNav activeTab={activeTab} onTabChange={setActiveTab} />
+            {/* Tab Navigation + Chat button */}
+            <div className="gunner-nav-row">
+                <GunnerNav activeTab={activeTab} onTabChange={setActiveTab} />
+                <button
+                    className={`gunner-chat-btn${chatOpen ? ' gunner-chat-btn--active' : ''}`}
+                    onClick={() => setChatOpen(prev => !prev)}
+                >
+                    💬 {chatOpen ? 'Close Chat' : 'Chat'}
+                </button>
+            </div>
 
-            {/* Main Content Area + Chat Sidebar */}
-            <div className="gunner-content" style={{ alignItems: 'flex-start' }}>
+            {/* Full-width tab content */}
+            <div className="gunner-content">
                 <main className="gunner-main">
                     {renderTabContent()}
                 </main>
-                <EngineeringBaySidebar persona={GUNNER_PERSONA} />
             </div>
+
+            {/* Chat Drawer Overlay */}
+            <div
+                className={`gunner-drawer-backdrop${chatOpen ? ' gunner-drawer-backdrop--visible' : ''}`}
+                onClick={() => setChatOpen(false)}
+            />
+            <aside className={`gunner-drawer${chatOpen ? ' gunner-drawer--open' : ''}`}>
+                <button
+                    className="gunner-drawer__close"
+                    onClick={() => setChatOpen(false)}
+                    aria-label="Close chat"
+                >
+                    ✕
+                </button>
+                <EngineeringBaySidebar persona={GUNNER_PERSONA} />
+            </aside>
 
             {/* Footer Status Bar */}
             <footer className="gunner-footer">
-                <span className="gunner-footer__sync">Last sync: Just now</span>
+                <span className="gunner-footer__sync">
+                    {scanning ? '⏳ Scanning...' : lastSync ? `Last sync: ${lastSync.toLocaleTimeString()}` : 'Last sync: Never'}
+                </span>
                 <span className="gunner-footer__golden">Golden Baseline: Active</span>
             </footer>
         </div>

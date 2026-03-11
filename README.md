@@ -1,5 +1,5 @@
 # Arcade Assistant — Project README
-**Last Updated:** 2026-03-05 (evening) | **Build:** Console Wizard RAG KB + LED Priority Arbiter | **Branch:** `master` | **Commit:** `1d3993d`
+**Last Updated:** 2026-03-09 (night) | **Build:** Dewey Stabilization + LaunchBox LoRa Hardening + Hypseus Migration Path | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -163,7 +163,10 @@ backend/
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
+| Gateway stale `index.html` | 🔴 Blocker | `express.static()` serves old `index.html` after rebuild — blocks ALL frontend changes |
 | LED Blinky panel + RAG KB | 🔴 Next Session | Primary target — arbiter built, needs frontend + sidebar |
+| Dewey News Chat verification | 🟡 Blocked | New chat sidebar written but unreachable due to stale serving |
+| TTS echo on Dewey exit | 🟡 Blocked | Jules fix cherry-picked but unverifiable |
 | Gunner Phase 2 | 🟡 After LED Blinky | Calibration tab, profiles tab, retro modes |
 | Doc (Diagnostics) panel | 🟡 After Gunner | Full system diagnostic panel |
 | B6/B7 Wake Word & TTS Dropping | 🟡 Medium | Voice panel fixes |
@@ -205,6 +208,95 @@ git push origin master
 See `ROLLING_LOG.md` for a reverse-chronological log of all sessions and net progress.
 See `logs/` directory for daily session logs.
 
----
+### Session Catalog - 2026-03-08
 
-*Arcade Assistant — Built for G&G Arcade, one commit at a time.*
+Scope completed in this session focused on Dewey overlay and F9 behavior:
+
+- Routed overlay mode directly to Dewey (`/assistants?agent=dewey&mode=overlay`) instead of Home.
+- Added stable overlay singleton behavior in Electron to avoid duplicate competing instances.
+- Hardened F9 handling with debounce + dual trigger paths:
+  - Electron global shortcut path.
+  - Backend hotkey WebSocket fallback (`/ws/hotkey`).
+- Expanded overlay-allowed process detection to include `BigBox.exe` and `LaunchBox.exe`.
+- Added backend auto-bootstrap for Dewey overlay on hotkey events when overlay is not already running.
+- Removed legacy `HotkeyOverlay` pause UI mount from app shell to prevent old pause-menu flash conflicts.
+- Made hotkey manager idempotent (no duplicate callback registration / duplicate start).
+- Added top-right `X` close button in compact Dewey overlay.
+- Implemented overlay command protocol:
+  - `__overlay_cmd=hide` closes compact Dewey overlay.
+  - `__overlay_cmd=expand&target=...` expands overlay to full-screen and opens handoff panel.
+- Updated Dewey chip handoff behavior:
+  - In overlay mode, chip clicks now expand to full-screen target panel (e.g., Control-a-Wizard) instead of staying compact.
+
+Files touched for this scope:
+
+- `frontend/src/App.jsx`
+- `frontend/src/panels/dewey/DeweyPanel.jsx`
+- `frontend/electron/main.cjs`
+- `backend/routers/hotkey.py`
+- `backend/services/hotkey_manager.py`
+- `backend/services/activity_guard.py`
+- `backend/routers/launchbox.py`
+
+Validation completed:
+
+- Frontend build passed (`npm run build:frontend`).
+- Electron script syntax check passed (`node --check frontend/electron/main.cjs`).
+
+Open follow-ups for next session:
+
+- Verify F9 reliability end-to-end in true Big Box fullscreen on basement hardware.
+- If fullscreen hook contention remains, add dedicated fallback hotkey/channel for forced Dewey bring-up.
+- Final UX polish for compact-vs-fullscreen transitions and close/restore behavior.
+
+### Session Catalog - 2026-03-09 (Night Closeout)
+
+Scope completed in this session focused on Dewey stability, LaunchBox LoRa reliability, and launch-path hardening.
+
+Key outcomes:
+
+- Dewey voice/chat behavior stabilized for live use:
+  - Resolved repeated ElevenLabs loop/replay behavior.
+  - Improved stop/cancel behavior when closing Dewey contexts.
+  - Prioritized microphone interruption so user speech can override long assistant playback.
+  - Tuned responses toward shorter, tighter output.
+- Dewey handoff UX improved:
+  - Chip handoff flow now supports compact-to-fullscreen transition behavior for target panels.
+  - Overlay close/exit control flow hardened for better user control.
+- LaunchBox LoRa stabilization pass:
+  - Added LaunchBox panel error boundary.
+  - Removed dead mock data and cleaned text-encoding artifacts.
+  - Consolidated duplicate chat send logic into a single voice-aware send path.
+  - Expanded sort options and tightened platform launch gating.
+  - Added memo component `displayName` metadata and resolved runtime render regressions (including `fetchCacheStatus` reference issue).
+- Launcher reliability improvements:
+  - LaunchBox app launch path updated to target local LaunchBox executable directly.
+  - Added AHK relaunch cooldown guard to avoid duplicate-script instance popups on rapid repeat launch.
+  - Implemented selective Daphne migration to Hypseus:
+    - For Daphne/Laserdisc `.ahk` wrappers that call `daphne.exe`, backend now routes to `hypseus.exe` directly.
+    - Singe-oriented wrappers remain on AHK path to avoid regressions.
+  - Verified via diagnostics endpoint:
+    - `BadLands` resolves to Hypseus direct launch config.
+    - `Cliff Hanger HD` remains on AHK/Singe path as intended.
+
+Key files touched in this scope:
+
+- `frontend/src/panels/dewey/DeweyPanel.jsx`
+- `frontend/electron/main.cjs`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+- `frontend/src/panels/launchbox/LaunchBoxErrorBoundary.jsx`
+- `backend/routers/hotkey.py`
+- `backend/services/hotkey_manager.py`
+- `backend/services/activity_guard.py`
+- `backend/routers/launchbox.py`
+- `backend/services/adapters/direct_app_adapter.py`
+
+Open follow-ups for next session:
+
+- Validate F9 behavior inside true Big Box fullscreen conditions on basement hardware.
+- If needed, extend Hypseus migration to additional wrapper formats after smoke-test confirmation.
+- Final LaunchBox LoRa visual polish pass (icon/readability consistency).
+- Continue queued panel work: LED Blinky depth pass, Gunner logic audit, and Doc telemetry expansion.
+
+---
+*Arcade Assistant - Built for G&G Arcade, one commit at a time.*

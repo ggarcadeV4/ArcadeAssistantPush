@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { getProfile, getPrimaryProfile } from '../services/profileClient'
+import { getGatewayHost } from '../services/gateway'
 
 const ProfileContext = createContext({
   profile: null,
@@ -68,7 +69,7 @@ export function ProfileProvider({ children }) {
 
     // Dynamic URL: use window.location.host to avoid 127.0.0.1 vs localhost mismatch
     const isSecure = window.location.protocol === 'https:'
-    const host = window.location.port === '5173' ? 'localhost:8787' : window.location.host
+    const host = getGatewayHost()
     const scheme = isSecure ? 'wss' : 'ws'
     const wsUrl = `${scheme}://${host}/ws/session`
 

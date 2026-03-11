@@ -1,4 +1,4 @@
-﻿"""
+"""
 LaunchBox Integration Router - UPDATED 2025-10-06
 Handles game library management, launching, and metadata queries.
 
@@ -220,29 +220,141 @@ NUMERAL_MAP = {
     "one": "i", "two": "ii", "three": "iii", "four": "iv", "five": "v",
 }
 
+NOISE_TOKENS = {
+    "the", "a", "an",
+    "arcade", "mame",
+    "game", "games",
+    "version", "ver",
+}
+
+# Tokens that typically signal sequels/variants rather than base releases.
+VARIANT_TOKENS = {
+    "jr", "super", "plus", "dx",
+    "special", "champ", "championship",
+    "ultimate", "deluxe", "remix", "redux",
+    "remastered", "collection", "gold", "platinum",
+    "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
+}
+
+ARCADE_HINT_TOKENS = {"arcade", "mame", "cabinet"}
+
+
+def _tokenize_title(value: Optional[str], *, drop_variant_tokens: bool = False) -> List[str]:
+    """Normalize a title into stable matching tokens."""
+    if not value:
+        return []
+
+    text = value.lower()
+    # Strip bracketed region/manufacturer tags: "(Midway)", "[USA]", etc.
+    text = re.sub(r"[\(\[].*?[\)\]]", " ", text)
+
+    for full, abbrev in ABBREVIATION_MAP.items():
+        text = re.sub(rf"\b{full}\b", abbrev, text)
+
+    for arabic, roman in NUMERAL_MAP.items():
+        text = re.sub(rf"\b{arabic}\b", roman, text)
+
+    tokens = re.findall(r"[a-z0-9]+", text)
+    if not tokens:
+        return []
+
+    out: List[str] = []
+    for token in tokens:
+        if token in NOISE_TOKENS:
+            continue
+        if drop_variant_tokens and token in VARIANT_TOKENS:
+            continue
+        out.append(token)
+    return out
+
 
 def _normalize_title(value: Optional[str]) -> str:
     """Normalize a game title for comparison.
-    
+
     Applies abbreviation expansion and roman numeral normalization
     to improve matching between user input and LaunchBox titles.
     Example: 'Super Mario Brothers 2' -> 'supermariobroii'
     """
-    if not value:
-        return ""
-    text = value.lower()
-    
-    # Apply abbreviation expansion (convert long forms to short)
-    for full, abbrev in ABBREVIATION_MAP.items():
-        # Use word boundaries to avoid partial matches
-        text = re.sub(rf'\b{full}\b', abbrev, text)
-    
-    # Apply numeral normalization (arabic to roman)
-    for arabic, roman in NUMERAL_MAP.items():
-        text = re.sub(rf'\b{arabic}\b', roman, text)
-    
-    # Remove non-alphanumeric characters
-    return re.sub(r"[^a-z0-9]", "", text)
+    return "".join(_tokenize_title(value, drop_variant_tokens=False))
+
+
+def _normalize_title_base(value: Optional[str]) -> str:
+    """Variant-insensitive normalization for selecting a base/default title."""
+    return "".join(_tokenize_title(value, drop_variant_tokens=True))
+
+
+def _is_arcade_platform(platform: Optional[str]) -> bool:
+    p = (platform or "").lower()
+    return "arcade" in p or "mame" in p
+
+
+def _pick_default_candidate(
+    requested_title: str,
+    matches: List[Tuple[float, Game]],
+    platform_filter: Optional[str],
+) -> Optional[Tuple[float, Game, str]]:
+    """Pick a safe default when fuzzy matching returns multiple close variants."""
+    if not matches:
+        return None
+
+    candidates = matches[:12]
+    if not candidates:
+        return None
+
+    request_norm = _normalize_title(requested_title)
+    request_base = _normalize_title_base(requested_title)
+    if not request_base:
+        return None
+
+    top_score, top_game = candidates[0]
+    second_score = candidates[1][0] if len(candidates) > 1 else -1.0
+    # Strong score lead is safe to auto-pick.
+    if top_score >= 0.96 and (len(candidates) == 1 or (top_score - second_score) >= 0.08):
+        return top_score, top_game, "score_leader"
+
+    strict_same = [(s, g) for s, g in candidates if _normalize_title(g.title) == request_norm]
+    if len(strict_same) == 1:
+        score, game = strict_same[0]
+        return score, game, "strict_title"
+
+    base_same = [(s, g) for s, g in candidates if _normalize_title_base(g.title) == request_base]
+    if not base_same:
+        return None
+
+    platform_norm = (platform_filter or "").lower().strip()
+    if platform_norm:
+        platform_filtered = [
+            (s, g) for s, g in base_same
+            if platform_norm in (g.platform or "").lower()
+        ]
+        if platform_filtered:
+            base_same = platform_filtered
+
+    request_mentions_arcade = (
+        bool(platform_norm and _is_arcade_platform(platform_norm))
+        or any(tok in (requested_title or "").lower() for tok in ARCADE_HINT_TOKENS)
+    )
+
+    def rank(item: Tuple[float, Game]) -> Tuple[int, int, int, int, str]:
+        _score, game = item
+        title_norm = _normalize_title(game.title)
+        title_base = _normalize_title_base(game.title)
+        has_variant = int(title_norm != title_base)
+        arcade_penalty = 0 if (request_mentions_arcade and _is_arcade_platform(game.platform)) else 1
+        year = game.year if isinstance(game.year, int) else 9999
+        return (arcade_penalty, has_variant, len(title_norm), year, (game.title or "").lower())
+
+    ranked = sorted(base_same, key=rank)
+    best_score, best_game = ranked[0]
+    if best_score < 0.82:
+        return None
+
+    # If best two candidates tie exactly, force disambiguation for safety.
+    if len(ranked) > 1 and rank(ranked[0]) == rank(ranked[1]):
+        return None
+
+    return best_score, best_game, "canonical_default"
+
 
 
 
@@ -360,11 +472,12 @@ def _find_fuzzy_matches(games: List[Game], title: str, threshold: float) -> List
     
     # === INPUT VALIDATION ===
     target = _normalize_title(title)
+    target_tokens = set(_tokenize_title(title, drop_variant_tokens=True))
     if not target:
         return []
     
     # === DIRTY DATA PROTECTION: Filter invalid games ===
-    valid_games: List[Tuple[str, Game]] = []
+    valid_games: List[Tuple[str, set, Game]] = []
     for game in games:
         try:
             if game is None:
@@ -373,8 +486,12 @@ def _find_fuzzy_matches(games: List[Game], title: str, threshold: float) -> List
             if not game_title or not isinstance(game_title, str) or not game_title.strip():
                 continue
             normalized = _normalize_title(game_title)
-            if normalized:
-                valid_games.append((normalized, game))
+            base_tokens = set(_tokenize_title(game_title, drop_variant_tokens=True))
+            if normalized and base_tokens:
+                # Prevent unrelated token collisions (e.g., "Pac-Man" matching "Narc").
+                if target_tokens and not (target_tokens & base_tokens):
+                    continue
+                valid_games.append((normalized, base_tokens, game))
         except Exception:
             # Skip any game that causes an error during normalization
             continue
@@ -394,10 +511,10 @@ def _find_fuzzy_matches(games: List[Game], title: str, threshold: float) -> List
         logger.info("[Librarian] rapidfuzz not available, using difflib (slower)")
     
     if _USE_RAPIDFUZZ:
-        # rapidfuzz returns 0-100 scale, convert to 0-1
-        # Use partial_ratio for lenient matching (allows "Mario" → "Super Mario Bros.")
+        # Use partial_ratio for lenient matching (allows "Mario" -> "Super Mario Bros.")
+        # Use partial_ratio for lenient matching (allows "Mario" -> "Super Mario Bros.")
         threshold_100 = threshold * 100
-        for normalized, game in valid_games:
+        for normalized, _base_tokens, game in valid_games:
             try:
                 score = fuzz.partial_ratio(target, normalized) / 100.0
                 if score >= threshold:
@@ -407,7 +524,7 @@ def _find_fuzzy_matches(games: List[Game], title: str, threshold: float) -> List
                 continue
     else:
         # Fallback to stdlib difflib.SequenceMatcher
-        for normalized, game in valid_games:
+        for normalized, _base_tokens, game in valid_games:
             try:
                 score = SequenceMatcher(None, target, normalized).ratio()
                 if score >= threshold:
@@ -518,14 +635,14 @@ def initialize_cache():
     Note: Parser now uses lazy loading, so this just triggers initialization.
     """
     start_time = time.time()
-    logger.info("🎮 LaunchBox parser initializing (lazy loading enabled)")
+    logger.info("LaunchBox parser initializing (lazy loading enabled)")
 
     # Prefetch critical data to avoid first-request delay
     try:
         # Trigger lazy load in background
         _ = parser.get_cache_stats()
         init_time = (time.time() - start_time) * 1000
-        logger.info(f"✓ LaunchBox parser ready ({init_time:.1f}ms)")
+        logger.info(f"LaunchBox parser ready ({init_time:.1f}ms)")
     except Exception as exc:
         logger.warning(f"LaunchBox parser initialization warning: {exc}")
         # Non-fatal: cache will load on first request
@@ -641,6 +758,150 @@ async def launch_retrofe(req: Request):
             content={"success": False, "message": f"Failed to launch RetroFE: {e}"}
         )
 
+
+
+def _start_dewey_overlay_sidecar() -> tuple[bool, str]:
+    """Best-effort start for Dewey F9 overlay companion process."""
+    enabled = os.getenv("AA_AUTO_START_DEWEY_OVERLAY", "true").lower() in {"1", "true", "yes"}
+    if not enabled:
+        return False, "disabled by AA_AUTO_START_DEWEY_OVERLAY"
+
+    if os.name != "nt":
+        return False, "unsupported on non-Windows host"
+
+    repo_root = Path(__file__).resolve().parents[2]
+    overlay_entry = repo_root / "frontend" / "electron" / "main.cjs"
+    if not overlay_entry.exists():
+        return False, f"overlay entry missing: {overlay_entry}"
+
+    candidates = [
+        [str(repo_root / "frontend" / "node_modules" / ".bin" / "electron.cmd"), str(overlay_entry)],
+        ["electron", str(overlay_entry)],
+    ]
+
+    CREATE_NEW_PROCESS_GROUP = 0x00000200
+    DETACHED_PROCESS = 0x00000008
+
+    last_error = None
+    for cmd in candidates:
+        exe = cmd[0]
+        if exe.lower().endswith("electron.cmd") and not Path(exe).exists():
+            continue
+        try:
+            subprocess.Popen(
+                cmd,
+                cwd=str(repo_root),
+                creationflags=CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True, f"started via: {exe}"
+        except Exception as e:
+            last_error = e
+
+    return False, f"failed to start overlay: {last_error}"
+
+
+# -----------------------------------------------------------------------------
+# LaunchBox App Launch Endpoint
+# -----------------------------------------------------------------------------
+@router.post("/frontend/launchbox/launch")
+async def launch_launchbox_app(req: Request):
+    """Launch LaunchBox.exe as a detached process."""
+    drive_root = getattr(req.app.state, "drive_root", None)
+    drive_letter_root: Optional[Path] = None
+    try:
+        if isinstance(drive_root, Path) and drive_root.drive:
+            drive_letter_root = Path(f"{drive_root.drive}\\")
+        elif isinstance(drive_root, str):
+            p = Path(drive_root)
+            if p.drive:
+                drive_letter_root = Path(f"{p.drive}\\")
+    except Exception:
+        drive_letter_root = None
+
+    candidates: List[Path] = []
+    if drive_letter_root:
+        candidates.extend([
+            drive_letter_root / "LaunchBox" / "LaunchBox.exe",
+            drive_letter_root / "LaunchBox" / "Core" / "LaunchBox.exe",
+        ])
+    candidates.append(Paths.LaunchBox.executable())
+
+    # Preserve order and remove duplicates.
+    deduped: List[Path] = []
+    seen = set()
+    for cand in candidates:
+        key = str(cand).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cand)
+
+    launchbox_exe = next((cand for cand in deduped if cand.exists()), None)
+    if not launchbox_exe:
+        searched = "; ".join(str(c) for c in deduped)
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "message": f"LaunchBox not found. Searched: {searched}"
+            }
+        )
+    launchbox_cwd = launchbox_exe.parent
+
+    try:
+        if os.name == 'nt':
+            CREATE_NEW_PROCESS_GROUP = 0x00000200
+            DETACHED_PROCESS = 0x00000008
+            subprocess.Popen(
+                [str(launchbox_exe)],
+                cwd=str(launchbox_cwd),
+                creationflags=CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        else:
+            subprocess.Popen(
+                [str(launchbox_exe)],
+                cwd=str(launchbox_cwd),
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+
+        logger.info("LaunchBox launched successfully: %s", launchbox_exe)
+
+        # Direct LaunchBox launch should stay focused on LaunchBox itself.
+        # Dewey remains an explicit F9 action rather than auto-activating here.
+        overlay_started = False
+        overlay_note = "not triggered for direct LaunchBox launch"
+        try:
+            drive_root = getattr(req.app.state, "drive_root", None)
+            update_runtime_state({
+                "frontend": "launchbox",
+                "mode": "browse",
+                "system_id": None,
+                "game_title": None,
+                "game_id": None,
+                "player": None,
+                "elapsed_seconds": None,
+            }, drive_root)
+        except Exception:
+            pass
+
+        return JSONResponse(content={
+            "success": True,
+            "message": f"LaunchBox launched from {launchbox_exe}.",
+            "overlay_started": overlay_started,
+            "overlay_note": overlay_note,
+        })
+    except Exception as e:
+        logger.error(f"Failed to launch LaunchBox: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": f"Failed to launch LaunchBox: {e}"}
+        )
 
 # -----------------------------------------------------------------------------
 # Pegasus Launch Endpoint
@@ -927,7 +1188,7 @@ def _log_launch_event(
         drive_root = http_request.app.state.drive_root if hasattr(http_request, 'app') else None
         if not drive_root:
             return
-        # Respect sanctioned paths — write under state/scorekeeper
+        # Respect sanctioned paths - write under state/scorekeeper
         target_dir = drive_root / 'state' / 'scorekeeper'
         target_dir.mkdir(parents=True, exist_ok=True)
         log_file = target_dir / 'launches.jsonl'
@@ -1023,7 +1284,7 @@ async def _apply_led_profile_binding_for_launch(http_request: Request, game: Any
     """Best-effort helper to apply the bound LED profile before launching a game.
     
     Resolution order:
-    1. Explicit game → LED profile binding (from game_profiles.json)
+    1. Explicit game -> LED profile binding (from game_profiles.json)
     2. Genre-based LED profile from GenreProfileService (auto-detect by genre)
     3. No LED change if neither found
     """
@@ -1558,6 +1819,17 @@ async def resolve_game_endpoint(
         }
 
     if len(fuzzy_matches) > 1:
+        default_candidate = _pick_default_candidate(game_name, fuzzy_matches, platform_filter)
+        if default_candidate is not None:
+            score, game, reason = default_candidate
+            candidate = _serialize_game(game)
+            candidate["confidence"] = round(score, 3)
+            return {
+                "status": "resolved",
+                "source": f"cache_fuzzy_{reason}",
+                "game": candidate,
+            }
+
         suggestions: List[Dict[str, Any]] = []
         for score, game in fuzzy_matches[:limit_value]:
             entry = _serialize_game(game)
@@ -2160,7 +2432,7 @@ async def get_games(
     # Warn if slow (indicates XML cache miss or parser issue)
     if request_duration > 1000:
         logger.warning(
-            f"⚠ Slow /games request ({request_duration:.0f}ms) - "
+            f"Slow /games request ({request_duration:.0f}ms) - "
             "check XML cache initialization."
         )
 
@@ -2630,6 +2902,53 @@ async def launch_game(
         except Exception:
             pass
         return resp
+    # AHK script safety guard:
+    # Some LaunchBox entries use ApplicationPath .ahk launchers.
+    # A second launch while the first script is active can trigger AutoHotkey's
+    # "older instance already running" prompt. Apply a short per-game cooldown
+    # specifically for .ahk-backed launches.
+    try:
+        ahk_cooldown_sec = int(os.getenv("AA_AHK_LAUNCH_COOLDOWN_SEC", "20"))
+    except Exception:
+        ahk_cooldown_sec = 20
+
+    app_path_raw = str(getattr(game, "application_path", "") or "").strip().lower()
+    is_ahk_launcher = app_path_raw.endswith(".ahk")
+    if ahk_cooldown_sec > 0 and panel != "pegasus" and is_ahk_launcher:
+        AHK_COOLDOWN = timedelta(seconds=ahk_cooldown_sec)
+        now = datetime.now(timezone.utc)
+        if not hasattr(launch_game, "_last_ahk_launch"):
+            launch_game._last_ahk_launch = {}
+        ahk_map = getattr(launch_game, "_last_ahk_launch", {})
+        last_ahk = ahk_map.get(game_id)
+        if isinstance(last_ahk, datetime) and (now - last_ahk) < AHK_COOLDOWN:
+            remaining_td = AHK_COOLDOWN - (now - last_ahk)
+            remaining = int(math.ceil(max(0.0, remaining_td.total_seconds())))
+            resp = LaunchResponse(
+                success=False,
+                message=f"Launch script already active. Please wait {remaining}s before relaunching.",
+                method_used="ahk_cooldown",
+                game_id=game_id,
+                game_title=game.title
+            )
+            try:
+                decision = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "game_id": game.id,
+                    "game_title": game.title,
+                    "platform": game.platform,
+                    "categories": game.categories or [],
+                    "panel": panel,
+                    "requested_by": "manual",
+                    "launch_method": resp.method_used,
+                    "reason": resp.message,
+                }
+                log_decision(decision)
+            except Exception:
+                pass
+            return resp
+        launch_game._last_ahk_launch[game_id] = now
+
 
     # In-flight single-flight guard (prevents concurrent duplicate launches)
     # BYPASS: Pegasus panel never blocked by inflight (direct-to-emulator model)
@@ -2758,6 +3077,9 @@ async def launch_game(
     if panel == "pegasus":
         policy_mode = "direct_only"
         logger.info(f"[PEGASUS] Direct-to-emulator launch for '{game.title}' (platform={game.platform})")
+    # LaunchBox LoRa should behave like native LaunchBox whenever plugin is available.
+    elif panel == "launchbox":
+        policy_mode = "plugin_first"
 
     # Policy-based forced launch method (per-game/platform/title overrides)
     try:
@@ -2902,7 +3224,13 @@ async def launch_game(
                     _log_launch_event(http_request, game, result)
                 except Exception:
                     pass
-                return result
+                if getattr(result, "success", False):
+                    return result
+                logger.warning(
+                    "Detected emulator fallback failed for '%s' (%s), continuing to plugin/fallback chain",
+                    game.title,
+                    getattr(result, "message", "no message"),
+                )
         except Exception as e:
             logger.warning(f"Direct-only failed for '{game.title}': {e}")
             # PEGASUS: Return explicit failure, never fall through to LaunchBox
@@ -3145,6 +3473,9 @@ async def get_dry_run_and_direct_status():
         "allow_direct_redream": bool(gblock.get("allow_direct_redream")),
         "allow_direct_pcsx2": bool(gblock.get("allow_direct_pcsx2")),
         "allow_direct_rpcs3": bool(gblock.get("allow_direct_rpcs3")),
+        "allow_direct_teknoparrot": bool(gblock.get("allow_direct_teknoparrot")),
+        "allow_direct_cemu": bool(gblock.get("allow_direct_cemu")),
+        "allow_direct_model2": bool(gblock.get("allow_direct_model2")),
     }
 
     # Env toggles
@@ -3162,6 +3493,8 @@ async def get_dry_run_and_direct_status():
         "AA_ALLOW_DIRECT_PCSX2": _envb("AA_ALLOW_DIRECT_PCSX2"),
         "AA_ALLOW_DIRECT_RPCS3": _envb("AA_ALLOW_DIRECT_RPCS3"),
         "AA_ALLOW_DIRECT_TEKNOPARROT": _envb("AA_ALLOW_DIRECT_TEKNOPARROT"),
+        "AA_ALLOW_DIRECT_CEMU": _envb("AA_ALLOW_DIRECT_CEMU"),
+        "AA_ALLOW_DIRECT_MODEL2": _envb("AA_ALLOW_DIRECT_MODEL2"),
     }
 
     # RetroArch presence + Atari 2600 mapping check
@@ -3181,7 +3514,7 @@ async def get_dry_run_and_direct_status():
             if isinstance(exe, str) and exe:
                 from pathlib import Path
                 p = Path(exe)
-                if not p.exists() and exe.upper().startswith('A:'):
+                if not p.exists() and exe.upper().startswith('A:') and os.name != 'nt':
                     p = Path(exe.replace('\\', '/').replace('A:', '/mnt/a'))
                 retroarch["exe_exists"] = p.exists()
             plat_map = (emu.get("platform_map") or {})
@@ -3202,7 +3535,37 @@ async def get_dry_run_and_direct_status():
                     retroarch["core_exists"] = core_path.exists()
     except Exception:
         pass
+    # Configured emulator executable presence map (clone-readiness visibility)
+    emulator_paths: Dict[str, Dict[str, Any]] = {}
+    try:
+        emulators_block = {}
+        for key in ("emulators", "launchers"):
+            block = manifest.get(key)
+            if isinstance(block, dict):
+                emulators_block = block
+                break
+        if not emulators_block and isinstance(manifest, dict):
+            emulators_block = manifest
 
+        for emu_name, emu_cfg in emulators_block.items():
+            if not isinstance(emu_cfg, dict):
+                continue
+            exe_val = emu_cfg.get("exe")
+            exists = False
+            resolved = None
+            if isinstance(exe_val, str) and exe_val.strip():
+                p = Path(exe_val)
+                if not p.exists() and exe_val.upper().startswith("A:") and os.name != "nt":
+                    p = Path(exe_val.replace("\\", "/").replace("A:", "/mnt/a"))
+                exists = p.exists()
+                resolved = str(p)
+            emulator_paths[str(emu_name)] = {
+                "exe": exe_val,
+                "resolved_path": resolved,
+                "exists": exists,
+            }
+    except Exception:
+        pass
     # Direct health from launcher
     try:
         direct_ok = await run_in_threadpool(launcher._direct_is_healthy)
@@ -3215,6 +3578,7 @@ async def get_dry_run_and_direct_status():
         "allow_direct_env": allow_env,
         "allow_direct_config": allow_cfg,
         "allow_direct_effective": bool(any(allow_env.values()) or any(allow_cfg.values())),
+        "emulator_paths": emulator_paths,
         "direct_is_healthy": direct_ok,
         "retroarch": retroarch,
     }
@@ -3265,41 +3629,94 @@ async def get_cache_stats():
 # -----------------------------------------------------------------------------
 @router.get("/diagnostics/adapters")
 async def list_adapters() -> List[Dict[str, Any]]:
-    from backend.services.launcher_registry import REGISTERED
+    from backend.services.launcher_registry import ADAPTER_STATUS
     from backend.services.adapters.adapter_utils import PREFS, find_emulator_exe
+
+    def _get_emu_block(manifest_obj: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
+        alias_map = {
+            "daphne": ["daphne", "hypseus"],
+            "hypseus": ["hypseus", "daphne"],
+            "direct_app": [],
+        }
+        aliases = alias_map.get(key, [key])
+        for root_key in ("emulators", "launchers"):
+            block = manifest_obj.get(root_key)
+            if not isinstance(block, dict):
+                continue
+            for alias in aliases:
+                cfg = block.get(alias)
+                if isinstance(cfg, dict):
+                    return cfg
+        if isinstance(manifest_obj, dict):
+            for alias in aliases:
+                cfg = manifest_obj.get(alias)
+                if isinstance(cfg, dict):
+                    return cfg
+        return None
+
+    def _resolve_cfg_exe(manifest_obj: Dict[str, Any], key: str) -> Tuple[Optional[str], bool]:
+        cfg = _get_emu_block(manifest_obj, key)
+        if not cfg:
+            return None, False
+        exe_raw = cfg.get("exe")
+        if not isinstance(exe_raw, str) or not exe_raw.strip():
+            return None, False
+        p = Path(exe_raw)
+        if not p.exists() and exe_raw.upper().startswith("A:") and os.name != "nt":
+            p = Path(exe_raw.replace("\\", "/").replace("A:", "/mnt/a"))
+        return exe_raw, p.exists()
+
     items: List[Dict[str, Any]] = []
     manifest = GameLauncher._load_launchers_config() or {}
-    for mod in REGISTERED:
-        name = getattr(mod, "__name__", "").split("_")[0].replace("backend.services.adapters.", "")
-        key = name
-        # Accepted extensions from PREFS when available
+    adapter_keys = list((ADAPTER_STATUS or {}).keys())
+
+    for key in adapter_keys:
         exts = PREFS.get(key, [])
         exe_hint = {
-            'duckstation': 'duckstation',
-            'dolphin': 'dolphin',
-            'flycast': 'flycast',
-            'model2': 'model 2',
-            'supermodel': 'supermodel',
-            'retroarch': 'retroarch',
-            'redream': 'redream',
-            'pcsx2': 'pcsx2',
-            'rpcs3': 'rpcs3',
-            'teknoparrot': 'teknoparrot',
+            "duckstation": "duckstation",
+            "dolphin": "dolphin",
+            "flycast": "flycast",
+            "model2": "model 2",
+            "supermodel": "supermodel",
+            "retroarch": "retroarch",
+            "redream": "redream",
+            "pcsx2": "pcsx2",
+            "rpcs3": "rpcs3",
+            "teknoparrot": "teknoparrot",
+            "cemu": "cemu",
+            "hypseus": "hypseus",
+            "daphne": "daphne",
         }.get(key, key)
-        exe = find_emulator_exe(exe_hint)
+
+        configured_exe, configured_exists = _resolve_cfg_exe(manifest, key)
+        discovered = find_emulator_exe(exe_hint)
+        discovered_exists = bool(discovered and discovered.exists())
+        emulator_required = key not in {"direct_app"}
+        emulator_found = True if not emulator_required else bool(configured_exists or discovered_exists)
+
         items.append({
             "adapter": key,
             "enabled": True,
             "platform_keys": {
-                'duckstation': ['sony playstation'],
-                'dolphin': ['nintendo gamecube', 'nintendo wii'],
-                'flycast': ['sega naomi', 'sammy atomiswave', 'sega dreamcast (fallback)'],
-                'model2': ['sega model 2'],
-                'supermodel': ['sega model 3'],
+                "duckstation": ["sony playstation"],
+                "dolphin": ["nintendo gamecube", "nintendo wii"],
+                "flycast": ["sega naomi", "sammy atomiswave", "sega dreamcast (fallback)"],
+                "model2": ["sega model 2"],
+                "supermodel": ["sega model 3"],
+                "rpcs3": ["sony playstation 3", "ps3"],
+                "teknoparrot": ["teknoparrot arcade", "taito type x"],
+                "daphne": ["daphne", "laserdisc"],
+                "hypseus": ["daphne", "laserdisc"],
             }.get(key, []),
             "accepted_exts": exts,
-            "emulator_found": bool(exe and exe.exists()),
+            "configured_exe": configured_exe,
+            "configured_exe_exists": configured_exists,
+            "discovered_exe": str(discovered) if discovered else None,
+            "discovered_exe_exists": discovered_exists,
+            "emulator_required": emulator_required,
+            "emulator_found": emulator_found,
         })
+
     return items
 
 
@@ -3318,7 +3735,9 @@ async def claim_adapter(game_id: str) -> Dict[str, Any]:
         except TypeError:
             ok = bool(mod.can_handle(game, manifest))
             reason = ""
-        name = getattr(mod, "__name__", "").split("_")[0].replace("backend.services.adapters.", "")
+        mod_name = getattr(mod, "__name__", "")
+        leaf = mod_name.split(".")[-1]
+        name = leaf[:-8] if leaf.endswith("_adapter") else leaf
         claimants.append({"adapter": name, "ok": bool(ok), "reason": reason})
         if ok and selected is None:
             selected = name
@@ -3351,7 +3770,9 @@ async def resolve_adapter_config(game_id: str, adapter: str) -> Dict[str, Any]:
     target = (adapter or '').strip().lower()
     mod = None
     for m in REGISTERED:
-        name = getattr(m, "__name__", "").split("_")[0].replace("backend.services.adapters.", "")
+        mod_name = getattr(m, "__name__", "")
+        leaf = mod_name.split(".")[-1]
+        name = leaf[:-8] if leaf.endswith("_adapter") else leaf
         if name.lower() == target:
             mod = m
             break
@@ -3599,3 +4020,4 @@ async def pegasus_exit(request: Request):
         logger.warning(f"Runtime state reset failed: {e}")
     
     return {"ok": True, "cleared": True, "mode": "browse"}
+

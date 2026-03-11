@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -17,8 +17,8 @@ import WizNavSidebar from './WizNavSidebar';
 const WIZ_PERSONA = {
   id: 'wiz',
   name: 'WIZ',
-  icon: '🧙',
-  icon2: '🎮',
+  icon: '??',
+  icon2: '??',
   accentColor: '#a78bfa',
   accentGlow: 'rgba(167,139,250,0.35)',
   scannerLabel: 'CONJURING...',
@@ -68,11 +68,11 @@ function pickRecorderOptions() {
  * backend/routers/console_wizard.py. Key changes:
  *
  * 1. Endpoint URLs updated to match backend routes:
- *    - /emulators/scan → /emulators
- *    - /configs/preview + /configs/apply → /generate-configs (with dry_run param)
- *    - /sync_from_chuck/preview + /sync_from_chuck/apply → /sync-from-chuck
- *    - /restore/all → /restore-all
- *    - /defaults/set → /set-defaults
+ *    - /emulators/scan ? /emulators
+ *    - /configs/preview + /configs/apply ? /generate-configs (with dry_run param)
+ *    - /sync_from_chuck/preview + /sync_from_chuck/apply ? /sync-from-chuck
+ *    - /restore/all ? /restore-all
+ *    - /defaults/set ? /set-defaults
  *
  * 2. Preview/Apply pattern changed to dry_run parameter approach:
  *    - Preview: calls endpoint with dry_run=true
@@ -263,7 +263,7 @@ const previewCounts = (preview) => {
 };
 
 const formatSystems = (systems) =>
-  systems?.length ? systems.join(', ') : '—';
+  systems?.length ? systems.join(', ') : 'â€”';
 
 const safeJoin = (list) => (list?.length ? list.join(', ') : 'None');
 
@@ -1262,8 +1262,8 @@ export default function ConsoleWizardPanel() {
         const systemPrompt = `You are Wiz, the Console Wizard AI assistant. Keep responses concise (1-2 sentences).
 
 CRITICAL INSTRUCTIONS FOR RETROARCH CONFIGURATIONS:
-- When user says "I want left stick AND d-pad to do the same thing" or "both control directions" → They want DUAL MAPPING (both inputs mapped to same function)
-- When user says "I want left stick to NOT control directions" or "only d-pad" → They want SEPARATE MAPPING (only d-pad mapped)
+- When user says "I want left stick AND d-pad to do the same thing" or "both control directions" ? They want DUAL MAPPING (both inputs mapped to same function)
+- When user says "I want left stick to NOT control directions" or "only d-pad" ? They want SEPARATE MAPPING (only d-pad mapped)
 - ALWAYS confirm what the user wants BEFORE generating config
 - Say exactly what you understood: "So you want [LEFT STICK + D-PAD] to both control directions?" OR "So you want [ONLY D-PAD] to control directions?"
 - Wait for user confirmation before proceeding
@@ -1923,10 +1923,10 @@ Current context: ${JSON.stringify(contextInfo)}`;
           </div>
         )}
 
-        {/* ── Tab Content ─────────────────────── */}
+        {/* -- Tab Content ----------------------- */}
         {renderActiveTab()}
 
-        {/* ── Toasts & Modals (overlay all tabs) ── */}
+        {/* -- Toasts & Modals (overlay all tabs) -- */}
         {toast && (
           <div className={`action-toast ${toast.type}`}>
             <span>{toast.text}</span>
@@ -1960,9 +1960,9 @@ Current context: ${JSON.stringify(contextInfo)}`;
           <DevErrorModal error={devErrorDetails} onClose={handleCloseDevError} />
         )}
       </div>
-      <div className={`chuck-sidebar-backdrop ${chatOpen ? 'chuck-sidebar-backdrop--visible' : ''}`} onClick={() => setChatOpen(false)} />
-      <div className={`chuck-drawer ${chatOpen ? 'chuck-drawer--open' : ''}`}>
-        <button type='button' className='chuck-drawer__close' onClick={() => setChatOpen(false)} aria-label='Close sidebar'>✕</button>
+      <div className={`eb-chat-backdrop ${chatOpen ? 'eb-chat-backdrop--visible' : ''}`} onClick={() => setChatOpen(false)} />
+      <div className={`eb-chat-drawer ${chatOpen ? 'eb-chat-drawer--open' : ''}`}>
+        <button type='button' className='eb-chat-drawer__close' onClick={() => setChatOpen(false)} aria-label='Close sidebar'>X</button>
         <EngineeringBaySidebar persona={WIZ_PERSONA} contextAssembler={assembleWizContext} />
       </div>
     </div>
@@ -2013,7 +2013,7 @@ function PreviewModal({
         </header>
         <div className="modal-body">
           {error && <div className="modal-error">{error}</div>}
-          {loading && <p>Loading preview…</p>}
+          {loading && <p>Loading previewâ€¦</p>}
           {!loading && hasPreviewData && (
             <>
               <p className="modal-summary">

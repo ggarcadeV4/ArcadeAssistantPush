@@ -1,6 +1,6 @@
-import React, { useEffect, Suspense } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelNew'
+import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelWrapper'
 import ErrorBoundary from './ErrorBoundary'
 // Old monolithic panel (preserved for rollback):
 // import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
@@ -150,6 +150,21 @@ export default function Assistants() {
     stopSpeaking()
     return () => stopSpeaking()
   }, [location.pathname, location.search])
+  const [showDeweyBadgeVisual, setShowDeweyBadgeVisual] = useState(showDeweyBadge)
+
+  useEffect(() => {
+    if (!showDeweyBadge) {
+      setShowDeweyBadgeVisual(false)
+      return
+    }
+
+    setShowDeweyBadgeVisual(true)
+    const timer = setTimeout(() => {
+      setShowDeweyBadgeVisual(false)
+    }, 5000)
+
+    return () => clearTimeout(timer)
+  }, [showDeweyBadge, contextValue])
 
   // Check for both 'agent' and 'chat' parameters (for backwards compatibility)
   const agent = searchParams.get('agent') || searchParams.get('chat')
@@ -169,7 +184,12 @@ export default function Assistants() {
         fontSize: '12px',
         letterSpacing: '0.3px',
         zIndex: 1000,
-        boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
+        boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+        pointerEvents: 'none',
+        userSelect: 'none',
+        opacity: showDeweyBadgeVisual ? 1 : 0,
+        transition: 'opacity 220ms ease'
+
       }}
     >
       From Dewey
@@ -192,7 +212,7 @@ export default function Assistants() {
     </>
   }
 
-  // Controller Chuck — direct panel (no shell wrapper, no tabs)
+  // Controller Chuck - direct panel (no shell wrapper, no tabs)
   if (
     agent === 'chuck' ||
     agent === 'controller-chuck' ||
@@ -213,7 +233,7 @@ export default function Assistants() {
     </>
   }
 
-  // Legacy deprecated stub — basic device table only, kept for reference
+  // Legacy deprecated stub - basic device table only, kept for reference
   if (agent === 'chuck-legacy' || agent === 'controller-chuck-legacy' || agent === 'chuck-redesign') {
     return <>
       {Badge}

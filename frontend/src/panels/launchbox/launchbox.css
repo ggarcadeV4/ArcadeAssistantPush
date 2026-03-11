@@ -1,5 +1,5 @@
-/* ============================================================
-   LaunchBox LoRa Panel — Neon-Obsidian Glass Aesthetic
+﻿/* ============================================================
+   LaunchBox LoRa Panel â€” Neon-Obsidian Glass Aesthetic
    ============================================================ */
 
 /* === CSS Custom Properties === */
@@ -261,56 +261,58 @@
   border-radius: 9999px;
 }
 
-/* === Pegasus Launch Button === */
-.lora-pegasus-btn {
+/* === LaunchBox Shortcut Button === */
+.lora-launchbox-btn {
   padding: 0;
   border-radius: 0.5rem;
   background: transparent;
-  border: 2px solid rgba(255, 0, 127, 0.3);
+  border: 2px solid rgba(0, 242, 255, 0.35);
   cursor: pointer;
   transition: all 0.3s ease;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 58px;
+  height: 58px;
 }
 
-.lora-pegasus-btn:hover {
-  border-color: rgba(255, 0, 127, 0.7);
+.lora-launchbox-btn:hover {
+  border-color: rgba(0, 242, 255, 0.75);
   transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 8px 20px rgba(255, 0, 127, 0.3), 0 0 40px rgba(255, 0, 127, 0.2);
-  animation: pegasusBreath 1.5s ease-in-out infinite;
+  box-shadow: 0 8px 20px rgba(0, 242, 255, 0.25), 0 0 40px rgba(0, 242, 255, 0.2);
+  animation: launchboxShortcutPulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pegasusBreath {
+@keyframes launchboxShortcutPulse {
 
   0%,
   100% {
-    box-shadow: 0 8px 20px rgba(255, 0, 127, 0.3), 0 0 40px rgba(255, 0, 127, 0.2);
+    box-shadow: 0 8px 20px rgba(0, 242, 255, 0.25), 0 0 40px rgba(0, 242, 255, 0.2);
   }
 
   50% {
-    box-shadow: 0 8px 30px rgba(255, 0, 127, 0.5), 0 0 60px rgba(255, 0, 127, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 242, 255, 0.45), 0 0 60px rgba(0, 242, 255, 0.35);
   }
 }
 
-.lora-pegasus-btn:active {
+.lora-launchbox-btn:active {
   transform: translateY(-1px) scale(0.98);
 }
 
-.pegasus-btn-image {
-  width: auto;
-  height: 56px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 4px rgba(255, 0, 127, 0.4));
-  transition: filter 0.3s ease, transform 0.3s ease;
+.launchbox-btn-placeholder {
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--neon-cyan);
+  background: linear-gradient(135deg, rgba(0, 242, 255, 0.18), rgba(0, 120, 255, 0.24));
+  text-shadow: 0 0 10px rgba(0, 242, 255, 0.6);
 }
-
-.lora-pegasus-btn:hover .pegasus-btn-image {
-  filter: drop-shadow(0 0 10px rgba(255, 0, 127, 0.7)) drop-shadow(0 0 20px rgba(255, 0, 127, 0.3));
-  transform: translateY(-2px);
-}
-
 /* === Chat Button === */
 .lora-chat-btn {
   position: relative;
@@ -471,7 +473,7 @@
   cursor: not-allowed;
 }
 
-/* === Main Content — Sidebar + Main === */
+/* === Main Content â€” Sidebar + Main === */
 .lora-content {
   display: flex;
   flex-direction: row;
@@ -504,7 +506,7 @@
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: #ffffff;
 }
 
 .sidebar-nav {
@@ -527,7 +529,7 @@
   padding: 0.6rem 0.75rem;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 0.85rem;
   font-family: var(--font-body);
   cursor: pointer;
@@ -557,6 +559,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.sidebar-item.active .sidebar-label {
+  color: #ffffff;
+}
+
+.sidebar-item.active .sidebar-icon {
+  color: var(--neon-cyan);
 }
 
 .sidebar-count {
@@ -1111,7 +1123,7 @@
   font-family: var(--font-body);
 }
 
-/* === Game Card — Glassmorphism Style === */
+/* === Game Card â€” Glassmorphism Style === */
 .game-card {
   background: var(--glass-surface);
   backdrop-filter: blur(12px);
@@ -1326,7 +1338,7 @@
   transform: translateY(-1px);
 }
 
-/* === Play Button — Neon Glow === */
+/* === Play Button â€” Neon Glow === */
 .game-play-btn {
   background: var(--neon-cyan);
   color: var(--obsidian);
@@ -1525,7 +1537,50 @@
   padding: 1rem;
   border-top: 1px solid var(--glass-border);
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lora-inline-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  min-height: 1.6rem;
+}
+
+.lora-inline-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.lora-inline-status-hint {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.lora-inline-status-warning {
+  color: #facc15;
+  font-size: 0.72rem;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 9999px;
+  padding: 0.15rem 0.45rem;
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.lora-input-row {
+  display: flex;
   gap: 0.75rem;
+  align-items: center;
 }
 
 .lora-input {
@@ -2049,3 +2104,6 @@
 .lora-profile-select {
   font-family: var(--font-body);
 }
+
+
+

@@ -72,8 +72,8 @@ _register_adapter('supermodel', 'backend.services.adapters.supermodel_adapter')
 _register_adapter('retroarch', 'backend.services.adapters.retroarch_adapter', enabled=True)
 _register_adapter('redream', 'backend.services.adapters.redream_adapter')
 _register_adapter('pcsx2', 'backend.services.adapters.pcsx2_adapter')
-_register_adapter('rpcs3', 'backend.services.adapters.rpcs3_adapter')
-_register_adapter('teknoparrot', 'backend.services.adapters.teknoparrot_adapter')
+_register_adapter('rpcs3', 'backend.services.adapters.rpcs3_adapter', enabled=True)
+_register_adapter('teknoparrot', 'backend.services.adapters.teknoparrot_adapter', enabled=True)
 _register_adapter('cemu', 'backend.services.adapters.cemu_adapter')
 
 # Yuzu adapter for Nintendo Switch (always enabled)
@@ -88,4 +88,3 @@ _register_adapter('daphne', 'backend.services.adapters.hypseus_adapter', enabled
 _register_adapter('direct_app', 'backend.services.adapters.direct_app_adapter', enabled=True)
 
 logger.info(f"Adapter registry initialized: {len(REGISTERED)} adapters registered")
-

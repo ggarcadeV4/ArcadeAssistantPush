@@ -271,7 +271,7 @@ async def list_led_profiles(request: Request):
                     })
                 except Exception as e:
                     # Skip invalid files
-                    print(f"Warning: Could not read profile {profile_file}: {e}")
+                    logger.warning("Could not read profile %s: %s", profile_file, e)
                     continue
 
             return {

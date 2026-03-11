@@ -7,9 +7,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './contentDisplayManager.css';
+import { getGatewayUrl } from '../../services/gateway'
 
 const GATEWAY = (typeof window !== 'undefined' && window.location && window.location.port === '5173')
-    ? 'http://localhost:8787'
+    ? getGatewayUrl()
     : '';
 
 const ContentDisplayManager = () => {

@@ -15,6 +15,7 @@ class RAConfig:
     core: str
     romfile: Path
     flags: List[str]
+    platform: str = ""
 
 
 def _is_wsl() -> bool:
@@ -30,7 +31,7 @@ def _norm_path(p: str) -> Path:
         p = p.replace("\\", "/")
         # Specific A: fast path
         p = p.replace("A:/", "/mnt/a/")
-        # Generic X:/ → /mnt/x/
+        # Generic X:/ -> /mnt/x/
         m = re.match(r"^([A-Za-z]):/(.*)$", p)
         if m:
             p = f"/mnt/{m.group(1).lower()}/{m.group(2)}"
@@ -54,6 +55,37 @@ SAFE_PLATFORM_SYNONYMS: Dict[str, str] = {
     "NES": "Nintendo Entertainment System",
 }
 
+# Default bezel target by LaunchBox platform.
+# Values are relative to the RetroArch executable directory.
+DEFAULT_PLATFORM_OVERLAY_MAP: Dict[str, str] = {
+    "Atari 2600": "overlays/Atari-2600.cfg",
+    "Atari 7800": "overlays/Atari-7800.cfg",
+    "Nintendo Entertainment System": "overlays/Nintendo-Entertainment-System.cfg",
+    "Super Nintendo Entertainment System": "overlays/Super-Nintendo-Entertainment-System.cfg",
+    "Nintendo GameCube": "overlays/Nintendo-GameCube.cfg",
+    "Sega Genesis": "overlays/Sega-Genesis.cfg",
+    "Nintendo Game Boy": "overlays/Nintendo-Game-Boy.cfg",
+    "Nintendo Game Boy Advance": "overlays/Nintendo-Game-Boy-Advance.cfg",
+    "Nintendo Game Boy Color": "overlays/Nintendo-Game-Boy-Color.cfg",
+    "Sega Game Gear": "overlays/Sega-Game-Gear.cfg",
+    "Sega Master System": "overlays/Sega-Master-System.cfg",
+    "Atari Lynx": "overlays/Atari-Lynx-Horizontal.cfg",
+    "Atari Jaguar": "overlays/Atari-Jaguar.cfg",
+    "NEC TurboGrafx-16": "overlays/NEC-TurboGrafx-16.cfg",
+    "Sega 32X": "overlays/Sega-32X.cfg",
+    "Sega CD": "overlays/Sega-CD.cfg",
+    "Sony Playstation": "overlays/Sony-PlayStation.cfg",
+    "Sony PSP": "overlays/Sony-PSP.cfg",
+    "Sony PSP Minis": "overlays/Sony-PSP.cfg",
+    "Neo Geo Pocket": "overlays/SNK-Neo-Geo-Pocket.cfg",
+    "Neo Geo Pocket Color": "overlays/SNK-Neo-Geo-Pocket-Color.cfg",
+    "WonderSwan": "overlays/Bandai-WonderSwan-Horizontal.cfg",
+    "WonderSwan Color": "overlays/Bandai-WonderSwan-Color-Horizontal.cfg",
+    "Sega Dreamcast": "overlays/Dreamcast.cfg",
+    "Sega Naomi": "overlays/Naomi.cfg",
+    "Sammy Atomiswave": "overlays/Atomiswave.cfg",
+}
+
 
 def _normalize_platform_name(name: str) -> str:
     return SAFE_PLATFORM_SYNONYMS.get(name, name)
@@ -72,6 +104,63 @@ def _get_ra_config(manifest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _safe_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9._-]+", "_", (value or "").strip().lower())
+    slug = slug.strip("._-")
+    return slug or "platform"
+
+
+def _resolve_overlay_path(overlay_ref: str, exe: Path) -> Optional[Path]:
+    if not overlay_ref:
+        return None
+    raw = str(overlay_ref).strip()
+    p = _norm_path(raw)
+    candidates: List[Path] = []
+    if p.is_absolute():
+        candidates.append(p)
+    else:
+        # Relative values resolve from RetroArch install first.
+        candidates.append((exe.parent / raw).resolve())
+        # Also support repo-local relative references.
+        repo_root = Path(__file__).resolve().parents[3]
+        candidates.append((repo_root / raw).resolve())
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _ensure_platform_override(platform_name: str, overlay_cfg: Path) -> Optional[Path]:
+    try:
+        repo_root = Path(__file__).resolve().parents[3]
+        state_root = os.getenv("AA_RUNTIME_STATE_DIR")
+        base_dir = Path(state_root) if state_root else (repo_root / ".aa" / "state")
+        out_dir = base_dir / "retroarch" / "platform_overrides"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"{_safe_slug(platform_name)}.cfg"
+        overlay_text = str(overlay_cfg).replace("\\", "/")
+        content = (
+            'auto_overrides_enable = "false"\n'
+            f'input_overlay = "{overlay_text}"\n'
+            'input_overlay_enable = "true"\n'
+            'input_overlay_opacity = "1.000000"\n'
+        )
+        current = ""
+        if out_file.exists():
+            try:
+                current = out_file.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                current = ""
+        if current != content:
+            out_file.write_text(content, encoding="utf-8")
+        return out_file
+    except Exception:
+        return None
+
+
 def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
     emu = _get_ra_config(manifest)
     if not emu:
@@ -83,12 +172,12 @@ def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
 
 def is_enabled(manifest: Dict[str, Any]) -> bool:
     """Flag gate for direct RetroArch launch.
-    
+
     ARCHITECTURE (2025-12-11): Direct-to-Emulator Model
     ====================================================
     RetroArch is ALWAYS enabled. The direct-to-emulator model means
     Pegasus -> Arcade Assistant -> RetroArch (no LaunchBox in chain).
-    
+
     The manifest check is kept for backwards compatibility but defaults to True.
     """
     # Always enabled in direct-to-emulator model
@@ -170,7 +259,20 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
     # Flags
     flags = [str(f) for f in (emu.get("flags") or []) if isinstance(f, str) and f]
 
-    return RAConfig(exe=exe, core=str(core_path), romfile=romfile, flags=flags)
+    # Bezel correction layer:
+    # 1) pick overlay by platform (manifest overlay_map wins over defaults)
+    # 2) append platform-specific config
+    # 3) disable legacy per-game overrides for this launch to avoid wrong-system carryover
+    overlay_map = emu.get("overlay_map") or {}
+    overlay_ref = overlay_map.get(plat) or DEFAULT_PLATFORM_OVERLAY_MAP.get(plat)
+    if overlay_ref:
+        overlay_path = _resolve_overlay_path(str(overlay_ref), exe)
+        if overlay_path:
+            platform_cfg = _ensure_platform_override(plat, overlay_path)
+            if platform_cfg:
+                flags.extend(["--appendconfig", str(platform_cfg)])
+
+    return RAConfig(exe=exe, core=str(core_path), romfile=romfile, flags=flags, platform=plat)
 
 
 def build_command(cfg: RAConfig) -> List[str]:
@@ -293,3 +395,4 @@ def propose_mapping_from_installed(cores_listing: List[str]) -> Dict[str, str]:
         if match:
             result[core_key] = match
     return result
+

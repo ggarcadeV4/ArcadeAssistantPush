@@ -11,6 +11,8 @@ class HotkeyWebSocketBridge {
     this.frontendClients = [];
     this.backendConnection = null;
     this.reconnectInterval = null;
+    this.lastOverlayBootstrapMs = 0;
+    this.overlayBootstrapCooldownMs = 3000;
   }
 
   /**
@@ -163,17 +165,51 @@ class HotkeyWebSocketBridge {
   }
 
   /**
+   * Start the Electron overlay if no frontend hotkey clients are connected.
+   */
+  async ensureOverlaySidecar() {
+    if (this.frontendClients.length > 0) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastOverlayBootstrapMs < this.overlayBootstrapCooldownMs) {
+      return;
+    }
+    this.lastOverlayBootstrapMs = now;
+
+    const backendUrl = process.env.FASTAPI_URL || 'http://localhost:8000';
+
+    try {
+      const response = await fetch(`${backendUrl}/api/hotkey/bootstrap-overlay`, {
+        method: 'POST'
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (payload?.booted) {
+        console.log(`[HotkeyBridge] Overlay bootstrap succeeded: ${payload.note || 'started'}`);
+      } else {
+        console.log(`[HotkeyBridge] Overlay bootstrap skipped: ${payload?.note || response.status}`);
+      }
+    } catch (err) {
+      console.error('[HotkeyBridge] Overlay bootstrap failed:', err?.message || err);
+    }
+  }
+  /**
    * Broadcast event to all connected frontend clients
    */
-  broadcastToFrontend(event) {
+  async broadcastToFrontend(event) {
+    if (event?.type === 'hotkey_pressed' && this.frontendClients.length === 0) {
+      await this.ensureOverlaySidecar();
+    }
+
     const message = JSON.stringify(event);
     let sentCount = 0;
 
+    this.frontendClients = this.frontendClients.filter(client => client.readyState === WebSocket.OPEN);
+
     this.frontendClients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-        sentCount++;
-      }
+      client.send(message);
+      sentCount++;
     });
 
     if (sentCount > 0) {
