@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request, Query, Body
+﻿from fastapi import APIRouter, HTTPException, Request, Query, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Literal
 import os
 import httpx
 import asyncio
@@ -28,6 +28,11 @@ from ..services.player_tendencies import (
     extend_session,
     end_session,
     get_active_session
+)
+from ..services.score_tracking import (
+    CanonicalGameEvent,
+    ScoreReviewDecision,
+    get_score_tracking_service,
 )
 
 # Initialize structured logger
@@ -1234,6 +1239,53 @@ async def submit_score_alias(request: Request, score_data: ScoreSubmit):
     """Compatibility alias for score submission (routes to /submit/apply)."""
     return await apply_score_submit(request, score_data)
 
+@router.get("/coverage")
+async def get_score_tracking_coverage(request: Request):
+    drive_root = request.app.state.drive_root
+    service = get_score_tracking_service(drive_root)
+    return service.coverage_summary()
+
+@router.get("/attempts/review-queue")
+async def get_score_attempt_review_queue(request: Request, limit: int = Query(default=25, ge=1, le=100)):
+    drive_root = request.app.state.drive_root
+    service = get_score_tracking_service(drive_root)
+    items = service.list_review_queue(limit=limit)
+    return {
+        "items": items,
+        "count": len(items),
+    }
+
+@router.post("/attempts/{attempt_id}/review")
+async def review_score_attempt(request: Request, attempt_id: str, review: ScoreAttemptReviewRequest):
+    require_scope(request, "state")
+    drive_root = request.app.state.drive_root
+    service = get_score_tracking_service(drive_root)
+    decision = ScoreReviewDecision.model_validate(review.model_dump())
+    attempt = service.review_attempt(attempt_id, decision)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Score attempt not found")
+
+    score_result = None
+    if attempt.status == "captured_manual" and attempt.final_score is not None:
+        score_result = await apply_score_submit(
+            request,
+            ScoreSubmit(
+                game=attempt.game_title,
+                game_id=attempt.game_id,
+                system=attempt.platform,
+                platform=attempt.platform,
+                player=attempt.player or "unknown",
+                score=int(attempt.final_score),
+            ),
+        )
+
+    return {
+        "status": "ok",
+        "attempt": attempt.model_dump(),
+        "score_result": score_result,
+    }
+
+
 @router.post("/tournaments/create/preview")
 async def preview_tournament_create(request: Request, tournament_data: TournamentCreate):
     """Preview tournament creation"""
@@ -2310,6 +2362,14 @@ class LaunchEndEvent(BaseModel):
     score: Optional[int] = None
 
 
+class ScoreAttemptReviewRequest(BaseModel):
+    """Review action for a pending score attempt."""
+    action: Literal["approve", "edit", "reject", "mark_unsupported"]
+    score: Optional[int] = None
+    player: Optional[str] = None
+    note: Optional[str] = None
+
+
 class PlayerSessionRequest(BaseModel):
     """Request to start a player session."""
     player_name: str
@@ -2330,6 +2390,7 @@ async def track_launch_start(request: Request, event: LaunchStartEvent):
         drive_root = request.app.state.drive_root
         tracking_opted_in = _is_tracking_opted_in(drive_root)
         player_name = event.player or get_active_player()
+        panel = (request.headers.get("x-panel") or "launchbox").strip().lower()
 
         if tracking_opted_in:
             service = PlayerTendencyService(drive_root)
@@ -2341,7 +2402,6 @@ async def track_launch_start(request: Request, event: LaunchStartEvent):
                 genre=event.genre
             )
 
-            # Extend session if active
             if get_active_session():
                 extend_session()
 
@@ -2359,9 +2419,23 @@ async def track_launch_start(request: Request, event: LaunchStartEvent):
                 game_title=event.game_title
             )
 
-        # Update runtime state (in-game)
         try:
-            panel = (request.headers.get("x-panel") or "launchbox").strip().lower()
+            tracking_service = get_score_tracking_service(drive_root)
+            tracking_service.record_launch(
+                CanonicalGameEvent(
+                    source=panel,
+                    game_id=event.game_id,
+                    title=event.game_title,
+                    platform=event.platform,
+                    player=player_name if tracking_opted_in else None,
+                    launch_method="frontend_event",
+                    metadata={"genre": event.genre},
+                )
+            )
+        except Exception as tracking_error:
+            logger.warning("score_tracking_launch_record_failed", error=str(tracking_error), game_id=event.game_id)
+
+        try:
             frontend = "retrofe" if panel == "retrofe" else "launchbox"
             update_runtime_state({
                 "frontend": frontend,
@@ -2373,13 +2447,12 @@ async def track_launch_start(request: Request, event: LaunchStartEvent):
                 "elapsed_seconds": None,
             }, drive_root)
         except Exception:
-            # Non-fatal; runtime state is best-effort
             pass
 
         response = {
             "status": "tracked" if tracking_opted_in else "skipped",
             "player": player_name,
-            "game_id": event.game_id
+            "game_id": event.game_id,
         }
         if not tracking_opted_in:
             response["reason"] = "tracking_not_opted_in"
@@ -2388,6 +2461,7 @@ async def track_launch_start(request: Request, event: LaunchStartEvent):
     except Exception as e:
         logger.error("launch_track_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/events/launch-end")
 async def track_launch_end(request: Request, event: LaunchEndEvent):
@@ -2423,6 +2497,24 @@ async def track_launch_end(request: Request, event: LaunchEndEvent):
                 game_id=event.game_id,
                 duration=event.duration_seconds
             )
+
+        try:
+            tracking_service = get_score_tracking_service(drive_root)
+            session = tracking_service.close_session(game_id=event.game_id)
+            if event.score is not None:
+                tracking_service.record_manual_submission(
+                    game_id=session.get("game_id") or event.game_id,
+                    game_title=session.get("title") or event.game_id,
+                    platform=session.get("platform"),
+                    player=player_name,
+                    score=int(event.score),
+                    metadata={
+                        "duration_seconds": event.duration_seconds,
+                        "submission_source": "launch_end_event",
+                    },
+                )
+        except Exception as tracking_error:
+            logger.warning("score_tracking_launch_end_failed", error=str(tracking_error), game_id=event.game_id)
 
         # Update runtime state to idle
         try:
@@ -3548,3 +3640,11 @@ async def get_mame_sync_status(request: Request):
     except Exception as e:
         logger.error("mame_status_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
+
+
+

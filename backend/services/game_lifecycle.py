@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from backend.services.led_priority_arbiter import get_led_arbiter, LEDPriority
+from backend.services.score_tracking import CanonicalGameEvent, get_score_tracking_service
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,11 @@ class TrackedGame:
     pid: int
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     emulator: Optional[str] = None
+    rom_name: Optional[str] = None
+    source: str = "arcade_assistant"
+    launch_method: str = "pid_monitor"
+    player: Optional[str] = None
+    session_id: Optional[str] = None
     is_mame: bool = False
 
 
@@ -112,7 +118,12 @@ class GameLifecycleService:
         game_title: str,
         platform: str,
         pid: int,
-        emulator: Optional[str] = None
+        emulator: Optional[str] = None,
+        rom_name: Optional[str] = None,
+        source: str = "arcade_assistant",
+        launch_method: str = "pid_monitor",
+        player: Optional[str] = None,
+        session_id: Optional[str] = None
     ) -> None:
         """
         Start tracking a game launch.
@@ -132,6 +143,11 @@ class GameLifecycleService:
             platform=platform,
             pid=pid,
             emulator=emulator,
+            rom_name=rom_name,
+            source=source,
+            launch_method=launch_method,
+            player=player,
+            session_id=session_id,
             is_mame=is_mame
         )
         
@@ -140,9 +156,28 @@ class GameLifecycleService:
             f"Tracking game: {game_title} (pid={pid}, mame={is_mame})"
         )
 
-        # LED Priority Arbiter — claim LEDs at GAME priority
         try:
-            tags = getattr(tracked, 'tags', []) or []
+            tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+            session = tracking_service.record_launch(
+                CanonicalGameEvent(
+                    session_id=session_id,
+                    source=source,
+                    game_id=game_id,
+                    title=game_title,
+                    platform=platform,
+                    emulator=emulator,
+                    pid=pid,
+                    launch_method=launch_method,
+                    player=player,
+                    rom_name=rom_name,
+                )
+            )
+            tracked.session_id = session.get("session_id")
+        except Exception as tracking_error:
+            logger.warning(f"Score tracking launch record failed: {tracking_error}")
+
+        try:
+            tags = getattr(tracked, "tags", []) or []
             animation = get_animation_for_game(tags)
             arbiter = get_led_arbiter()
             asyncio.create_task(
@@ -154,23 +189,21 @@ class GameLifecycleService:
             )
         except Exception as e:
             logger.warning(f"LED arbiter claim failed (non-fatal): {e}")
-    
+
     def untrack_game(self, pid: int) -> Optional[TrackedGame]:
         """Stop tracking a game and return its info."""
         return self._tracked_games.pop(pid, None)
-    
+
     def _is_mame_emulator(self, emulator: Optional[str], platform: str) -> bool:
         """Determine if the emulator is MAME (scores handled by Lua plugin)."""
         if not emulator:
             emulator = ""
-        
+
         emulator_lower = emulator.lower()
         platform_lower = platform.lower()
-        
-        # MAME variants
         mame_indicators = ["mame", "arcade"]
         return any(ind in emulator_lower or ind in platform_lower for ind in mame_indicators)
-    
+
     async def _monitor_loop(self) -> None:
         """Background loop that checks for exited processes."""
         while self._running:
@@ -178,71 +211,61 @@ class GameLifecycleService:
                 await self._check_processes()
             except Exception as e:
                 logger.error(f"Error in game monitor loop: {e}")
-            
+
             await asyncio.sleep(self._poll_interval)
-    
+
     async def _check_processes(self) -> None:
         """Check tracked processes and handle exits."""
         exited = []
-        
+
         for pid, tracked in list(self._tracked_games.items()):
             if not psutil.pid_exists(pid):
                 exited.append((pid, tracked))
             else:
                 try:
                     proc = psutil.Process(pid)
-                    # Also check if process is a zombie or terminated
                     if proc.status() in [psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD]:
                         exited.append((pid, tracked))
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     exited.append((pid, tracked))
-        
+
         for pid, tracked in exited:
             self.untrack_game(pid)
             await self._on_game_exit(tracked)
-    
+
     async def _on_game_exit(self, tracked: TrackedGame) -> None:
         """Handle game exit - detect crashes, trigger remediation, or score capture."""
         play_duration = (datetime.now(timezone.utc) - tracked.started_at).total_seconds()
 
-        # LED Priority Arbiter — release GAME priority (attract mode resumes)
         try:
             arbiter = get_led_arbiter()
             await arbiter.release(LEDPriority.GAME)
         except Exception as e:
             logger.warning(f"LED arbiter release failed (non-fatal): {e}")
-        
+
         logger.info(
             f"Game exited: {tracked.game_title} after {play_duration:.0f}s "
             f"(mame={tracked.is_mame})"
         )
-        
-        # ── LoRa Crash Detection ──
-        # If exit was too fast, it's probably a crash. Trigger remediation.
+
         try:
             from backend.services.launch_remediation import is_probable_crash, attempt_remediation
             if is_probable_crash(play_duration):
                 logger.warning(
-                    f"🔧 Probable crash detected for {tracked.game_title} "
+                    f"Probable crash detected for {tracked.game_title} "
                     f"(exited in {play_duration:.1f}s < 10s threshold)"
                 )
-                
-                # Build error context from what we know
                 error_context = (
                     f"Game '{tracked.game_title}' on platform '{tracked.platform}' "
                     f"exited in {play_duration:.1f}s using emulator '{tracked.emulator}'. "
                     f"PID {tracked.pid} is no longer running."
                 )
-                
-                # Attempt remediation (async Gemini query)
                 result = await attempt_remediation(
                     game_title=tracked.game_title,
                     platform=tracked.platform,
                     emulator=tracked.emulator,
                     error_context=error_context,
                 )
-                
-                # Broadcast remediation event to Doc WebSocket
                 try:
                     from backend.routers.doc_diagnostics import broadcast_health_event
                     await broadcast_health_event({
@@ -255,28 +278,101 @@ class GameLifecycleService:
                     })
                 except Exception as ws_err:
                     logger.debug(f"Doc WS broadcast skipped: {ws_err}")
-                
-                # Log the remediation regardless of outcome
                 await self._log_game_session(tracked, play_duration)
-                return  # Don't proceed to score capture for crashes
+                return
         except ImportError:
-            logger.debug("launch_remediation not available — skipping crash detection")
+            logger.debug("launch_remediation not available - skipping crash detection")
         except Exception as exc:
             logger.error(f"Remediation check failed: {exc}")
-        
-        # ── Normal Exit Flow ──
+
+        tracking_service = None
+        session = None
+        try:
+            tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+            session = tracking_service.close_session(
+                session_id=tracked.session_id,
+                game_id=tracked.game_id,
+                title=tracked.game_title,
+                pid=tracked.pid,
+                rom_name=tracked.rom_name,
+            )
+        except Exception as tracking_error:
+            logger.warning(f"Score tracking close session failed: {tracking_error}")
+
         if tracked.is_mame:
-            # MAME games: Lua plugin handles score capture
             logger.debug("MAME game - score handled by Lua plugin")
-            await self._sync_mame_hiscores(tracked)
+            mame_result = await self._sync_mame_hiscores(tracked)
+            if tracking_service and session:
+                if mame_result and mame_result.get("score") is not None:
+                    tracking_service.record_auto_capture(
+                        session,
+                        strategy_name="mame_hiscore",
+                        score=int(mame_result.get("score")),
+                        confidence=1.0,
+                        player=tracked.player or mame_result.get("name"),
+                        metadata={
+                            "rom_name": tracked.rom_name,
+                            "source": "mame_hiscore",
+                            "rank": mame_result.get("rank"),
+                        },
+                    )
+                else:
+                    tracking_service.record_pending_review(
+                        session,
+                        strategy_name="mame_hiscore",
+                        reason="mame_sync_no_score",
+                        metadata={
+                            "rom_name": tracked.rom_name,
+                            "play_duration": play_duration,
+                        },
+                    )
             await self._log_game_session(tracked, play_duration)
         else:
-            # Non-MAME games: Trigger Vision score extraction
             logger.info(f"Non-MAME game exit - triggering Vision capture for {tracked.game_title}")
-            await self._trigger_vision_capture(tracked)
+            vision_result = await self._trigger_vision_capture(tracked)
+            if tracking_service and session:
+                if vision_result and vision_result.get("score") is not None:
+                    confidence = float(vision_result.get("confidence") or 0.0)
+                    evidence_path = vision_result.get("image_path") or vision_result.get("screenshot_path")
+                    if confidence >= 0.85:
+                        tracking_service.record_auto_capture(
+                            session,
+                            strategy_name="vision",
+                            score=int(vision_result.get("score")),
+                            confidence=confidence,
+                            evidence_path=evidence_path,
+                            player=tracked.player,
+                            metadata={
+                                "screen_type": vision_result.get("screen_type"),
+                                "source": vision_result.get("source"),
+                            },
+                        )
+                    else:
+                        tracking_service.record_pending_review(
+                            session,
+                            strategy_name="vision",
+                            confidence=confidence,
+                            raw_score=int(vision_result.get("score")),
+                            evidence_path=evidence_path,
+                            reason="vision_low_confidence",
+                            metadata={
+                                "screen_type": vision_result.get("screen_type"),
+                            },
+                        )
+                else:
+                    strategy_name = (session.get("strategy") or {}).get("primary") or "vision"
+                    tracking_service.record_pending_review(
+                        session,
+                        strategy_name=strategy_name,
+                        reason="vision_no_score",
+                        metadata={
+                            "play_duration": play_duration,
+                            "rom_name": tracked.rom_name,
+                        },
+                    )
             await self._log_game_session(tracked, play_duration)
 
-    async def _sync_mame_hiscores(self, tracked: TrackedGame) -> None:
+    async def _sync_mame_hiscores(self, tracked: TrackedGame) -> Optional[Dict[str, Any]]:
         """Trigger an immediate MAME hiscore sync on game exit."""
         try:
             from backend.services.hiscore_watcher import get_watcher
@@ -284,8 +380,12 @@ class GameLifecycleService:
             watcher = get_watcher()
             result = watcher.sync_all()
             games = list(result.keys()) if isinstance(result, dict) else []
+            top_entry = None
+            if tracked.rom_name:
+                entries = watcher.get_game_scores(tracked.rom_name)
+                if entries:
+                    top_entry = entries[0]
 
-            # Broadcast update to ScoreKeeper Sam via Gateway
             try:
                 await asyncio.to_thread(
                     httpx.post,
@@ -295,32 +395,32 @@ class GameLifecycleService:
                         "games": games,
                         "source": "game_exit",
                         "game_title": tracked.game_title,
-                        "game_id": tracked.game_id
+                        "game_id": tracked.game_id,
                     },
-                    timeout=2.0
+                    timeout=2.0,
                 )
             except Exception as e:
                 logger.debug(f"Score broadcast failed (non-critical): {e}")
+            return top_entry
         except Exception as e:
             logger.warning(f"MAME hiscore sync on exit failed: {e}")
-    
-    async def _trigger_vision_capture(self, tracked: TrackedGame) -> None:
+            return None
+
+    async def _trigger_vision_capture(self, tracked: TrackedGame) -> Optional[Dict[str, Any]]:
         """Trigger AI Vision score extraction for non-MAME games."""
         try:
             from backend.services.vision_score_service import get_vision_score_service
-            
+
             vision_service = get_vision_score_service()
             if not vision_service:
                 logger.warning("Vision score service not available")
-                return
-            
-            # Slight delay to ensure game window has closed
+                return None
+
             await asyncio.sleep(0.5)
-            
-            # Capture and extract score
+
             result = await vision_service.process_game_exit(
-                game_rom=tracked.game_id,
-                player_name=None  # Could get from active profile
+                game_rom=tracked.rom_name or tracked.game_id,
+                player_name=tracked.player,
             )
 
             if result:
@@ -328,16 +428,14 @@ class GameLifecycleService:
                     f"Vision captured score for {tracked.game_title}: "
                     f"{result.get('score')}"
                 )
-
                 await self._submit_score_to_scorekeeper(tracked, result)
-
-                # Generate AI commentary
                 await self._announce_score(tracked, result)
             else:
                 logger.debug(f"No score captured for {tracked.game_title}")
-                
+            return result
         except Exception as e:
             logger.error(f"Vision capture failed: {e}")
+            return None
 
     async def _submit_score_to_scorekeeper(
         self,
@@ -489,8 +587,27 @@ def track_game_launch(
     game_title: str,
     platform: str,
     pid: int,
-    emulator: Optional[str] = None
+    emulator: Optional[str] = None,
+    rom_name: Optional[str] = None,
+    source: str = "arcade_assistant",
+    launch_method: str = "pid_monitor",
+    player: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> None:
     """Convenience function to track a game launch."""
     service = get_game_lifecycle()
-    service.track_game(game_id, game_title, platform, pid, emulator)
+    service.track_game(
+        game_id,
+        game_title,
+        platform,
+        pid,
+        emulator,
+        rom_name,
+        source,
+        launch_method,
+        player,
+        session_id,
+    )
+
+
+

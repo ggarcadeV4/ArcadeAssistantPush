@@ -125,6 +125,7 @@ class EmulatorDetector:
             emu_id = elem.findtext("ID", "").strip()
             title = elem.findtext("Title", "").strip()
             app_path = elem.findtext("ApplicationPath", "").strip()
+            command_line = elem.findtext("CommandLine", "").strip()
 
             if not all([emu_id, title, app_path]):
                 return None
@@ -133,6 +134,7 @@ class EmulatorDetector:
                 id=emu_id,
                 title=title,
                 executable_path=app_path,
+                command_line=command_line,
                 source="launchbox"
             )
 
@@ -249,6 +251,18 @@ class EmulatorDetector:
                 cls.CONFIG_FILE, 'r', 'config load'
             ) as f:
                 data = json.load(f)
+
+            emulators = data.get("emulators", {})
+            if isinstance(emulators, dict):
+                missing_command_line = any(
+                    isinstance(emu_data, dict) and "command_line" not in emu_data
+                    for emu_data in emulators.values()
+                )
+                if missing_command_line:
+                    logger.info(
+                        "Saved emulator config is missing emulator command_line fields; forcing redetect"
+                    )
+                    return None
 
             config = EmulatorConfig.from_dict(data)
             cls._config_cache = config  # Cache the loaded config

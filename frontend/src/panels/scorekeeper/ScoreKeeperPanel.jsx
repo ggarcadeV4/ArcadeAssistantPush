@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAIAction } from '../_kit'
-import { getLeaderboard, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper } from '../../services/scorekeeperClient'
+import { getLeaderboard, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper, getScoreTrackingCoverage, getScoreReviewQueue, reviewScoreAttempt } from '../../services/scorekeeperClient'
 import { useLocation } from 'react-router-dom'
 import { getConsent, getProfile } from '../../services/profileClient'
 import { useProfileContext } from '../../context/ProfileContext'
@@ -308,6 +308,9 @@ export default function ScoreKeeperPanel() {
   const [scoresCached, setScoresCached] = useState(false)
   const [pluginPaused, setPluginPaused] = useState(false)
   const [gameFilter, setGameFilter] = useState('')
+  const [coverage, setCoverage] = useState(null)
+  const [reviewQueue, setReviewQueue] = useState([])
+  const [reviewBusyId, setReviewBusyId] = useState(null)
 
   // Per-game summary
   const [byGame, setByGame] = useState(null)
@@ -417,6 +420,39 @@ export default function ScoreKeeperPanel() {
     return true
   }, [adaptTournamentFromBackend, addChatMessage])
 
+  const refreshTrackingDashboard = useCallback(async () => {
+    try {
+      const [coverageResult, queueResult] = await Promise.all([
+        getScoreTrackingCoverage(),
+        getScoreReviewQueue(8)
+      ])
+      setCoverage(coverageResult)
+      setReviewQueue(Array.isArray(queueResult?.items) ? queueResult.items : [])
+    } catch (err) {
+      console.warn("[ScoreKeeper] Tracking dashboard unavailable:", err)
+    }
+  }, [])
+
+  const handleReviewAction = useCallback(async (attemptId, action, attempt) => {
+    setReviewBusyId(attemptId)
+    try {
+      await reviewScoreAttempt(attemptId, {
+        action,
+        score: attempt?.raw_score ?? attempt?.final_score ?? null,
+        player: attempt?.player || undefined
+      })
+      await refreshTrackingDashboard()
+      const leaderboard = await getLeaderboard({ limit: 10 })
+      setLeaderboardData(leaderboard.scores || [])
+      setScoresCached(!!leaderboard.cached)
+      setPluginPaused(!!leaderboard.cached)
+    } catch (err) {
+      console.warn("[ScoreKeeper] Review action failed:", err)
+    } finally {
+      setReviewBusyId(null)
+    }
+  }, [])
+
   // Auto-scroll chat to bottom
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -432,6 +468,7 @@ export default function ScoreKeeperPanel() {
         setLeaderboardData(result.scores || [])
         setScoresCached(!!result.cached)
         setPluginPaused(!!result.cached)
+        await refreshTrackingDashboard()
         // Auto-load per-game summary for the first game if available
         const first = (result.scores || [])[0]
         if (first && (first.gameId || first.game_id)) {
@@ -484,7 +521,7 @@ export default function ScoreKeeperPanel() {
         setPluginPaused(true)
       }
     })()
-  }, [])
+  }, [applyBackendTournament, refreshTrackingDashboard])
 
   // Reactive profile sync: when Vicky or another panel updates the profile, Sam knows immediately
   useEffect(() => {
@@ -533,6 +570,7 @@ export default function ScoreKeeperPanel() {
         setLeaderboardData(result.scores || [])
         setScoresCached(!!result.cached)
         setPluginPaused(!!result.cached)
+        await refreshTrackingDashboard()
       } catch {
         // Ignore refresh errors
       }
@@ -574,6 +612,7 @@ export default function ScoreKeeperPanel() {
           setLeaderboardData(result.scores || [])
           setScoresCached(!!result.cached)
           setPluginPaused(!!result.cached)
+          await refreshTrackingDashboard()
         } catch { /* ignore */ }
       })()
     })
@@ -1402,6 +1441,61 @@ Current tournament context will be provided. Use it to give specific advice.`,
                 </div>
               </div>
 
+              <div className="sam-coverage-card glass-panel">
+                <div className="sam-review-header">
+                  <h3>
+                    <span className="material-symbols-outlined">analytics</span>
+                    Score Coverage
+                  </h3>
+                  <span className="live-label">TRACKING</span>
+                </div>
+                <div className="sam-coverage-grid">
+                  <div className="sam-coverage-stat">
+                    <span className="sam-coverage-value">{coverage?.tracked_automatically ?? 0}</span>
+                    <span className="sam-coverage-label">Auto</span>
+                  </div>
+                  <div className="sam-coverage-stat">
+                    <span className="sam-coverage-value">{coverage?.pending_review ?? 0}</span>
+                    <span className="sam-coverage-label">Review</span>
+                  </div>
+                  <div className="sam-coverage-stat">
+                    <span className="sam-coverage-value">{coverage?.unsupported ?? 0}</span>
+                    <span className="sam-coverage-label">Unsupported</span>
+                  </div>
+                </div>
+                <p className="sam-coverage-footnote">
+                  {coverage ? `${coverage.attempt_count} attempts logged, ${coverage.active_sessions} active session${coverage.active_sessions === 1 ? "" : "s"}` : "Loading score coverage..."}
+                </p>
+              </div>
+
+              <div className="sam-review-queue glass-panel">
+                <div className="sam-review-header">
+                  <h3>
+                    <span className="material-symbols-outlined">fact_check</span>
+                    Manual Review Queue
+                  </h3>
+                  <span className="live-label">{reviewQueue.length} PENDING</span>
+                </div>
+                <div className="sam-review-body">
+                  {reviewQueue.length > 0 ? reviewQueue.map((attempt) => (
+                    <div key={attempt.attempt_id} className="sam-review-item">
+                      <div className="sam-review-copy">
+                        <strong>{attempt.game_title}</strong>
+                        <span>{attempt.player || "Unknown Player"}</span>
+                        <span>{attempt.raw_score ?? "--"} pts | {attempt.strategy}</span>
+                        <span>{attempt.metadata?.reason || "Needs operator confirmation"}</span>
+                      </div>
+                      <div className="sam-review-actions">
+                        <button className="action-btn" disabled={reviewBusyId === attempt.attempt_id} onClick={() => handleReviewAction(attempt.attempt_id, "approve", attempt)}>Approve</button>
+                        <button className="action-btn ghost-btn" disabled={reviewBusyId === attempt.attempt_id} onClick={() => handleReviewAction(attempt.attempt_id, "mark_unsupported", attempt)}>Unsupported</button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="sam-review-empty">No review items pending.</div>
+                  )}
+                </div>
+              </div>
+
               {/* Recent Records */}
               <div className="sam-recent-records glass-panel">
                 <div className="sam-recent-records-header">
@@ -1846,3 +1940,8 @@ Current tournament context will be provided. Use it to give specific advice.`,
     </div>
   )
 }
+
+
+
+
+

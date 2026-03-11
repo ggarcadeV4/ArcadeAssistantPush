@@ -6,8 +6,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import platform
 import re
 import os
+import logging
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
+logger = logging.getLogger(__name__)
 
 
 # Structured error codes for diagnostics and ScoreKeeper Sam
@@ -341,23 +343,41 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     tp_exe = _teknoparrot_exe(manifest)
-    # Resolve profile filename via alias when available; otherwise pass the title as-is.
-    # Many TeknoParrot profiles are short names (e.g., VT4.xml) rather than full titles.
-    prof = _get_profile_alias(title) or title
-    # Ensure .xml extension for auto-launch to work
+    resolved_profile = _get_profile_alias(title)
+    prof = resolved_profile or title
+    profile_source = "title_fallback"
+    key = title.strip().lower()
+    if resolved_profile:
+        if (_ALIAS_CACHE or {}).get(key) == resolved_profile:
+            profile_source = "manual_alias"
+        else:
+            profile_source = "universal_scan"
     if not prof.lower().endswith('.xml'):
         prof = f"{prof}.xml"
-    
-    # Pre-launch validation: license and profile guards
+
+    logger.info(
+        "[TeknoParrot] Resolved title='%s' to profile='%s' via %s (exe=%s)",
+        title,
+        prof,
+        profile_source,
+        tp_exe,
+    )
+
     check_result = pre_launch_check(manifest=manifest, profile=prof)
     if not check_result.get("valid", False):
+        logger.warning(
+            "[TeknoParrot] Pre-launch validation failed for '%s': %s (%s)",
+            title,
+            check_result.get("message", "Pre-launch check failed"),
+            check_result.get("error_code", TeknoParrotAdapterError.CONFIG_UNRESOLVED),
+        )
         return {
             "success": False,
             "message": check_result.get("message", "Pre-launch check failed"),
             "error_code": check_result.get("error_code", TeknoParrotAdapterError.CONFIG_UNRESOLVED),
             "adapter": "teknoparrot",
         }
-    
+
     # Build args - --profile selects game, --startGame auto-launches it
     # Note: --startGame is the correct flag for newer TeknoParrot (not --start)
     args: List[str] = [f"--profile={prof}", "--startGame"]
@@ -366,9 +386,7 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     use_kill = _kill_existing_enabled()
     if _is_lightgun_game(game) and _use_ahk_wrapper_for_lightgun():
         ahk = _ahk_wrapper_path()
-        # Use Windows cmd for a simple one-shot wrapper with pre-kill
         exe = Path(os.environ.get("COMSPEC", r"C:\\Windows\\System32\\cmd.exe"))
-        # cmd /c taskkill /IM TeknoParrotUi.exe /F & start "" <ahk> & start "" <teknoparrot> -run --profile=Title
         wrapped_args: List[str] = ["/c"]
         if use_kill:
             wrapped_args += ["taskkill", "/IM", "TeknoParrotUi.exe", "/F", "&"]
@@ -382,23 +400,19 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
             "cwd": str(_norm_path(str(tp_exe.parent))),
             "adapter": "teknoparrot",
             "profile": prof,
+            "profile_source": profile_source,
             "ahk_wrapper": True,
         }
 
-    # Simple direct TeknoParrot launch - just open the UI with the profile
-    import logging
-    logger = logging.getLogger(__name__)
+    logger.info("[TeknoParrot] Launch command ready: %s %s", tp_exe, " ".join(args))
 
-    logger.info(f"[TeknoParrot] Launching profile: {prof} for game: {title}")
-    logger.info(f"[TeknoParrot] Executable: {tp_exe}")
-
-    # Direct launch - TeknoParrot will open with the game ready
     return {
         "exe": str(_norm_path(str(tp_exe))),
         "args": args,
         "cwd": str(_norm_path(str(tp_exe.parent))),
         "adapter": "teknoparrot",
         "profile": prof,
+        "profile_source": profile_source,
     }
 
 

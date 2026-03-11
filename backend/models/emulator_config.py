@@ -19,12 +19,14 @@ class EmulatorDefinition:
         id: Unique identifier (GUID from LaunchBox or generated)
         title: Human-readable name (e.g., "MAME", "RetroArch-Controller")
         executable_path: Full path to emulator executable
+        command_line: Optional emulator-level command-line parameters
         working_directory: Optional working directory for execution
         source: Where this config was detected from ("launchbox" | "manual" | etc.)
     """
     id: str
     title: str
     executable_path: str
+    command_line: str = ""
     working_directory: Optional[str] = None
     source: str = "launchbox"
 
@@ -38,6 +40,7 @@ class EmulatorDefinition:
             "id": self.id,
             "title": self.title,
             "executable_path": self.executable_path,
+            "command_line": self.command_line,
             "working_directory": self.working_directory,
             "source": self.source
         }
@@ -49,6 +52,7 @@ class EmulatorDefinition:
             id=data["id"],
             title=data["title"],
             executable_path=data["executable_path"],
+            command_line=data.get("command_line", ""),
             working_directory=data.get("working_directory"),
             source=data.get("source", "manual")
         )
@@ -59,8 +63,8 @@ class EmulatorDefinition:
         Resolve executable path relative to LaunchBox root if needed.
 
         LaunchBox stores paths relative to its root directory with Windows separators.
-        E.g., "Emulators\\MAME\\mame.exe" → "<DRIVE>\\LaunchBox\\Emulators\\MAME\\mame.exe"
-        Or "..\\Gun Build\\Emulators\\retroarch.exe" → "<DRIVE>\\Gun Build\\Emulators\\retroarch.exe"
+        E.g., "Emulators\\MAME\\mame.exe" -> "<DRIVE>\\LaunchBox\\Emulators\\MAME\\mame.exe"
+        Or "..\\Gun Build\\Emulators\\retroarch.exe" -> "<DRIVE>\\Gun Build\\Emulators\\retroarch.exe"
 
         Handles WSL/Windows cross-platform paths properly:
         - Input: Windows-style path from LaunchBox XML
@@ -92,7 +96,7 @@ class EmulatorDefinition:
         # _wsl_to_windows_path() is a no-op for non-/mnt/ paths.
         resolved = self._wsl_to_windows_path(resolved)
 
-        # Fix common mis-conversion: 'C:\\mnt\\a\\...' → 'A:\\...'
+        # Fix common mis-conversion: 'C:\\mnt\\a\\...' -> 'A:\\...'
         s = str(resolved)
         m = re.match(r"^[A-Za-z]:\\mnt\\([A-Za-z])\\(.*)$", s)
         if m:
@@ -108,8 +112,8 @@ class EmulatorDefinition:
         Convert WSL path to Windows path format.
 
         Examples:
-            /mnt/a/LaunchBox/mame.exe → A:\LaunchBox\mame.exe (on A: drive)
-            /mnt/c/Program Files/... → C:\Program Files\... (on C: drive)
+            /mnt/a/LaunchBox/mame.exe -> A:\\LaunchBox\\mame.exe (on A: drive)
+            /mnt/c/Program Files/... -> C:\\Program Files\\... (on C: drive)
 
         Args:
             wsl_path: Path in WSL format

@@ -317,3 +317,32 @@ export const getLiveScore = async () => {
   console.warn('[scorekeeperClient] getLiveScore not yet implemented')
   return { score: 0, player: 'P1', game: 'Unknown' }
 }
+
+export async function getScoreTrackingCoverage() {
+  const res = await fetch(`${BASE}/coverage`, {
+    method: 'GET',
+    headers: commonHeaders()
+  })
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Coverage fetch failed' }))
+  return await res.json()
+}
+
+export async function getScoreReviewQueue(limit = 25) {
+  const params = new URLSearchParams({ limit: String(limit) })
+  const res = await fetch(`${BASE}/attempts/review-queue?${params.toString()}`, {
+    method: 'GET',
+    headers: commonHeaders()
+  })
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Review queue fetch failed' }))
+  return await res.json()
+}
+
+export async function reviewScoreAttempt(attemptId, payload) {
+  const res = await fetch(`${BASE}/attempts/${attemptId}/review`, {
+    method: 'POST',
+    headers: commonHeaders('scorekeeper', 'state'),
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Review action failed' }))
+  return await res.json()
+}

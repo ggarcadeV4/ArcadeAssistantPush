@@ -1,5 +1,5 @@
-# Arcade Assistant — Project README
-**Last Updated:** 2026-03-09 (night) | **Build:** Dewey Stabilization + LaunchBox LoRa Hardening + Hypseus Migration Path | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+# Arcade Assistant â€” Project README
+**Last Updated:** 2026-03-10 | **Build:** ScoreKeeper Sam Universal Score Tracking Foundation + Dewey/LaunchBox Prior Work | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -22,13 +22,13 @@ A **self-hosted AI control hub** for a physical arcade cabinet. It runs locally 
 .\start-aa.bat
 
 # Or manually:
-# Terminal 1 — Gateway (Node)
+# Terminal 1 â€” Gateway (Node)
 cd gateway && node server.js
 
-# Terminal 2 — Backend (Python)
+# Terminal 2 â€” Backend (Python)
 cd backend && python app.py
 
-# Terminal 3 — Frontend (Vite dev server)
+# Terminal 3 â€” Frontend (Vite dev server)
 cd frontend && npm run dev
 ```
 
@@ -43,9 +43,9 @@ cd frontend && npm run dev
 | Gateway (Node.js) | `gateway/server.js` | 8787 | Serves frontend static, proxies to backend |
 | Backend (FastAPI) | `backend/app.py` | 8000 | AI, LED, scoring, hotkey APIs |
 | Frontend (Vite/React) | `frontend/` | 5173 (dev) | Built to `dist/` for prod |
-| Supabase | Cloud | — | Ref: `zlkhsxacfyxsctqpvbsh` (**Arcade Assistant only**) |
+| Supabase | Cloud | â€” | Ref: `zlkhsxacfyxsctqpvbsh` (**Arcade Assistant only**) |
 
-> ⚠️ **NEVER** use Supabase ref `hjxzbicsjzyzalwilmlj` — that is the G&G Website project.
+> âš ï¸ **NEVER** use Supabase ref `hjxzbicsjzyzalwilmlj` â€” that is the G&G Website project.
 
 ---
 
@@ -53,59 +53,59 @@ cd frontend && npm run dev
 
 | # | Persona | Panel File | EB Sidebar | TTS |
 |---|---------|-----------|------------|-----|
-| 1 | **Dewey** (Arcade Historian) | `panels/dewey/` | N/A (custom) | ✅ ElevenLabs |
-| 2 | **LaunchBox LoRa** | `panels/launchbox/` | 🔶 Stub | ✅ ElevenLabs |
-| 3 | **ScoreKeeper Sam** | `panels/scorekeeper/` | N/A | ✅ ElevenLabs |
-| 4 | **Controller Chuck** | `panels/controller/` | ✅ Standardized | ✅ ElevenLabs |
-| 5 | **LED Blinky** | `components/led-blinky/` | ✅ Standardized | ✅ ElevenLabs |
-| 6 | **Gunner** | `components/gunner/` | ✅ Standardized | ✅ ElevenLabs |
-| 7 | **Console Wizard** | `panels/console-wizard/` | ✅ Standardized | ✅ ElevenLabs |
-| 8 | **Vicky** (Voice) | `panels/voice/` | ✅ Standardized | ✅ ElevenLabs |
-| 9 | **Doc** (Diagnostics) | `panels/system-health/` | ✅ Standardized | ✅ ElevenLabs |
+| 1 | **Dewey** (Arcade Historian) | `panels/dewey/` | N/A (custom) | âœ… ElevenLabs |
+| 2 | **LaunchBox LoRa** | `panels/launchbox/` | ðŸ”¶ Stub | âœ… ElevenLabs |
+| 3 | **ScoreKeeper Sam** | `panels/scorekeeper/` | N/A | âœ… ElevenLabs |
+| 4 | **Controller Chuck** | `panels/controller/` | âœ… Standardized | âœ… ElevenLabs |
+| 5 | **LED Blinky** | `components/led-blinky/` | âœ… Standardized | âœ… ElevenLabs |
+| 6 | **Gunner** | `components/gunner/` | âœ… Standardized | âœ… ElevenLabs |
+| 7 | **Console Wizard** | `panels/console-wizard/` | âœ… Standardized | âœ… ElevenLabs |
+| 8 | **Vicky** (Voice) | `panels/voice/` | âœ… Standardized | âœ… ElevenLabs |
+| 9 | **Doc** (Diagnostics) | `panels/system-health/` | âœ… Standardized | âœ… ElevenLabs |
 
 Route: `http://127.0.0.1:8787/assistants?agent=chuck` (replace `chuck` with persona ID)
 
 ---
 
-## Controller Chuck — Current State (as of 2026-03-03)
+## Controller Chuck â€” Current State (as of 2026-03-03)
 
 The most actively developed panel. Status: **Diagnosis Mode Phase 1 + Standardized Sidebar + Gemini AI.**
 
 ### Implemented
-- **4P / 2P mode switcher** — identical compact card sizing in both modes
-- **FLIP focus animation** — click any player card, it springs from its exact grid corner to the panel center (`getBoundingClientRect()` + CSS vars `--flip-x/y/w`, spring easing `cubic-bezier(0.34, 1.56, 0.64, 1)`)
-- **Premium return animation** — card breathes out to scale(1.52) then dissolves back to its grid corner
-- **Directional arrow overlay + Button click-to-map** — SVG arrows, cyan pulse while waiting for cabinet input
-- **Mapping confirmation animations** — physical press → `latestInput` → white flash → green ring burst → `✓ GPIO XX` badge
-- **Top strip** — SCAN + DETECT buttons visible in both 2P and 4P modes
+- **4P / 2P mode switcher** â€” identical compact card sizing in both modes
+- **FLIP focus animation** â€” click any player card, it springs from its exact grid corner to the panel center (`getBoundingClientRect()` + CSS vars `--flip-x/y/w`, spring easing `cubic-bezier(0.34, 1.56, 0.64, 1)`)
+- **Premium return animation** â€” card breathes out to scale(1.52) then dissolves back to its grid corner
+- **Directional arrow overlay + Button click-to-map** â€” SVG arrows, cyan pulse while waiting for cabinet input
+- **Mapping confirmation animations** â€” physical press â†’ `latestInput` â†’ white flash â†’ green ring burst â†’ `âœ“ GPIO XX` badge
+- **Top strip** â€” SCAN + DETECT buttons visible in both 2P and 4P modes
 
-### Diagnosis Mode (Phase 1 — 2026-03-02)
+### Diagnosis Mode (Phase 1 â€” 2026-03-02)
 Diagnosis Mode is a context-aware, config-writing co-pilot mode. Toggle the amber pill in the Chuck sidebar header to activate.
 
 **Frontend:**
 | File | Role |
 |------|------|
-| `hooks/useDiagnosisMode.js` | Shared hook — toggle, TTS greeting, 30s context refresh, 5-min soft-lock |
+| `hooks/useDiagnosisMode.js` | Shared hook â€” toggle, TTS greeting, 30s context refresh, 5-min soft-lock |
 | `chuckContextAssembler.js` | 3-tier context payload (<1500 tokens, Chuck-only) |
 | `chuckChips.js` | 6 suggestion chips |
 | `DiagnosisToggle.jsx/.css` | Amber pill toggle with animated thumb |
 | `ContextChips.jsx/.css` | Horizontal scrollable amber chip bar |
 | `MicButton.jsx/.css` | Push-to-talk, 0.7 confidence threshold, ripple rings |
-| `ChuckSidebar.jsx` | Full chat panel — assembles all components |
+| `ChuckSidebar.jsx` | Full chat panel â€” assembles all components |
 | `chuck-sidebar.css` | Amber left-border pulse in Diagnosis Mode |
 | `chuck-layout.css` | Flex layout: player grid + sidebar side-by-side |
 
 **Backend:**
 | File | Role |
 |------|------|
-| `services/controller_bridge.py` | `ControllerBridge` — sole GPIO merge authority, 5-step atomic commit, 4 conflict types, sacred law validation, rollback |
-| `routers/controller.py` | `POST /api/profiles/mapping-override` — 2-phase proposal+commit |
-| `services/chuck/ai.py` | `remediate_controller_config()` — Gemini 2.0 Flash AI tool |
+| `services/controller_bridge.py` | `ControllerBridge` â€” sole GPIO merge authority, 5-step atomic commit, 4 conflict types, sacred law validation, rollback |
+| `routers/controller.py` | `POST /api/profiles/mapping-override` â€” 2-phase proposal+commit |
+| `services/chuck/ai.py` | `remediate_controller_config()` â€” Gemini 2.0 Flash AI tool |
 
 **Sacred Button Law (immutable):**
 ```
-P1/P2: Top row → 1, 2, 3, 7  |  Bottom row → 4, 5, 6, 8
-P3/P4: Top row → 1, 2         |  Bottom row → 3, 4
+P1/P2: Top row â†’ 1, 2, 3, 7  |  Bottom row â†’ 4, 5, 6, 8
+P3/P4: Top row â†’ 1, 2         |  Bottom row â†’ 3, 4
 ```
 This is the Rosetta Stone for all 45+ emulator configs. `ControllerBridge` hard-blocks any deviation.
 
@@ -118,31 +118,31 @@ This is the Rosetta Stone for all 45+ emulator configs. `ControllerBridge` hard-
 ### Key Files
 ```
 frontend/src/panels/controller/
-  ├── ControllerChuckPanel.jsx     ← Main component (FLIP, state machine, PlayerCard)
-  ├── ChuckSidebar.jsx             ← Chat panel + Diagnosis Mode
-  ├── controller-chuck.css         ← All animations, 2P/4P layout
-  ├── chuck-sidebar.css            ← Sidebar styles (amber in diag mode)
-  ├── chuck-layout.css             ← Flex layout wrapper
-  ├── DiagnosisToggle.jsx/.css     ← Amber pill toggle
-  ├── ContextChips.jsx/.css        ← Suggestion chips
-  ├── MicButton.jsx/.css           ← Push-to-talk
-  ├── chuckContextAssembler.js     ← 3-tier context builder
-  └── chuckChips.js                ← Chip definitions
+  â”œâ”€â”€ ControllerChuckPanel.jsx     â† Main component (FLIP, state machine, PlayerCard)
+  â”œâ”€â”€ ChuckSidebar.jsx             â† Chat panel + Diagnosis Mode
+  â”œâ”€â”€ controller-chuck.css         â† All animations, 2P/4P layout
+  â”œâ”€â”€ chuck-sidebar.css            â† Sidebar styles (amber in diag mode)
+  â”œâ”€â”€ chuck-layout.css             â† Flex layout wrapper
+  â”œâ”€â”€ DiagnosisToggle.jsx/.css     â† Amber pill toggle
+  â”œâ”€â”€ ContextChips.jsx/.css        â† Suggestion chips
+  â”œâ”€â”€ MicButton.jsx/.css           â† Push-to-talk
+  â”œâ”€â”€ chuckContextAssembler.js     â† 3-tier context builder
+  â””â”€â”€ chuckChips.js                â† Chip definitions
 
 backend/
-  ├── services/controller_bridge.py   ← GPIO merge authority
-  ├── routers/controller.py           ← mapping-override endpoint
-  └── services/chuck/ai.py            ← remediate_controller_config tool
+  â”œâ”€â”€ services/controller_bridge.py   â† GPIO merge authority
+  â”œâ”€â”€ routers/controller.py           â† mapping-override endpoint
+  â””â”€â”€ services/chuck/ai.py            â† remediate_controller_config tool
 ```
 
 ---
 
 ## LED System
 
-- **Stack**: Python ctypes driver (`ledwiz_direct.py`) speaks directly to Windows HID — **no node-hid, no LEDBlinky dependency for color control**
+- **Stack**: Python ctypes driver (`ledwiz_direct.py`) speaks directly to Windows HID â€” **no node-hid, no LEDBlinky dependency for color control**
 - **LEDBlinky.exe**: Still used for per-game profiles via subprocess call
-- **PWM Safety**: All values clamped 0–48 (49–129 triggers strobe/crash modes)
-- **Boards**: 3× LED-Wiz units auto-discovered on startup
+- **PWM Safety**: All values clamped 0â€“48 (49â€“129 triggers strobe/crash modes)
+- **Boards**: 3Ã— LED-Wiz units auto-discovered on startup
 - **Gamma**: 2.5 correction + Electric Ice color balance (Red 65%, Blue 75%, Green 100%)
 
 ---
@@ -163,25 +163,25 @@ backend/
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| Gateway stale `index.html` | 🔴 Blocker | `express.static()` serves old `index.html` after rebuild — blocks ALL frontend changes |
-| LED Blinky panel + RAG KB | 🔴 Next Session | Primary target — arbiter built, needs frontend + sidebar |
-| Dewey News Chat verification | 🟡 Blocked | New chat sidebar written but unreachable due to stale serving |
-| TTS echo on Dewey exit | 🟡 Blocked | Jules fix cherry-picked but unverifiable |
-| Gunner Phase 2 | 🟡 After LED Blinky | Calibration tab, profiles tab, retro modes |
-| Doc (Diagnostics) panel | 🟡 After Gunner | Full system diagnostic panel |
-| B6/B7 Wake Word & TTS Dropping | 🟡 Medium | Voice panel fixes |
-| Handoff Protocol URL standard | 🟡 Medium | Inter-panel communication |
-| Diagnosis Mode Phase 2 (Supabase tables) | 🟡 Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
-| `blinky/__init__.py` lazy exports | 🟡 Medium | Eagerly parses XML + HID on import → blocking |
-| F9 Overlay Z-Index | 🟢 Backlog | Electron `setAlwaysOnTop` |
-| LaunchBox LoRa deep build | 🟢 Backlog | Most complex panel — future session |
+| Gateway stale `index.html` | ðŸ”´ Blocker | `express.static()` serves old `index.html` after rebuild â€” blocks ALL frontend changes |
+| LED Blinky panel + RAG KB | ðŸ”´ Next Session | Primary target â€” arbiter built, needs frontend + sidebar |
+| Dewey News Chat verification | ðŸŸ¡ Blocked | New chat sidebar written but unreachable due to stale serving |
+| TTS echo on Dewey exit | ðŸŸ¡ Blocked | Jules fix cherry-picked but unverifiable |
+| Gunner Phase 2 | ðŸŸ¡ After LED Blinky | Calibration tab, profiles tab, retro modes |
+| Doc (Diagnostics) panel | ðŸŸ¡ After Gunner | Full system diagnostic panel |
+| B6/B7 Wake Word & TTS Dropping | ðŸŸ¡ Medium | Voice panel fixes |
+| Handoff Protocol URL standard | ðŸŸ¡ Medium | Inter-panel communication |
+| Diagnosis Mode Phase 2 (Supabase tables) | ðŸŸ¡ Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
+| `blinky/__init__.py` lazy exports | ðŸŸ¡ Medium | Eagerly parses XML + HID on import â†’ blocking |
+| F9 Overlay Z-Index | ðŸŸ¢ Backlog | Electron `setAlwaysOnTop` |
+| LaunchBox LoRa deep build | ðŸŸ¢ Backlog | Most complex panel â€” future session |
 
 ### Recently Closed Blockers (2026-03-05)
 | Blocker | Fix | File |
 |---------|-----|------|
-| B2 — HttpBridge outbound | `NotifyBackendGameStart()` fire-and-forget POST | `HttpBridge.cs` |
-| B4 — Voice Hardware Unlock | `_sync_led_state()` + Supabase fleet mirroring | `voice/service.py` |
-| B5 — Genre LED Animation | `GENRE_ANIMATION_MAP` (8 genre codes) | `game_lifecycle.py` |
+| B2 â€” HttpBridge outbound | `NotifyBackendGameStart()` fire-and-forget POST | `HttpBridge.cs` |
+| B4 â€” Voice Hardware Unlock | `_sync_led_state()` + Supabase fleet mirroring | `voice/service.py` |
+| B5 â€” Genre LED Animation | `GENRE_ANIMATION_MAP` (8 genre codes) | `game_lifecycle.py` |
 | Console Wizard RAG KB | `wiz_knowledge.md` (500+ lines) + enhanced prompt | `prompts/` |
 | LED Priority Arbiter | Circuit breaker (VOICE>GAME>ATTRACT>IDLE) + throttle | `led_priority_arbiter.py` |
 
@@ -199,7 +199,7 @@ git push origin master
 **Remote:** `https://github.com/ggarcadeV4/Arcade-Assistant-Basement-Build.git`
 **Branch:** `master` (always)
 
-> ⚠️ A: drive is a USB drive — large `git commit` operations can take 5+ minutes. This is normal.
+> âš ï¸ A: drive is a USB drive â€” large `git commit` operations can take 5+ minutes. This is normal.
 
 ---
 
@@ -298,5 +298,115 @@ Open follow-ups for next session:
 - Final LaunchBox LoRa visual polish pass (icon/readability consistency).
 - Continue queued panel work: LED Blinky depth pass, Gunner logic audit, and Doc telemetry expansion.
 
+### Session Catalog - 2026-03-10
+
+Scope completed in this session focused on laying the first trustworthy universal score-tracking foundation for ScoreKeeper Sam.
+
+Key outcomes:
+
+- Added a canonical score-tracking service and persistent score-attempt pipeline:
+  - Introduced canonical session records for launches coming from Arcade Assistant, LoRa, and LaunchBox/plugin paths.
+  - Added score strategy resolution with primary/fallback modes:
+    - `mame_hiscore`
+    - `mame_lua`
+    - `file_parser`
+    - `vision`
+    - `manual_only`
+  - Added persistent `ScoreAttempt` records separate from final leaderboard rows.
+  - Added session reuse logic so duplicate launch reports merge into the same active session instead of creating silent orphan sessions.
+- Unified launch-path integration:
+  - LaunchBox router launches now pass richer session metadata into the lifecycle tracker.
+  - AA direct launches now pass source/method metadata into the same tracker.
+  - Plugin/native start-stop bridge now feeds the same canonical score pipeline used by AA/LoRa launches.
+- Re-enabled MAME watcher startup in backend app lifespan:
+  - Hiscore watcher startup is active again.
+  - Lua score watcher startup is active again.
+- Added review and coverage APIs for Sam:
+  - Coverage summary endpoint for tracked vs pending vs unsupported counts.
+  - Review queue endpoint for pending/failed score attempts.
+  - Review action endpoint for approve/edit/reject/mark-unsupported flows.
+- Added ScoreKeeper Sam operator UI:
+  - Coverage dashboard block in the Sam panel.
+  - Manual review queue block in the Sam panel.
+  - Frontend actions for approving or marking attempts unsupported.
+- Added initial backend tests for:
+  - auto-captured score flow
+  - manual review flow
+  - duplicate active-session reuse
+
+Key files touched in this scope:
+
+- `backend/services/score_tracking.py`
+- `backend/services/game_lifecycle.py`
+- `backend/routers/scorekeeper.py`
+- `backend/routers/game_lifecycle.py`
+- `backend/routers/launchbox.py`
+- `backend/routers/aa_launch.py`
+- `backend/app.py`
+- `backend/tests/test_score_tracking.py`
+- `frontend/src/services/scorekeeperClient.js`
+- `frontend/src/panels/scorekeeper/ScoreKeeperPanel.jsx`
+- `frontend/src/panels/scorekeeper/scorekeeper.css`
+
+Validation completed:
+
+- Backend syntax checks passed on the edited score-tracking files.
+- New backend tests passed: `3 passed`.
+- Frontend build passed (`npm run build:frontend`).
+
+Open follow-ups for next session:
+
+- Live-verify native LaunchBox/plugin start-stop events against the new Sam pipeline.
+- Live-verify MAME exit flow produces exactly one leaderboard update on cabinet hardware.
+- Live-verify non-MAME vision captures land in `pending_review` when confidence is low.
+- Confirm manual review approval from the Sam panel produces the expected final leaderboard entry without duplicates.
+- Expand per-platform strategy overrides after real cabinet validation (Pinball, TeknoParrot, Daphne/Hypseus, Wii U, Steam-native families).
+
+### Session Catalog - 2026-03-10 (Antigravity Lead Architect Contributions)
+
+Scope completed in this session (Antigravity + Codex teamwork) focused on platform launch fixes, Supabase telemetry verification, and strategic planning.
+
+Key outcomes:
+
+- **Pinball FX2/FX3 Launch Fix** (Antigravity analysis + Codex execution):
+  - Diagnosed disabled play button root cause: stale browser bundle (hash `912cd317` vs `6d4990f9`).
+  - Codex implemented button visibility fix (`always-visible` class, `stopPropagation`) and Steam URI routing.
+  - Both FX2 and FX3 now launch successfully from LoRa panel.
+
+- **Supabase Telemetry Verification** (Antigravity):
+  - Verified live connectivity to `zlkhsxacfyxsctqpvbsh`.
+  - Confirmed tables: `cabinet`, `cabinet_heartbeat`, `cabinet_telemetry`, `cabinet_game_score` (DARIUS scores via `mame_hiscore`), `command_queue`.
+  - Found Device ID mismatch: `.env` `1690afb0-...` vs Supabase `00000000-...-000000000001`.
+  - ElevenLabs key confirmed as `placeholder-boot-only`.
+
+- **Hypseus .exe Extension Fix** (Antigravity):
+  - Diagnosed Rollercoaster AHK failure: `Run, Hypseus` (no `.exe`) vs `hypseus.exe` on disk.
+  - Fixed `_parse_daphne_ahk_command` to try appending `.exe` when bare name doesn't exist.
+  - All three parsers verified: Badlands (daphne.exe) ✅, Conan (Singe.exe) ✅, Rollercoaster (Hypseus.exe) ✅.
+
+- **ScoreKeeper Sam Master Plan** (Antigravity + User):
+  - Archived universal score tracking plan with 4-phase rollout.
+  - Key principle: "every session gets an explicit outcome" (trustworthy-first).
+  - Codex delivered Phases 1-2 code-complete — 5 days ahead of schedule.
+
+- **Strategic Planning** (Antigravity + User):
+  - Sprint timeline: drive finalization March 15, business infrastructure March 20, go-to-market April 1.
+  - Golden drive sanitization: migrate dev artifacts to local environment before wiping A: drive.
+
+Key files touched:
+
+- `backend/services/adapters/direct_app_adapter.py` (Hypseus .exe extension fix)
+- `codex-tasks/pinball-play-button-fix.md` (updated Codex handoff)
+- `codex-tasks/daphne-live-test.md` (new Codex handoff)
+
+Open follow-ups for next session:
+
+- Live-test Badlands, Conan, Rollercoaster from LoRa (parser verified, needs backend restart + live run).
+- Fix Device ID mismatch in `.env` or Supabase.
+- Replace ElevenLabs placeholder API key.
+- ScoreKeeper Sam live validation (MAME exit, plugin stop, vision capture, review approval).
+- Golden drive sanitization script.
+
 ---
 *Arcade Assistant - Built for G&G Arcade, one commit at a time.*
+```

@@ -242,6 +242,15 @@ async def lifespan(app: FastAPI):
                 print(f"Session manager initialized at {state_dir}")
                 print(f"Leaderboard service initialized with {launches_file}")
                 
+                try:
+                    from backend.services.hiscore_watcher import initialize_hiscore_watcher
+                    scores_file = state_dir / "scores.jsonl"
+                    high_scores_index = state_dir / "high_scores_index.json"
+                    await initialize_hiscore_watcher(None, scores_file, high_scores_index)
+                    print(f"Hiscore watcher initialized at {scores_file}")
+                except Exception as e:
+                    print(f"WARNING: Hiscore watcher initialization failed: {e}")
+
                 # PAUSED: Hiscore Watcher disabled until first customer
                 # To re-enable, uncomment the block below
                 # try:
@@ -266,7 +275,7 @@ async def lifespan(app: FastAPI):
                 #         print("WARNING: No MAME hiscore directories found")
                 # except Exception as e:
                 #     print(f"WARNING: Hiscore watcher initialization failed: {e}")
-                print("INFO: Hiscore watcher PAUSED (no customers yet)")
+                print("INFO: Hiscore watcher ACTIVE")
                 
                 # Initialize AI Vision Score Service
                 try:
@@ -289,7 +298,14 @@ async def lifespan(app: FastAPI):
                 #     print(f"Lua score watcher initialized for {lua_scores_json}")
                 # except Exception as e:
                 #     print(f"WARNING: Lua score watcher initialization failed: {e}")
-                print("INFO: Lua score watcher PAUSED (no customers yet)")
+                try:
+                    from backend.services.hiscore_watcher import initialize_lua_score_watcher
+                    lua_scores_json = state_dir / "mame_scores.json"
+                    await initialize_lua_score_watcher(lua_scores_json)
+                    print(f"Lua score watcher initialized for {lua_scores_json}")
+                except Exception as e:
+                    print(f"WARNING: Lua score watcher initialization failed: {e}")
+                print("INFO: Lua score watcher ACTIVE")
                 
                 # Initialize Game Lifecycle Service (tracks game processes for Vision fallback)
                 try:
@@ -643,5 +659,8 @@ if __name__ == "__main__":
         port=8000,
         reload=True if os.getenv("DEBUG") else False
     )
+
+
+
 
 

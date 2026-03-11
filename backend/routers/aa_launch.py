@@ -213,7 +213,9 @@ async def launch_game(request: Request, payload: LaunchRequest) -> LaunchRespons
                     game_title=title,
                     platform=platform,
                     pid=run_result.get("pid", 0),
-                    emulator=cfg.get("emulator")
+                    emulator=cfg.get("emulator"),
+                    source="aa_launch",
+                    launch_method=cfg.get("adapter") or "aa_launch"
                 )
             except Exception as track_err:
                 logger.debug(f"Game tracking failed: {track_err}")
@@ -306,3 +308,4 @@ async def find_teknoparrot_profile(title: str) -> Dict[str, Any]:
         "profile": profile,
         "found": profile is not None,
     }
+

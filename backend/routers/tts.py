@@ -27,14 +27,14 @@ DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"  # ElevenLabs "Rachel" default
 def _get_voice_profiles() -> dict:
     return {
         "dewey":   os.getenv("DEWEY_VOICE_ID",  "pNInz6obpgDQGcFmaJgB"),
-        "lora":    os.getenv("LORA_VOICE_ID",    "EXAVITQu4vr4xnSDxMaL"),
+        "lora":    os.getenv("LORA_VOICE_ID",    "pFZP5JQG7iQjIQuC4Bku"),
         "blinky":  os.getenv("BLINKY_VOICE_ID",  "DTKMou8ccj1ZaWGBiotd"),
-        "chuck":   os.getenv("CHUCK_VOICE_ID",   "phSUs0Ah98iCO2AAb9T2"),  # Bill — gruff mechanic
+        "chuck":   os.getenv("CHUCK_VOICE_ID",   "5Q0t7uMcjvnagumLfvZi"),  # Bill — gruff mechanic
         "wiz":     os.getenv("WIZ_VOICE_ID",     "CwhRBWXzGAHq8TQ4Fs17"),
-        "vicky":   os.getenv("VICKY_VOICE_ID",   "21m00Tcm4TlvDq8ikWAM"),  # Rachel — assistant
-        "gunner":  os.getenv("GUNNER_VOICE_ID",  "VR6Aewuayv9S8yAnA6Wf"),  # Arnold — tactical
+        "vicky":   os.getenv("VICKY_VOICE_ID",   "ThT5KcBeYPX3keUQqHPh"),  # Rachel — assistant
+        "gunner":  os.getenv("GUNNER_VOICE_ID",  "5Q0t7uMcjvnagumLfvZi"),  # Arnold — tactical
         "doc":     os.getenv("DOC_VOICE_ID",     "pNInz6obpgDQGcFmaJgB"),  # Adam — calm engineer
-        "sam":     os.getenv("SAM_VOICE_ID",     "N2lVS1wzUtoExuCqn9ee"),  # Callum — announcer
+        "sam":     os.getenv("SAM_VOICE_ID",     "bIHbv24MWmeRgasZH58o"),  # Callum — announcer
     }
 
 
@@ -147,3 +147,5 @@ async def text_to_speech(request: Request, payload: TTSRequest):
         raise HTTPException(status_code=502, detail=f"TTS proxy error: {exc}")
     except ImportError:
         raise HTTPException(status_code=501, detail="httpx not installed — TTS unavailable")
+
+

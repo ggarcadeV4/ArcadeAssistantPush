@@ -18,9 +18,11 @@ import re
 import os
 import shutil
 import shlex
+import logging
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.constants.drive_root import get_drive_root
+logger = logging.getLogger(__name__)
 
 
 def _is_wsl() -> bool:
@@ -125,6 +127,37 @@ def _extract_run_target_from_ahk(ahk_path: Path) -> Tuple[Optional[str], Optiona
         pass
     return None, None
 
+
+def _parse_daphne_ahk_command(ahk_path: Path) -> Optional[Dict[str, Any]]:
+    """Parse Daphne/Hypseus/Singe AHK scripts into a direct executable launch."""
+    run_target, run_args = _extract_run_target_from_ahk(ahk_path)
+    if not run_target or run_args is None:
+        return None
+
+    exe_name = Path(run_target).name.lower()
+    known_exes = {"daphne.exe", "daphne", "hypseus", "hypseus.exe", "singe.exe", "singe"}
+    if exe_name not in known_exes:
+        return None
+
+    script_dir = ahk_path.parent
+    target_path = Path(run_target.replace("\\", "/"))
+    if target_path.is_absolute():
+        exe_path = target_path
+    else:
+        exe_path = (script_dir / target_path).resolve()
+        if not exe_path.exists() and not exe_name.endswith(".exe"):
+            alt = (script_dir / f"{exe_name}.exe").resolve()
+            if alt.exists():
+                exe_path = alt
+
+    if not exe_path.exists():
+        return None
+
+    return {
+        "exe": str(_norm_path(str(exe_path))),
+        "args": run_args,
+        "cwd": str(_norm_path(str(script_dir))),
+    }
 
 def _get_hypseus_exe_from_manifest(manifest: Optional[Dict[str, Any]]) -> Optional[Path]:
     """Find hypseus executable from manifest, then standard fallback locations."""
@@ -242,13 +275,15 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     ext = normalized_path.suffix.lower()
 
     if ext == ".ahk":
+        daphne_cmd = _parse_daphne_ahk_command(normalized_path)
+        if daphne_cmd:
+            logger.info("Bypassing AHK, launching Daphne-family exe directly: %s", daphne_cmd["exe"])
+            return daphne_cmd
+
         profile_name = _extract_teknoparrot_profile_from_ahk(normalized_path)
         if profile_name:
             tp_exe = _get_teknoparrot_exe_from_manifest(manifest)
             if tp_exe and tp_exe.exists():
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.info(f"Bypassing AHK script, launching TeknoParrot directly with profile: {profile_name}")
 
                 cmd_exe = Path(os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe"))
@@ -257,21 +292,6 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
                     "args": ["/c", "start", "/D", f'"{tp_exe.parent}"', '""', f'"{tp_exe}"', "-run", f"--profile={profile_name}"],
                     "cwd": str(_norm_path(str(tp_exe.parent))),
                 }
-
-        platform_name = (_get(game, "platform") or "").strip().lower()
-        if platform_name in {"daphne", "hypseus", "laserdisc"}:
-            run_target, run_args = _extract_run_target_from_ahk(normalized_path)
-            if run_target and run_args is not None:
-                target_name = Path(run_target).name.lower()
-                if target_name in {"daphne.exe", "daphne"}:
-                    hypseus_exe = _get_hypseus_exe_from_manifest(manifest)
-                    if hypseus_exe and hypseus_exe.exists():
-                        return {
-                            "exe": str(_norm_path(str(hypseus_exe))),
-                            "args": _rewrite_framefile_arg(run_args, normalized_path.parent),
-                            # Match AHK SetWorkingDir %A_ScriptDir% behavior.
-                            "cwd": str(normalized_path.parent),
-                        }
 
         ahk_exe = None
         ahk_env = os.environ.get("AHK_PATH")

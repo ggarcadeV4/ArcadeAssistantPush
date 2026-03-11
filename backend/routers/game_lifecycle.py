@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Request
+from backend.services.score_tracking import CanonicalGameEvent, get_score_tracking_service
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("game_lifecycle")
@@ -38,12 +39,17 @@ router = APIRouter(
 
 
 class GameStartRequest(BaseModel):
-    """Payload sent by Playnite when a game starts."""
+    """Payload sent by Playnite or LaunchBox when a game starts."""
     game_name: str = Field(..., description="Name of the game being launched")
+    game_id: Optional[str] = Field(None, description="LaunchBox or local game identifier")
     tags: List[str] = Field(default_factory=list, description="List of tags including LED:* Cinema Logic tags")
     rom_name: Optional[str] = Field(None, description="ROM filename without extension (for direct blinky lookup)")
     platform: Optional[str] = Field(None, description="Platform name (e.g., Arcade, SNES)")
-
+    emulator: Optional[str] = Field(None, description="Emulator or launcher name")
+    pid: Optional[int] = Field(None, description="Running process id when known")
+    source: str = Field(default="launchbox_plugin", description="Origin of the launch event")
+    launch_method: str = Field(default="plugin_event", description="How the launch was initiated")
+    player: Optional[str] = Field(None, description="Known player identity for the session")
 
 class GameLifecycleResponse(BaseModel):
     """Standard response for game lifecycle events."""
@@ -261,64 +267,187 @@ async def _call_ledblinky(
 _active_game: Dict[str, Any] = {}
 
 
-def _bridge_track_game(game_name: str, rom_name: Optional[str], platform: Optional[str]) -> str:
-    """Register the game with GameLifecycleService for score capture on exit.
-    
-    Returns status string for the response.
-    """
+def _bridge_track_game(
+    game_name: str,
+    rom_name: Optional[str],
+    platform: Optional[str],
+    *,
+    game_id: Optional[str] = None,
+    emulator: Optional[str] = None,
+    pid: Optional[int] = None,
+    source: str = "launchbox_plugin",
+    launch_method: str = "plugin_event",
+    player: Optional[str] = None,
+) -> str:
+    """Register the game with score tracking and lifecycle monitoring."""
     global _active_game
-    
+
+    tracking_service = get_score_tracking_service(Path(_DRIVE_ROOT))
+    session = tracking_service.record_launch(
+        CanonicalGameEvent(
+            source=source,
+            game_id=game_id,
+            title=game_name,
+            platform=platform or "Arcade",
+            emulator=emulator,
+            pid=pid,
+            launch_method=launch_method,
+            player=player,
+            rom_name=rom_name,
+        )
+    )
+
     _active_game = {
+        "session_id": session.get("session_id"),
         "game_name": game_name,
+        "game_id": game_id,
         "rom_name": rom_name or "",
         "platform": platform or "Arcade",
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "emulator": emulator,
+        "pid": pid,
+        "player": player,
+        "source": source,
+        "launch_method": launch_method,
+        "started_at": session.get("started_at") or datetime.now(timezone.utc).isoformat(),
     }
-    
-    # Try to register with the full GameLifecycleService (PID-based tracking)
-    try:
-        from backend.services.game_lifecycle import get_game_lifecycle
-        service = get_game_lifecycle()
-        logger.info(f"[Bridge] GameLifecycleService available, active games: {len(service.get_active_games())}")
-        return "tracked"
-    except Exception as e:
-        logger.warning(f"[Bridge] GameLifecycleService not available: {e} — using lightweight tracking")
-        return "tracked_lightweight"
+
+    if pid:
+        try:
+            from backend.services.game_lifecycle import track_game_launch
+
+            track_game_launch(
+                game_id=game_id or rom_name or game_name,
+                game_title=game_name,
+                platform=platform or "Arcade",
+                pid=pid,
+                emulator=emulator,
+                rom_name=rom_name,
+                source=source,
+                launch_method=launch_method,
+                player=player,
+                session_id=session.get("session_id"),
+            )
+            return "tracked"
+        except Exception as e:
+            logger.warning(f"[Bridge] PID tracking unavailable: {e} - using lightweight tracking")
+            return "tracked_lightweight"
+
+    return "tracked_lightweight"
 
 
 async def _bridge_on_game_stop() -> str:
-    """Trigger score capture and hiscore sync when a game stops.
-    
-    Returns status string for the response.
-    """
+    """Trigger score capture and attempt tracking when a game stops."""
     global _active_game
-    
+
     if not _active_game:
-        logger.info("[Bridge] No active game to stop — may have been stopped by PID monitor")
+        logger.info("[Bridge] No active game to stop - may have been stopped by PID monitor")
         return "no_active_game"
-    
+
     game_info = dict(_active_game)
     _active_game = {}
-    
+
     game_name = game_info.get("game_name", "Unknown")
+    game_id = game_info.get("game_id")
     rom_name = game_info.get("rom_name", "")
     platform = game_info.get("platform", "Arcade")
-    
-    logger.info(f"[Bridge] Game stopped: {game_name} — triggering hiscore sync")
-    
-    # 1. Sync MAME hiscores (if applicable)
+    player = game_info.get("player")
+
+    logger.info(f"[Bridge] Game stopped: {game_name} - evaluating score capture")
+
+    tracking_service = get_score_tracking_service(Path(_DRIVE_ROOT))
+    session = tracking_service.close_session(
+        session_id=game_info.get("session_id"),
+        game_id=game_id,
+        title=game_name,
+        pid=game_info.get("pid"),
+        rom_name=rom_name,
+    )
+
     is_mame = platform.lower() in ("arcade", "mame") or "mame" in platform.lower()
+    status = "pending_review"
+
     if is_mame and rom_name:
         try:
             from backend.services.hiscore_watcher import get_watcher
+
             watcher = get_watcher()
             result = await asyncio.to_thread(watcher.sync_all)
             synced = list(result.keys()) if isinstance(result, dict) else []
-            logger.info(f"[Bridge] MAME hiscore sync: {len(synced)} games synced")
+            entries = watcher.get_game_scores(rom_name)
+            if entries:
+                tracking_service.record_auto_capture(
+                    session,
+                    strategy_name="mame_hiscore",
+                    score=int(entries[0].get("score", 0)),
+                    confidence=1.0,
+                    player=player or entries[0].get("name"),
+                    metadata={
+                        "rom_name": rom_name,
+                        "source": "mame_hiscore",
+                        "synced_games": synced,
+                    },
+                )
+                status = "captured_auto"
+            else:
+                tracking_service.record_pending_review(
+                    session,
+                    strategy_name="mame_hiscore",
+                    reason="mame_sync_no_score",
+                    metadata={"rom_name": rom_name},
+                )
         except Exception as e:
             logger.warning(f"[Bridge] MAME hiscore sync failed (non-critical): {e}")
-    
-    # 2. Broadcast score update to ScoreKeeper Sam via Gateway
+            tracking_service.record_failure(session, strategy_name="mame_hiscore", reason=str(e))
+            status = "failed"
+    else:
+        try:
+            from backend.services.vision_score_service import get_vision_score_service
+
+            vision_service = get_vision_score_service()
+            result = None
+            if vision_service:
+                result = await vision_service.process_game_exit(
+                    game_rom=rom_name or game_id or game_name,
+                    player_name=player,
+                )
+
+            if result and result.get("score") is not None:
+                confidence = float(result.get("confidence") or 0.0)
+                evidence_path = result.get("image_path") or result.get("screenshot_path")
+                if confidence >= 0.85:
+                    tracking_service.record_auto_capture(
+                        session,
+                        strategy_name="vision",
+                        score=int(result.get("score")),
+                        confidence=confidence,
+                        evidence_path=evidence_path,
+                        player=player,
+                        metadata={"screen_type": result.get("screen_type")},
+                    )
+                    status = "captured_auto"
+                else:
+                    tracking_service.record_pending_review(
+                        session,
+                        strategy_name="vision",
+                        confidence=confidence,
+                        raw_score=int(result.get("score")),
+                        evidence_path=evidence_path,
+                        reason="vision_low_confidence",
+                        metadata={"screen_type": result.get("screen_type")},
+                    )
+            else:
+                strategy_name = (session.get("strategy") or {}).get("primary") or "vision"
+                tracking_service.record_pending_review(
+                    session,
+                    strategy_name=strategy_name,
+                    reason="vision_no_score",
+                    metadata={"rom_name": rom_name, "game_id": game_id},
+                )
+        except Exception as e:
+            logger.warning(f"[Bridge] Vision capture failed (non-critical): {e}")
+            tracking_service.record_failure(session, strategy_name="vision", reason=str(e))
+            status = "failed"
+
     try:
         import httpx
         await asyncio.to_thread(
@@ -327,21 +456,20 @@ async def _bridge_on_game_stop() -> str:
             json={
                 "type": "score_updated",
                 "games": [rom_name] if rom_name else [],
-                "source": "playnite_game_exit",
+                "source": "launchbox_bridge_stop",
                 "game_title": game_name,
-                "game_id": rom_name,
+                "game_id": game_id or rom_name,
             },
             timeout=2.0,
         )
-        logger.info("[Bridge] Score broadcast sent to ScoreKeeper Sam")
     except Exception as e:
         logger.debug(f"[Bridge] Score broadcast failed (non-critical): {e}")
-    
-    return "synced"
+
+    return status
 
 
 # ============================================================================
-# Session Bridge (Break 5 fix) — Write game context to Supabase session
+# Session Bridge (Break 5 fix) � Write game context to Supabase session
 # ============================================================================
 
 
@@ -419,7 +547,17 @@ async def game_start(request: GameStartRequest):
     theme_status = await _apply_genre_theme(cinema_tag)
     
     # Bridge to score tracking pipeline (Break 1 fix)
-    tracking_status = _bridge_track_game(request.game_name, request.rom_name, request.platform)
+    tracking_status = _bridge_track_game(
+        request.game_name,
+        request.rom_name,
+        request.platform,
+        game_id=request.game_id,
+        emulator=request.emulator,
+        pid=request.pid,
+        source=request.source,
+        launch_method=request.launch_method,
+        player=request.player,
+    )
     
     # Bridge to session store (Break 5 fix) — fire-and-forget
     asyncio.create_task(
@@ -494,3 +632,8 @@ async def game_lifecycle_status():
         "service_tracked_games": service_games,
         "endpoints": ["/api/game/start", "/api/game/stop", "/api/game/status"],
     }
+
+
+
+
+

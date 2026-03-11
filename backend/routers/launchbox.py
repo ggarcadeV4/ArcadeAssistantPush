@@ -3152,6 +3152,9 @@ async def launch_game(
                         platform=game.platform,
                         pid=pid,
                         emulator=emulator_name,
+                        rom_name=Path(game.rom_path).stem if getattr(game, 'rom_path', None) else None,
+                        source="launchbox_router",
+                        launch_method="policy_primary",
                     )
             except Exception:
                 pass
@@ -3183,6 +3186,9 @@ async def launch_game(
                             platform=game.platform,
                             pid=pid,
                             emulator=emulator_name,
+                            rom_name=Path(game.rom_path).stem if getattr(game, 'rom_path', None) else None,
+                            source="launchbox_router",
+                            launch_method="direct_only",
                         )
                 except Exception:
                     pass
@@ -4020,4 +4026,5 @@ async def pegasus_exit(request: Request):
         logger.warning(f"Runtime state reset failed: {e}")
     
     return {"ok": True, "cleared": True, "mode": "browse"}
+
 
