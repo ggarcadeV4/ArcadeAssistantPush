@@ -129,6 +129,81 @@ def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
     return False
 
 
+def _parse_daphne_ahk_command(ahk_path: Path) -> Optional[Dict[str, Any]]:
+    """Parse Daphne/Hypseus/Singe AHK script to extract the Run command.
+
+    AHK scripts follow this pattern:
+        SetWorkingDir %A_ScriptDir%
+        Run, <exe> <args...>
+
+    Returns dict with exe, args, cwd if parseable, None otherwise.
+    """
+    import shlex
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # Known Daphne-family executables (lowercase for matching)
+    KNOWN_EXES = {"daphne.exe", "hypseus", "hypseus.exe", "singe.exe",
+                  "hypseus_subsystem.exe"}
+
+    try:
+        content = ahk_path.read_text(encoding="utf-8-sig")
+        for line in content.split("\n"):
+            stripped = line.strip()
+            # Match "Run," or "Run ," with optional whitespace
+            if not stripped.lower().startswith("run,") and not stripped.lower().startswith("run ,"):
+                continue
+
+            # Extract everything after "Run,"
+            idx = stripped.index(",")
+            cmd_str = stripped[idx + 1:].strip()
+
+            # Split into exe and args
+            parts = cmd_str.split(None, 1)
+            if not parts:
+                continue
+
+            exe_name = parts[0]
+            args_str = parts[1] if len(parts) > 1 else ""
+
+            if exe_name.lower() not in KNOWN_EXES:
+                continue
+
+            # Resolve exe relative to AHK script directory
+            script_dir = ahk_path.parent
+            exe_path = script_dir / exe_name
+
+            # AHK scripts may omit .exe extension (e.g., "Run, Hypseus" for hypseus.exe)
+            if not exe_path.exists() and not exe_name.lower().endswith(".exe"):
+                exe_path_with_ext = script_dir / (exe_name + ".exe")
+                if exe_path_with_ext.exists():
+                    exe_path = exe_path_with_ext
+                    exe_name = exe_name + ".exe"
+
+            if not exe_path.exists():
+                _logger.warning(
+                    "[DaphneAHK] Exe %s not found in %s", exe_name, script_dir
+                )
+                continue
+
+            # Parse args — use simple split (shlex may choke on Windows paths)
+            args = args_str.split() if args_str else []
+
+            _logger.info(
+                "[DaphneAHK] Bypassing AHK, launching directly: %s %s (cwd=%s)",
+                exe_path, " ".join(args), script_dir,
+            )
+            return {
+                "exe": str(exe_path),
+                "args": args,
+                "cwd": str(script_dir),
+            }
+    except Exception as exc:
+        _logger.debug("[DaphneAHK] Failed to parse %s: %s", ahk_path, exc)
+
+    return None
+
+
 def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     """Resolve direct application launch config.
 
@@ -162,6 +237,13 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     ext = normalized_path.suffix.lower()
 
     if ext == ".ahk":
+        # ── Daphne / Hypseus / Singe direct-launch (bypass AutoHotkey) ──
+        # Parse the AHK script; if it references a known laserdisc emulator
+        # exe, launch that exe directly instead of invoking AutoHotkey.
+        daphne_cmd = _parse_daphne_ahk_command(normalized_path)
+        if daphne_cmd:
+            return daphne_cmd
+
         # Special handling for TeknoParrot AHK scripts
         # Parse the script to extract the profile name and launch directly
         # This avoids issues with hardcoded paths in AHK scripts

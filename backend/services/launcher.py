@@ -716,9 +716,13 @@ class GameLauncher:
         # Build command line (optimized: pre-allocated list)
         command = [str(emulator_exe)]
 
-        # Add platform-specific command line args
-        if mapping.command_line:
-            command.extend(shlex.split(mapping.command_line))
+        # Add command line args: mapping-level overrides emulator-level,
+        # but fall back to emulator-level if mapping has none.
+        # LaunchBox stores flags at EITHER level (e.g., Cemu has "-f -g"
+        # on the Emulator object, not the EmulatorPlatform mapping).
+        effective_cmd_line = mapping.command_line or getattr(emulator, 'command_line', '') or ''
+        if effective_cmd_line:
+            command.extend(shlex.split(effective_cmd_line))
 
         # Add ROM path (resolve relative paths against LaunchBox root)
         rom_path = self._get_rom_path(game)

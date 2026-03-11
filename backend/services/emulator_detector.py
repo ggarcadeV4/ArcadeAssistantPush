@@ -125,6 +125,7 @@ class EmulatorDetector:
             emu_id = elem.findtext("ID", "").strip()
             title = elem.findtext("Title", "").strip()
             app_path = elem.findtext("ApplicationPath", "").strip()
+            cmd_line = elem.findtext("CommandLine", "").strip()
 
             if not all([emu_id, title, app_path]):
                 return None
@@ -133,6 +134,7 @@ class EmulatorDetector:
                 id=emu_id,
                 title=title,
                 executable_path=app_path,
+                command_line=cmd_line,
                 source="launchbox"
             )
 

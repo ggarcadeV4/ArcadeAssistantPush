@@ -766,10 +766,23 @@
   font-size: 0.85rem;
   opacity: 0;
   transform: rotate(0deg);
+  z-index: 5;
 }
 
 .games-grid .game-card:hover .game-play-btn {
   opacity: 1;
+}
+
+/* Pinball games: always-visible play button (no hover needed) */
+.games-grid .game-play-btn.always-visible {
+  opacity: 1;
+  background: var(--neon-pink);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.4);
+}
+
+.games-grid .game-play-btn.always-visible:hover {
+  background: white;
+  box-shadow: 0 0 25px rgba(255, 0, 127, 0.6);
 }
 
 .games-grid .no-games-message {

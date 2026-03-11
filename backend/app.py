@@ -452,25 +452,23 @@ async def lifespan(app: FastAPI):
                     f.write(json.dumps(record) + "\n")
         except Exception as e:
             print(f"WARNING: Failed to write startup timing: {e}")
-        # PAUSED: Cabinet self-registration and heartbeat disabled until first customer
-        # To re-enable, uncomment the block below
-        # try:
-        #     from backend.services.cabinet_registration import register_cabinet_async
-        #     from backend.services.heartbeat import start_heartbeat_task
-        #     try:
-        #         reg_result = await register_cabinet_async()
-        #         if reg_result.get('success'):
-        #             print(f"Cabinet registered: device_id={reg_result.get('device_id')}, mac={reg_result.get('mac')}")
-        #         else:
-        #             print(f"Cabinet registration skipped: {reg_result.get('error', 'unknown')}")
-        #         print(f"Cabinet status: {reg_result.get('status', 'unknown')}")
-        #     except Exception as reg_err:
-        #         print(f"WARNING: Cabinet registration failed (non-fatal): {reg_err}")
-        #     app.state._hb_task = start_heartbeat_task()
-        #     print("Heartbeat loop started (30s interval)")
-        # except Exception as he_init:
-        #     print(f"WARNING: Cabinet registration/heartbeat not started: {he_init}")
-        print("INFO: Cabinet heartbeat PAUSED (no customers yet)")
+        # Cabinet self-registration and heartbeat — ENABLED for drive duplication readiness
+        try:
+            from backend.services.cabinet_registration import register_cabinet_async
+            from backend.services.heartbeat import start_heartbeat_task
+            try:
+                reg_result = await register_cabinet_async()
+                if reg_result.get('success'):
+                    print(f"Cabinet registered: device_id={reg_result.get('device_id')}, mac={reg_result.get('mac')}")
+                else:
+                    print(f"Cabinet registration skipped: {reg_result.get('error', 'unknown')}")
+                print(f"Cabinet status: {reg_result.get('status', 'unknown')}")
+            except Exception as reg_err:
+                print(f"WARNING: Cabinet registration failed (non-fatal): {reg_err}")
+            app.state._hb_task = start_heartbeat_task()
+            print("Heartbeat loop started (30s interval)")
+        except Exception as he_init:
+            print(f"WARNING: Cabinet registration/heartbeat not started: {he_init}")
 
         # PAUSED: Dewey's auto-trivia scheduler disabled until first customer
         # To re-enable, uncomment the block below

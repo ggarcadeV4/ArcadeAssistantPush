@@ -1,5 +1,11 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-10 | Pinball FX + ScoreKeeper Sam + Hypseus Fix + Supabase Verified
+
+**Net Progress**: Pinball FX2/FX3 now launch from LoRa (stale bundle diagnosed, Steam URI routing implemented). ScoreKeeper Sam Phases 1-2 code-complete — canonical pipeline, strategy registry, review queue, coverage dashboard. Hypseus .exe extension fix applied (parser appends `.exe` for bare AHK Run commands). Supabase telemetry verified live — all tables working, DARIUS scores confirmed via `mame_hiscore`. Device ID mismatch found (`.env` vs Supabase). ElevenLabs key is placeholder. Sprint mapped: drive March 15, business March 20, sales April 1. Golden drive sanitization strategy defined. Created Codex handoffs for Daphne live testing.
+
+**Remaining**: 3 Daphne/Singe/Hypseus live tests (parser verified), Device ID fix, ElevenLabs key, Sam live validation, golden drive sanitization.
+
 ## 2026-03-05 | Chuck RAG KB + Gem Integration + Blocker Fixes + Console Wizard RAG KB
 
 **Net Progress**: Built comprehensive Controller Chuck RAG knowledge base (`chuck_knowledge.md` → 770+ lines, 16 sections). Integrated a "Gem Second Opinion" from a parallel AI model for deeper troubleshooting protocols. Closed three V1 blockers: B2 (HttpBridge outbound), B4 (Voice Hardware Unlock), B5 (Genre LED Logic). Built Console Wizard RAG knowledge base (`wiz_knowledge.md` → 500+ lines, 16 sections) focused on customer-facing "wow" fix flows. Enhanced Wiz prompt with Rapid Fix Protocol and customer-first rules. Built **LED Priority Arbiter** — circuit breaker preventing LED state conflicts between game animations and Vicky voice commands.

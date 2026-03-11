@@ -22,19 +22,19 @@ router = APIRouter(prefix="/voice", tags=["tts"])
 # ── Voice Profile → ElevenLabs Voice ID Mapping ──────────────────────────────
 # Reads from environment variables first (set in .env), falls back to defaults.
 # IDs can be verified at: https://elevenlabs.io/voice-lab
-DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"  # ElevenLabs "Rachel" default
+DEFAULT_VOICE = "pFZP5JQG7iQjIQuC4Bku"  # ElevenLabs "Lily" — LoRa default
 
 def _get_voice_profiles() -> dict:
     return {
         "dewey":   os.getenv("DEWEY_VOICE_ID",  "pNInz6obpgDQGcFmaJgB"),
-        "lora":    os.getenv("LORA_VOICE_ID",    "EXAVITQu4vr4xnSDxMaL"),
+        "lora":    os.getenv("LORA_VOICE_ID",    "pFZP5JQG7iQjIQuC4Bku"),  # Lily — velvety actress
         "blinky":  os.getenv("BLINKY_VOICE_ID",  "DTKMou8ccj1ZaWGBiotd"),
-        "chuck":   os.getenv("CHUCK_VOICE_ID",   "phSUs0Ah98iCO2AAb9T2"),  # Bill — gruff mechanic
+        "chuck":   os.getenv("CHUCK_VOICE_ID",   "5Q0t7uMcjvnagumLfvZi"),
         "wiz":     os.getenv("WIZ_VOICE_ID",     "CwhRBWXzGAHq8TQ4Fs17"),
-        "vicky":   os.getenv("VICKY_VOICE_ID",   "21m00Tcm4TlvDq8ikWAM"),  # Rachel — assistant
-        "gunner":  os.getenv("GUNNER_VOICE_ID",  "VR6Aewuayv9S8yAnA6Wf"),  # Arnold — tactical
+        "vicky":   os.getenv("VICKY_VOICE_ID",   "ThT5KcBeYPX3keUQqHPh"),
+        "gunner":  os.getenv("GUNNER_VOICE_ID",  "5Q0t7uMcjvnagumLfvZi"),
         "doc":     os.getenv("DOC_VOICE_ID",     "pNInz6obpgDQGcFmaJgB"),  # Adam — calm engineer
-        "sam":     os.getenv("SAM_VOICE_ID",     "N2lVS1wzUtoExuCqn9ee"),  # Callum — announcer
+        "sam":     os.getenv("SAM_VOICE_ID",     "bIHbv24MWmeRgasZH58o"),  # Scorekeeper announcer
     }
 
 
@@ -73,7 +73,7 @@ async def text_to_speech(request: Request, payload: TTSRequest):
             logger.warning("Unknown voice_profile '%s', using default", payload.voice_profile)
 
     if not resolved_voice_id:
-        resolved_voice_id = "EXAVITQu4vr4xnSDxMaL"  # Default ElevenLabs voice
+        resolved_voice_id = "pFZP5JQG7iQjIQuC4Bku"  # Default: LoRa (Lily)
 
     # eleven_turbo_v2 is ~2x faster than eleven_monolingual_v1
     model_id = payload.model_id or "eleven_turbo_v2"

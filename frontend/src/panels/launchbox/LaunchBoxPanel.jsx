@@ -167,6 +167,9 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
   const isDisabled = !!launchDisabled
   const launchTooltip = `Launch ${game.title}`
 
+  // Pinball platforms need always-visible play button (no hover on touch cabinets)
+  const isPinball = (game.platform || '').toLowerCase().includes('pinball')
+
   return (
     <div className="game-card" onMouseEnter={handleMouseEnter}>
       {/* Game Box Art */}
@@ -201,7 +204,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
         </div>
       </div>
       <button
-        className={`game-play-btn ${isDisabled ? 'disabled' : ''}`}
+        className={`game-play-btn ${isDisabled ? 'disabled' : ''} ${isPinball ? 'always-visible' : ''}`}
         onClick={handleLaunch}
         disabled={isDisabled}
         title={launchTooltip}
