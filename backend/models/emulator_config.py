@@ -28,7 +28,6 @@ class EmulatorDefinition:
     executable_path: str
     command_line: str = ""
     working_directory: Optional[str] = None
-    command_line: str = ""
     source: str = "launchbox"
 
     def __hash__(self) -> int:
@@ -43,7 +42,6 @@ class EmulatorDefinition:
             "executable_path": self.executable_path,
             "command_line": self.command_line,
             "working_directory": self.working_directory,
-            "command_line": self.command_line,
             "source": self.source
         }
 
@@ -56,7 +54,6 @@ class EmulatorDefinition:
             executable_path=data["executable_path"],
             command_line=data.get("command_line", ""),
             working_directory=data.get("working_directory"),
-            command_line=data.get("command_line", ""),
             source=data.get("source", "manual")
         )
 
