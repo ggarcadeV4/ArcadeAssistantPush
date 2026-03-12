@@ -5,6 +5,9 @@
  * - F9: Toggle visibility (global shortcut path)
  * - Shift+F9: Quit the overlay
  * - Backend hotkey bridge fallback: /ws/hotkey events can also toggle the HUD
+ *
+ * Golden-image note: this overlay launches separately from start-aa.bat.
+ * Duplication readiness still requires it to load successfully against the shipped gateway build.
  */
 
 const { app, BrowserWindow, globalShortcut, screen } = require('electron');
@@ -422,4 +425,5 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
     app.quit();
 });
+
 

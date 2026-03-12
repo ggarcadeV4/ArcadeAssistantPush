@@ -44,16 +44,6 @@ class VoiceService:
         Process lighting command from voice transcript.
 
         Yields progress updates as command is parsed and applied.
-
-        Args:
-            transcript: Voice transcript text
-            user_id: Optional user ID for logging
-
-        Yields:
-            {"status": "parsing", "transcript": "..."}
-            {"status": "parsed", "intent": {...}}
-            {"status": "applying", "target": "p1"}
-            {"status": "complete", "success": true}
         """
         logger.info("processing_lighting_command",
                    transcript=transcript,
@@ -62,7 +52,6 @@ class VoiceService:
         yield {"status": "parsing", "transcript": transcript}
 
         try:
-            # Parse transcript
             intent = await self.parser.parse(transcript)
 
             if not intent:
@@ -79,7 +68,6 @@ class VoiceService:
                 "confidence": intent.confidence
             }
 
-            # Check confidence
             if intent.confidence < 0.7:
                 yield {
                     "status": "low_confidence",
@@ -87,10 +75,8 @@ class VoiceService:
                     "message": "Did you mean this?",
                     "requires_confirmation": True
                 }
-                # In production, wait for user confirmation here
-                await asyncio.sleep(0.5)  # Simulated confirmation wait
+                await asyncio.sleep(0.5)
 
-            # Enqueue command
             if user_id:
                 enqueued = await self.buffer.enqueue(intent, user_id)
                 if not enqueued:
@@ -103,14 +89,12 @@ class VoiceService:
 
             yield {"status": "applying", "target": intent.target}
 
-            # Apply via LED service
             if self.led_service:
-                # LED Priority Arbiter — Vicky claims highest priority
                 try:
                     arbiter = get_led_arbiter()
                     await arbiter.claim(
                         LEDPriority.VOICE,
-                        animation_code="9",  # Vicky's signature Magenta pulse
+                        animation_code="9",
                         label="Vicky Voice Active",
                     )
                 except Exception as arb_err:
@@ -118,19 +102,16 @@ class VoiceService:
 
                 success = await self._apply_to_led_service(intent)
 
-                # Release VOICE priority — game animation resumes if active
                 try:
                     arbiter = get_led_arbiter()
                     await arbiter.release(LEDPriority.VOICE)
                 except Exception as arb_err:
                     logger.warning("led_arbiter_release_failed", error=str(arb_err))
             else:
-                # Mock mode
                 logger.info("mock_mode_apply", intent=intent.dict())
                 success = True
-                await asyncio.sleep(0.2)  # Simulate apply time
+                await asyncio.sleep(0.2)
 
-            # Log to Supabase
             if self.supabase:
                 await self._log_command(transcript, intent, user_id, success)
 
@@ -178,14 +159,12 @@ class VoiceService:
 
             elif intent.action == 'dim':
                 logger.info("dimming", target=intent.target)
-                # Dim = 20% brightness (scale current color)
                 hw.write_port(0, port, (12, 12, 12))
                 await self._sync_led_state(port, (12, 12, 12), "vicky_voice")
                 return True
 
             elif intent.action == 'pattern':
                 logger.info("applying_pattern", pattern=intent.pattern)
-                # Patterns delegated to BlinkyService CLI when available
                 try:
                     from ..blinky_service import BlinkyProcessManager
                     manager = BlinkyProcessManager.get_instance()
@@ -218,7 +197,8 @@ class VoiceService:
                 }).execute
             )
         except Exception as e:
-            logger.debug("led_state_sync_failed", error=str(e))
+            logger.warning("led_state_sync_skipped", error=str(e))
+            return []
 
     def _hex_to_rgb(self, hex_color: str) -> tuple:
         """Convert hex color to RGB tuple."""
@@ -227,7 +207,6 @@ class VoiceService:
 
     def _target_to_led_ids(self, target: str) -> int:
         """Convert target to LED IDs."""
-        # Simplified mapping (in production, query hardware)
         mapping = {
             'p1': 0,
             'p2': 4,
@@ -246,6 +225,8 @@ class VoiceService:
         success: bool
     ):
         """Log command to Supabase."""
+        if not self.supabase:
+            return []
         try:
             command = LightingCommand(
                 transcript=transcript,
@@ -255,7 +236,6 @@ class VoiceService:
                 applied=success
             )
 
-            # Supabase logging with RLS
             await asyncio.to_thread(
                 self.supabase.table('voice_commands')
                 .insert(command.dict())
@@ -263,16 +243,17 @@ class VoiceService:
             )
 
             logger.info("command_logged", transcript=transcript, success=success)
+            return []
 
         except Exception as e:
-            logger.error("command_log_failed", error=str(e))
+            logger.warning("command_log_skipped", error=str(e))
+            return []
 
     def _generate_tts_response(self, intent: LightingIntent, success: bool) -> str:
         """Generate TTS confirmation message."""
         if not success:
             return "Sorry, I couldn't apply that lighting command."
 
-        # Generate friendly confirmation
         responses = {
             'color': f"Lights set to {intent.color} for {intent.target}",
             'dim': f"Dimmed lights for {intent.target}",

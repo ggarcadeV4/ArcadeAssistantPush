@@ -8,10 +8,10 @@
  *  - Transparent SVG hotspot overlays positioned over each button
  *
  * Props:
- *  - activeButton {string|null} — key of the control being prompted (pulsing amber)
- *  - pressedButtons {Set<string>} — buttons currently physically pressed (cyan glow)
- *  - mappedButtons {Set<string>} — controls successfully mapped (green)
- *  - profileId {string} — e.g. '8bitdo_pro_2', 'xbox_360', 'ps4_dualshock', 'switch_pro'
+ *  - activeButton {string|null} Ã¢â‚¬â€ key of the control being prompted (pulsing amber)
+ *  - pressedButtons {Set<string>} Ã¢â‚¬â€ buttons currently physically pressed (cyan glow)
+ *  - mappedButtons {Set<string>} Ã¢â‚¬â€ controls successfully mapped (green)
+ *  - profileId {string} Ã¢â‚¬â€ e.g. '8bitdo_pro_2', 'xbox_360', 'ps4_dualshock', 'switch_pro'
  */
 import React, { memo } from 'react';
 
@@ -19,12 +19,12 @@ const AMBER = '#f59e0b';
 const CYAN  = '#38bdf8';
 const GREEN = '#22c55e';
 
-/* ── Per-profile PNG + hotspot coordinate maps ─────────────────────────
+/* Ã¢â€â‚¬Ã¢â€â‚¬ Per-profile PNG + hotspot coordinate maps Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    Coordinates are percentage-based (0-100) relative to the image.
    Each hotspot: { x, y, w, h, shape } where shape is 'circle' or 'rect'
    For circles: x,y = center %, r = radius %
    For rects: x,y = top-left %, w,h = size %
-──────────────────────────────────────────────────────────────────────── */
+Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 const PROFILES = {
   '8bitdo_pro_2': {
@@ -32,10 +32,10 @@ const PROFILES = {
     label: '8BitDo Pro 2',
     hotspots: {
       // D-Pad
-      up:    { x: 24, y: 32, w: 7, h: 10, shape: 'rect' },
-      down:  { x: 24, y: 52, w: 7, h: 10, shape: 'rect' },
-      left:  { x: 15, y: 42, w: 10, h: 7, shape: 'rect' },
-      right: { x: 30, y: 42, w: 10, h: 7, shape: 'rect' },
+      up:    { x: 16, y: 25, w: 7, h: 10, shape: 'rect' },
+      down:  { x: 16, y: 41, w: 7, h: 10, shape: 'rect' },
+      left:  { x: 8, y: 33, w: 10, h: 7, shape: 'rect' },
+      right: { x: 23, y: 33, w: 10, h: 7, shape: 'rect' },
       // Face buttons
       a: { x: 76, y: 48, r: 4.5, shape: 'circle' },
       b: { x: 83, y: 40, r: 4.5, shape: 'circle' },
@@ -47,12 +47,12 @@ const PROFILES = {
       zl: { x: 16, y: 0, w: 12, h: 7, shape: 'rect' },
       zr: { x: 72, y: 0, w: 12, h: 7, shape: 'rect' },
       // Meta
-      select: { x: 40, y: 34, w: 7, h: 5, shape: 'rect' },
-      start:  { x: 53, y: 34, w: 7, h: 5, shape: 'rect' },
-      home:   { x: 48, y: 44, r: 3, shape: 'circle' },
+      select: { x: 41, y: 36, w: 6, h: 4.5, shape: 'rect' },
+      start:  { x: 53, y: 36, w: 6, h: 4.5, shape: 'rect' },
+      home:   { x: 50, y: 25, r: 3.2, shape: 'circle' },
       // Sticks
-      l3: { x: 35, y: 58, r: 6, shape: 'circle' },
-      r3: { x: 65, y: 58, r: 6, shape: 'circle' },
+      l3: { x: 31, y: 56, r: 7, shape: 'circle' },
+      r3: { x: 59, y: 56, r: 7, shape: 'circle' },
     },
   },
 
@@ -84,10 +84,10 @@ const PROFILES = {
     image: '/assets/controllers/xbox_360.png',
     label: 'Xbox 360',
     hotspots: {
-      up:    { x: 20, y: 42, w: 7, h: 10, shape: 'rect' },
-      down:  { x: 20, y: 62, w: 7, h: 10, shape: 'rect' },
-      left:  { x: 11, y: 52, w: 10, h: 7, shape: 'rect' },
-      right: { x: 26, y: 52, w: 10, h: 7, shape: 'rect' },
+      up:    { x: 31, y: 48, w: 7, h: 9, shape: 'rect' },
+      down:  { x: 31, y: 61, w: 7, h: 9, shape: 'rect' },
+      left:  { x: 22, y: 55, w: 10, h: 7, shape: 'rect' },
+      right: { x: 37, y: 55, w: 10, h: 7, shape: 'rect' },
       a: { x: 76, y: 48, r: 4.5, shape: 'circle' },
       b: { x: 83, y: 40, r: 4.5, shape: 'circle' },
       x: { x: 69, y: 40, r: 4.5, shape: 'circle' },
@@ -99,8 +99,8 @@ const PROFILES = {
       select: { x: 38, y: 34, w: 8, h: 5, shape: 'rect' },
       start:  { x: 54, y: 34, w: 8, h: 5, shape: 'rect' },
       home:   { x: 50, y: 24, r: 4, shape: 'circle' },
-      l3: { x: 30, y: 32, r: 6, shape: 'circle' },
-      r3: { x: 60, y: 58, r: 6, shape: 'circle' },
+      l3: { x: 18, y: 34, r: 7, shape: 'circle' },
+      r3: { x: 58, y: 57, r: 7, shape: 'circle' },
     },
   },
 
@@ -132,31 +132,31 @@ const PROFILES = {
     image: '/assets/controllers/switch_pro.png',
     label: 'Switch Pro',
     hotspots: {
-      up:    { x: 20, y: 44, w: 7, h: 10, shape: 'rect' },
-      down:  { x: 20, y: 64, w: 7, h: 10, shape: 'rect' },
-      left:  { x: 11, y: 54, w: 10, h: 7, shape: 'rect' },
-      right: { x: 26, y: 54, w: 10, h: 7, shape: 'rect' },
-      a: { x: 80, y: 50, r: 4.5, shape: 'circle' },
-      b: { x: 87, y: 42, r: 4.5, shape: 'circle' },
-      x: { x: 73, y: 42, r: 4.5, shape: 'circle' },
-      y: { x: 80, y: 34, r: 4.5, shape: 'circle' },
+      up:    { x: 30, y: 51, w: 7, h: 9, shape: 'rect' },
+      down:  { x: 30, y: 64, w: 7, h: 9, shape: 'rect' },
+      left:  { x: 22, y: 58, w: 10, h: 7, shape: 'rect' },
+      right: { x: 37, y: 58, w: 10, h: 7, shape: 'rect' },
+      a: { x: 80, y: 43, r: 4.5, shape: 'circle' },
+      b: { x: 73, y: 50, r: 4.5, shape: 'circle' },
+      x: { x: 73, y: 35, r: 4.5, shape: 'circle' },
+      y: { x: 66, y: 42, r: 4.5, shape: 'circle' },
       l:  { x: 10, y: 6, w: 18, h: 9, shape: 'rect' },
       r:  { x: 72, y: 6, w: 18, h: 9, shape: 'rect' },
       zl: { x: 12, y: 0, w: 14, h: 6, shape: 'rect' },
       zr: { x: 74, y: 0, w: 14, h: 6, shape: 'rect' },
-      select: { x: 36, y: 30, w: 7, h: 5, shape: 'rect' },
-      start:  { x: 57, y: 30, w: 7, h: 5, shape: 'rect' },
-      home:   { x: 50, y: 48, r: 3, shape: 'circle' },
-      l3: { x: 30, y: 30, r: 6, shape: 'circle' },
-      r3: { x: 60, y: 56, r: 6, shape: 'circle' },
+      select: { x: 33, y: 30, w: 6, h: 4.5, shape: 'rect' },
+      start:  { x: 55, y: 30, w: 6, h: 4.5, shape: 'rect' },
+      home:   { x: 50, y: 39, r: 3.2, shape: 'circle' },
+      l3: { x: 18, y: 34, r: 7, shape: 'circle' },
+      r3: { x: 56, y: 57, r: 7, shape: 'circle' },
     },
   },
 };
 
-// Fallback for unknown profiles — uses the 8BitDo Pro 2
+// Fallback for unknown profiles Ã¢â‚¬â€ uses the 8BitDo Pro 2
 const DEFAULT_PROFILE = '8bitdo_pro_2';
 
-/* ── Overlay color logic ──── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬ Overlay color logic Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 const getOverlayStyle = (key, activeButton, pressedButtons, mappedButtons) => {
   const isPressed = pressedButtons?.has(key);
   const isActive  = key === activeButton;

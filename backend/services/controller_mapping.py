@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 from functools import lru_cache
-from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Optional
 
@@ -35,13 +34,11 @@ class ControllerMappingService:
     def __init__(self) -> None:
         self._fallback_lock = Lock()
         self._bus = get_event_bus()
-        # Golden Drive: store under .aa/state/controller_maps (not hardcoded A:/)
         drive_root = get_drive_root(allow_cwd_fallback=True)
         self.FALLBACK_PATH = drive_root / ".aa" / "state" / "controller_maps" / "fallback.json"
         self.FALLBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     def save_map(self, user_id: str, session_id: str, mapping: ControllerMap) -> ControllerMap:
-        """Persist a controller map for the given user/session pair."""
         self._validate_map(mapping)
         record = {"user_id": user_id, "session_id": session_id, "map": mapping}
         synced = self._upsert_supabase(record)
@@ -55,13 +52,11 @@ class ControllerMappingService:
     def load_map(
         self, user_id: str, session_id: str, tendencies: Optional[Dict[str, Any]] = None
     ) -> ControllerMap:
-        """Convenience wrapper that derives defaults based on tendencies."""
         simple_mode = bool((tendencies or {}).get("simple_mode"))
         return self.get_map(user_id, session_id, simple_mode)
 
     @lru_cache(maxsize=50)
     def get_map(self, user_id: str, session_id: str, simple_mode: bool = False) -> ControllerMap:
-        """Return the mapping for a user/session, cached for fast repeated lookups."""
         mapping = self._select_supabase_map(user_id, session_id)
         if not mapping:
             fallback = self._fallback_payload().get(self._map_key(user_id, session_id))
@@ -71,7 +66,6 @@ class ControllerMappingService:
         return dict(mapping)
 
     def delete_map(self, user_id: str, session_id: str) -> None:
-        """Remove the stored mapping for the provided identifiers."""
         self._delete_supabase_record(user_id, session_id)
         payload = self._fallback_payload()
         if payload.pop(self._map_key(user_id, session_id), None) is not None:
@@ -107,7 +101,7 @@ class ControllerMappingService:
         try:
             table = get_client().table(self.TABLE_NAME)
         except (SupabaseError, Exception) as exc:
-            logger.debug("Supabase unavailable, using fallback only: %s", exc)
+            logger.warning("Controller map sync skipped: %s", exc)
             return False
 
         try:
@@ -120,7 +114,8 @@ class ControllerMappingService:
     def _select_supabase_map(self, user_id: str, session_id: str) -> Optional[ControllerMap]:
         try:
             table = get_client().table(self.TABLE_NAME)
-        except (SupabaseError, Exception):
+        except (SupabaseError, Exception) as exc:
+            logger.warning("Controller map lookup skipped: %s", exc)
             return None
 
         try:
@@ -143,7 +138,7 @@ class ControllerMappingService:
             filters = {"user_id": user_id, "session_id": session_id}
             table.delete().match(filters).execute()
         except (SupabaseError, Exception) as exc:
-            logger.debug("Supabase delete skipped: %s", exc)
+            logger.warning("Controller map delete skipped: %s", exc)
 
     def _invalidate_cache(self) -> None:
         try:

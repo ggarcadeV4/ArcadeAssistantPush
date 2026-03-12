@@ -47,7 +47,7 @@ from backend.models.game import Game, LaunchRequest, LaunchResponse, GameCacheSt
 from backend.services.launchbox_parser import parser, get_platform_games
 from backend.services import launchbox_cache as lb_cache
 from backend.services.launchbox_json_cache import json_cache
-from backend.services.platform_names import normalize_platform
+from backend.services.platform_names import normalize_key, normalize_platform
 from backend.routers import marquee as marquee_router
 from backend.services.launcher import launcher
 from backend.services.launcher import GameLauncher
@@ -70,6 +70,30 @@ from starlette.datastructures import MutableHeaders
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/launchbox", tags=["launchbox"])
+
+
+_LAUNCHBOX_DIRECT_FIRST_PLATFORM_KEYS = {
+    "teknoparrot",
+    "teknoparrot arcade",
+    "taito type x",
+    "taito type x2",
+    "taito type x3",
+    "sega lindbergh",
+    "sega ringedge",
+    "sega ringedge 2",
+    "sega ringwide",
+    "sega nu",
+    "namco system es1",
+    "namco system es3",
+    "namco system 357",
+    "examu exboard",
+}
+
+
+def _launchbox_prefers_direct(game: Game) -> bool:
+    """Prefer direct adapters for arcade-PC platforms that misbehave via plugin launch."""
+    platform_key = normalize_key(getattr(game, "platform", "") or "")
+    return platform_key in _LAUNCHBOX_DIRECT_FIRST_PLATFORM_KEYS
 
 
 # =============================================================================
@@ -3077,9 +3101,19 @@ async def launch_game(
     if panel == "pegasus":
         policy_mode = "direct_only"
         logger.info(f"[PEGASUS] Direct-to-emulator launch for '{game.title}' (platform={game.platform})")
-    # LaunchBox LoRa should behave like native LaunchBox whenever plugin is available.
+    # LaunchBox LoRa should behave like native LaunchBox for standard titles,
+    # but direct-adapter arcade platforms should bypass plugin-first because
+    # the plugin can stop at the LaunchBox shell instead of the selected game.
     elif panel == "launchbox":
-        policy_mode = "plugin_first"
+        if _launchbox_prefers_direct(game):
+            policy_mode = "direct_only"
+            logger.info(
+                "[LaunchBox] Preferring direct launch for '%s' (platform=%s)",
+                game.title,
+                game.platform,
+            )
+        else:
+            policy_mode = "plugin_first"
 
     # Policy-based forced launch method (per-game/platform/title overrides)
     try:

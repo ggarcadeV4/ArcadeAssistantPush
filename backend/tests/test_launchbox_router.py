@@ -422,3 +422,61 @@ async def test_concurrent_launch_requests(mock_request, mock_services, sample_ga
         1 for r in results if r.method_used in ("throttled", "inflight") or not r.success
     )
     assert throttled >= 1  # Some requests should be rejected
+
+
+@pytest.mark.asyncio
+async def test_launchbox_panel_prefers_direct_for_type_x(mock_request, mock_services, monkeypatch):
+    """LaunchBox panel should not force plugin-first for Type X / TeknoParrot-class games."""
+    from backend.routers import launchbox as launchbox_router
+
+    game = Game(
+        id="typex-1",
+        title="Type X Test",
+        platform="Taito Type X",
+        year=2007,
+        genre="Action",
+        application_path="Games/TypeX/TestGame.exe",
+    )
+    parser_mock = Mock()
+    parser_mock.get_cache_stats = Mock(return_value={"is_mock_data": False})
+    parser_mock.get_game_by_id = Mock(return_value=game)
+
+    launcher_mock = Mock()
+    launcher_mock.launch = Mock(return_value=launchbox_router.LaunchResponse(
+        success=True,
+        game_id=game.id,
+        method_used="direct",
+        message="Launched Type X Test via direct",
+        game_title=game.title,
+        command="A:/Emulators/TeknoParrot/TeknoParrotUi.exe --profile=TypeX.xml",
+    ))
+
+    plugin_mock = Mock()
+    plugin_mock.is_available = Mock(return_value=True)
+    plugin_mock.launch_game = Mock(return_value={"success": True, "message": "plugin launch should be bypassed"})
+
+    monkeypatch.setenv("AA_LAUNCH_THROTTLE_SEC", "0")
+    monkeypatch.setattr(launchbox_router, "parser", parser_mock)
+    monkeypatch.setattr(launchbox_router, "launcher", launcher_mock)
+    monkeypatch.setattr(launchbox_router, "get_plugin_client", Mock(return_value=plugin_mock))
+    monkeypatch.setattr(launchbox_router, "_read_routing_policy", Mock(return_value={}))
+    monkeypatch.setattr(launchbox_router, "_log_launch_event", Mock())
+    monkeypatch.setattr(launchbox_router, "log_decision", Mock())
+    monkeypatch.setattr(launchbox_router, "update_runtime_state", Mock())
+    monkeypatch.setattr(launchbox_router, "_best_effort_find_pid", Mock(return_value=None))
+    monkeypatch.setattr(
+        launchbox_router,
+        "run_in_threadpool",
+        AsyncMock(side_effect=lambda func, *args, **kwargs: func(*args, **kwargs)),
+    )
+
+    for attr in ("_last_launch", "_inflight", "_last_ahk_launch"):
+        if hasattr(launchbox_router.launch_game, attr):
+            delattr(launchbox_router.launch_game, attr)
+
+    response = await launchbox_router.launch_game(game.id, mock_request, services=mock_services)
+
+    assert response.success is True
+    assert response.method_used == "direct"
+    launcher_mock.launch.assert_called_once_with(game, "direct", None)
+    plugin_mock.launch_game.assert_not_called()

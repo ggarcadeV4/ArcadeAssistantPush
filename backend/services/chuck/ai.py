@@ -38,6 +38,10 @@ PROMPT_FILES = {
     "controller-chuck": PROMPT_ROOT / "controller_chuck.prompt",
     "controller-wizard": PROMPT_ROOT / "controller_wizard.prompt",
 }
+KNOWLEDGE_FILES = {
+    "controller-chuck": PROMPT_ROOT / "chuck_knowledge.md",
+    "controller-wizard": PROMPT_ROOT / "wiz_knowledge.md",
+}
 DEFAULT_PROMPTS = {
     "controller-chuck": """You are Chuck, the Brooklyn-born controller mapping maestro for the Arcade Assistant.
 - Always speak like a friendly arcade technician.
@@ -46,7 +50,7 @@ DEFAULT_PROMPTS = {
 - If information is missing, ask clarifying questions before assuming.
 - When hardware is disconnected or permissions are blocked, walk through step-by-step recovery.
 """,
-    "controller-wizard": """You are Wiz, the Console Wizard—an ancient guide who helps apprentices configure handheld controllers.
+    "controller-wizard": """You are Wiz, the Console Wizardâ€”an ancient guide who helps apprentices configure handheld controllers.
 - Use whimsical, encouraging language with a dash of mysticism.
 - Provide clear, step-by-step instructions for detection, profile selection, and configuration.
 - Encourage patience and celebrate progress; avoid technical jargon without explanation.
@@ -63,6 +67,38 @@ def _load_prompt_text(key: str) -> str:
     except Exception as exc:  # pragma: no cover - prompt load failure is non-critical
         logger.warning("Failed to load %s prompt: %s", key, exc)
     return DEFAULT_PROMPTS.get(key, DEFAULT_PROMPTS["controller-chuck"]).strip()
+def _load_local_knowledge(persona_key: str) -> str:
+    """Load factory knowledge + any OTA patches. Read fresh every call (no caching)."""
+    knowledge_parts = []
+
+    factory_file = KNOWLEDGE_FILES.get(
+        persona_key,
+        PROMPT_ROOT / f"{persona_key.replace('-', '_')}_knowledge.md",
+    )
+    try:
+        if factory_file.exists():
+            knowledge_parts.append(factory_file.read_text(encoding="utf-8").strip())
+    except Exception as exc:
+        logger.warning("Failed to load factory knowledge (%s): %s", factory_file.name, exc)
+
+    drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
+    patch_dir = drive_root / ".aa" / "state" / "knowledge_base"
+    patch_prefix = persona_key.replace("-", "_") + "_patch_"
+    try:
+        patch_dir.mkdir(parents=True, exist_ok=True)
+        if patch_dir.is_dir():
+            for patch_file in sorted(patch_dir.glob(f"{patch_prefix}*.md")):
+                try:
+                    knowledge_parts.append(patch_file.read_text(encoding="utf-8").strip())
+                except Exception as exc:
+                    logger.warning("Failed to read knowledge patch %s: %s", patch_file.name, exc)
+    except Exception as exc:
+        logger.warning("Failed to scan knowledge_base directory: %s", exc)
+
+    knowledge_parts = [part for part in knowledge_parts if part]
+    if not knowledge_parts:
+        return ""
+    return "\n\n---KNOWLEDGE BASE---\n\n" + "\n\n---\n\n".join(knowledge_parts)
 
 
 def _load_claude_client():
@@ -257,7 +293,7 @@ def _create_mock_claude_client():
 
             elif "help" in user_msg or "how" in user_msg or "what" in user_msg:
                 board_detected = context.get("board_status", {}).get("detected", False)
-                status_msg = "✓ Board detected" if board_detected else "⚠ No board detected"
+                status_msg = "âœ“ Board detected" if board_detected else "âš  No board detected"
 
                 return (
                     f"**Controller Chuck Status**: {status_msg}\n\n"
@@ -489,11 +525,13 @@ class ControllerAIService:
                 self._prompt_cache[key] = chat_part.strip()
                 self._prompt_cache[f"{key}--diagnosis"] = diag_part.strip()
             else:
-                # No delimiter — same prompt for both modes (safe fallback)
+                # No delimiter â€” same prompt for both modes (safe fallback)
                 self._prompt_cache[key] = raw
                 self._prompt_cache[f"{key}--diagnosis"] = raw
 
-        return self._prompt_cache[cache_key]
+        base_prompt = self._prompt_cache[cache_key]
+        knowledge = _load_local_knowledge(key)
+        return base_prompt + knowledge if knowledge else base_prompt
 
 
     def _summarize_mapping(self, drive_root: Path) -> Dict[str, Any]:
@@ -630,7 +668,7 @@ _controller_ai_service: Optional[ControllerAIService] = None
 
 
 # ============================================================================
-# Diagnosis Mode — AI Tool: remediate_controller_config (Q5)
+# Diagnosis Mode â€” AI Tool: remediate_controller_config (Q5)
 # ============================================================================
 
 def remediate_controller_config(
@@ -648,10 +686,10 @@ def remediate_controller_config(
     Diagnosis Mode AI Tool: propose or commit a single GPIO pin override.
 
     Decision refs (diagnosis_mode_plan.md):
-      Q5  — Gemini 2.0 Flash calls this tool via function calling when
+      Q5  â€” Gemini 2.0 Flash calls this tool via function calling when
              Diagnosis Mode is active and hardware truth requires a fix.
-      Q7  — Hardware truth wins; conflicts are always surfaced before commit.
-      Q8  — auto_commit=False (default) returns a proposal for UI confirmation;
+      Q7  â€” Hardware truth wins; conflicts are always surfaced before commit.
+      Q8  â€” auto_commit=False (default) returns a proposal for UI confirmation;
              auto_commit=True commits immediately (AI-only, for unambiguous fixes).
 
     Called by:
@@ -680,10 +718,10 @@ def remediate_controller_config(
 
     has_errors = any(c["severity"] == "error" for c in proposal["conflicts"])
 
-    # If conflicts and not auto-committing — return proposal for user review
+    # If conflicts and not auto-committing â€” return proposal for user review
     if has_errors and not auto_commit:
         logger.info(
-            "[remediate_controller_config] Proposal halted — %d error conflict(s) on %s",
+            "[remediate_controller_config] Proposal halted â€” %d error conflict(s) on %s",
             len([c for c in proposal["conflicts"] if c["severity"] == "error"]),
             control_key,
         )
@@ -709,7 +747,7 @@ def remediate_controller_config(
                 force        = auto_commit and has_errors,
             )
             logger.info(
-                "[remediate_controller_config] Committed %s → pin %d",
+                "[remediate_controller_config] Committed %s â†’ pin %d",
                 control_key, pin,
             )
             return {
@@ -733,7 +771,7 @@ def remediate_controller_config(
                 "reasoning": reasoning,
             }
 
-    # Fallback — return proposal if no explicit commit decision
+    # Fallback â€” return proposal if no explicit commit decision
     return {
         "phase"       : "proposal",
         "control_key" : control_key,
@@ -748,3 +786,4 @@ def get_controller_ai_service() -> ControllerAIService:
     if _controller_ai_service is None:
         _controller_ai_service = ControllerAIService()
     return _controller_ai_service
+

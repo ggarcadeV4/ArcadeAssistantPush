@@ -15,6 +15,18 @@ function bump(deviceId, chars) {
   ttsUsage.set(deviceId, cur);
   return cur.chars;
 }
+function hasConfiguredValue(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized !== '' && normalized.toLowerCase() !== 'placeholder-boot-only';
+}
+
+function hasElevenLabsApiKey() {
+  return hasConfiguredValue(process.env.ELEVENLABS_API_KEY);
+}
+
+function hasSupabaseTtsProxy() {
+  return hasConfiguredValue(process.env.SUPABASE_URL) && hasConfiguredValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
 
 // ElevenLabs configuration
 const ELEVENLABS_CONFIG = {
@@ -43,7 +55,7 @@ router.post('/tts', async (req, res) => {
   })
 
   // Guard: Return 501 if neither ELEVENLABS_API_KEY nor Supabase is configured
-  if (!process.env.ELEVENLABS_API_KEY && (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+  if (!hasElevenLabsApiKey() && !hasSupabaseTtsProxy()) {
     console.log('[TTS Route] Not configured - missing API key or Supabase credentials')
     return res.status(501).json({ code: 'NOT_CONFIGURED', service: 'tts' });
   }
@@ -85,7 +97,7 @@ router.post('/tts', async (req, res) => {
     // Optional override to force direct ElevenLabs (skip Supabase proxy)
     const forceDirect = ['1', 'true', 'yes', 'on'].includes(String(process.env.TTS_FORCE_DIRECT || '').trim().toLowerCase())
 
-    if (!forceDirect && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!forceDirect && hasSupabaseTtsProxy()) {
       // Use Supabase Edge Function
       apiUrl = `${process.env.SUPABASE_URL}/functions/v1/elevenlabs-proxy`;
       headers = {
@@ -105,6 +117,11 @@ router.post('/tts', async (req, res) => {
         optimize_streaming_latency: 4
       };
     } else {
+      if (!hasElevenLabsApiKey()) {
+        console.log('[TTS Route] Direct ElevenLabs disabled - API key missing or placeholder')
+        return res.status(501).json({ code: 'NOT_CONFIGURED', service: 'tts' });
+      }
+
       // Use Direct ElevenLabs API (Legacy)
       apiUrl = `${ELEVENLABS_CONFIG.baseUrl}/text-to-speech/${resolvedVoiceId}`;
       headers = {
@@ -177,7 +194,7 @@ router.post('/tts', async (req, res) => {
 // List available voices
 router.get('/voices', async (req, res) => {
   // Guard: Return 501 if ELEVENLABS_API_KEY is not configured
-  if (!process.env.ELEVENLABS_API_KEY) {
+  if (!hasElevenLabsApiKey()) {
     return res.status(501).json({ code: 'NOT_CONFIGURED', service: 'tts' });
   }
 

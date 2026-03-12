@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from threading import Lock, RLock
+from threading import RLock
 from typing import Any, Dict, List, Optional, Set
 
 try:
@@ -59,7 +59,6 @@ class ProfileData(BaseModel):
 
     @model_validator(mode="before")
     def _coerce_preferences(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Allow plain dicts for preferences when loading from storage."""
         raw = values.get("preferences")
         if raw is None:
             values["preferences"] = ProfilePreferences()
@@ -111,18 +110,16 @@ class DeweyService:
         self._bus = bus or get_event_bus()
         self._bus.subscribe(EventType.STATE_UPDATED.value, self.handle_relay_event)
 
-    # --------------------------------------------------------------------- API
     def get_profile(self, user_id: str) -> ProfileData:
-        """Return stored profile or create a default shell."""
         with self._cache_lock:
             cached = self._cache.get(user_id)
             if cached:
                 return cached
 
         profile = self._fetch_remote_profile(user_id)
-        if profile is None:
+        if not profile:
             profile = self._fetch_local_profile(user_id)
-        if profile is None:
+        if not profile:
             profile = self._default_profile(user_id)
             self._persist_local(profile)
 
@@ -131,7 +128,6 @@ class DeweyService:
         return profile
 
     def create_profile(self, payload: ProfileCreate) -> ProfileData:
-        """Create new profile."""
         profile = ProfileData(
             user_id=payload.user_id,
             display_name=payload.display_name or payload.user_id.title(),
@@ -144,7 +140,6 @@ class DeweyService:
         return profile
 
     def update_profile(self, user_id: str, payload: ProfileUpdate) -> ProfileData:
-        """Update display name, preferences, or family group."""
         existing = self.get_profile(user_id)
         updated = existing.model_copy(update={
             "display_name": payload.display_name or existing.display_name,
@@ -157,7 +152,6 @@ class DeweyService:
         return updated
 
     def handle_relay_event(self, event_data: Dict[str, Any]) -> None:
-        """Handle cross-panel bus events."""
         try:
             user_id = event_data.get("user_id")
             if not user_id:
@@ -174,7 +168,6 @@ class DeweyService:
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to relay Dewey event: %s", exc)
 
-    # ---------------------------------------------------------------- private
     def _persist(self, profile: ProfileData) -> None:
         self._persist_local(profile)
         self._persist_remote(profile)
@@ -209,7 +202,8 @@ class DeweyService:
             if rows:
                 return ProfileData(**rows[0])
         except Exception as exc:
-            logger.debug("Supabase fetch failed for Dewey profile %s: %s", user_id, exc)
+            logger.warning("Supabase fetch skipped for Dewey profile %s: %s", user_id, exc)
+            return None
         return None
 
     def _fetch_local_profile(self, user_id: str) -> Optional[ProfileData]:
@@ -243,6 +237,7 @@ class DeweyService:
             "source": "dewey",
             "priority": "medium",
         }
+
         async def _push():
             await self._bus.publish(EventType.STATE_UPDATED.value, event)
 
@@ -260,7 +255,6 @@ class DeweyService:
 
 @lru_cache(maxsize=1)
 def get_dewey_service() -> DeweyService:
-    """FastAPI dependency hook."""
     return DeweyService()
 
 

@@ -3,16 +3,20 @@ setlocal EnableDelayedExpansion
 
 rem ============================================================================
 rem  Arcade Assistant - Production Launcher (Golden Drive)
-rem  Drive-letter agnostic, reliable startup with port verification
+rem  Serve-only boot: provision identity, verify dist, then start services
 rem ============================================================================
 
-rem Always run from the repo root (where this script lives)
 cd /d "%~dp0"
 
-rem Derive drive letter from script location (works on any drive)
 set "DRIVE=%~d0"
 set "LOGDIR=%DRIVE%\.aa\logs"
 set "REPOROOT=%~dp0"
+set "DIST_INDEX=%REPOROOT%frontend\dist\index.html"
+
+set PYTHON_EXE=python
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PYTHON_EXE=%~dp0.venv\Scripts\python.exe"
+)
 
 echo ============================================================
 echo  Arcade Assistant - Starting...
@@ -23,12 +27,8 @@ echo  ENVIRONMENT
 echo ------------------------------------------------------------
 for /f "delims=" %%i in ('where node 2^>nul') do @echo   Node Path: %%i
 for /f "delims=" %%i in ('node --version 2^>nul') do @echo   Node Version: %%i
-set PYTHON_EXE_FOR_BANNER=python
-if exist "%~dp0.venv\Scripts\python.exe" (
-    set "PYTHON_EXE_FOR_BANNER=%~dp0.venv\Scripts\python.exe"
-)
-for /f "delims=" %%i in ('where !PYTHON_EXE_FOR_BANNER! 2^>nul') do @echo   Python Path: %%i
-for /f "delims=" %%i in ('"!PYTHON_EXE_FOR_BANNER!" --version 2^>nul') do @echo   Python Version: %%i
+for /f "delims=" %%i in ('where !PYTHON_EXE! 2^>nul') do @echo   Python Path: %%i
+for /f "delims=" %%i in ('"!PYTHON_EXE!" --version 2^>nul') do @echo   Python Version: %%i
 echo ------------------------------------------------------------
 echo.
 echo  Drive: %DRIVE%
@@ -36,22 +36,14 @@ echo  Repo:  %REPOROOT%
 echo ============================================================
 echo.
 
-rem ----------------------------------------------------------------------------
-rem  Step 1: Create log folder if missing
-rem ----------------------------------------------------------------------------
 if not exist "%LOGDIR%" (
     echo [INFO] Creating log folder: %LOGDIR%
     mkdir "%LOGDIR%"
 )
 
-rem ----------------------------------------------------------------------------
-rem  Step 2: Clean slate - stop existing AA processes on our ports (safely)
-rem ----------------------------------------------------------------------------
 echo [INFO] Checking for existing processes on ports 8000 and 8787...
-
 set "KILLED_PIDS="
 
-rem Check port 8000 (backend)
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8000.*LISTENING"') do (
     set "PID=%%a"
     echo "!KILLED_PIDS!" | findstr /C:":!PID!:" >nul 2>&1
@@ -64,7 +56,6 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8000.*LISTENING"') d
     )
 )
 
-rem Check port 8787 (gateway)
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8787.*LISTENING"') do (
     set "PID=%%a"
     echo "!KILLED_PIDS!" | findstr /C:":!PID!:" >nul 2>&1
@@ -77,32 +68,36 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8787.*LISTENING"') d
     )
 )
 
-rem Small delay after killing to let ports release
 timeout /t 1 >nul
 
-rem ----------------------------------------------------------------------------
-rem  Step 3: Build frontend (ensures latest source changes are in dist/)
-rem ----------------------------------------------------------------------------
-echo [INFO] Building frontend...
-cd /d "%REPOROOT%"
-call npm run build:frontend
+echo [INFO] Bootstrapping cabinet identity and local config...
+"!PYTHON_EXE!" "%REPOROOT%scripts\bootstrap_local_cabinet.py" --drive-root "%DRIVE%\\"
 if errorlevel 1 (
-    echo [ERROR] Frontend build failed! Aborting launch.
-    echo         Fix the build error above before starting the application.
+    echo [ERROR] Cabinet bootstrap failed. Aborting launch.
     exit /b 1
 )
-echo [OK] Frontend built successfully.
+
+if exist "%DRIVE%\.aa\device_id.txt" (
+    set /p RESOLVED_DEVICE_ID=<"%DRIVE%\.aa\device_id.txt"
+    set "AA_DEVICE_ID=!RESOLVED_DEVICE_ID!"
+    echo [OK] Runtime device id: !AA_DEVICE_ID!
+) else (
+    echo [ERROR] Missing %DRIVE%\.aa\device_id.txt after bootstrap.
+    exit /b 1
+)
+
+echo [INFO] Verifying shipped frontend dist...
+if not exist "%DIST_INDEX%" (
+    echo [ERROR] frontend\dist\index.html is missing.
+    echo         This build is serve-only. Run scripts\prepare_golden_image.bat before cloning or booting.
+    exit /b 1
+)
+echo [OK] Found frontend dist at %DIST_INDEX%
 echo.
 
-rem ----------------------------------------------------------------------------
-rem  Step 4: Start FastAPI backend (minimized, logging to file)
-rem ----------------------------------------------------------------------------
 echo [INFO] Starting FastAPI backend on 127.0.0.1:8000...
 start "AA-Backend" /min cmd /c ""%REPOROOT%scripts\run-backend.bat" > "%LOGDIR%\backend.log" 2>&1"
 
-rem ----------------------------------------------------------------------------
-rem  Step 5: Wait for backend port 8000 to be listening (max 30 seconds)
-rem ----------------------------------------------------------------------------
 echo [INFO] Waiting for backend to be ready (port 8000)...
 set BACKEND_READY=0
 for /L %%i in (1,1,30) do (
@@ -128,15 +123,9 @@ if !BACKEND_READY! EQU 0 (
     exit /b 1
 )
 
-rem ----------------------------------------------------------------------------
-rem  Step 6: Start Gateway server (minimized, logging to file)
-rem ----------------------------------------------------------------------------
 echo [INFO] Starting Gateway server on 127.0.0.1:8787...
 start "AA-Gateway" /min cmd /c ""%REPOROOT%scripts\run-gateway.bat" > "%LOGDIR%\gateway.log" 2>&1"
 
-rem ----------------------------------------------------------------------------
-rem  Step 7: Wait for gateway port 8787 to be listening (max 30 seconds)
-rem ----------------------------------------------------------------------------
 echo [INFO] Waiting for gateway to be ready (port 8787)...
 set GATEWAY_READY=0
 for /L %%i in (1,1,30) do (
@@ -162,15 +151,9 @@ if !GATEWAY_READY! EQU 0 (
     exit /b 1
 )
 
-rem ----------------------------------------------------------------------------
-rem  Step 8: Open browser to UI
-rem ----------------------------------------------------------------------------
 echo [INFO] Opening Arcade Assistant UI...
 start "" "http://127.0.0.1:8787/assistants"
 
-rem ----------------------------------------------------------------------------
-rem  Done!
-rem ----------------------------------------------------------------------------
 echo.
 echo ============================================================
 echo  Arcade Assistant is running!
@@ -178,6 +161,7 @@ echo ============================================================
 echo.
 echo   Backend:  http://127.0.0.1:8000/
 echo   Gateway:  http://127.0.0.1:8787/
+echo   Overlay:  Dewey Electron overlay is launched separately
 echo.
 echo   Logs:
 echo     - %LOGDIR%\backend.log

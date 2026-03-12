@@ -25,7 +25,7 @@ def load_env_file():
                 line = line.strip()
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
+                    os.environ.setdefault(key.strip(), value.strip())
 
 load_env_file()
 print("DEBUG: .env file loaded")
@@ -176,13 +176,7 @@ print("DEBUG: Importing engineering_bay router...")
 from backend.routers import engineering_bay
 print("DEBUG: Importing tts router...")
 from backend.routers import tts as tts_router
-# DISABLED: blinky_patterns router blocks startup because
-# backend.services.blinky.__init__ eagerly imports PatternResolver which
-# parses LEDBlinky XML control files and enumerates HID devices at import
-# time.  Fix: convert __init__.py to lazy exports.  Until then, endpoints
-# under /api/blinky are unavailable.
-# from backend.routers import blinky as blinky_patterns
-blinky_patterns = None
+from backend.routers import blinky as blinky_patterns
 print("DEBUG: Importing launchbox_plugin_client...")
 from backend.services.launchbox_plugin_client import get_plugin_client
 print("DEBUG: All imports complete!")
@@ -592,6 +586,7 @@ app.include_router(score_router.router)  # Score reset/backup API
 app.include_router(aa_launch.router)  # Universal launcher endpoint
 app.include_router(launchbox_ps2.router)
 app.include_router(system.router)
+app.include_router(system.local_router)
 app.include_router(controller.router, prefix="/api/local/controller", tags=["controller"])
 app.include_router(chuck_hardware.router, prefix="/api/local/controller", tags=["controller-hardware"])  # Phase 2: Hardware split
 app.include_router(wizard_mapping.router, prefix="/api/local/controller", tags=["controller-wizard"])  # Phase 2: Wizard/Mapping split
@@ -627,7 +622,7 @@ app.include_router(runtime_state.state_router)
 # DISABLED: blinky_patterns router — see import block at top of file.
 # Endpoints under /api/blinky/* are unavailable until blinky.__init__
 # is converted to lazy exports.
-# app.include_router(blinky_patterns.router, tags=["led-blinky-patterns"])
+app.include_router(blinky_patterns.router, tags=["led-blinky-patterns"])
 app.include_router(updates_router.router)  # Update plumbing (Phase 0)
 # REMOVED: provisioning router
 app.include_router(tendencies_router.router)  # User tendency/preference tracking
@@ -657,6 +652,10 @@ if __name__ == "__main__":
         port=8000,
         reload=True if os.getenv("DEBUG") else False
     )
+
+
+
+
 
 
 

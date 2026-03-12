@@ -7,6 +7,7 @@ import time
 
 from backend.startup_manager import initialize_app_state
 from backend.constants.paths import Paths
+from backend.services.cabinet_identity import load_cabinet_identity
 
 try:
     import psutil  # type: ignore
@@ -16,15 +17,11 @@ except Exception:
     HAS_PSUTIL = False
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+local_router = APIRouter(prefix="/api/local/system", tags=["system"])
 
 
 @router.post("/manifest/reload")
 async def manifest_reload(request: Request) -> Dict[str, Any]:
-    """Reload manifest and policies into app.state.
-
-    Useful after bootstrapping or external edits.
-    """
-    # initialize_app_state is async; await directly
     await initialize_app_state(request.app)
     m = getattr(request.app.state, "manifest", {}) or {}
     dr = str(getattr(request.app.state, "drive_root", ""))
@@ -107,11 +104,23 @@ async def system_metrics() -> Dict[str, Any]:
 
 @router.get("/identity")
 async def system_identity(request: Request) -> Dict[str, Any]:
-    """Return machine identity: MAC address, drive root, hostname.
-    
-    Used for licensing prep and cabinet identification.
-    """
+    """Return machine identity: MAC address, drive root, hostname."""
     from backend.services.identity_service import get_identity
 
     drive_root = getattr(request.app.state, "drive_root", None)
     return get_identity(drive_root=drive_root)
+
+
+@local_router.get("/provisioning_status")
+async def provisioning_status(request: Request) -> Dict[str, Any]:
+    drive_root = getattr(request.app.state, "drive_root", None)
+    identity = getattr(request.app.state, "cabinet_identity", None)
+    if not identity:
+        identity = load_cabinet_identity(drive_root).to_dict()
+
+    return {
+        "success": True,
+        "drive_root": str(drive_root) if drive_root else "",
+        "identity": identity,
+        "manifest_present": bool(drive_root and (Path(drive_root) / ".aa" / "manifest.json").exists()),
+    }

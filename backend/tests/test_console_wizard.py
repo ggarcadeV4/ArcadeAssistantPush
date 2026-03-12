@@ -21,8 +21,10 @@ def mock_manifest():
     """Return a test manifest."""
     return {
         "sanctioned_paths": [
-            "configs",
+            "config/mappings",
+            "configs/console_wizard",
             "state",
+            "state/console_wizard",
             "backups",
             "logs",
         ]
@@ -174,17 +176,15 @@ class TestConsoleOnlyDiscovery:
             ),
         ]
 
-        with patch.object(discovery, "discover_emulators", return_value=mock_emulators):
-            # Force refresh and filter
-            discovery._cache = mock_emulators
-            discovery._cache_ts = 0
+        discovery._cache = mock_emulators
+        import time
+        discovery._cache_ts = time.time()
 
-            filtered = discovery.discover_emulators(console_only=True)
+        filtered = discovery.discover_emulators(console_only=True)
 
-            # Should only include console emulators
-            assert len(filtered) == 1
-            assert filtered[0].type == "retroarch"
-            assert all(emu.type in CONSOLE_EMULATOR_TYPES for emu in filtered)
+        assert len(filtered) == 1
+        assert filtered[0].type == "retroarch"
+        assert all(emu.type in CONSOLE_EMULATOR_TYPES for emu in filtered)
 
     def test_console_only_allowlist_includes_expected_types(self):
         """Test that console allowlist includes expected emulator types."""
@@ -312,3 +312,6 @@ class TestProfileLoading:
         profile2 = manager._load_profile("nonexistent")
 
         assert profile1 is profile2  # Same object from cache
+
+
+

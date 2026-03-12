@@ -109,9 +109,12 @@ class ConsoleWizardManager:
         dry_run: bool = False,
         log_action: str = "generate_configs",
         device_id: Optional[str] = None,
+        controls_override: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        controls_blob = self.mapping_service.load_current()
-        controls = controls_blob.get("mappings") or {}
+        controls = controls_override
+        if controls is None:
+            controls_blob = self.mapping_service.load_current()
+            controls = controls_blob.get("mappings") or {}
         if not controls:
             raise HTTPException(
                 status_code=404,
@@ -590,6 +593,7 @@ class ConsoleWizardManager:
         """Build mapping using profile-based approach."""
         button_mapping = profile.get("button_mapping", {})
         special_controls = profile.get("special_controls", {})
+        analog_mapping = profile.get("analog_mapping", {})
         supported_players = profile.get("supported_players", 2)
 
         mapping: Dict[str, Any] = {}
@@ -602,7 +606,11 @@ class ConsoleWizardManager:
             if int(player_idx) > supported_players:
                 continue
 
-            mapped_key = button_mapping.get(control_name) or special_controls.get(control_name)
+            mapped_key = (
+                button_mapping.get(control_name)
+                or special_controls.get(control_name)
+                or analog_mapping.get(control_name)
+            )
             if not mapped_key:
                 continue
 

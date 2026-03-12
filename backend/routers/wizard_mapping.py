@@ -1,10 +1,10 @@
-"""Wizard & Mapping Router — high-level virtual mapping logic.
+"""Wizard & Mapping Router ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â high-level virtual mapping logic.
 
 Extracted from the monolithic controller.py during Phase 2 (Persona Split).
 Contains learn wizard, click-to-map, encoder state, wiring wizard,
 player identity, genre profiles, and MAME per-game fix endpoints.
 
-Mounted at: /api/local/controller  (same prefix — no frontend URL changes)
+Mounted at: /api/local/controller  (same prefix ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â no frontend URL changes)
 """
 
 import json
@@ -21,7 +21,9 @@ from pydantic import BaseModel, Field
 from ..services.backup import create_backup
 from ..services.chuck.input_detector import InputDetectionService, InputEvent, detect_input_mode
 from ..services.chuck.encoder_state import get_encoder_state_manager
-from ..services.controller_baseline import get_cascade_preference
+from ..services.console_wizard_manager import ConsoleWizardManager
+from ..services.controller_baseline import get_cascade_preference, update_controller_baseline
+from ..services.gamepad_detector import get_profile_details
 from ..services.controller_cascade import enqueue_cascade_job, run_cascade_job
 from ..services.mame_config_generator import (
     MAMEConfigError,
@@ -189,6 +191,197 @@ def get_control_display_name(control_key: str) -> str:
         return f"{player_num} Button {btn_num}"
     return f"{player_num} {control_name.capitalize()}"
 
+
+GAMEPAD_PREFERENCE_ALIASES: Dict[str, tuple[str, ...]] = {
+    "p1.up": ("up",),
+    "p1.down": ("down",),
+    "p1.left": ("left",),
+    "p1.right": ("right",),
+    "p1.button1": ("a",),
+    "p1.button2": ("b",),
+    "p1.button3": ("x",),
+    "p1.button4": ("y",),
+    "p1.button5": ("lb", "l"),
+    "p1.button6": ("rb", "r"),
+    "p1.button7": ("lt", "l2", "zl"),
+    "p1.button8": ("rt", "r2", "zr"),
+    "p1.coin": ("back", "select", "minus", "share"),
+    "p1.start": ("start", "plus", "options"),
+    "p1.l3": ("ls", "l3"),
+    "p1.r3": ("rs", "r3"),
+}
+
+GAMEPAD_AXIS_BINDINGS: Dict[str, List[tuple[str, str]]] = {
+    "left_stick_x": [("p1.lstick_left", "-"), ("p1.lstick_right", "+")],
+    "left_stick_y": [("p1.lstick_up", "-"), ("p1.lstick_down", "+")],
+    "right_stick_x": [
+        ("p1.rstick_left", "-"),
+        ("p1.rstick_right", "+"),
+        ("p1.cstick_left", "-"),
+        ("p1.cstick_right", "+"),
+    ],
+    "right_stick_y": [
+        ("p1.rstick_up", "-"),
+        ("p1.rstick_down", "+"),
+        ("p1.cstick_up", "-"),
+        ("p1.cstick_down", "+"),
+    ],
+}
+
+
+def _gamepad_preferences_path(drive_root: Path) -> Path:
+    return drive_root / ".aa" / "state" / "controller" / "gamepad_preferences.json"
+
+
+def _load_gamepad_preferences(drive_root: Path) -> Optional[Dict[str, Any]]:
+    path = _gamepad_preferences_path(drive_root)
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else None
+    except Exception as exc:
+        logger.warning("Failed to load gamepad preferences from %s: %s", path, exc)
+        return None
+
+
+def _normalize_gamepad_mapping_keys(mappings: Dict[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    for key, value in mappings.items():
+        normalized[str(key).strip().lower()] = value
+    return normalized
+
+
+def _build_gamepad_controls_from_preferences(
+    preferences: Dict[str, Any], profile: Dict[str, Any]
+) -> Dict[str, Dict[str, Any]]:
+    normalized_mappings = _normalize_gamepad_mapping_keys(preferences.get("mappings") or {})
+    controls: Dict[str, Dict[str, Any]] = {}
+
+    for control_key, aliases in GAMEPAD_PREFERENCE_ALIASES.items():
+        for alias in aliases:
+            if alias not in normalized_mappings:
+                continue
+            value = normalized_mappings[alias]
+            if value in (None, ""):
+                break
+            controls[control_key] = {
+                "pin": str(value),
+                "type": "button",
+                "source": "gamepad_preferences",
+            }
+            break
+
+    axes = profile.get("axes") or {}
+    for axis_name, bindings in GAMEPAD_AXIS_BINDINGS.items():
+        axis_data = axes.get(axis_name)
+        if not isinstance(axis_data, dict):
+            continue
+        axis_index = axis_data.get("index")
+        if axis_index is None:
+            continue
+        for control_key, direction in bindings:
+            controls[control_key] = {
+                "pin": f"{direction}{axis_index}",
+                "type": "axis",
+                "source": "gamepad_preferences",
+            }
+
+    return controls
+
+
+def _build_gamepad_retroarch_mapping(
+    preferences: Dict[str, Any], profile: Dict[str, Any]
+) -> Dict[str, Any]:
+    retroarch_defaults = profile.get("retroarch_defaults") or {}
+    mapping: Dict[str, Any] = {
+        key: value
+        for key, value in retroarch_defaults.items()
+        if value not in (None, "")
+    }
+
+    axes = profile.get("axes") or {}
+    deadzone = preferences.get("deadzone")
+    if not isinstance(deadzone, (int, float)):
+        left_axis = axes.get("left_stick_x") or {}
+        deadzone = left_axis.get("deadzone")
+
+    if isinstance(deadzone, (int, float)):
+        if "left_stick_x" in axes or "left_stick_y" in axes:
+            mapping["input_player1_analog_dpad_mode"] = "0"
+            mapping["input_player1_l_x_deadzone"] = str(deadzone)
+            mapping["input_player1_l_y_deadzone"] = str(deadzone)
+        if "right_stick_x" in axes or "right_stick_y" in axes:
+            mapping["input_player1_r_x_deadzone"] = str(deadzone)
+            mapping["input_player1_r_y_deadzone"] = str(deadzone)
+
+    return mapping
+
+
+def _sync_gamepad_preferences_to_cascade_state(
+    drive_root: Path,
+    manifest: Dict[str, Any],
+    *,
+    backup: bool = False,
+) -> Optional[Dict[str, Any]]:
+    preferences = _load_gamepad_preferences(drive_root)
+    if not preferences:
+        return None
+
+    profile_id = str(preferences.get("profile_id") or "").strip()
+    if not profile_id:
+        logger.debug("[WizardMapping] Gamepad preference sync skipped: missing_profile_id")
+        return None
+
+    profile = get_profile_details(profile_id)
+    if not profile:
+        logger.debug("[WizardMapping] Gamepad preference sync skipped: unknown_profile (%s)", profile_id)
+        return None
+
+    controls = _build_gamepad_controls_from_preferences(preferences, profile)
+    if not controls:
+        logger.debug("[WizardMapping] Gamepad preference sync skipped: no_controls (%s)", profile_id)
+        return None
+
+    try:
+        manager = ConsoleWizardManager(drive_root, manifest or {})
+        emulator_updates: Dict[str, Any] = {}
+        for info in manager.discovery.discover_emulators(console_only=True):
+            if info.type == "retroarch":
+                mapping = _build_gamepad_retroarch_mapping(preferences, profile)
+            else:
+                mapping = manager._build_mapping_for_emulator(info.type, controls)
+            if not mapping:
+                continue
+            emulator_updates[info.type] = {
+                "mapping": mapping,
+                "status": "pending",
+                "message": "Loaded from saved gamepad preferences",
+                "last_job_id": None,
+            }
+
+        if not emulator_updates:
+            logger.debug("[WizardMapping] Gamepad preference sync skipped: no_supported_emulators")
+            return {
+                "profile_id": profile_id,
+                "controls_count": len(controls),
+                "emulators_synced": 0,
+            }
+
+        update_controller_baseline(
+            drive_root,
+            {"emulators": emulator_updates},
+            backup=backup,
+        )
+        return {
+            "profile_id": profile_id,
+            "controls_count": len(controls),
+            "emulators_synced": len(emulator_updates),
+        }
+    except Exception as exc:
+        logger.warning("[WizardMapping] Gamepad preference sync failed: %s", exc)
+        return None
 
 # ---------------------------------------------------------------------------
 # Input detection service helper (local to this module)
@@ -639,6 +832,12 @@ async def save_learn_wizard(request: Request, background_tasks: BackgroundTasks)
     # TeknoParrot config write
     teknoparrot_results = _write_teknoparrot_configs(drive_root, manifest, data)
 
+    gamepad_sync_result = _sync_gamepad_preferences_to_cascade_state(
+        drive_root,
+        manifest,
+        backup=getattr(request.app.state, "backup_on_write", False),
+    )
+
     # Cascade
     cascade_preference = get_cascade_preference(drive_root)
     if cascade_preference == "auto":
@@ -652,6 +851,8 @@ async def save_learn_wizard(request: Request, background_tasks: BackgroundTasks)
     response = {"status": "saved", "controls_mapped": len(controls_mapped),
                 "backup_path": str(backup_path) if backup_path else None,
                 "cascade_preference": cascade_preference}
+    if gamepad_sync_result:
+        response["gamepad_preferences_sync"] = gamepad_sync_result
     if mame_config_result:
         response["mame_config"] = mame_config_result
     if teknoparrot_results:
@@ -971,6 +1172,12 @@ async def wizard_apply(request: Request, background_tasks: BackgroundTasks):
     await log_controller_change(request, drive_root, "wiring_wizard_apply",
         {"controls": list(state["captures"].keys()), "count": len(state["captures"])}, backup_path)
 
+    gamepad_sync_result = _sync_gamepad_preferences_to_cascade_state(
+        drive_root,
+        request.app.state.manifest,
+        backup=getattr(request.app.state, "backup_on_write", False),
+    )
+
     # Trigger cascade if auto
     cascade_preference = get_cascade_preference(drive_root)
     if cascade_preference == "auto":
@@ -981,10 +1188,14 @@ async def wizard_apply(request: Request, background_tasks: BackgroundTasks):
         background_tasks.add_task(run_cascade_job, drive_root,
             request.app.state.manifest, cascade_job["job_id"], backup=backup_on_write)
 
+    applied_count = len(state.get("captures", {}))
     state["captures"] = {}
-    return {"status": "applied", "controls_mapped": len(state.get("captures", {})),
+    response = {"status": "applied", "controls_mapped": applied_count,
             "backup_path": str(backup_path) if backup_path else None,
             "cascade_preference": cascade_preference}
+    if gamepad_sync_result:
+        response["gamepad_preferences_sync"] = gamepad_sync_result
+    return response
 
 
 # ============================================================================

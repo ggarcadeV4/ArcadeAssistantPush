@@ -1,4 +1,58 @@
-﻿# ROLLING LOG — Arcade Assistant
+# ROLLING LOG — Arcade Assistant
+
+## 2026-03-12 PM (Antigravity Session — Emulator Audit + Dual-Build Pathing + RAG Context Map)
+
+**Net Progress**: Full emulator registry audit (55 LaunchBox entries, 28 Gun Build folders, 13 duplicate families). Designed and tasked Codex with two foundational architectural changes: (1) Emulator Dual-Build deterministic pathing — `EmulatorPaths` class with 68 named accessors + `emulator_context.py` "Path IS the Signal" resolver, (2) RAG Context Map — `rag_slicer.py` per-emulator section slicer + Gun Wall enforcement in Chuck and Gunner prompts.
+
+**Key Wins:**
+- **Emulator Registry Audit**: Inventoried all 55 LaunchBox-registered emulators and all 28 Gun Build folders. Identified 13 duplicate families (RetroArch ×6, Dolphin ×6, MAME ×5, TeknoParrot ×4, PCSX2 ×3, Demul ×3). Flagged 3 issues: Demul/Demul Arcade identical paths, PCSX2/PCSX2-Controller same exe, "Ryujink" typo. Confirmed most duplicates are intentional (panel vs gamepad vs gun input configs).
+- **Platform Mapping Analysis**: 267 total platform-to-emulator mappings analyzed. RetroArch dominates (73+56+55 platforms across 3 builds). Every classic console has 3 RetroArch builds mapped.
+- **Codex Handoff #1 — Dual-Build Pathing**: `EmulatorPaths` class with `_PANEL_ROOT` and `_GUN_ROOT` trees, 40 panel/gamepad accessors + 28 gun accessors, `all_executables()` health check dict, `validate()` method. New `emulator_context.py` with `infer_input_context()` — `Gun Build\` → lightgun, `Gamepad|Joystick|Controller` → gamepad, else → arcade_panel.
+- **Codex Handoff #2 — RAG Context Map**: `RAGSlicer` class for extracting persona-specific `## TAG` sections from per-emulator master markdown files. Routing table: chuck→CONTROLLER_CONFIG, gunner→GUN_CONFIG, dewey→ROUTING_VOCAB, etc. Gun Wall enforcement added to `controller_chuck.prompt` and `gunner.prompt` DIAGNOSIS sections — explicit cross-domain refusal language.
+- **Protocol Clarification**: Codex does not have NotebookLM access — all future Codex handoffs omit NotebookLM steps.
+
+**Codex Handoffs Dispatched (awaiting execution):**
+1. `backend/constants/a_drive_paths.py` — Append `EmulatorPaths` class (68 accessors)
+2. `backend/services/emulator_context.py` — NEW (path-based input context resolver)
+3. `backend/services/rag_slicer.py` — NEW (RAG section slicer)
+4. `prompts/controller_chuck.prompt` — MODIFY (Gun Wall insertion)
+5. `prompts/gunner.prompt` — MODIFY (Controller Wall insertion)
+
+**State of Union — What's Next (Priority Order):**
+1. ⚡ **Codex executes Handoff #1 + #2** — 5 files, both under HITL threshold
+2. ⚡ **RAG system innovation** — User has an innovative idea for the rack system architecture (next session)
+3. 🔶 **Emulator knowledge files** — Build master `.md` per emulator with `## TAG` sections for the RAG slicer
+4. 🔶 **Live hardware validation (H1–H9)** — Carried forward
+5. 🌱 **Supabase Service Role Key + Device ID mismatch** — Carried forward
+
+---
+
+## 2026-03-12 (Antigravity Session — Codex Duplication-Readiness Audit)
+
+**Net Progress**: Full Round 2 audit of Codex's duplication-readiness implementation. All 13 files verified line-by-line. 6/6 py_compile passed, 2/2 node --check passed. README updated with Duplication-Readiness Master Checklist — 18 code-complete items, 9 hardware-validation items, 4 separate-effort items. Closed 4 stale blockers in Known Issues table.
+
+**Key Wins:**
+- **13-File Audit — All Verified**: `cabinet_identity.py`, `startup_manager.py`, `system.py`, `bootstrap_local_cabinet.py`, `start-aa.bat`, `server.js`, `cabinetIdentity.js`, `prepare_golden_image.bat`, `clean_for_clone.bat`, `blinky/__init__.py`, `main.cjs`, `test_cabinet_provisioning.py`, `spa_shell.spec.js`.
+- **Identity Chain Verified**: UUID generation on first boot → `.aa/device_id.txt` → `.aa/cabinet_manifest.json` → `os.environ` runtime sync. Resolution: file → manifest → env fallback, consistent across Python and Node.
+- **Serve-Only Boot Verified**: `start-aa.bat` uses `%~d0` for drive auto-detect, runs `bootstrap_local_cabinet.py`, checks `frontend/dist/index.html`, no build step.
+- **SPA Shell Cache-Busting Verified**: `sendSpaShell()` re-reads `index.html` per request, injects `window.AA_DEVICE_ID`, sets `no-store` + `X-AA-SPA-Build`, `express.static` uses `index: false`.
+- **Golden Image Pipeline Verified**: `prepare_golden_image.bat` wipes old dist, runs clean build, extracts + verifies hash. `clean_for_clone.bat` preserves dist/node_modules/manifest, sanitizes `.env` labels.
+- **Blinky Lazy Verified**: Pure `__getattr__` via `importlib.import_module` — zero hardware access at import.
+- **README Duplication Master Checklist Added**: Comprehensive tracking of what's code-complete (18 items), what needs hardware validation (9 items: H1–H9), and what's separate effort (4 items: S1–S4).
+- **4 Stale Blockers Closed**: Gateway stale `index.html`, blinky eager imports, Dewey News Chat, TTS echo on exit.
+
+**Files Modified:**
+- `A:\Arcade Assistant Local\README.md` — MODIFIED (header date, closed Known Issues, added Duplication-Readiness Master Checklist, appended session catalog)
+- `A:\Arcade Assistant Local\ROLLING_LOG.md` — MODIFIED (new session entry)
+
+**State of Union — What's Next (Priority Order):**
+1. **H1: Clone Simulation** — Core smoke test: delete `.aa/device_id.txt` + `.aa/cabinet_manifest.json`, reboot, verify new UUID + current frontend
+2. **H2–H9: Live Hardware Validation** — LoRa, Hypseus, Gamepad, F9 overlay, Wiz, Vicky, Sam, Chuck
+3. **S1: Supabase Service Role Key** — Decide sanitization strategy for golden image
+4. **S2: Device ID Mismatch** — Fix `.env` vs Supabase registration
+5. **S3: ElevenLabs Key** — Replace placeholder
+
+---
 
 ## 2026-03-11 (Antigravity Session — Multi-Agent Orchestration)
 

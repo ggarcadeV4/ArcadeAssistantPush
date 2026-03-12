@@ -27,6 +27,7 @@ import time
 import json
 from typing import List, Dict, Optional, Any, AsyncGenerator
 from datetime import datetime, timezone
+from pathlib import Path
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, validator, model_validator
 
@@ -392,32 +393,8 @@ class GunnerService:
             devices = self.detector.get_devices()
             device_ids = [str(d.get('id', d.get('name', 'unknown'))) for d in devices]
 
-            # Try fetching calibration data from Supabase
-            calib_map = {}
-            if self.supabase and device_ids:
-                try:
-                    # Query gun_profiles table for these devices
-                    result = self.supabase._get_client().table('gun_profiles')\
-                        .select('device_id, user_id, points, created_at')\
-                        .in_('device_id', device_ids)\
-                        .execute()
-
-                    if result.data:
-                        for profile in result.data:
-                            device_id = profile['device_id']
-                            points = profile.get('points', [])
-                            # Use fast accuracy calculation (avoids CalibPoint object creation)
-                            accuracy = self._calc_accuracy_fast(points) if points else 0.0
-
-                            calib_map[device_id] = {
-                                "user_id": profile.get('user_id'),
-                                "accuracy": accuracy,
-                                "last_calibrated": profile.get('created_at'),
-                                "points_count": len(points)
-                            }
-
-                except Exception as e:
-                    logger.warning(f"Supabase calibration lookup failed: {e}")
+            # Load calibration data from the shared local gun profile store.
+            calib_map = self._load_local_calibration_map(device_ids)
 
             # Merge hardware + calibration data
             enriched_devices = []
@@ -498,15 +475,12 @@ class GunnerService:
                 "metadata": metadata
             }
 
-            # Save to Supabase (if available)
+            # Persist calibration metadata to the shared local gun profile store.
             supabase_synced = False
-            if self.supabase:
-                try:
-                    await self._save_to_supabase(profile_data)
-                    supabase_synced = True
-                    logger.info(f"Calibration synced to Supabase: {data.device_id}/{data.user_id}")
-                except Exception as e:
-                    logger.warning(f"Supabase sync failed (using local fallback): {e}")
+            try:
+                await self._save_to_supabase(profile_data)
+            except Exception as e:
+                logger.warning(f"Local calibration metadata save failed: {e}")
 
             # Always save locally as backup (reuse pre-computed values)
             self.config_service.save_profile(
@@ -730,13 +704,12 @@ class GunnerService:
             "metadata": {**metadata, "adjustments": results.get("adjustments", {})}
         }
 
-        # Save to Supabase (if available)
-        if self.supabase:
-            try:
-                await self._save_to_supabase(profile_data)
-                logger.info(f"Calibration persisted to Supabase: {data.device_id}/{data.user_id}")
-            except Exception as e:
-                logger.warning(f"Supabase persist failed (using local fallback): {e}")
+        # Persist metadata to the shared local gun profile store.
+        try:
+            await self._save_to_supabase(profile_data)
+            logger.info(f"Calibration metadata persisted locally: {data.device_id}/{data.user_id}")
+        except Exception as e:
+            logger.warning(f"Local calibration metadata persist failed: {e}")
 
         # Always save locally as backup
         self.config_service.save_profile(
@@ -750,29 +723,75 @@ class GunnerService:
         )
 
     async def _save_to_supabase(self, profile_data: Dict) -> None:
-        """Save calibration profile to Supabase (async wrapper).
+        """Persist calibration metadata into the shared local gun profile store."""
+        profile_dir = self._profile_store_path()
+        profile_dir.mkdir(parents=True, exist_ok=True)
 
-        Args:
-            profile_data: Profile dictionary with device_id, user_id, points, etc.
-        """
-        if not self.supabase:
-            return
+        metadata = profile_data.get("metadata", {}) or {}
+        game = metadata.get("game", "default")
+        user_id = str(profile_data.get("user_id", "default"))
+        safe_user = user_id.replace('/', '_').replace('\\', '_')
+        safe_game = str(game).replace('/', '_').replace('\\', '_')
+        profile_path = profile_dir / f"{safe_user}_{safe_game}.json"
 
-        # Convert to Supabase format
-        supabase_record = {
+        existing: Dict[str, Any] = {}
+        if profile_path.exists():
+            try:
+                existing = json.loads(profile_path.read_text(encoding='utf-8'))
+            except Exception as exc:
+                logger.warning(f"Local gun profile read failed: {exc}")
+
+        local_record = {
+            **existing,
             "device_id": profile_data["device_id"],
-            "user_id": profile_data["user_id"],
+            "user_id": user_id,
+            "game": game,
             "points": profile_data["points"],
             "accuracy": profile_data["accuracy"],
             "created_at": datetime.fromtimestamp(profile_data["timestamp"], tz=timezone.utc).isoformat(),
-            "metadata": profile_data.get("metadata", {})
+            "metadata": metadata,
         }
+        profile_path.write_text(json.dumps(local_record, indent=2) + '\n', encoding='utf-8')
 
-        # Upsert to gun_profiles table
-        result = self.supabase._get_client().table('gun_profiles').upsert(supabase_record).execute()
+    def _profile_store_path(self) -> Path:
+        storage = getattr(self.config_service, 'local_storage_path', None)
+        if storage:
+            return Path(storage)
+        drive_root = Path(os.getenv('AA_DRIVE_ROOT', '.'))
+        return drive_root / '.aa' / 'state' / 'gun_profiles'
 
-        if not result.data:
-            raise Exception("Supabase upsert returned no data")
+    def _load_local_calibration_map(self, device_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        profile_dir = self._profile_store_path()
+        calib_map: Dict[str, Dict[str, Any]] = {}
+
+        if not profile_dir.exists() or not device_ids:
+            return calib_map
+
+        valid_ids = {str(device_id) for device_id in device_ids}
+        for profile_path in profile_dir.glob('*.json'):
+            try:
+                profile = json.loads(profile_path.read_text(encoding='utf-8'))
+            except Exception as exc:
+                logger.warning(f"Local gun profile read failed: {exc}")
+                continue
+
+            device_id = str(profile.get('device_id') or '')
+            if not device_id or device_id not in valid_ids:
+                continue
+
+            points = profile.get('points', [])
+            accuracy = profile.get('accuracy')
+            if accuracy is None:
+                accuracy = self._calc_accuracy_fast(points) if points else 0.0
+
+            calib_map[device_id] = {
+                "user_id": profile.get('user_id'),
+                "accuracy": accuracy,
+                "last_calibrated": profile.get('created_at'),
+                "points_count": len(points),
+            }
+
+        return calib_map
 
     def _calc_accuracy(self, points: List[CalibPoint]) -> float:
         """Calculate calibration accuracy from confidence scores.
@@ -877,3 +896,6 @@ def get_gunner_service(
         config_service=config_service,
         supabase_client=supabase_client
     )
+
+
+

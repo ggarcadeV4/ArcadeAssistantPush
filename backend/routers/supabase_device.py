@@ -1,17 +1,21 @@
 from fastapi import APIRouter, Request
 from typing import Any, Dict
-from datetime import datetime
-import os
+
+from backend.services.cabinet_identity import load_cabinet_identity
 
 router = APIRouter(prefix="/api/supabase", tags=["supabase-device"])
+
 
 @router.get("/device")
 async def get_supabase_device(request: Request) -> Dict[str, Any]:
     """Return device_id and cabinet status from Supabase (best-effort)."""
     try:
-        device_id = getattr(request.state, 'device_id', '') or os.getenv('AA_DEVICE_ID', '')
+        device_id = getattr(request.state, 'device_id', '') or ''
         if not device_id:
-            return { 'device_id': '', 'exists': False, 'details': None }
+            drive_root = getattr(request.app.state, 'drive_root', None)
+            device_id = load_cabinet_identity(drive_root).device_id
+        if not device_id:
+            return {'device_id': '', 'exists': False, 'details': None}
 
         try:
             from backend.services.supabase_client import get_client as _gc
@@ -22,12 +26,12 @@ async def get_supabase_device(request: Request) -> Dict[str, Any]:
             except Exception:
                 admin = None
             if admin is None:
-                return { 'device_id': device_id, 'exists': False, 'details': None }
+                return {'device_id': device_id, 'exists': False, 'details': None}
 
             resp = admin.table('cabinet').select('*').eq('cabinet_id', device_id).limit(1).execute()
             rows = resp.data or []
             if not rows:
-                return { 'device_id': device_id, 'exists': False, 'details': None }
+                return {'device_id': device_id, 'exists': False, 'details': None}
             row = rows[0]
             return {
                 'device_id': device_id,
@@ -42,6 +46,6 @@ async def get_supabase_device(request: Request) -> Dict[str, Any]:
                 }
             }
         except Exception:
-            return { 'device_id': device_id, 'exists': False, 'details': None }
+            return {'device_id': device_id, 'exists': False, 'details': None}
     except Exception:
-        return { 'device_id': '', 'exists': False, 'details': None }
+        return {'device_id': '', 'exists': False, 'details': None}

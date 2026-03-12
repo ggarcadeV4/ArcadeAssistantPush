@@ -1,5 +1,5 @@
-﻿# Arcade Assistant Ã¢â‚¬â€ Project README
-**Last Updated:** 2026-03-11 | **Build:** Gamepad Controller Config + ScoreKeeper Sam Foundation + Dewey/LaunchBox Prior Work | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+# Arcade Assistant Ã¢â‚¬â€ Project README
+**Last Updated:** 2026-03-12 PM | **Build:** Emulator Dual-Build Pathing + RAG Context Map + Duplication-Readiness | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -163,30 +163,85 @@ backend/
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| Gateway stale `index.html` | Ã°Å¸â€Â´ Blocker | `express.static()` serves old `index.html` after rebuild Ã¢â‚¬â€ blocks ALL frontend changes |
-| LED Blinky panel + RAG KB | Ã°Å¸â€Â´ Next Session | Primary target Ã¢â‚¬â€ arbiter built, needs frontend + sidebar |
-| Dewey News Chat verification | Ã°Å¸Å¸Â¡ Blocked | New chat sidebar written but unreachable due to stale serving |
-| TTS echo on Dewey exit | Ã°Å¸Å¸Â¡ Blocked | Jules fix cherry-picked but unverifiable |
-| Gunner Phase 2 | Ã°Å¸Å¸Â¡ After LED Blinky | Calibration tab, profiles tab, retro modes |
-| Doc (Diagnostics) panel | Ã°Å¸Å¸Â¡ After Gunner | Full system diagnostic panel |
-| B6/B7 Wake Word & TTS Dropping | Ã°Å¸Å¸Â¡ Medium | Voice panel fixes |
-| Handoff Protocol URL standard | Ã°Å¸Å¸Â¡ Medium | Inter-panel communication |
-| Diagnosis Mode Phase 2 (Supabase tables) | Ã°Å¸Å¸Â¡ Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
-| `blinky/__init__.py` lazy exports | Ã°Å¸Å¸Â¡ Medium | Eagerly parses XML + HID on import Ã¢â€ â€™ blocking |
-| F9 Overlay Z-Index | Ã°Å¸Å¸Â¢ Backlog | Electron `setAlwaysOnTop` |
-| LaunchBox LoRa deep build | Ã°Å¸Å¸Â¢ Backlog | Most complex panel Ã¢â‚¬â€ future session |
+| LED Blinky panel + RAG KB | High | Primary target -- arbiter built, needs frontend + sidebar |
+| Gunner Phase 2 | Medium | Calibration tab, profiles tab, retro modes |
+| Doc (Diagnostics) panel | Medium | Full system diagnostic panel |
+| B6/B7 Wake Word & TTS Dropping | Medium | Voice panel fixes |
+| Handoff Protocol URL standard | Medium | Inter-panel communication |
+| Diagnosis Mode Phase 2 (Supabase tables) | Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
+| F9 Overlay Z-Index | Backlog | Electron `setAlwaysOnTop` |
+| LaunchBox LoRa deep build | Backlog | Most complex panel -- future session |
 
-### Recently Closed Blockers (2026-03-05)
+### Recently Closed Blockers (2026-03-12)
 | Blocker | Fix | File |
 |---------|-----|------|
-| B2 Ã¢â‚¬â€ HttpBridge outbound | `NotifyBackendGameStart()` fire-and-forget POST | `HttpBridge.cs` |
-| B4 Ã¢â‚¬â€ Voice Hardware Unlock | `_sync_led_state()` + Supabase fleet mirroring | `voice/service.py` |
-| B5 Ã¢â‚¬â€ Genre LED Animation | `GENRE_ANIMATION_MAP` (8 genre codes) | `game_lifecycle.py` |
+| Gateway stale `index.html` | `sendSpaShell()` re-reads per request, `no-store` + `X-AA-SPA-Build` | `gateway/server.js` |
+| `blinky/__init__.py` eager imports | Pure `__getattr__` lazy exports via `importlib` | `blinky/__init__.py` |
+| Dewey News Chat verification | Resolved by SPA shell fix | `gateway/server.js` |
+| TTS echo on Dewey exit | Verified working after stale-cache fix | `main.cjs` |
+
+### Previously Closed (2026-03-05)
+| Blocker | Fix | File |
+|---------|-----|------|
+| B2 -- HttpBridge outbound | `NotifyBackendGameStart()` fire-and-forget POST | `HttpBridge.cs` |
+| B4 -- Voice Hardware Unlock | `_sync_led_state()` + Supabase fleet mirroring | `voice/service.py` |
+| B5 -- Genre LED Animation | `GENRE_ANIMATION_MAP` (8 genre codes) | `game_lifecycle.py` |
 | Console Wizard RAG KB | `wiz_knowledge.md` (500+ lines) + enhanced prompt | `prompts/` |
 | LED Priority Arbiter | Circuit breaker (VOICE>GAME>ATTRACT>IDLE) + throttle | `led_priority_arbiter.py` |
 
 ---
 
+## Duplication-Readiness Master Checklist
+
+> This tracks everything needed to clone the A: drive and have it boot on new hardware as a working Arcade Assistant cabinet.
+
+### Code-Complete (Codex -- verified by Antigravity audit 2026-03-12)
+
+| # | Item | Status | Key File(s) |
+|---|------|--------|-------------|
+| 1 | First-boot identity provisioning (UUID -> `.aa/device_id.txt`) | DONE | `cabinet_identity.py`, `bootstrap_local_cabinet.py` |
+| 2 | Cabinet manifest sync (`.aa/cabinet_manifest.json`) | DONE | `cabinet_identity.py` |
+| 3 | Controls skeleton bootstrap (`config/mappings/controls.json`) | DONE | `cabinet_identity.py` |
+| 4 | Device ID resolution chain (file -> manifest -> env) | DONE | `cabinet_identity.py`, `cabinetIdentity.js` |
+| 5 | Startup manager calls `ensure_local_identity()` | DONE | `startup_manager.py` |
+| 6 | Provisioning status endpoint | DONE | `system.py` (`GET /api/local/system/provisioning_status`) |
+| 7 | `start-aa.bat` serve-only (no build on boot) | DONE | `start-aa.bat` |
+| 8 | `start-aa.bat` drive letter auto-detect via `%~d0` | DONE | `start-aa.bat` |
+| 9 | SPA shell cache-busting (`no-store`, `X-AA-SPA-Build`) | DONE | `server.js` |
+| 10 | SPA shell device ID injection (`window.AA_DEVICE_ID`) | DONE | `server.js`, `cabinetIdentity.js` |
+| 11 | `prepare_golden_image.bat` (clean build + hash verify) | DONE | `scripts/prepare_golden_image.bat` |
+| 12 | `clean_for_clone.bat` (preserves dist, node_modules, manifest) | DONE | `clean_for_clone.bat` |
+| 13 | `.env` label sanitization (DEVICE_NAME -> generic) | DONE | `clean_for_clone.bat` |
+| 14 | Blinky lazy imports (no HID/XML at import) | DONE | `blinky/__init__.py` |
+| 15 | Electron overlay documented as separate launch | DONE | `frontend/electron/main.cjs` |
+| 16 | Provisioning test suite (3 tests) | DONE | `test_cabinet_provisioning.py` |
+| 17 | SPA shell contract test | DONE | `spa_shell.spec.js` |
+| 18 | TTS proxy-first (Supabase, no direct ElevenLabs key required) | DONE | `.env`, `tts.js` |
+
+### Hardware Validation Required (live cabinet)
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| H1 | Clone simulation: remove identity -> boot -> verify new UUID + current frontend | PENDING | Core smoke test |
+| H2 | LoRa game launch flow (pick game -> launch -> exit) | PENDING | |
+| H3 | Daphne/Hypseus real launch (BadLands, Rollercoaster, Cliff Hanger) | PENDING | Parser verified, needs live run |
+| H4 | 8BitDo physical gamepad mapping + cascade | PENDING | Gamepad API + wizard flow |
+| H5 | F9 Electron overlay inside Big Box fullscreen | PENDING | |
+| H6 | Console Wizard emulator config generation | PENDING | |
+| H7 | Vicky Voice + LED priority arbiter live test | PENDING | |
+| H8 | ScoreKeeper Sam live session (MAME exit -> score -> leaderboard) | PENDING | |
+| H9 | Controller Chuck mapping flow on arcade panel | PENDING | |
+
+### Separate Effort (not Codex)
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| S1 | Supabase Service Role Key handling on golden image | PENDING | Sanitize, replace, or provision |
+| S2 | Device ID mismatch fix (`.env` vs Supabase `00000000-...`) | PENDING | Us or admin portal |
+| S3 | ElevenLabs placeholder API key replacement | PENDING | |
+| S4 | Drive letter `A:\` auto-detection robustness | DONE | `start-aa.bat` uses `%~d0` |
+
+---
 ## Git / Deployment
 
 ```powershell
@@ -527,6 +582,62 @@ Open follow-ups for next session:
 - SVG hotspot coordinate tuning (controller button overlay positions).
 - Live cabinet testing: Sam pipeline, Daphne/Hypseus launchers, gamepad wizard, F9/Dewey overlay.
 - Cascade integration: `wizard_mapping.py` reads from `gamepad_preferences.json` to generate configs for 15+ emulators.
+
+### Session Catalog — 2026-03-12 PM (Antigravity Session — Emulator Audit + Dual-Build Pathing + RAG Context Map)
+
+Scope completed in this afternoon session focused on emulator registry audit, dual-build pathing foundation, and RAG context map architecture.
+
+Key outcomes:
+
+- **Emulator Registry Audit**: Inventoried 55 LaunchBox-registered emulators and 28 Gun Build folders. Identified 13 duplicate families — most intentional (per-input-type builds). Flagged 3 real issues: Demul/Demul Arcade identical paths, PCSX2/PCSX2-Controller same exe, "Ryujink" typo.
+- **Codex Handoff #1 — Emulator Dual-Build Pathing**:
+  - `backend/constants/a_drive_paths.py` — New `EmulatorPaths` class with 68 static accessors (40 panel/gamepad + 28 gun build) + `all_executables()` health check dict.
+  - `backend/services/emulator_context.py` — NEW: `infer_input_context()` — "Path IS the Signal" resolver (Gun Build → lightgun, Gamepad/Joystick/Controller → gamepad, else → arcade_panel).
+- **Codex Handoff #2 — RAG Context Map**:
+  - `backend/services/rag_slicer.py` — NEW: `RAGSlicer` class that extracts persona-specific `## TAG` sections from per-emulator master markdown files. Routing: chuck→CONTROLLER_CONFIG, gunner→GUN_CONFIG, dewey→ROUTING_VOCAB, etc.
+  - `prompts/controller_chuck.prompt` — Gun Wall insertion (explicit refusal for light gun topics).
+  - `prompts/gunner.prompt` — Controller Wall insertion (explicit refusal for button/joystick topics).
+- **Protocol**: Codex handoffs no longer include NotebookLM steps (Codex lacks access).
+
+Open follow-ups for next session:
+
+- Codex executes both handoffs (5 files total, under HITL threshold).
+- User has innovative idea for the rack system architecture.
+- Build master `.md` knowledge files per emulator for the RAG slicer.
+- Live hardware validation (H1–H9) — carried forward.
+
+### Session Catalog — 2026-03-12 (Antigravity Audit Session)
+
+Scope completed in this session focused on verifying Codex's duplication-readiness implementation across 13 files.
+
+Key outcomes:
+
+- **Full Round 2 Audit of Codex's Duplication-Readiness Code (13 files verified)**:
+  - Read every line of all 13 files Codex claimed as implemented.
+  - Verified first-boot identity provisioning: UUID generation, `.aa/device_id.txt`, `.aa/cabinet_manifest.json` sync, `controls.json` skeleton, device ID resolution chain (file → manifest → env), `os.environ` runtime sync.
+  - Verified serve-only boot: `start-aa.bat` no longer builds, auto-detects drive letter via `%~d0`, runs bootstrap, checks `frontend/dist/index.html`.
+  - Verified SPA shell cache-busting: `server.js` re-reads `index.html` per request, injects `window.AA_DEVICE_ID`, sets `no-store` + `X-AA-SPA-Build`, uses `index: false` on `express.static`.
+  - Verified golden image pipeline: `prepare_golden_image.bat` wipes old dist, runs clean build, extracts + verifies SPA hash.
+  - Verified clone-clean script: `clean_for_clone.bat` preserves `frontend/dist`, `gateway/node_modules`, `.aa/manifest.json`; sanitizes `.env` DEVICE_NAME/DEVICE_SERIAL; prompts for backups cleanup.
+  - Verified Blinky lazy imports: pure `__getattr__` + `importlib.import_module`, zero hardware access at import time.
+  - Verified Electron overlay scope: documented as "launches separately from start-aa.bat", singleton instance lock.
+  - Verified test suites: 3 provisioning tests (bootstrap, precedence, endpoint) + SPA shell contract test.
+
+- **Validation Results**:
+  - `py_compile`: 6/6 passed (cabinet_identity, startup_manager, system, bootstrap_local_cabinet, test_cabinet_provisioning, blinky/__init__).
+  - `node --check`: 2/2 passed (server.js, cabinetIdentity.js).
+
+- **Documentation Updates**:
+  - Updated README Known Issues table: closed 4 stale blockers (gateway index.html, blinky lazy exports, Dewey news chat, TTS echo).
+  - Added Duplication-Readiness Master Checklist to README: 18 code-complete items, 9 hardware-validation items, 4 separate-effort items.
+  - Updated ROLLING_LOG with session entry.
+
+Open follow-ups:
+
+- Live hardware validation (H1–H9 in master checklist).
+- Supabase Service Role Key handling on golden image.
+- Device ID mismatch fix.
+- ElevenLabs placeholder API key replacement.
 ---
 *Arcade Assistant - Built for G&G Arcade, one commit at a time.*
 

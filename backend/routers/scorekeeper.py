@@ -34,6 +34,7 @@ from ..services.score_tracking import (
     ScoreReviewDecision,
     get_score_tracking_service,
 )
+from ..services.cabinet_identity import load_cabinet_identity
 
 # Initialize structured logger
 logger = structlog.get_logger(__name__)
@@ -174,12 +175,13 @@ def _is_runtime_state_fresh(runtime_state: Dict[str, Any]) -> bool:
 
 
 def _resolve_device_id(request: Request) -> str:
-    """Resolve device_id from headers, state, or env. Returns 'unknown' if unavailable."""
+    """Resolve device_id from headers, middleware state, or local identity files."""
     device_id = request.headers.get('x-device-id') or ''
     if not device_id:
         device_id = getattr(request.state, 'device_id', '') or ''
     if not device_id:
-        device_id = os.getenv('AA_DEVICE_ID', '')
+        drive_root = getattr(request.app.state, 'drive_root', None)
+        device_id = load_cabinet_identity(drive_root).device_id
     return device_id.strip() or 'unknown'
 
 
@@ -3644,6 +3646,9 @@ async def get_mame_sync_status(request: Request):
     except Exception as e:
         logger.error("mame_status_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 
 
