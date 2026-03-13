@@ -16,16 +16,17 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional
 
 
 logger = logging.getLogger(__name__)
+PROMPT_ROOT = Path(__file__).resolve().parents[2] / "prompts"
 
 # Persona -> Section Tag routing table
 PERSONA_SECTION_MAP: Dict[str, str] = {
     # Launch / frontend
-    "launchbox": "## LAUNCH",
-    "lora": "## LAUNCH",
+    "launchbox": "## LAUNCH_PROTOCOL",
+    "lora": "## LAUNCH_PROTOCOL",
     # Routing / search
     "dewey": "## ROUTING_VOCAB",
     # Score tracking
@@ -66,9 +67,11 @@ class RAGSlicer:
     def __init__(self, knowledge_dir: Optional[Path] = None) -> None:
         if knowledge_dir is not None:
             self._kb_dir = knowledge_dir
+            self._factory_dir: Optional[Path] = None
         else:
             drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
             self._kb_dir = drive_root / ".aa" / "state" / "knowledge_base"
+            self._factory_dir = PROMPT_ROOT
 
     def get_persona_slice(self, emulator_name: str, persona: str) -> str:
         """
@@ -84,8 +87,8 @@ class RAGSlicer:
             or "" if the file doesn't exist, the persona is unknown,
             or the requested section tag is not found in the file.
         """
-        tag = PERSONA_SECTION_MAP.get(persona.lower())
-        if not tag:
+        tags = self._persona_tags(persona)
+        if not tags:
             logger.debug("No section mapping for persona '%s'", persona)
             return ""
 
@@ -94,40 +97,97 @@ class RAGSlicer:
             return ""
 
         try:
-            content = md_file.read_text(encoding="utf-8")
+            content = md_file.read_text(encoding="utf-8-sig")
         except Exception as exc:
             logger.warning(
                 "Failed to read knowledge file %s: %s", md_file.name, exc
             )
             return ""
 
-        return self._extract_section(content, tag)
+        for tag in tags:
+            section = self._extract_section_optional(content, tag)
+            if section is not None:
+                return section
+        return ""
+
+    def get_section(self, emulator_name: str, section_tag: str) -> str:
+        """
+        Return a specific section from an emulator knowledge file.
+
+        Args:
+            emulator_name: e.g. "sega_model_2"
+            section_tag:   e.g. "CONTROLLER_CONFIG" or "## CONTROLLER_CONFIG"
+
+        Returns:
+            The extracted section body or "" if the file or section is missing.
+        """
+        md_file = self._find_knowledge_file(emulator_name)
+        if md_file is None:
+            return ""
+
+        try:
+            content = md_file.read_text(encoding="utf-8-sig")
+        except Exception as exc:
+            logger.warning(
+                "Failed to read knowledge file %s: %s", md_file.name, exc
+            )
+            return ""
+
+        return self._extract_section(content, self._normalize_tag(section_tag))
 
     def list_available_emulators(self) -> list[str]:
         """Return basenames (without .md) of all knowledge files."""
-        if not self._kb_dir.is_dir():
-            return []
-
-        return sorted(
-            f.stem for f in self._kb_dir.glob("*.md")
-            if not f.name.startswith(".")
-        )
+        emulators = set()
+        for base_dir in self._iter_candidate_dirs():
+            if not base_dir.is_dir():
+                continue
+            for file_path in base_dir.glob("*.md"):
+                if not file_path.name.startswith("."):
+                    emulators.add(file_path.stem)
+        return sorted(emulators)
 
     def _find_knowledge_file(self, emulator_name: str) -> Optional[Path]:
         """Case-insensitive lookup for {emulator_name}.md."""
-        if not self._kb_dir.is_dir():
-            return None
-
-        exact = self._kb_dir / f"{emulator_name}.md"
-        if exact.is_file():
-            return exact
-
         target = emulator_name.lower()
-        for candidate in self._kb_dir.iterdir():
-            if candidate.suffix.lower() == ".md" and candidate.stem.lower() == target:
-                return candidate
+
+        for base_dir in self._iter_candidate_dirs():
+            if not base_dir.is_dir():
+                continue
+
+            exact = base_dir / f"{emulator_name}.md"
+            if exact.is_file():
+                return exact
+
+            for candidate in base_dir.iterdir():
+                if candidate.suffix.lower() == ".md" and candidate.stem.lower() == target:
+                    return candidate
 
         return None
+
+    def _iter_candidate_dirs(self) -> Iterable[Path]:
+        yield self._kb_dir
+        if self._factory_dir and self._factory_dir != self._kb_dir:
+            yield self._factory_dir
+
+    @staticmethod
+    def _normalize_tag(tag: str) -> str:
+        cleaned = (tag or "").strip()
+        if not cleaned:
+            return ""
+        if cleaned.startswith("##"):
+            cleaned = cleaned[2:].strip()
+        return f"## {cleaned}"
+
+    @classmethod
+    def _persona_tags(cls, persona: str) -> list[str]:
+        tag = PERSONA_SECTION_MAP.get(persona.lower())
+        if not tag:
+            return []
+
+        normalized = cls._normalize_tag(tag)
+        if persona.lower() in {"launchbox", "lora"}:
+            return [normalized, "## LAUNCH"]
+        return [normalized]
 
     @staticmethod
     def _extract_section(content: str, tag: str) -> str:
@@ -137,13 +197,23 @@ class RAGSlicer:
         (or end-of-file), stripped of leading/trailing whitespace.
         Returns "" if the tag is not found.
         """
+        section = RAGSlicer._extract_section_optional(content, tag)
+        return section if section is not None else ""
+
+    @staticmethod
+    def _extract_section_optional(content: str, tag: str) -> Optional[str]:
+        normalized_tag = RAGSlicer._normalize_tag(tag)
+        if not normalized_tag:
+            return None
+
         for match in _SECTION_RE.finditer(content):
             section_text = match.group(1)
             first_line = section_text.split("\n", 1)[0].strip()
-            if first_line.upper().startswith(tag.upper()):
+            if first_line.upper().startswith(normalized_tag.upper()):
                 parts = section_text.split("\n", 1)
                 if len(parts) > 1:
                     return parts[1].strip()
                 return ""
 
-        return ""
+        return None
+

@@ -1,5 +1,31 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-12 EVE (Antigravity Session — RAG Emulator Knowledge Pipeline)
+
+**Net Progress**: First two emulator RAG knowledge files created and verified — Sega Model 2 and Redream (Dreamcast). RAGSlicer infrastructure built by Codex (220 lines, 7 tests, dual-directory lookup, UTF-8 BOM support). Established a repeatable cross-validation pipeline: scan codebase → receive Gem → cross-validate → synthesize tagged `.md` → verify via RAGSlicer. Pipeline proven: Model 2 took ~90min (first-of-kind, included infra build), Redream took ~4min (template reuse).
+
+**Key Wins:**
+- **RAGSlicer Infrastructure (Codex)**: `backend/services/rag_slicer.py` (220 lines) — resolves knowledge in order: `.aa/state/knowledge_base/` first, then repo `prompts/`. Exposes `get_section()` and `get_persona_slice()`. `backend/tests/test_rag_slicer.py` — 7 tests, all passing.
+- **Sega Model 2 Knowledge File**: `prompts/sega_model_2.md` (130 lines, 6 tagged sections: CONTROLLER_CONFIG, GUN_CONFIG, LAUNCH_PROTOCOL, ROUTING_VOCAB, TROUBLESHOOTING, DIP_SWITCHES). Cross-validation found 4 nuances: dual exe names (EMULATOR.EXE vs emulator_multicpu.exe), gun build path separation, missing Gem details on JoyButton mapping rules, launchers.json vs emulator_paths.json inconsistency.
+- **Redream Knowledge File**: `prompts/redream.md` (153 lines, 8 tagged sections: CONTROLLER_CONFIG, GUN_CONFIG, LAUNCH_PROTOCOL, ROUTING_VOCAB, SCORE_TRACKING, VOICE_VOCABULARY, LED_PROFILE, HEALTH_CHECK). Cross-validation found 5 nuances: missing Dreamcast Indies/Gun Games platforms, missing feature gates, save state hotkeys F5/F8, no pause toggle endpoint, Flycast routing boundary.
+- **Pipeline Optimization**: For future emulators, Antigravity scans + validates, then hands synthesis off to Codex to preserve context window budget for more cross-validation cycles per session.
+
+**Files Created/Modified:**
+- `backend/services/rag_slicer.py` — NEW (Codex)
+- `backend/tests/test_rag_slicer.py` — NEW (Codex)
+- `prompts/sega_model_2.md` — NEW (Codex + Antigravity cross-validation)
+- `prompts/redream.md` — NEW (Antigravity)
+- `logs/2026-03-12-model2-rag.md` — NEW (local task summary)
+
+**State of Union — What's Next (Priority Order):**
+1. ⚡ **More emulator RAG files** — Pipeline proven; next candidates: MAME (highest ROI), Supermodel, PCSX2, TeknoParrot
+2. ⚡ **Codex handoff optimization** — Future emulator writes delegated to Codex to keep Antigravity context lean
+3. 🔶 **NotebookLM upload** — Deferred (MCP server unreliable this session). Knowledge files should be uploaded when available
+4. 🔶 **Live hardware validation (H1–H9)** — Carried forward
+5. 🌱 **Supabase Service Role Key + Device ID mismatch** — Carried forward
+
+---
+
 ## 2026-03-12 PM (Antigravity Session — Emulator Audit + Dual-Build Pathing + RAG Context Map)
 
 **Net Progress**: Full emulator registry audit (55 LaunchBox entries, 28 Gun Build folders, 13 duplicate families). Designed and tasked Codex with two foundational architectural changes: (1) Emulator Dual-Build deterministic pathing — `EmulatorPaths` class with 68 named accessors + `emulator_context.py` "Path IS the Signal" resolver, (2) RAG Context Map — `rag_slicer.py` per-emulator section slicer + Gun Wall enforcement in Chuck and Gunner prompts.

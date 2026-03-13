@@ -1,5 +1,5 @@
 # Arcade Assistant Ã¢â‚¬â€ Project README
-**Last Updated:** 2026-03-12 PM | **Build:** Emulator Dual-Build Pathing + RAG Context Map + Duplication-Readiness | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+**Last Updated:** 2026-03-12 EVE | **Build:** RAG Emulator Knowledge Pipeline + Dual-Build Pathing + RAG Context Map + Duplication-Readiness | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
