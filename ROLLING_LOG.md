@@ -1,5 +1,30 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-14 LATE (Antigravity Session — Doc Panel Chat & Telemetry)
+
+**Net Progress**: Doc panel chat fully functional with diagnostic toggle, real-time system telemetry context, and proper TTS lifecycle management. Created `docContextAssembler.js` (3-tier context: live CPU/memory/processes/hardware/alerts). Fixed diagnostic mode toggle visibility, double close button bug, and TTS-continues-after-close bug.
+
+**Key Wins:**
+- **`docContextAssembler.js`** — NEW. Fetches live health data from `/api/local/health/*` and packages it for Doc's AI chat context. 3-tier architecture matching Chuck's pattern.
+- **Diagnostic Mode Toggle** — Removed `diagPermanent: true` from `DOC_PERSONA` so Chat ↔ DIAG toggle renders properly.
+- **TTS Cutoff on Drawer Close** — Panel-level `useEffect` with `prevChatOpenRef` calls `stopSpeaking()` when drawer closes. Avoids passing `isOpen`/`onClose` to sidebar (which caused CSS conflicts and double close buttons).
+- **Telemetry Pipeline Verified** — `psutil 7.2.2` installed, gateway TTS endpoint confirmed (200 OK, 15KB audio), live CPU/memory readings confirmed accurate.
+
+**Files Created:**
+- `frontend/src/panels/system-health/docContextAssembler.js` — NEW
+- `logs/2026-03-14.md` — NEW
+
+**Files Modified:**
+- `frontend/src/panels/system-health/SystemHealthPanel.jsx` — `DOC_PERSONA` fix, `contextAssembler` wired, TTS cutoff added
+
+**State of Union — What's Next:**
+1. ⚡ **Test Doc diagnostic mode end-to-end** — Hands-free voice interaction with live health context
+2. 🔶 **Replace placeholder FPS/latency/display data** — Requires game-level hooks per emulator
+3. 🔶 **Verify contextAssembler on other panels** — Ensure Gunner, Wiz, etc. also have proper context wired
+
+---
+
+
 ## 2026-03-12 EVE (Antigravity Session — RAG Emulator Knowledge Pipeline)
 
 **Net Progress**: First two emulator RAG knowledge files created and verified — Sega Model 2 and Redream (Dreamcast). RAGSlicer infrastructure built by Codex (220 lines, 7 tests, dual-directory lookup, UTF-8 BOM support). Established a repeatable cross-validation pipeline: scan codebase → receive Gem → cross-validate → synthesize tagged `.md` → verify via RAGSlicer. Pipeline proven: Model 2 took ~90min (first-of-kind, included infra build), Redream took ~4min (template reuse).
