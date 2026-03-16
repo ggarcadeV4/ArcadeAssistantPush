@@ -1,8 +1,37 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-16 LATE (Antigravity Session — Dewey Chat & News Voice Fix)
+
+**Net Progress**: Fixed Dewey's main chat (400/500 errors from calling anthropic-proxy directly) by migrating to Gemini. Fixed Gaming News chat echo (ref-based guard replaces slow state guard). Added TTS voice output to News Chat via `/api/voice/tts` with Dewey's voice ID. Changed News Chat mic from auto-send to push-to-talk (user reviews transcript before sending).
+
+**Key Wins:**
+- **Dewey → Gemini Migration** — Added `call_gemini()` to `SecureAIClient` on A: drive. Switched `dewey.py` chat endpoint + trivia generator from `_call_anthropic` to `_call_gemini`. Dewey now uses `gemini-proxy` edge function.
+- **Anthropic Proxy Fix (Defensive)** — `anthropic-proxy` edge function v14 now extracts system messages from `messages[]` and promotes to top-level `system` param. Prevents 400s for any remaining consumers.
+- **News Chat Echo Guard** — Replaced React `useState`-based `loading` check with `useRef`-based `sendingRef`. Ref guard is synchronous, so rapid-fire voice sends can't slip past.
+- **News Chat TTS** — `useNewsChat.js` now fetches audio from `/api/voice/tts` after each Dewey response. Uses voice ID `t0A4EWIngExKpUqW6AWI`. Plays automatically with `isSpeaking`/`stopSpeaking` controls.
+- **Push-to-Talk UX** — Removed `sendMessage(transcript)` auto-fire from mic `onresult`. Now: mic click → speech fills text box → user reviews → user clicks Send. Eliminates garbled partial speech problems.
+- **Conversational Prompt** — System prompt updated to prioritize natural greetings over headline-only responses. Added "vary your language" instruction.
+
+**⚠️ GOTCHAS FOR NEXT AGENT:**
+- TTS route is mounted at `/api/voice` (NOT `/api/ai`). Full TTS path: `/api/voice/tts`. See `server.js` line 176.
+- A: drive has its **own** `dewey.py` and `drive_a_ai_client.py` in `A:\Arcade Assistant Local\backend\`. These have the actual `/chat` endpoint. C: drive versions are different.
+
+**Files Modified:**
+- `A:\Arcade Assistant Local\backend\services\drive_a_ai_client.py` — `call_gemini()` method added
+- `A:\Arcade Assistant Local\backend\routers\dewey.py` — Chat + trivia switched to Gemini
+- `supabase/functions/anthropic-proxy/index.ts` — System message handling (v14)
+- `frontend/src/panels/dewey/news/useNewsChat.js` — Echo guard, TTS, push-to-talk, prompt
+
+**State of Union — What's Next:**
+1. ⚡ **Full retest after restart** — User will restart Arcade Assistant tomorrow; verify News Chat voice + push-to-talk end-to-end
+2. 🔶 **Live hardware validation (H1–H9)** — Carried forward
+3. 🔶 **Device ID mismatch fix** — Carried forward
+4. 🌱 **ElevenLabs key replacement** — Carried forward
+
+---
+
 ## 2026-03-14 LATE (Antigravity Session — Doc Panel Chat & Telemetry)
 
-**Net Progress**: Doc panel chat fully functional with diagnostic toggle, real-time system telemetry context, and proper TTS lifecycle management. Created `docContextAssembler.js` (3-tier context: live CPU/memory/processes/hardware/alerts). Fixed diagnostic mode toggle visibility, double close button bug, and TTS-continues-after-close bug.
 
 **Key Wins:**
 - **`docContextAssembler.js`** — NEW. Fetches live health data from `/api/local/health/*` and packages it for Doc's AI chat context. 3-tier architecture matching Chuck's pattern.

@@ -56,15 +56,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Extract system messages from inline messages and promote to top-level system parameter
+    // Anthropic Messages API does NOT accept role: 'system' in the messages array
+    const systemMessages: string[] = [];
+    const cleanedMessages = body.messages.filter(msg => {
+      if (msg.role === 'system') {
+        const text = typeof msg.content === 'string' ? msg.content : '';
+        if (text) systemMessages.push(text);
+        return false; // Remove from messages array
+      }
+      return true;
+    });
+
+    // Build system prompt: prefer explicit body.system, then inline system messages
+    const systemPrompt = body.system || (systemMessages.length > 0 ? systemMessages.join('\n\n') : undefined);
+
     // Prepare Anthropic API request - pass through all fields for tool calling support
     const anthropicRequest: Record<string, unknown> = {
       model: body.model || "claude-3-5-sonnet-20241022",
       max_tokens: body.max_tokens || 500,
-      messages: body.messages
+      messages: cleanedMessages
     };
 
     // Include optional fields if provided (critical for tool calling)
-    if (body.system) anthropicRequest.system = body.system;
+    if (systemPrompt) anthropicRequest.system = systemPrompt;
     if (body.tools) anthropicRequest.tools = body.tools;
     if (body.temperature !== undefined) anthropicRequest.temperature = body.temperature;
 
