@@ -1,5 +1,99 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-16 NIGHT (Antigravity Session — Daphne/Hypseus Laserdisc Fix)
+
+**Net Progress**: Fixed Daphne laserdisc game launching from LoRa. Root cause chain: ancient `daphne.exe` → modern `hypseus.exe` swap required 4 cascading fixes. Road Blaster confirmed working end-to-end from LoRa. 15 DAPHNE `.ahk` scripts and `Emulators.xml` updated. New direct launch block added to `launcher.py` for Hypseus with game map, `-homedir`, absolute framefile paths, and `SDL_VIDEODRIVER=windows` env override.
+
+**Key Wins:**
+- **DLL Path Fix** — `.ahk` scripts pointed to `A:\Emulators\Hypseus\hypseus.exe` (root, no DLLs). Fixed to `A:\Emulators\Hypseus\Hypseus Singe\hypseus.exe` where DLLs live (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, etc.).
+- **Homedir Fix** — Added `-homedir "A:\Roms\DAPHNE"` so Hypseus finds `roms/`, `vldp/`, `framefile/` in the correct location instead of its own install directory.
+- **Absolute Framefile Paths** — Changed framefile args from relative (`framefile/roadblaster.txt`) to absolute (`A:\Roms\DAPHNE\framefile\roadblaster.txt`). Hypseus resolves `-framefile` relative to its own exe, NOT `-homedir`.
+- **SDL_VIDEODRIVER=windows** — Subprocess launched from backend inherits headless SDL context (video driver defaults to `dummy`). Explicit env override passes `SDL_VIDEODRIVER=windows` to the Hypseus process.
+- **Direct Launch Block** — New Daphne/Hypseus code path at `launcher.py:1100`. Contains `DAPHNE_GAME_MAP` (15 games mapping `.ahk` stems → Hypseus internal names + framefile paths). Uses `_launch_with_stderr_trap()` matching MAME block pattern.
+- **Plugin Port Fix** — Changed `A:\LaunchBox\Plugins\ArcadeAssistant\config.json` port from `10099` to `9999`.
+- **Emulators.xml** — New "Hypseus Singe" entry added at line 4668, pointing to correct exe path.
+
+**⚠️ GOTCHAS FOR NEXT AGENT:**
+- **HD titles are Additional Apps** — Dragon's Lair HD / Space Ace HD / Dragon's Lair II HD are "Additional App" entries in `Daphne.xml`, NOT primary `ApplicationPath`. From LoRa, the primary launch uses `SINGE-HYPSEUS\*.ahk` scripts. The HD versions only launch from LaunchBox right-click menu.
+- **SINGE2 games are NOT fixed** — The Daphne platform in LaunchBox includes ~30 SINGE2 games (Altered Carbon, Asterix, Cliffhanger, etc.) that use `Singe.exe`. These have a separate "Couldn't find matching render driver" error. They are a different fix path.
+- **Plugin bridge requires LaunchBox running** — Port 9999 only works when LaunchBox is open. Manual restart required after any config change.
+- **LaunchBox restart is manual** — Kill BigBox/LaunchBox in Task Manager, reopen from desktop. Plugin re-initializes on port 9999 after ~15s.
+
+**Files Modified (by Codex, verified by Antigravity):**
+- `A:\Roms\DAPHNE\*.ahk` (all 15) — exe path, `-homedir`, framefile paths
+- `A:\LaunchBox\Data\Emulators.xml` — Hypseus Singe entry
+- `A:\LaunchBox\Plugins\ArcadeAssistant\config.json` — port 10099→9999
+- `A:\Arcade Assistant Local\backend\services\launcher.py` — Daphne direct launch block + SDL env
+
+**Crash Code Reference:**
+| Code | Hex | Meaning | Fix Applied |
+|------|-----|---------|-------------|
+| 3221225781 | 0xC0000135 | DLL NOT FOUND | Exe path → `Hypseus Singe\` |
+| 150 | — | SDL video driver error | `SDL_VIDEODRIVER=windows` |
+| 1 | — | Render driver / framefile | Absolute framefile paths |
+
+**State of Union — What's Next:**
+1. ✅ **Road Blaster** — Confirmed working from LoRa
+2. 🔲 **Spot-check Astron Belt** — Standard framefile path (not yet tested)
+3. 🔲 **SINGE2 platform fix** — Separate task, uses `Singe.exe` not Hypseus
+4. 🔲 **HD title accessibility** — HD versions only reachable via LaunchBox Additional Apps, not from LoRa
+
+---
+
+## 2026-03-16 LATE (Antigravity Session — Dewey Chat & News Voice Fix)
+
+**Net Progress**: Fixed Dewey's main chat (400/500 errors from calling anthropic-proxy directly) by migrating to Gemini. Fixed Gaming News chat echo (ref-based guard replaces slow state guard). Added TTS voice output to News Chat via `/api/voice/tts` with Dewey's voice ID. Changed News Chat mic from auto-send to push-to-talk (user reviews transcript before sending).
+
+**Key Wins:**
+- **Dewey → Gemini Migration** — Added `call_gemini()` to `SecureAIClient` on A: drive. Switched `dewey.py` chat endpoint + trivia generator from `_call_anthropic` to `_call_gemini`. Dewey now uses `gemini-proxy` edge function.
+- **Anthropic Proxy Fix (Defensive)** — `anthropic-proxy` edge function v14 now extracts system messages from `messages[]` and promotes to top-level `system` param. Prevents 400s for any remaining consumers.
+- **News Chat Echo Guard** — Replaced React `useState`-based `loading` check with `useRef`-based `sendingRef`. Ref guard is synchronous, so rapid-fire voice sends can't slip past.
+- **News Chat TTS** — `useNewsChat.js` now fetches audio from `/api/voice/tts` after each Dewey response. Uses voice ID `t0A4EWIngExKpUqW6AWI`. Plays automatically with `isSpeaking`/`stopSpeaking` controls.
+- **Push-to-Talk UX** — Removed `sendMessage(transcript)` auto-fire from mic `onresult`. Now: mic click → speech fills text box → user reviews → user clicks Send. Eliminates garbled partial speech problems.
+- **Conversational Prompt** — System prompt updated to prioritize natural greetings over headline-only responses. Added "vary your language" instruction.
+
+**⚠️ GOTCHAS FOR NEXT AGENT:**
+- TTS route is mounted at `/api/voice` (NOT `/api/ai`). Full TTS path: `/api/voice/tts`. See `server.js` line 176.
+- A: drive has its **own** `dewey.py` and `drive_a_ai_client.py` in `A:\Arcade Assistant Local\backend\`. These have the actual `/chat` endpoint. C: drive versions are different.
+
+**Files Modified:**
+- `A:\Arcade Assistant Local\backend\services\drive_a_ai_client.py` — `call_gemini()` method added
+- `A:\Arcade Assistant Local\backend\routers\dewey.py` — Chat + trivia switched to Gemini
+- `supabase/functions/anthropic-proxy/index.ts` — System message handling (v14)
+- `frontend/src/panels/dewey/news/useNewsChat.js` — Echo guard, TTS, push-to-talk, prompt
+
+**State of Union — What's Next:**
+1. ⚡ **Full retest after restart** — User will restart Arcade Assistant tomorrow; verify News Chat voice + push-to-talk end-to-end
+2. 🔶 **Live hardware validation (H1–H9)** — Carried forward
+3. 🔶 **Device ID mismatch fix** — Carried forward
+4. 🌱 **ElevenLabs key replacement** — Carried forward
+
+---
+
+## 2026-03-14 LATE (Antigravity Session — Doc Panel Chat & Telemetry)
+
+
+**Key Wins:**
+- **`docContextAssembler.js`** — NEW. Fetches live health data from `/api/local/health/*` and packages it for Doc's AI chat context. 3-tier architecture matching Chuck's pattern.
+- **Diagnostic Mode Toggle** — Removed `diagPermanent: true` from `DOC_PERSONA` so Chat ↔ DIAG toggle renders properly.
+- **TTS Cutoff on Drawer Close** — Panel-level `useEffect` with `prevChatOpenRef` calls `stopSpeaking()` when drawer closes. Avoids passing `isOpen`/`onClose` to sidebar (which caused CSS conflicts and double close buttons).
+- **Telemetry Pipeline Verified** — `psutil 7.2.2` installed, gateway TTS endpoint confirmed (200 OK, 15KB audio), live CPU/memory readings confirmed accurate.
+
+**Files Created:**
+- `frontend/src/panels/system-health/docContextAssembler.js` — NEW
+- `logs/2026-03-14.md` — NEW
+
+**Files Modified:**
+- `frontend/src/panels/system-health/SystemHealthPanel.jsx` — `DOC_PERSONA` fix, `contextAssembler` wired, TTS cutoff added
+
+**State of Union — What's Next:**
+1. ⚡ **Test Doc diagnostic mode end-to-end** — Hands-free voice interaction with live health context
+2. 🔶 **Replace placeholder FPS/latency/display data** — Requires game-level hooks per emulator
+3. 🔶 **Verify contextAssembler on other panels** — Ensure Gunner, Wiz, etc. also have proper context wired
+
+---
+
+
 ## 2026-03-12 EVE (Antigravity Session — RAG Emulator Knowledge Pipeline)
 
 **Net Progress**: First two emulator RAG knowledge files created and verified — Sega Model 2 and Redream (Dreamcast). RAGSlicer infrastructure built by Codex (220 lines, 7 tests, dual-directory lookup, UTF-8 BOM support). Established a repeatable cross-validation pipeline: scan codebase → receive Gem → cross-validate → synthesize tagged `.md` → verify via RAGSlicer. Pipeline proven: Model 2 took ~90min (first-of-kind, included infra build), Redream took ~4min (template reuse).
@@ -638,3 +732,23 @@ def get_voice_service() -> VoiceService:
 - Console Wizard refactor plan written for next session
 - Pushed: f5f0d3b
 
+
+## 2026-03-11 — Antigravity Session (~4 hours)
+
+**Net Progress:**
+- Fixed 2 backend bugs blocking app launch (NameError in scorekeeper.py, ValueError in input_detector.py)
+- Built complete Gamepad Controller Configuration interface (NEW feature)
+  - 3 new files: ControllerSVG.jsx, GamepadSetupOverlay.jsx, gamepad-setup.css
+  - 2 modified files: WizNavSidebar.jsx, ConsoleWizardPanel.jsx
+  - 5 controller PNG assets generated + deployed to /assets/controllers/
+  - PNG + SVG overlay hybrid "digital twin" system
+  - 4-phase wizard: Detect → Map 16 buttons → Calibrate sticks → Complete
+  - Profile selection works without hardware (preview mode)
+- Frontend build clean, Controller tab verified in browser
+- README updated with full session catalog
+
+**Open:**
+- Live-test with physical 8BitDo at cabinet
+- Fine-tune hotspot overlay positions per controller
+- ScoreKeeper Sam live validation (carried forward)
+- Daphne/Hypseus live test (carried forward)

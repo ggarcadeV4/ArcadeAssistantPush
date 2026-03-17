@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 # Test imports
 from backend.routers.scorekeeper import (
     get_game_highscores,
+    get_top_score,
     game_autosubmit,
     GameAutoSubmit,
     get_scorekeeper_dir,
@@ -222,6 +223,74 @@ class TestHighscoresEndpoint:
         assert result["scores"] == []
         assert result["total_count"] == 0
         assert "error" in result
+
+
+class TestTopScoreEndpoint:
+    """Test GET /api/local/scorekeeper/top-score."""
+
+    @pytest.mark.asyncio
+    async def test_get_top_score_prefers_supabase(self, mock_request, tmp_path):
+        mock_request.headers = {"x-device-id": "cabinet-123"}
+        mock_request.state = Mock()
+        mock_request.state.device_id = "cabinet-123"
+        mock_request.app.state.drive_root = tmp_path
+
+        mock_query = MagicMock()
+        mock_query.eq.return_value = mock_query
+        mock_query.order.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = Mock(data=[{
+            "player": "DAD",
+            "score": 600000,
+            "game_title": "Pac-Man",
+            "achieved_at": "2026-03-15T12:34:56Z",
+        }])
+
+        mock_client = MagicMock()
+        mock_client.table.return_value.select.return_value = mock_query
+        mock_supabase = Mock()
+        mock_supabase._get_client.return_value = mock_client
+        mock_supabase.service_key = "service-key"
+
+        with patch("backend.routers.scorekeeper.get_supabase_client", return_value=mock_supabase):
+            result = await get_top_score(mock_request)
+
+        assert result == {
+            "score": 600000,
+            "player": "DAD",
+            "game": "Pac-Man",
+            "date": "2026-03-15",
+            "source": "supabase",
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_top_score_falls_back_to_local(self, mock_request, tmp_path):
+        mock_request.headers = {"x-device-id": "cabinet-123"}
+        mock_request.state = Mock()
+        mock_request.state.device_id = "cabinet-123"
+        mock_request.app.state.drive_root = tmp_path
+
+        scores_dir = tmp_path / ".aa" / "state" / "scorekeeper"
+        scores_dir.mkdir(parents=True, exist_ok=True)
+        scores_file = scores_dir / "scores.jsonl"
+        scores_file.write_text(
+            "\n".join([
+                json.dumps({"player": "MOM", "score": 125000, "game": "Galaga", "timestamp": "2026-03-14T10:00:00"}),
+                json.dumps({"player": "DAD", "score": 600000, "game": "Pac-Man", "timestamp": "2026-03-15T11:00:00"}),
+            ]) + "\n",
+            encoding="utf-8",
+        )
+
+        with patch("backend.routers.scorekeeper.get_supabase_client", side_effect=RuntimeError("offline")):
+            result = await get_top_score(mock_request)
+
+        assert result == {
+            "score": 600000,
+            "player": "DAD",
+            "game": "Pac-Man",
+            "date": "2026-03-15",
+            "source": "local",
+        }
 
     @pytest.mark.asyncio
     async def test_get_highscores_invalid_json(self, mock_request, tmp_path):

@@ -16,6 +16,8 @@ export async function classifyDevice({ deviceId, role, label, panels = [] }) {
       'Content-Type': 'application/json',
       'x-scope': 'config',
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
     },
     body: JSON.stringify({
@@ -39,6 +41,8 @@ export async function refreshControllerDevices() {
       'Content-Type': 'application/json',
       'x-scope': 'state',
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
     }
   });
@@ -151,6 +155,8 @@ export async function startLearnWizard({ player } = {}) {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     }
@@ -163,6 +169,8 @@ export async function getLearnWizardStatus() {
   const res = await fetch(`${CONTROLLER_BASE}/learn-wizard/status`, {
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     }
@@ -176,6 +184,8 @@ export async function confirmLearnWizardCapture() {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     }
@@ -189,6 +199,8 @@ export async function skipLearnWizardControl() {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     }
@@ -202,6 +214,8 @@ export async function saveLearnWizard() {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'config'
     }
@@ -215,6 +229,8 @@ export async function stopLearnWizard() {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     }
@@ -234,6 +250,8 @@ export async function setLearnWizardKey(keycode) {
     headers: {
       'Content-Type': 'application/json',
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     },
@@ -251,6 +269,8 @@ export async function undoLearnWizardCapture() {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'state'
     }
@@ -266,6 +286,8 @@ export async function resetMappingToDefault() {
     method: 'POST',
     headers: {
       'x-panel': 'controller',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
       'x-scope': 'config'
     }

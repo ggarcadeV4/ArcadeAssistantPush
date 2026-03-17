@@ -33,6 +33,8 @@ class Game(BaseModel):
     box_front_path: Optional[str] = Field(None, description="Box art front image")
     screenshot_path: Optional[str] = Field(None, description="Gameplay screenshot")
     clear_logo_path: Optional[str] = Field(None, description="Clear logo image")
+    video_snap_path: Optional[str] = Field(None, description="LaunchBox video snap path")
+    marquee_image_path: Optional[str] = Field(None, description="LaunchBox marquee image path")
 
     # Categories/Tags (used for routing profiles like light-gun)
     categories: Optional[List[str]] = Field(None, description="List of category tags from LaunchBox")

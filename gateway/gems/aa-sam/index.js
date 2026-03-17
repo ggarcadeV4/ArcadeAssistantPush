@@ -113,6 +113,8 @@ export function onMatchResult(callback) {
  * @param {string} deviceId - Device identifier
  * @returns {Promise<Object>} Enriched match result with player identity
  */
+// TODO: Replace CAB-0001 with cabinet UUID from env or request context
+// before enabling this monitor in production fleet deployment.
 export async function correlateMatchWithPlayer(matchResult, deviceId = 'CAB-0001') {
     const activePlayer = await getActivePlayer(deviceId);
 
@@ -132,6 +134,8 @@ export async function correlateMatchWithPlayer(matchResult, deviceId = 'CAB-0001
  * @param {string} [deviceId='CAB-0001'] - Device identifier for player correlation
  * @returns {Object} Monitor status { running, path }
  */
+// TODO: Replace CAB-0001 with cabinet UUID from env or request context
+// before enabling this monitor in production fleet deployment.
 export function startTournamentMonitor(deviceId = 'CAB-0001') {
     if (tournamentWatcher) {
         console.log('[Sam Tournament] Monitor already running');

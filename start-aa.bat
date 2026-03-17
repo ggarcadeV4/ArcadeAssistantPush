@@ -17,6 +17,15 @@ set PYTHON_EXE=python
 if exist "%~dp0.venv\Scripts\python.exe" (
     set "PYTHON_EXE=%~dp0.venv\Scripts\python.exe"
 )
+set PYTHONW_EXE=pythonw
+if exist "%~dp0.venv\Scripts\pythonw.exe" (
+    set "PYTHONW_EXE=%~dp0.venv\Scripts\pythonw.exe"
+)
+rem [TEMPORARILY DISABLED 2026-03-16] Marquee auto-launch causes black-screen
+rem on secondary monitor during dev. RE-ENABLE before drive duplication for
+rem live cabinet hardware. See README "Marquee System" section.
+rem Original: if not defined AA_MARQUEE_ENABLED ( set "AA_MARQUEE_ENABLED=1" )
+set "AA_MARQUEE_ENABLED=0"
 
 echo ============================================================
 echo  Arcade Assistant - Starting...
@@ -149,6 +158,21 @@ if !GATEWAY_READY! EQU 0 (
     echo --- Last 20 lines of gateway.log ---
     powershell -Command "Get-Content '%LOGDIR%\gateway.log' -Tail 20 -ErrorAction SilentlyContinue"
     exit /b 1
+)
+
+if /I "%AA_MARQUEE_ENABLED%"=="0" (
+    echo [INFO] AA_MARQUEE_ENABLED=0 - skipping marquee display launch.
+) else (
+    echo [INFO] Checking marquee display process...
+    powershell -Command "$running = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'pythonw?\.exe' -and $_.CommandLine -match 'scripts\\marquee_display\.py' }; if ($running) { exit 0 } else { exit 1 }" >nul 2>&1
+    if !ERRORLEVEL! EQU 0 (
+        echo [INFO] Marquee display already running - skipping second launch.
+    ) else (
+        echo [INFO] Waiting 2 seconds before launching marquee display...
+        timeout /t 2 >nul
+        echo [INFO] Launching marquee display...
+        start "Marquee Display" "%PYTHONW_EXE%" "%REPOROOT%scripts\marquee_display.py"
+    )
 )
 
 echo [INFO] Opening Arcade Assistant UI...

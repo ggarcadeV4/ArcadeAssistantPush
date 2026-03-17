@@ -10,11 +10,20 @@ const generateCorrelationId = () => {
   return `gunner-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
 }
 
+const warnDeviceIdFallback = () => {
+  console.warn(
+    '[Gunner] window.AA_DEVICE_ID not available, ' +
+    'falling back to CAB-0001. Cabinet identity may not be unique.'
+  )
+  return 'CAB-0001'
+}
+
 const resolveDeviceId = () => {
   if (typeof window === 'undefined') {
-    return 'CAB-0001'
+    return warnDeviceIdFallback()
   }
-  return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
+  const deviceId = window.AA_DEVICE_ID || window.__DEVICE_ID__
+  return deviceId || warnDeviceIdFallback()
 }
 
 const buildHeaders = ({ scope = 'state', json = true } = {}) => {

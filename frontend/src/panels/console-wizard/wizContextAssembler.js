@@ -15,10 +15,15 @@ const ENDPOINTS = {
     controllers: '/api/local/console/controllers',
     chuckSync: '/api/local/console_wizard/status/chuck',
 };
+const deviceId = window.AA_DEVICE_ID || (() => {
+    console.warn('[Wiz] window.AA_DEVICE_ID not available, ' +
+        'falling back to cabinet-001. Cabinet identity may not be unique.');
+    return 'cabinet-001';
+})();
 
 const PANEL_HEADERS = {
     'Content-Type': 'application/json',
-    'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
+    'x-device-id': deviceId,
     'x-panel': 'console-wizard',
     'x-scope': 'state',
 };

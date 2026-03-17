@@ -14,14 +14,22 @@ import { ExecutionCard } from '../controller/ExecutionCard';
 
 const MAX_VISIBLE_DIAG_CHIPS = 3;
 
-async function engineeringBayChat({ persona, message, history, isDiagnosisMode, extraContext }) {
+function getEngineeringBayDeviceId(panelLabel = 'Panel') {
+    return window.AA_DEVICE_ID || (() => {
+        console.warn(`[${panelLabel}] window.AA_DEVICE_ID not available, ` +
+            'falling back to cabinet-001. Cabinet identity may not be unique.');
+        return 'cabinet-001';
+    })();
+}
+
+async function engineeringBayChat({ persona, panelLabel, message, history, isDiagnosisMode, extraContext }) {
     const res = await fetch('/api/local/engineering-bay/chat', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'x-panel': persona,
             'x-scope': 'state',
-            'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
+            'x-device-id': getEngineeringBayDeviceId(panelLabel),
         },
         body: JSON.stringify({ persona, message, history, isDiagnosisMode, extraContext }),
     });
@@ -168,6 +176,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
 
             const { reply } = await engineeringBayChat({
                 persona: persona.id,
+                panelLabel: persona.name || persona.id,
                 message: trimmed,
                 history,
                 isDiagnosisMode: diag.diagMode || persona.diagPermanent,
@@ -218,7 +227,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                     'Content-Type': 'application/json',
                     'x-panel': persona.id,
                     'x-scope': 'config',
-                    'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
+                    'x-device-id': getEngineeringBayDeviceId(persona.name || persona.id),
                 },
                 body: JSON.stringify(action.payload ?? {}),
             });
@@ -356,6 +365,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         className,
     ].join(' ').trim();
     const cssVars = { '--eb-accent': persona.accentColor, '--eb-glow': persona.accentGlow };
+    const showDiagnosisToggle = persona.showDiagnosisToggle !== false && !persona.diagPermanent;
 
     const pillLabel = persona.diagLabel ?? (persona.diagPermanent ? 'SYS' : 'DIAG');
     const placeholder = isActive
@@ -399,7 +409,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                     {isActive && <span className="eb-header__pill">{pillLabel}</span>}
                 </div>
 
-                {!persona.diagPermanent && (
+                {showDiagnosisToggle && (
                     <DiagnosisToggle
                         active={diag.diagMode}
                         isTransitioning={diag.isTransitioning}

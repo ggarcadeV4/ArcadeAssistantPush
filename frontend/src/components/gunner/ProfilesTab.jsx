@@ -14,6 +14,20 @@ const DEFAULT_PROFILES = [
 export default function ProfilesTab() {
     const [selectedProfile, setSelectedProfile] = useState(DEFAULT_PROFILES[0])
 
+    const handleSaveProfile = () => {
+        console.warn(
+            '[Gunner] ProfilesTab: Save Profile not yet wired ' +
+            'to backend. See gunner.py /profile/save for the real path.'
+        )
+    }
+
+    const handleSyncToGun = () => {
+        console.warn(
+            '[Gunner] ProfilesTab: Sync to Gun not yet wired. ' +
+            '/profile/apply is currently a stub in gunner.py line 393.'
+        )
+    }
+
     return (
         <div className="gunner-profiles">
             {/* Profile List (left column) */}
@@ -106,8 +120,11 @@ export default function ProfilesTab() {
 
                 {/* Action Buttons */}
                 <div className="gunner-profiles__actions">
-                    <button className="gunner-btn-action">[Save Profile]</button>
-                    <button className="gunner-btn-action gunner-btn-action--pink">[Sync to Gun]</button>
+                    <button className="gunner-btn-action" onClick={handleSaveProfile}>[Save Profile]</button>
+                    <button className="gunner-btn-action gunner-btn-action--pink" onClick={handleSyncToGun}>[Sync to Gun]</button>
+                </div>
+                <div style={{ marginTop: 10, color: 'var(--cyber-yellow)', fontSize: '0.9rem' }}>
+                    Profile save/sync — backend wiring pending (post-duplication)
                 </div>
             </div>
         </div>

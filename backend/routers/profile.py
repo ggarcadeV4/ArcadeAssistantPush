@@ -54,6 +54,10 @@ class PrimaryProfilePayload(BaseModel):
     voice_prefs: Dict[str, str] = Field(default_factory=dict)
     vocabulary: List[str] = Field(default_factory=list)
     training_phrases: List[str] = Field(default_factory=list)
+    player_position: Optional[str] = None
+    controller_assignment: Optional[str] = None
+    custom_vocabulary: Optional[List[str]] = None
+    consent_active: Optional[bool] = None
 
 
 # Paths (Golden Drive: all state under .aa)
@@ -293,6 +297,10 @@ async def update_primary_profile(request: Request, payload: PrimaryProfilePayloa
             "voice_prefs": payload.voice_prefs,
             "vocabulary": payload.vocabulary,
             "training_phrases": payload.training_phrases,
+            "player_position": payload.player_position,
+            "controller_assignment": payload.controller_assignment,
+            "custom_vocabulary": payload.custom_vocabulary,
+            "consent_active": payload.consent_active,
             "last_updated": datetime.now().isoformat(),
         }
 

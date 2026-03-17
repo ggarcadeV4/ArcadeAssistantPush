@@ -474,7 +474,9 @@ async def preview_retroarch_config(request: Request, config_request: RetroArchCo
             player=config_request.player,
             system=config_request.system,
             include_hotkeys=config_request.include_hotkeys,
-            include_deadzones=config_request.include_deadzones
+            include_deadzones=config_request.include_deadzones,
+            custom_mappings=config_request.mappings,
+            deadzone_override=config_request.deadzone,
         )
 
         # Validate generated config
@@ -560,7 +562,9 @@ async def apply_retroarch_config(request: Request, config_request: RetroArchConf
             player=config_request.player,
             system=config_request.system,
             include_hotkeys=config_request.include_hotkeys,
-            include_deadzones=config_request.include_deadzones
+            include_deadzones=config_request.include_deadzones,
+            custom_mappings=config_request.mappings,
+            deadzone_override=config_request.deadzone,
         )
 
         # Validate generated config

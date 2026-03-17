@@ -119,12 +119,12 @@ const ContentDisplayManager = () => {
                     const data = await marqueeRes.json();
                     setMarqueeConfig(prev => ({
                         ...prev,
-                        target_monitor_index: data.display?.target_monitor_index ?? prev.target_monitor_index,
-                        safeArea: data.display?.safe_area ?? prev.safeArea,
-                        images_root: data.paths?.images_root ?? prev.images_root,
-                        videos_root: data.paths?.videos_root ?? prev.videos_root,
-                        use_video_if_available: data.behavior?.use_video_if_available ?? prev.use_video_if_available,
-                        fallback_mode: data.behavior?.fallback_mode ?? prev.fallback_mode,
+                        target_monitor_index: data.target_monitor_index ?? data.display?.target_monitor_index ?? prev.target_monitor_index,
+                        safeArea: data.safe_area ?? data.display?.safe_area ?? prev.safeArea,
+                        images_root: data.images_root ?? data.paths?.images_root ?? prev.images_root,
+                        videos_root: data.videos_root ?? data.paths?.videos_root ?? prev.videos_root,
+                        use_video_if_available: data.use_video_if_available ?? data.behavior?.use_video_if_available ?? prev.use_video_if_available,
+                        fallback_mode: data.fallback_mode ?? data.behavior?.fallback_mode ?? prev.fallback_mode,
                     }));
                     if (data.displays) setAvailableDisplays(data.displays);
                 }
@@ -383,18 +383,12 @@ const ContentDisplayManager = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         version: 1,
-                        display: {
-                            target_monitor_index: marqueeConfig.target_monitor_index,
-                            safe_area: marqueeConfig.safeArea,
-                        },
-                        paths: {
-                            images_root: marqueeConfig.images_root || null,
-                            videos_root: marqueeConfig.videos_root || null,
-                        },
-                        behavior: {
-                            use_video_if_available: marqueeConfig.use_video_if_available,
-                            fallback_mode: marqueeConfig.fallback_mode,
-                        },
+                        target_monitor_index: marqueeConfig.target_monitor_index,
+                        safe_area: marqueeConfig.safeArea,
+                        images_root: marqueeConfig.images_root || null,
+                        videos_root: marqueeConfig.videos_root || null,
+                        use_video_if_available: marqueeConfig.use_video_if_available,
+                        fallback_mode: marqueeConfig.fallback_mode,
                     }),
                 }),
             ]);

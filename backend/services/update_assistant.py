@@ -14,15 +14,41 @@ for complex conflicts. This keeps fleet-wide costs minimal.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import shutil
+import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass
+from urllib.parse import urlparse
+
+import httpx
 
 logger = logging.getLogger(__name__)
+
+
+UPDATE_TIMEOUT_SECONDS = 120
+ROLLBACK_SIZE_LIMIT_BYTES = 500 * 1024 * 1024
+PROTECTED_UPDATE_PATHS = {
+    Path(".aa/device_id.txt"),
+    Path(".aa/cabinet_manifest.json"),
+    Path(".env"),
+}
+PROTECTED_UPDATE_PREFIXES = {
+    Path(".aa/state"),
+}
+ROLLBACK_SNAPSHOT_PATHS = (
+    Path("backend"),
+    Path("frontend/dist"),
+    Path("gateway"),
+    Path("configs"),
+    Path("prompts"),
+)
 
 
 @dataclass
@@ -64,7 +90,432 @@ class UpdateAssistant:
         self._updates_dir = self._drive_root / ".aa" / "updates"
         self._state_dir = self._drive_root / ".aa" / "state"
         self._logs_dir = self._drive_root / ".aa" / "logs" / "updates"
+        self._updates_dir.mkdir(parents=True, exist_ok=True)
         self._logs_dir.mkdir(parents=True, exist_ok=True)
+
+    def _updates_enabled(self) -> bool:
+        return os.getenv("AA_UPDATES_ENABLED", "0") == "1"
+
+    def _staging_dir(self) -> Path:
+        path = self._updates_dir / "staging"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _rollback_dir(self) -> Path:
+        path = self._updates_dir / "rollback"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _record_dir(self) -> Path:
+        path = self._updates_dir
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _normalize_relative_path(self, raw_path: str) -> Path:
+        normalized = Path(str(raw_path or "").replace("\\", "/"))
+        if normalized.is_absolute() or ".." in normalized.parts:
+            raise ValueError(f"Unsafe update path: {raw_path}")
+        return normalized
+
+    def _is_protected_path(self, relative_path: Path) -> bool:
+        if relative_path in PROTECTED_UPDATE_PATHS:
+            return True
+        return any(relative_path == prefix or prefix in relative_path.parents for prefix in PROTECTED_UPDATE_PREFIXES)
+
+    def _write_json(self, path: Path, payload: Dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    def _file_sha256(self, path: Path) -> str:
+        digest = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def _load_manifest_from_directory(self, extracted_root: Path) -> Dict[str, Any]:
+        manifest_path = extracted_root / "manifest.json"
+        if not manifest_path.exists():
+            raise FileNotFoundError("Update bundle is missing manifest.json")
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    def _safe_extract_zip(self, bundle_path: Path, extracted_root: Path) -> None:
+        with zipfile.ZipFile(bundle_path) as archive:
+            for member in archive.infolist():
+                relative_path = self._normalize_relative_path(member.filename)
+                target_path = extracted_root / relative_path
+                if member.is_dir():
+                    target_path.mkdir(parents=True, exist_ok=True)
+                    continue
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(member, "r") as source, open(target_path, "wb") as target:
+                    shutil.copyfileobj(source, target)
+
+    def _validate_extracted_manifest(self, extracted_root: Path, manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+        files = manifest.get("files")
+        if not isinstance(files, list):
+            raise ValueError("Update manifest must include a files list")
+
+        normalized_files: List[Dict[str, Any]] = []
+        for file_info in files:
+            relative_path = self._normalize_relative_path(str(file_info.get("path", "")))
+            action = str(file_info.get("action", "replace")).lower()
+            if action not in {"replace", "add", "delete"}:
+                raise ValueError(f"Unsupported update action: {action}")
+
+            source_path = extracted_root / relative_path
+            if action in {"replace", "add"} and not source_path.exists():
+                raise FileNotFoundError(f"Bundle is missing payload file: {relative_path}")
+
+            checksum = str(file_info.get("sha256") or "").strip()
+            if checksum and source_path.exists() and source_path.is_file():
+                actual_checksum = self._file_sha256(source_path)
+                if actual_checksum.lower() != checksum.lower():
+                    raise ValueError(f"Checksum mismatch for {relative_path}")
+
+            normalized_files.append(
+                {
+                    **file_info,
+                    "path": str(relative_path).replace("\\", "/"),
+                    "action": action,
+                }
+            )
+
+        return normalized_files
+
+    def _compute_snapshot_size_bytes(self) -> int:
+        total = 0
+        for relative_path in ROLLBACK_SNAPSHOT_PATHS:
+            source = self._drive_root / relative_path
+            if not source.exists():
+                continue
+            if source.is_file():
+                total += source.stat().st_size
+                continue
+            for entry in source.rglob("*"):
+                if entry.is_file():
+                    total += entry.stat().st_size
+        return total
+
+    def _restore_directory(self, source: Path, destination: Path) -> None:
+        if destination.exists():
+            shutil.rmtree(destination)
+        shutil.copytree(source, destination, dirs_exist_ok=True)
+
+    def _report_command_status(
+        self,
+        command_id: Optional[Union[str, int]],
+        status: str,
+        result: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if command_id is None:
+            return
+        try:
+            from backend.services.supabase_client import update_command_status
+
+            update_command_status(str(command_id), status, result)
+        except Exception as exc:
+            logger.warning(f"[UpdateAssistant] Failed to report command status: {exc}")
+
+    def _disabled_result(self) -> Dict[str, Any]:
+        logger.warning("[UpdateAssistant] Updates disabled - AA_UPDATES_ENABLED != 1")
+        return {"status": "disabled", "reason": "AA_UPDATES_ENABLED is not set to 1"}
+
+    async def download_update(
+        self,
+        bundle_url: str,
+        checksum: Optional[str] = None,
+        bundle_name: Optional[str] = None,
+    ) -> Union[Path, Dict[str, Any]]:
+        """Download an update bundle into the staging directory."""
+        if not self._updates_enabled():
+            return self._disabled_result()
+
+        if not bundle_url:
+            raise ValueError("bundle_url is required")
+
+        staging_dir = self._staging_dir()
+        parsed = urlparse(bundle_url)
+        filename = bundle_name or Path(parsed.path).name or f"update_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
+        destination = staging_dir / filename
+        digest = hashlib.sha256()
+
+        try:
+            if parsed.scheme in {"http", "https"}:
+                timeout = httpx.Timeout(UPDATE_TIMEOUT_SECONDS)
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                    async with client.stream("GET", bundle_url) as response:
+                        response.raise_for_status()
+                        with open(destination, "wb") as handle:
+                            async for chunk in response.aiter_bytes(1024 * 1024):
+                                if not chunk:
+                                    continue
+                                handle.write(chunk)
+                                digest.update(chunk)
+            else:
+                source_path = Path(bundle_url)
+                if not source_path.exists():
+                    raise FileNotFoundError(f"Update bundle not found: {bundle_url}")
+                with open(source_path, "rb") as source, open(destination, "wb") as handle:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        handle.write(chunk)
+                        digest.update(chunk)
+
+            if not destination.exists() or destination.stat().st_size <= 0:
+                raise ValueError("Downloaded update bundle is empty")
+
+            if checksum and digest.hexdigest().lower() != checksum.lower():
+                raise ValueError("Downloaded update bundle checksum mismatch")
+
+            logger.info(f"[UpdateAssistant] Downloaded update bundle to {destination}")
+            return destination
+        except Exception as exc:
+            logger.error(f"[UpdateAssistant] download_update failed: {exc}")
+            destination.unlink(missing_ok=True)
+            raise
+
+    async def create_rollback_snapshot(
+        self,
+        source_version: Optional[str] = None,
+    ) -> Union[Path, Dict[str, Any]]:
+        """Create a rollback snapshot of critical runtime directories."""
+        if not self._updates_enabled():
+            return self._disabled_result()
+
+        snapshot_root = self._rollback_dir()
+        total_size = self._compute_snapshot_size_bytes()
+        if total_size > ROLLBACK_SIZE_LIMIT_BYTES:
+            raise ValueError(
+                f"Rollback snapshot would exceed 500MB ({total_size} bytes)"
+            )
+
+        for relative_path in ROLLBACK_SNAPSHOT_PATHS:
+            target = snapshot_root / relative_path
+            if target.exists():
+                shutil.rmtree(target)
+
+        for relative_path in ROLLBACK_SNAPSHOT_PATHS:
+            source = self._drive_root / relative_path
+            if not source.exists():
+                continue
+            target = snapshot_root / relative_path
+            if source.is_dir():
+                shutil.copytree(source, target, dirs_exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+
+        snapshot_metadata = {
+            "snapshot_at": datetime.now(timezone.utc).isoformat(),
+            "source_version": source_version or self._get_current_version(),
+            "paths": [str(path).replace("\\", "/") for path in ROLLBACK_SNAPSHOT_PATHS],
+            "size_bytes": total_size,
+        }
+        self._write_json(snapshot_root / "snapshot.json", snapshot_metadata)
+        logger.info(f"[UpdateAssistant] Created rollback snapshot at {snapshot_root}")
+        return snapshot_root
+
+    async def rollback(self, reason: str = "update_apply_failed") -> Dict[str, Any]:
+        """Restore critical runtime directories from the latest rollback snapshot."""
+        if not self._updates_enabled():
+            return self._disabled_result()
+
+        snapshot_root = self._rollback_dir()
+        snapshot_path = snapshot_root / "snapshot.json"
+        if not snapshot_path.exists():
+            logger.critical("[UpdateAssistant] No rollback snapshot found")
+            raise FileNotFoundError("Rollback snapshot does not exist")
+
+        metadata = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        for relative_path in ROLLBACK_SNAPSHOT_PATHS:
+            source = snapshot_root / relative_path
+            if not source.exists():
+                continue
+            destination = self._drive_root / relative_path
+            if source.is_dir():
+                self._restore_directory(source, destination)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+
+        rollback_record = {
+            "rolled_back_at": datetime.now(timezone.utc).isoformat(),
+            "reason": reason,
+        }
+        self._write_json(self._record_dir() / "last_rollback.json", rollback_record)
+        logger.warning(f"[UpdateAssistant] Rollback completed: {reason}")
+        return {"status": "rolled_back", "snapshot_at": metadata.get("snapshot_at"), "reason": reason}
+
+    async def apply_update(
+        self,
+        bundle_path: Path,
+        manifest: Optional[Dict[str, Any]] = None,
+        bundle_format: Optional[str] = None,
+        version: Optional[str] = None,
+        rollback_reason: str = "update_apply_failed",
+    ) -> Dict[str, Any]:
+        """Apply a downloaded update bundle with automatic rollback protection."""
+        if not self._updates_enabled():
+            return self._disabled_result()
+
+        bundle_path = Path(bundle_path)
+        if not bundle_path.exists():
+            raise FileNotFoundError(f"Bundle not found: {bundle_path}")
+
+        snapshot = await self.create_rollback_snapshot(source_version=self._get_current_version())
+        if isinstance(snapshot, dict):
+            return snapshot
+
+        archive_format = (bundle_format or bundle_path.suffix.lstrip(".") or "zip").lower()
+        if archive_format != "zip":
+            raise ValueError(f"Unsupported bundle format: {archive_format}")
+
+        temp_root_base = self._updates_dir / "tmp"
+        temp_root_base.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with tempfile.TemporaryDirectory(dir=temp_root_base) as temp_dir_str:
+                temp_dir = Path(temp_dir_str)
+                extracted_root = temp_dir / "payload"
+                extracted_root.mkdir(parents=True, exist_ok=True)
+                self._safe_extract_zip(bundle_path, extracted_root)
+
+                bundle_manifest = manifest or self._load_manifest_from_directory(extracted_root)
+                normalized_files = self._validate_extracted_manifest(extracted_root, bundle_manifest)
+                applied_changes: List[str] = []
+                skipped_paths: List[str] = []
+
+                for file_info in normalized_files:
+                    relative_path = self._normalize_relative_path(file_info["path"])
+                    if self._is_protected_path(relative_path):
+                        skipped_paths.append(str(relative_path).replace("\\", "/"))
+                        continue
+
+                    action = file_info["action"]
+                    destination = self._drive_root / relative_path
+
+                    if action == "delete":
+                        if destination.is_dir():
+                            shutil.rmtree(destination)
+                        elif destination.exists():
+                            destination.unlink()
+                        applied_changes.append(f"Deleted: {relative_path}")
+                        continue
+
+                    source_path = extracted_root / relative_path
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    if source_path.is_dir():
+                        if destination.exists() and destination.is_file():
+                            destination.unlink()
+                        shutil.copytree(source_path, destination, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(source_path, destination)
+                    applied_changes.append(f"{'Added' if action == 'add' else 'Updated'}: {relative_path}")
+
+                resolved_version = str(version or bundle_manifest.get("version") or self._get_current_version())
+                self._write_json(
+                    self._record_dir() / "last_update.json",
+                    {
+                        "version": resolved_version,
+                        "applied_at": datetime.now(timezone.utc).isoformat(),
+                        "bundle": bundle_path.name,
+                    },
+                )
+                self._update_version(resolved_version, str(bundle_manifest.get("release_notes", "")))
+                self._log_update_event(
+                    "UPDATE_APPLIED",
+                    True,
+                    {
+                        "version": resolved_version,
+                        "bundle": bundle_path.name,
+                        "changes_applied": applied_changes,
+                        "skipped_paths": skipped_paths,
+                    },
+                )
+                return {
+                    "status": "applied",
+                    "version": resolved_version,
+                    "rolled_back": False,
+                    "changes_applied": applied_changes,
+                    "skipped_paths": skipped_paths,
+                }
+        except Exception as exc:
+            logger.error(f"[UpdateAssistant] apply_update failed: {exc}")
+            try:
+                rollback_result = await self.rollback(reason=rollback_reason)
+            except Exception as rollback_exc:
+                rollback_result = {"status": "failed", "error": str(rollback_exc)}
+            self._log_update_event(
+                "UPDATE_FAILED",
+                False,
+                {
+                    "bundle": bundle_path.name,
+                    "error": str(exc),
+                    "rollback": rollback_result,
+                },
+            )
+            return {
+                "status": "failed",
+                "version": str(version or (manifest.get("version") if manifest else None) or self._get_current_version()),
+                "rolled_back": rollback_result.get("status") == "rolled_back",
+                "error": str(exc),
+            }
+
+    async def handle_update_command(
+        self,
+        command_payload: Dict[str, Any],
+        command_id: Optional[Union[str, int]] = None,
+    ) -> Dict[str, Any]:
+        """Handle a DOWNLOAD_UPDATE command payload from Fleet Manager."""
+        if not self._updates_enabled():
+            result = self._disabled_result()
+            self._report_command_status(command_id, "FAILED", result)
+            return result
+
+        bundle_url = str(
+            command_payload.get("bundle_url")
+            or command_payload.get("url")
+            or command_payload.get("source_url")
+            or ""
+        ).strip()
+        if not bundle_url:
+            result = {"status": "failed", "error": "bundle_url is required"}
+            self._report_command_status(command_id, "FAILED", result)
+            return result
+
+        checksum = (
+            command_payload.get("sha256")
+            or command_payload.get("checksum")
+            or command_payload.get("checksum_sha256")
+        )
+        version = command_payload.get("version")
+        bundle_format = command_payload.get("bundle_format") or command_payload.get("format")
+        manifest = command_payload.get("manifest") if isinstance(command_payload.get("manifest"), dict) else None
+
+        self._report_command_status(command_id, "PROCESSING", {"status": "processing", "bundle_url": bundle_url})
+        try:
+            bundle_path = await self.download_update(
+                bundle_url=bundle_url,
+                checksum=str(checksum) if checksum else None,
+                bundle_name=command_payload.get("bundle_name"),
+            )
+            if isinstance(bundle_path, dict):
+                self._report_command_status(command_id, "FAILED", bundle_path)
+                return bundle_path
+
+            result = await self.apply_update(
+                bundle_path=bundle_path,
+                manifest=manifest,
+                bundle_format=bundle_format,
+                version=str(version) if version else None,
+            )
+            status = "COMPLETED" if result.get("status") == "applied" else "FAILED"
+            self._report_command_status(command_id, status, result)
+            return result
+        except Exception as exc:
+            result = {"status": "failed", "error": str(exc)}
+            self._report_command_status(command_id, "FAILED", result)
+            return result
     
     async def analyze_update(
         self,
@@ -81,6 +532,20 @@ class UpdateAssistant:
         Returns:
             UpdateAnalysis with AI's assessment
         """
+        if not self._updates_enabled():
+            logger.warning("[UpdateAssistant] Updates disabled - analysis returning safe_to_apply=False")
+            return UpdateAnalysis(
+                safe_to_apply=False,
+                confidence=1.0,
+                summary="Updates are disabled on this cabinet.",
+                changes=[],
+                risks=["AA_UPDATES_ENABLED is not set to 1"],
+                conflicts=[],
+                recommendations=["Set AA_UPDATES_ENABLED=1 before applying updates."],
+                requires_user_approval=True,
+                estimated_downtime_seconds=0,
+            )
+
         # Gather local state if not provided
         if local_state is None:
             local_state = await self._gather_local_state()
@@ -308,9 +773,18 @@ Respond in JSON format:
         
         The AI monitors the process and can handle edge cases.
         """
+        if not self._updates_enabled():
+            return UpdateResult(
+                success=False,
+                version_before=self._get_current_version(),
+                version_after=self._get_current_version(),
+                changes_applied=[],
+                errors=["AA_UPDATES_ENABLED is not set to 1"],
+                rollback_available=False,
+                ai_summary="Updates are disabled on this cabinet.",
+            )
+
         version_before = self._get_current_version()
-        errors = []
-        changes_applied = []
         
         # Step 1: AI analysis
         analysis = await self.analyze_update(manifest)
@@ -326,104 +800,44 @@ Respond in JSON format:
                 ai_summary=analysis.summary
             )
         
-        # Step 2: Create backup
-        backup_path = await self._create_backup()
-        
-        # Step 3: Apply files
-        try:
-            for file_info in manifest.get("files", []):
-                path = file_info.get("path", "")
-                action = file_info.get("action", "replace")
-                
-                if action == "replace":
-                    # Extract from bundle and replace
-                    # (simplified - actual implementation would unzip)
-                    changes_applied.append(f"Updated: {path}")
-                elif action == "delete":
-                    target = self._drive_root / path
-                    if target.exists():
-                        target.unlink()
-                    changes_applied.append(f"Deleted: {path}")
-                elif action == "add":
-                    changes_applied.append(f"Added: {path}")
-            
-            # Step 4: Update version file
-            version_after = manifest.get("version", version_before)
-            self._update_version(version_after, manifest.get("release_notes", ""))
-            
-            # Step 5: AI generates summary
-            ai_summary = await self._generate_completion_summary(
-                version_before, version_after, changes_applied, errors
-            )
-            
-            # Step 6: Log success
-            self._log_update_event("UPDATE_APPLIED", True, {
-                "version_before": version_before,
-                "version_after": version_after,
-                "changes": len(changes_applied),
-                "ai_assisted": True
-            })
-            
-            return UpdateResult(
-                success=True,
-                version_before=version_before,
-                version_after=version_after,
-                changes_applied=changes_applied,
-                errors=errors,
-                rollback_available=True,
-                ai_summary=ai_summary
-            )
-            
-        except Exception as e:
-            logger.error(f"Update failed: {e}")
-            errors.append(str(e))
-            
-            # AI-assisted rollback decision
-            should_rollback = await self._should_rollback(errors, changes_applied)
-            
-            if should_rollback:
-                await self._rollback(backup_path)
-                ai_summary = f"Update failed and was rolled back: {e}"
-            else:
-                ai_summary = f"Update partially applied with errors: {e}"
-            
-            return UpdateResult(
-                success=False,
-                version_before=version_before,
-                version_after=version_before if should_rollback else manifest.get("version", version_before),
-                changes_applied=changes_applied,
-                errors=errors,
-                rollback_available=not should_rollback,
-                ai_summary=ai_summary
-            )
+        apply_result = await self.apply_update(
+            bundle_path=bundle_path,
+            manifest=manifest,
+            version=str(manifest.get("version") or version_before),
+        )
+        success = apply_result.get("status") == "applied"
+        version_after = str(apply_result.get("version") or version_before)
+        errors = [] if success else [str(apply_result.get("error") or "Apply failed")]
+        changes_applied = list(apply_result.get("changes_applied") or [])
+        ai_summary = await self._generate_completion_summary(
+            version_before,
+            version_after,
+            changes_applied,
+            errors,
+        )
+
+        return UpdateResult(
+            success=success,
+            version_before=version_before,
+            version_after=version_after,
+            changes_applied=changes_applied,
+            errors=errors,
+            rollback_available=bool(not apply_result.get("rolled_back", False)),
+            ai_summary=ai_summary if success else f"{ai_summary} Rolled back={apply_result.get('rolled_back', False)}.",
+        )
     
     async def _create_backup(self) -> Path:
         """Create backup before update."""
-        import shutil
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_dir = self._updates_dir / "backups" / timestamp
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Backup critical directories
-        for dir_name in ["configs", "state"]:
-            src = self._drive_root / dir_name
-            if src.exists():
-                shutil.copytree(src, backup_dir / dir_name, dirs_exist_ok=True)
-        
-        return backup_dir
+        snapshot = await self.create_rollback_snapshot(source_version=self._get_current_version())
+        if isinstance(snapshot, dict):
+            raise RuntimeError(snapshot.get("reason", "Updates disabled"))
+        return snapshot
     
     async def _rollback(self, backup_path: Path) -> bool:
         """Rollback to backup."""
-        import shutil
         try:
-            for dir_name in ["configs", "state"]:
-                src = backup_path / dir_name
-                dst = self._drive_root / dir_name
-                if src.exists():
-                    if dst.exists():
-                        shutil.rmtree(dst)
-                    shutil.copytree(src, dst)
-            return True
+            result = await self.rollback(reason=f"legacy_rollback:{backup_path}")
+            return result.get("status") == "rolled_back"
         except Exception as e:
             logger.error(f"Rollback failed: {e}")
             return False

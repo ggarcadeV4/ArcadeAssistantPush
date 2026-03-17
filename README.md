@@ -1,5 +1,5 @@
 # Arcade Assistant Ã¢â‚¬â€ Project README
-**Last Updated:** 2026-03-12 EVE | **Build:** RAG Emulator Knowledge Pipeline + Dual-Build Pathing + RAG Context Map + Duplication-Readiness | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+**Last Updated:** 2026-03-16 | **Build:** V1 persona hardening sprint (Dewey/Vicky/Chuck/Gunner/LoRa/Sam/Blinky duplication cleanup) | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -46,6 +46,56 @@ cd frontend && npm run dev
 | Supabase | Cloud | Ã¢â‚¬â€ | Ref: `zlkhsxacfyxsctqpvbsh` (**Arcade Assistant only**) |
 
 > Ã¢Å¡Â Ã¯Â¸Â **NEVER** use Supabase ref `hjxzbicsjzyzalwilmlj` Ã¢â‚¬â€ that is the G&G Website project.
+
+---
+
+## Session Update (2026-03-16)
+
+This session focused on persona stabilization, duplication-readiness cleanup, and runtime-path verification across the assistant roster. Several panels that previously relied on frontend-only prompts, dead routes, placeholder cabinet IDs, or half-wired flows now follow the backend/state architecture more cleanly.
+
+### Dewey
+- Externalized Dewey's main system prompt into `prompts/dewey.prompt` and added `prompts/dewey_knowledge.md`.
+- Added backend chat route `POST /api/local/dewey/chat` in `backend/routers/dewey.py` so the main Dewey panel no longer calls the AI provider directly from the browser.
+- Updated `frontend/src/panels/dewey/DeweyPanel.jsx` to stream from the backend route while preserving gallery parsing, lore search, routing chips, trivia mode, and handoff behavior.
+- Added real LaunchBox-backed "Your Collection" trivia generation via `get_collection_sample()` and `POST /api/local/dewey/trivia/collection` in `backend/routers/dewey.py`.
+- Updated `frontend/src/panels/dewey/trivia/TriviaExperience.jsx` so only the `collection` category uses the new endpoint and shows a friendly library-unavailable message when LaunchBox cache is not available.
+- Hardened Dewey device identity usage by replacing direct fallback headers with guarded `window.AA_DEVICE_ID` resolution, corrected the knowledge doc route reference, and added a TODO note on Dewey's hardcoded frontend voice override in `ttsClient.js`.
+
+### Vicky
+- Fixed the opt-in / consent gate in `frontend/src/panels/voice/VoicePanel.jsx` so it now checks both stored consent and the saved primary profile.
+- Fixed the Vicky sidebar header icon encoding by replacing garbled literals with escaped Unicode values.
+- Repaired the Save & Broadcast path in `VoicePanel.jsx`; the payload now includes `display_name`, `initials`, `player_position`, `controller_assignment`, `custom_vocabulary`, and `consent_active`, and the frontend logs broadcast completion.
+- Extended `backend/routers/profile.py` so `primary_user.json` now persists the extra Vicky fields instead of dropping them.
+- Standardized Vicky cabinet identity fallbacks in the Voice panel and `frontend/src/services/profileClient.js`, and kept the Vicky ElevenLabs restoration as an explicit TODO note in `ttsClient.js`.
+
+### Controller Chuck
+- Fixed the dead SCAN route in `frontend/src/panels/controller/ControllerChuckPanel.jsx` to use the real hardware endpoint `/api/local/hardware/arcade/boards`.
+- Fixed the dead DETECT flow in `frontend/src/hooks/useInputDetection.js` to use the real start / latest / stop input-detection routes.
+- Corrected the PacDrive board identity mismatch in `config/mappings/controls.json` so Chuck no longer identifies an Xbox 360 VID/PID as the cabinet encoder board.
+- Added production-fleet TODO markers for dormant `CAB-0001` usage in Chuck helper files.
+- Repaired the active mapping flow: successful input capture now sets `hasPending`, preview/apply payloads now match the backend mapping schema, `MappingOverlay.jsx` is mounted into the active Chuck panel, and the panel reloads mapping after save.
+
+### Gunner
+- Confirmed and preserved the real scan path: `handleScan()` now uses `gunnerClient.listDevices()` rather than a stub.
+- Added `prompts/gunner_knowledge.md` so Gunner no longer runs without its knowledge file.
+- Standardized Gunner cabinet identity fallback handling in `frontend/src/services/gunnerClient.js`.
+- Flagged placeholder MAC/fleet display values in `frontend/src/components/gunner/GunnerHeader.jsx`.
+- Added visible in-UI amber notices and console warnings to the currently unwired modular Gunner tabs: `CalibrationTab.jsx`, `ProfilesTab.jsx`, and `RetroModesTab.jsx`.
+
+### LaunchBox LoRa / ScoreKeeper Sam / LED Blinky
+- Updated LoRa chat identity in `frontend/src/panels/launchbox/LaunchBoxPanel.jsx` to use the cabinet UUID path instead of a browser-local cloned session ID.
+- Replaced Sam-related `demo_001` cabinet defaults in `useAIAction.ts` and `scorekeeperClient.js`, and flagged dormant `CAB-0001` defaults in `gateway/gems/aa-sam/index.js`.
+- Added the missing gateway scorekeeper route so MAME hiscore Supabase mirroring no longer posts to a dead endpoint.
+- Wired `backend/services/game_lifecycle.py` so LEDBlinky is notified on the common game lifecycle path for both launch and exit.
+
+### Audit / Verification Work
+- Completed read-only runtime audits for LoRa, ScoreKeeper Sam, LED Blinky, Controller Chuck, Gunner, Dewey, and Vicky.
+- Verified actual request paths, prompt locations, storage locations, duplication blockers, and places where frontend assumptions diverged from real backend behavior.
+- Used those audits to close several small but important duplication risks: hardcoded cabinet IDs, dead panel routes, stale prompt/knowledge references, and schema gaps between frontend payloads and persisted state.
+
+### Validation
+- Frontend builds passed after the panel and client changes.
+- Targeted backend syntax checks passed for the scoped Python files touched during the session, including `backend/services/game_lifecycle.py` and `backend/routers/profile.py`.
 
 ---
 
@@ -189,6 +239,13 @@ backend/
 | Console Wizard RAG KB | `wiz_knowledge.md` (500+ lines) + enhanced prompt | `prompts/` |
 | LED Priority Arbiter | Circuit breaker (VOICE>GAME>ATTRACT>IDLE) + throttle | `led_priority_arbiter.py` |
 
+### Parked Post-V1 Follow-Ups (2026-03-14)
+| Item | Priority | Notes |
+|------|----------|-------|
+| `app.py` double-mount cleanup | Medium | Doc and Gunner routers are each mounted twice; defer cleanup until after V1 |
+| Chuck shared-sidebar parity | Medium | Legacy `ChuckSidebar` still has greeting hooks, Supabase chat logging, and legacy mic path not exposed by `EngineeringBaySidebar` |
+| Genre tag propagation into lifecycle tracking | High | `aa_launch.py` and `launchbox.py` do not forward `tags` into `track_game_launch()` yet; genre-aware LED mapping will not fire from those launch paths until fixed |
+
 ---
 
 ## Duplication-Readiness Master Checklist
@@ -224,7 +281,7 @@ backend/
 |---|------|--------|-------|
 | H1 | Clone simulation: remove identity -> boot -> verify new UUID + current frontend | PENDING | Core smoke test |
 | H2 | LoRa game launch flow (pick game -> launch -> exit) | PENDING | |
-| H3 | Daphne/Hypseus real launch (BadLands, Rollercoaster, Cliff Hanger) | PENDING | Parser verified, needs live run |
+| H3 | Daphne/Hypseus real launch | PARTIAL | Road Blaster confirmed via LoRa direct launch. Astron Belt, Dragon's Lair HD still need spot-check. SINGE2 games separate fix. |
 | H4 | 8BitDo physical gamepad mapping + cascade | PENDING | Gamepad API + wizard flow |
 | H5 | F9 Electron overlay inside Big Box fullscreen | PENDING | |
 | H6 | Console Wizard emulator config generation | PENDING | |
@@ -262,6 +319,159 @@ git push origin master
 
 See `ROLLING_LOG.md` for a reverse-chronological log of all sessions and net progress.
 See `logs/` directory for daily session logs.
+
+### Session Catalog - 2026-03-16 NIGHT (Daphne/Hypseus Laserdisc Fix)
+
+Scope completed in this session focused on getting Daphne laserdisc games launching from LoRa.
+
+Key outcomes:
+
+- **Daphne Launch Fix (4-layer cascade)**:
+  - DLL path fix: `.ahk` scripts pointed to bare copy of `hypseus.exe` without DLLs. Redirected to `A:\Emulators\Hypseus\Hypseus Singe\hypseus.exe`.
+  - Homedir fix: Added `-homedir "A:\Roms\DAPHNE"` so Hypseus finds ROM zips in `roms/` and framefiles in `framefile/`.
+  - Absolute framefile paths: Hypseus resolves `-framefile` relative to its own exe, not `-homedir`. Changed to absolute paths.
+  - SDL video driver fix: Subprocess inherits headless SDL context (driver=dummy). Added `SDL_VIDEODRIVER=windows` env override.
+
+- **LoRa Direct Launch Block** (NEW, `launcher.py:1100-1156`):
+  - Added `DAPHNE_GAME_MAP` with 15 game entries mapping `.ahk` stems to Hypseus internal names + framefile paths.
+  - HD titles (Dragon's Lair, Dragon's Lair II, Space Ace) use `vldp\` paths.
+  - Uses `_launch_with_stderr_trap()` matching adjacent MAME block pattern.
+  - Passes `SDL_VIDEODRIVER=windows` in subprocess environment.
+
+- **LaunchBox Plugin Port**: Fixed `config.json` port from `10099` to `9999`.
+
+- **Discovery — HD titles are Additional Apps**: Dragon's Lair HD / Space Ace HD / Dragon's Lair II HD are "Additional App" entries (alternate launch) in `Daphne.xml`, not primary `ApplicationPath`. From LoRa, the primary launch uses `SINGE-HYPSEUS\*.ahk` scripts.
+
+- **Discovery — SINGE2 games on Daphne platform**: ~30 SINGE2 games (Altered Carbon, Asterix, Cliffhanger, etc.) are filed under the Daphne platform in LaunchBox. These use `Singe.exe` and are a separate fix path.
+
+Files modified (by Codex, verified by Antigravity):
+
+- `A:\Roms\DAPHNE\*.ahk` (all 15) — exe path, `-homedir`, framefile paths
+- `A:\LaunchBox\Data\Emulators.xml` — Hypseus Singe entry added
+- `A:\LaunchBox\Plugins\ArcadeAssistant\config.json` — port fix
+- `backend/services/launcher.py` — Daphne direct launch block
+
+Validation completed:
+
+- Road Blaster confirmed launching from LoRa with video rendering.
+- All 15 framefile paths verified on disk.
+- All 15 `.ahk` stems match `DAPHNE_GAME_MAP` keys.
+
+Open follow-ups:
+
+- Spot-check Astron Belt (standard framefile) and Dragon's Lair HD (vldp path).
+- SINGE2 platform fix (separate task — different emulator, different error).
+- HD title accessibility from LoRa (Additional Apps not exposed).
+
+### Session Catalog - 2026-03-14
+
+Scope completed in this session focused on closing Sprint 1 and Sprint 2 production-consistency work.
+
+Key outcomes:
+
+- **Sprint 1 completed**:
+  - Doc diagnostics router upgraded to full 4-endpoint coverage:
+    - `GET /api/doc/bio`
+    - `GET /api/doc/vitals`
+    - `GET /api/doc/alerts`
+    - `WS /api/doc/ws/events`
+  - `/vitals` now returns the full contract with defensive null-on-failure handling and exported `broadcast_health_event()` support.
+  - Doc diagnostics tests passed (`4 passed`).
+  - Added `scripts/generate_device_id.py` for idempotent UUID4 generation and persistence.
+  - Gunner hardening completed:
+    - Empty scan now shows a real empty state instead of fallback mock cards.
+    - Backend device objects are mapped into the `DeviceCard` display shape.
+    - `MockDetector` now activates only when `ENVIRONMENT=dev` and `AA_USE_MOCK_GUNNER=true`.
+
+- **Sprint 2 completed**:
+  - Chuck panel verification confirmed the active panel already renders `EngineeringBaySidebar`; Chat Mode and Diagnosis Mode remain intact, so no Chuck swap was required.
+  - LEDBlinky genre-aware animation path completed:
+    - Arbiter fire callback now registers from `game_lifecycle.py`, so LED commands are no longer silently dropped.
+    - Genre mapping now uses production codes:
+      - `LED:FIGHTING -> 3`
+      - `LED:RACING -> 4`
+      - `LED:SHOOTER -> 2`
+      - `LED:SPORTS -> 5`
+      - default `-> 1`
+    - LED engine now supports `idle_pulse`, `breathe`, and `knight_rider`.
+    - `idle_pulse` and `breathe` alias to the existing pulse renderer.
+  - `updates.py` Phase 0 TODO stubs were replaced with a full staged update pipeline:
+    - check -> download -> verify -> stage -> apply
+    - rollback -> snapshot -> restore
+    - `AA_UPDATES_ENABLED=0` returns a clean disabled response
+    - all operations log to `.aa/logs/updates.log`
+
+Validation completed:
+
+- Frontend build passed (`npm run build:frontend`).
+- Doc diagnostics backend tests passed (`4 passed`).
+
+Open follow-ups for next session:
+
+- Dedicated cleanup pass for the Doc/Gunner double-mount in `app.py` after V1.
+- Dedicated `EngineeringBaySidebar` parity pass for Chuck legacy-only hooks after V1.
+- Fix tag propagation from `aa_launch.py` and `launchbox.py` into `track_game_launch()` before V1 ship.
+
+### Session Catalog - 2026-03-15
+
+Scope completed in this session focused on V1 closeout: marquee completion, score-ops awareness, cabinet identity hardening, and final backend wiring passes.
+
+Key outcomes:
+
+- **Marquee system completed (Sessions A-C)**:
+  - Unified marquee config/state contract across backend router, content manager, and desktop renderer via shared `backend/models/marquee_config.py`.
+  - Generic `game_start` now pushes marquee game state and generic `game_stop` now returns marquee to idle.
+  - Idle display now honors configured `idle_video` and `idle_image` instead of falling straight to black.
+  - `scripts/marquee_display.py` now consumes `marquee_preview.json`, respects preview-vs-active-game priority, and restores current content when preview clears.
+  - Added polling fallback when watchdog is unavailable.
+  - Added single-instance guard (`.aa/marquee.lock`) plus boot launch orchestration from `start-aa.bat`.
+  - Replaced the three content manager marquee test stubs with real behavior:
+    - `POST /api/content/marquee/test/image`
+    - `POST /api/content/marquee/test/video`
+    - `POST /api/content/marquee/test/browse`
+  - LaunchBox parser cache now stores `video_snap_path` and `marquee_image_path`, and marquee resolution now checks cached paths before filesystem scans.
+
+- **ScoreKeeper Sam operational awareness expanded**:
+  - Added `prompts/sam_knowledge.md` so Sam now understands score tracking strategy resolution, review queue flow, MAME hiscore watching, Lua fallback, OCR capture, announcer behavior, and Supabase sync.
+  - Replaced the static "PTS TO BEAT" banner in the Sam panel with live top-score data.
+  - Added `GET /api/local/scorekeeper/top-score` with Supabase-first lookup and `scores.jsonl` local fallback.
+
+- **Diagnostics and cabinet identity hardening**:
+  - Doc diagnostics audit closed with per-device latency support added to `GET /api/doc/bio` and `GET /api/doc/vitals`.
+  - `AA_DEVICE_ID` first-boot generation is now idempotent:
+    - missing or placeholder `.aa/device_id.txt` generates a fresh UUID4
+    - `.env` is updated atomically
+    - startup sets `os.environ["AA_DEVICE_ID"]` before downstream services use it
+
+- **Engineering Bay and LED production wiring**:
+  - Gunner "SCAN HARDWARE" now calls the real backend device listing path and renders live device results instead of placeholder cards.
+  - Chuck now uses the shared `EngineeringBaySidebar`; the dead standalone `ChuckSidebar.jsx` file was removed.
+  - PatternResolver initialization in `app.py` now runs as a non-blocking background task instead of being skipped.
+  - LED priority arbiter fire callback is now registered, so arbiter output no longer drops silently.
+  - Vicky voice acknowledgment now triggers a brief VOICE-priority LED flash through the arbiter.
+  - LEDBlinky launch animation selection now resolves by genre instead of always defaulting to static ON.
+
+- **Remote update and rollback pipeline completed**:
+  - `update_assistant.py` now supports gated download -> verify -> snapshot -> apply -> rollback handling for Fleet Manager `DOWNLOAD_UPDATE` commands.
+  - Rollback snapshots protect cabinet identity/runtime state and restore the critical app directories.
+  - All public update entry points respect `AA_UPDATES_ENABLED`.
+
+Validation completed:
+
+- Frontend build passed during panel integration work (`npm run build:frontend`).
+- Targeted backend tests passed for:
+  - doc diagnostics
+  - cabinet identity provisioning
+  - marquee/parser syntax checks
+  - LED translator coverage
+  - update assistant pipeline
+
+Open follow-ups for next session:
+
+- Live second-monitor marquee validation on cabinet hardware (preview, idle video, launch switch, stop-to-idle).
+- Live hardware validation remains for H1-H9 items in the duplication-readiness checklist.
+- Dedicated cleanup pass for the Doc/Gunner double-mount in `app.py` after V1.
+- Tag propagation from `aa_launch.py` and `launchbox.py` into `track_game_launch()` still needs a dedicated pass before final V1 ship.
 
 ### Session Catalog - 2026-03-08
 
@@ -638,6 +848,135 @@ Open follow-ups:
 - Supabase Service Role Key handling on golden image.
 - Device ID mismatch fix.
 - ElevenLabs placeholder API key replacement.
+
+### Session Catalog — 2026-03-16 Late Night (Antigravity Session — Dewey Chat & News Voice Fix)
+
+Scope completed in this session focused on fixing Dewey's main chat 400/500 errors and the Gaming News chat's echo + missing voice issues.
+
+Key outcomes:
+
+- **Dewey Main Chat — Gemini Migration**:
+  - Root cause: A: drive's `dewey.py` was calling `anthropic-proxy` directly via `SecureAIClient.call_anthropic()`, bypassing the gateway entirely.
+  - Added `call_gemini()` method to `SecureAIClient` in `drive_a_ai_client.py` to call the `gemini-proxy` edge function with correct message formatting.
+  - Replaced `_call_anthropic` and `_extract_anthropic_text` with `_call_gemini` and `_extract_gemini_text` in `dewey.py` for both the `/chat` endpoint and the collection trivia generator.
+  - Dewey's main chat now correctly uses Gemini as the AI provider.
+
+- **Anthropic Proxy Defensive Fix**:
+  - Fixed the `anthropic-proxy` Supabase edge function (deployed v14) to correctly handle system messages. It now extracts `role: 'system'` messages from the `messages` array and promotes them to the top-level `system` parameter, preventing 400 errors from Anthropic API. This is a defensive fix — Dewey no longer calls this proxy, but other consumers won't break.
+
+- **Gaming News Chat — Echo Prevention**:
+  - Root cause: React's state-based `loading` guard was too slow for rapid-fire voice sends, allowing duplicate API calls.
+  - Implemented a `sendingRef` (ref-based, not state-based) guard in `useNewsChat.js` that blocks duplicate sends during the same interaction cycle.
+
+- **Gaming News Chat — TTS Integration**:
+  - Added Text-to-Speech to the News Chat sidebar using ElevenLabs via the gateway's `/api/voice/tts` endpoint.
+  - Uses Dewey's voice ID (`t0A4EWIngExKpUqW6AWI`).
+  - Audio plays automatically after each Dewey response.
+  - Includes `isSpeaking`, `stopSpeaking`, and `ttsEnabled` toggle.
+
+- **Gaming News Chat — Push-to-Talk UX**:
+  - Removed auto-send behavior from voice input. Previously, clicking the mic would auto-fire the transcript as a message, causing garbled partial speech to create confusing exchanges.
+  - Now: click mic → speak → transcript fills text box → user reviews → user clicks Send. Clean, predictable flow.
+
+- **System Prompt Improvements**:
+  - Updated the News Chat system prompt to prioritize conversational greetings over strictly discussing headlines.
+  - Added "Vary your language — don't start every response the same way" instruction to prevent repetitive "Hey there! How's it going?" openers.
+
+Files modified:
+
+- `A:\Arcade Assistant Local\backend\services\drive_a_ai_client.py` — Added `call_gemini()` method
+- `A:\Arcade Assistant Local\backend\routers\dewey.py` — Switched chat and trivia to Gemini
+- `c:\Users\Dad's PC\Desktop\AI-Hub\supabase\functions\anthropic-proxy\index.ts` — System message handling fix (deployed v14)
+- `c:\Users\Dad's PC\Desktop\AI-Hub\frontend\src\panels\dewey\news\useNewsChat.js` — Echo guard, TTS, push-to-talk, prompt improvements
+
+> ⚠️ **IMPORTANT for next agent**: The TTS route in the gateway is mounted at `/api/voice` (NOT `/api/ai`), so TTS calls go to `/api/voice/tts`. This was a bug that was fixed during this session. See `server.js` line 176.
+
+> ⚠️ **IMPORTANT for next agent**: The A: drive has its OWN copy of `dewey.py` and `drive_a_ai_client.py` at `A:\Arcade Assistant Local\backend\`. These are NOT the same as the C: drive versions. The A: drive versions have the actual `/chat` endpoint for Dewey. When debugging Dewey chat, check BOTH drives.
+
+Validation:
+
+- Frontend built successfully (`✓ built in 1.80s`)
+- Frontend dist + source copied to A: drive
+- User confirmed voice output is working
+- User confirmed echo behavior is resolved with push-to-talk model
+
+Open follow-ups for next session:
+
+- Full end-to-end retest of Gaming News chat voice after next Arcade Assistant restart
+- Live hardware validation (H1–H9) — carried forward
+- Device ID mismatch fix — carried forward
+
+### Session Catalog - 2026-03-16 Follow-up (Codex Session - Wiz + Doc Audits and Targeted Fixes)
+
+Scope completed in this follow-up session focused on deep truth audits of Console Wizard (Wiz) and System Health (Doc), followed by tightly scoped fixes only where requested.
+
+Key outcomes:
+
+- **Wiz Deep Audit Completed**:
+  - Verified active Wiz frontend, backend, prompt, knowledge, profile, and shared-sidebar wiring.
+  - Confirmed active AI path is shared Engineering Bay chat -> Gemini, not the legacy Anthropic Wiz path.
+  - Confirmed controller detection is real hardware-backed.
+  - Confirmed emulator health checks and config snapshot drift checks are real.
+  - Confirmed guided gamepad capture is browser Gamepad API-based, not simulated.
+  - Identified open issues: sidebar icon encoding, fleet ID fallback leakage, RetroArch mapping payload not consumed on preview/apply, and modified-health attention visibility.
+
+- **Wiz Targeted Fixes Applied**:
+  - `frontend/src/panels/console-wizard/ConsoleWizardPanel.jsx`:
+    - Fixed Wiz sidebar icons to `🕹️` and `🎮`.
+    - Added guarded `window.AA_DEVICE_ID` fallback with `[Wiz]` warning.
+    - Included `modified` in the health attention set and added drift description text.
+  - `frontend/src/panels/console-wizard/GamepadSetupOverlay.jsx`:
+    - Added guarded `window.AA_DEVICE_ID` fallback with `[Wiz]` warning.
+  - `frontend/src/panels/console-wizard/wizContextAssembler.js`:
+    - Added guarded `window.AA_DEVICE_ID` fallback with `[Wiz]` warning.
+  - `frontend/src/panels/_kit/EngineeringBaySidebar.jsx`:
+    - Added panel-aware guarded device ID helper for shared Engineering Bay chat/action requests.
+  - `backend/routers/console.py`:
+    - Wired incoming `mappings` and `deadzone` through RetroArch preview/apply handlers.
+  - `backend/services/retroarch_config_generator.py`:
+    - Added support for custom mapping overrides and deadzone override propagation.
+
+- **Doc Deep Audit Completed**:
+  - Verified active Doc panel uses `/api/local/health/*` for telemetry and the shared Engineering Bay sidebar for chat.
+  - Confirmed active Doc chat backend is Gemini with prompt loaded from `prompts/doc.prompt`.
+  - Confirmed the auxiliary `/api/doc/*` diagnostics router exists and the `scan_hardware_bio` import fix is in place.
+  - Identified active issues: processes tab payload mismatch, non-standard device ID patterns, LLM provider card mismatch, and UI diagnosis toggle mismatch.
+
+- **Doc Targeted Fixes Applied**:
+  - `frontend/src/panels/system-health/SystemHealthPanel.jsx`:
+    - Processes tab now reads backend `groups` payload correctly.
+    - Added Doc-only sidebar flag to suppress the diagnosis toggle in the UI.
+  - `frontend/src/services/systemHealthApi.js`:
+    - Replaced localStorage device lookup with guarded `window.AA_DEVICE_ID` fallback using `[Doc]` warning and `doc-panel` fallback.
+  - `frontend/src/panels/system-health/docContextAssembler.js`:
+    - Replaced unguarded `cabinet-001` fallback with guarded `[Doc]` device ID pattern.
+  - `backend/routers/health.py`:
+    - Updated Doc health summary `llm_provider` to report `gemini`, matching the active Doc chat backend.
+  - `frontend/src/panels/_kit/EngineeringBaySidebar.jsx`:
+    - Added support for Doc-only toggle suppression without forcing permanent diagnosis mode behavior.
+
+Validation completed:
+
+- Doc frontend build passed successfully with `npm.cmd run build:frontend`.
+- Wiz and Doc source paths were manually traced end-to-end after each change.
+
+Validation blocked by environment:
+
+- Python syntax checks were attempted but blocked by local interpreter issues on this machine:
+  - direct Python path returned `Access is denied`
+  - the repo `.venv` points at the same blocked base interpreter
+  - `uv` fallback also hit machine-level Python access/permission issues
+
+Open follow-ups for next session:
+
+- Wiz:
+  - Live cabinet validation of controller detection, guided mapping, and RetroArch output.
+  - Guided mapping visual highlight refinement.
+  - Visual Diff tab repair remains post-audit follow-up work.
+- Doc:
+  - Chat drawer/layout restructure remains post-duplication work.
+  - Hardware placeholder replacement remains post-duplication work.
+  - GPU temperature integration remains post-duplication work and will require a vendor/hardware monitor path beyond `psutil`.
+
 ---
 *Arcade Assistant - Built for G&G Arcade, one commit at a time.*
-

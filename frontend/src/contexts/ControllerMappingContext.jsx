@@ -73,6 +73,8 @@ export function ControllerMappingProvider({ children }) {
                     'Content-Type': 'application/json',
                     'x-scope': 'config',
                     'x-panel': 'controller',
+                    // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+                    // enabling this path in production fleet deployment.
                     'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
                 },
                 body: JSON.stringify({ controlKey, keycode, source }),

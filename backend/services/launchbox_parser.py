@@ -24,6 +24,66 @@ from backend.services.image_scanner import scanner as image_scanner
 logger = logging.getLogger(__name__)
 
 
+VIDEO_EXTENSIONS = [".mp4", ".avi", ".mkv", ".webm"]
+IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg"]
+MARQUEE_REGIONS = ["North America", "World", "Europe", "Japan", ""]
+
+
+def _sanitize_media_title(title: str) -> str:
+    return (title or "").replace(":", "").replace("?", "").replace("*", "").replace("/", "").replace("\\", "").replace('"', "")
+
+
+def _find_media_file(directory: Path, game_name: str, extensions: List[str]) -> Optional[Path]:
+    if not directory.exists():
+        return None
+
+    game_lower = game_name.lower()
+    try:
+        for file in directory.iterdir():
+            if not file.is_file():
+                continue
+            if file.suffix.lower() not in extensions:
+                continue
+            if file.stem.lower().startswith(game_lower):
+                return file
+    except Exception:
+        return None
+
+    return None
+
+
+def _resolve_video_snap_path(launchbox_root: Path, platform_name: str, game_title: str) -> Optional[str]:
+    clean_title = _sanitize_media_title(game_title)
+    if not clean_title:
+        return None
+
+    video_file = _find_media_file(launchbox_root / "Videos" / platform_name, clean_title, VIDEO_EXTENSIONS)
+    return str(video_file) if video_file else None
+
+
+def _resolve_marquee_image_path(launchbox_root: Path, platform_name: str, game_title: str) -> Optional[str]:
+    clean_title = _sanitize_media_title(game_title)
+    if not clean_title:
+        return None
+
+    images_base = launchbox_root / "Images" / platform_name
+    marquee_dirs = [
+        images_base / "Arcade - Marquee",
+        images_base / f"{platform_name} - Marquee",
+        images_base / "Marquee",
+        images_base / "Banner",
+    ]
+
+    for marquee_dir in marquee_dirs:
+        for region in MARQUEE_REGIONS:
+            search_dir = marquee_dir / region if region else marquee_dir
+            image_file = _find_media_file(search_dir, clean_title, IMAGE_EXTENSIONS)
+            if image_file:
+                return str(image_file)
+
+    return None
+
+
 def get_platform_games(platform_name: str) -> List[Dict[str, str]]:
     """
     Parse games for a single platform directly from its XML file.
@@ -198,6 +258,7 @@ class LaunchBoxParser:
         game_id = get_text('ID', '')
         game_title = get_text('Title', 'Unknown')
         platform_name = get_text('Platform', 'Unknown')
+        launchbox_root = LaunchBoxPaths._get_launchbox_root_dynamic()
 
         # Use ImageScanner to get actual image paths with fuzzy matching
         # This handles filename sanitization mismatches automatically
@@ -222,6 +283,9 @@ class LaunchBoxParser:
             if not clear_logo_path:
                 clear_logo = LaunchBoxPaths.IMAGES_DIR / image_platform / "Clear Logo" / f"{game_title}-01.png"
                 clear_logo_path = str(clear_logo)
+
+        video_snap_path = _resolve_video_snap_path(launchbox_root, platform_name, game_title)
+        marquee_image_path = _resolve_marquee_image_path(launchbox_root, platform_name, game_title)
 
         # Categories (single or list)
         categories: List[str] = []
@@ -253,6 +317,8 @@ class LaunchBoxParser:
             box_front_path=box_front_path,
             screenshot_path=screenshot_path,
             clear_logo_path=clear_logo_path,
+            video_snap_path=video_snap_path,
+            marquee_image_path=marquee_image_path,
             categories=categories or None,
         )
 
@@ -315,6 +381,8 @@ class LaunchBoxParser:
                     "box_front_path": game.box_front_path,
                     "screenshot_path": game.screenshot_path,
                     "clear_logo_path": game.clear_logo_path,
+                    "video_snap_path": game.video_snap_path,
+                    "marquee_image_path": game.marquee_image_path,
                 }
 
             # Calculate parse duration (if we just parsed)

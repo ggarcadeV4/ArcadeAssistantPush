@@ -24,10 +24,11 @@ rapidly browsing games in LaunchBox.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 import structlog
 from enum import IntEnum
-from typing import Optional, Callable, Awaitable
+from typing import Optional, Callable, Awaitable, Any
 
 logger = structlog.get_logger(__name__)
 
@@ -76,13 +77,13 @@ class LEDPriorityArbiter:
         self._scroll_pending: Optional[asyncio.Task] = None
         
         # Callback to actually fire LEDBlinky — injected to avoid circular imports
-        self._fire_callback: Optional[Callable[..., Awaitable]] = None
+        self._fire_callback: Optional[Callable[..., Any]] = None
         
         self._lock = asyncio.Lock()
         
         logger.info("[LEDArbiter] Initialized — priority hierarchy: VOICE > GAME > ATTRACT > IDLE")
 
-    def set_fire_callback(self, callback: Callable[..., Awaitable]):
+    def set_fire_callback(self, callback: Callable[..., Any]):
         """
         Inject the actual LED firing function.
 
@@ -235,7 +236,9 @@ class LEDPriorityArbiter:
         """Fire the actual LED command via the registered callback."""
         if self._fire_callback:
             try:
-                await self._fire_callback(animation_code, rom_name)
+                result = self._fire_callback(animation_code, rom_name)
+                if inspect.isawaitable(result):
+                    await result
             except Exception as e:
                 logger.error("[LEDArbiter] Fire callback failed", error=str(e))
         else:

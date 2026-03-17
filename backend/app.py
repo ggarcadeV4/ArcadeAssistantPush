@@ -346,16 +346,19 @@ async def lifespan(app: FastAPI):
             preload_thread.start()
 
         # Initialize LED Blinky pattern resolver
-        t = time.perf_counter()
         try:
             from backend.services.blinky.resolver import PatternResolver
-            # TODO: [PHASE 4] Move this to background task. Currently blocks boot.
-            # await PatternResolver.initialize()
-            dur_init_blinky = time.perf_counter() - t
-            print(f"LED Blinky resolver initialized in {dur_init_blinky:.3f}s")
+
+            async def _init_blinky_resolver():
+                try:
+                    await PatternResolver.initialize()
+                    print("LED Blinky resolver ready (background)")
+                except Exception as e:
+                    print(f"WARNING: LED Blinky resolver background init failed: {e}")
+
+            asyncio.create_task(_init_blinky_resolver())
         except Exception as e:
             print(f"WARNING: LED Blinky resolver initialization failed: {e}")
-            dur_init_blinky = 0
 
         # Initialize V2 Hotkey Service
         print(f"DEBUG: V2_HOTKEY_LAUNCHER = {os.getenv('V2_HOTKEY_LAUNCHER', 'NOT SET')}", flush=True)

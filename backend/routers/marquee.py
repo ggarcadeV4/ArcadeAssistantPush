@@ -17,6 +17,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.models.marquee_config import MarqueeConfig, MarqueeState
 from backend.routers.content_manager import _load_content_paths  # reuse existing path loader
 from backend.services.launchbox_parser import parser
 
@@ -62,21 +63,13 @@ def _default_paths(drive_root: Path) -> Dict[str, Optional[str]]:
 
 def get_default_marquee_config(drive_root: Path) -> Dict[str, Any]:
     defaults = _default_paths(drive_root)
-    return {
-        "version": 1,
-        "display": {
-            "target_monitor_index": 1,
-            "safe_area": {"x": 0, "y": 0, "width": 1920, "height": 360},
-        },
-        "paths": defaults,
-        "behavior": {
-            "use_video_if_available": True,
-            "fallback_mode": "system",
-        },
-    }
+    return MarqueeConfig(
+        images_root=defaults.get("images_root"),
+        videos_root=defaults.get("videos_root"),
+    ).model_dump()
 
 
-async def load_marquee_config(request: Optional[Request]) -> Dict[str, Any]:
+async def load_marquee_config(request: Optional[Request]) -> MarqueeConfig:
     drive_root = _drive_root(request)
     target = _config_path(request)
 
@@ -94,12 +87,13 @@ async def load_marquee_config(request: Optional[Request]) -> Dict[str, Any]:
     if not isinstance(data, dict):
         data = get_default_marquee_config(drive_root)
         await save_marquee_config(data, request, allow_backup=False)
-    return data
+    return MarqueeConfig.model_validate(data)
 
 
-async def save_marquee_config(cfg: Dict[str, Any], request: Optional[Request], allow_backup: bool = True) -> None:
+async def save_marquee_config(cfg: MarqueeConfig | Dict[str, Any], request: Optional[Request], allow_backup: bool = True) -> None:
     target = _config_path(request)
     drive_root = _drive_root(request)
+    config_obj = cfg if isinstance(cfg, MarqueeConfig) else MarqueeConfig.model_validate(cfg)
 
     def _do_save():
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -111,52 +105,10 @@ async def save_marquee_config(cfg: Dict[str, Any], request: Optional[Request], a
             shutil.copy2(target, backup_dir / f"{timestamp}.json")
 
         tmp = target.with_suffix(".tmp")
-        tmp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        tmp.write_text(json.dumps(config_obj.model_dump(), indent=2), encoding="utf-8")
         tmp.replace(target)
 
     await asyncio.to_thread(_do_save)
-
-
-# -----------------------------------------------------------------------------
-# Models
-# -----------------------------------------------------------------------------
-
-
-class SafeArea(BaseModel):
-    x: int = 0
-    y: int = 0
-    width: int = 1920
-    height: int = 360
-
-
-class MarqueePaths(BaseModel):
-    images_root: Optional[str] = None
-    videos_root: Optional[str] = None
-
-
-class MarqueeBehavior(BaseModel):
-    use_video_if_available: bool = True
-    fallback_mode: str = Field("system", description="system|global|black")
-
-    @field_validator("fallback_mode")
-    @classmethod
-    def validate_mode(cls, v: str) -> str:
-        allowed = {"system", "global", "black"}
-        if v not in allowed:
-            raise ValueError(f"fallback_mode must be one of {sorted(allowed)}")
-        return v
-
-
-class MarqueeDisplay(BaseModel):
-    target_monitor_index: int = 1
-    safe_area: SafeArea = SafeArea()
-
-
-class MarqueeConfig(BaseModel):
-    version: int = 1
-    display: MarqueeDisplay = MarqueeDisplay()
-    paths: MarqueePaths = MarqueePaths()
-    behavior: MarqueeBehavior = MarqueeBehavior()
 
 
 # -----------------------------------------------------------------------------
@@ -167,15 +119,20 @@ class MarqueeConfig(BaseModel):
 @router.get("/config")
 async def get_config(request: Request):
     cfg = await load_marquee_config(request)
-    return cfg
+    data = cfg.model_dump()
+    data["displays"] = [
+        "Display 1 - Main",
+        "Display 2 - Marquee",
+        "Display 3 - Auxiliary",
+    ]
+    return data
 
 
 @router.post("/config")
 async def post_config(payload: MarqueeConfig, request: Request):
-    cfg = payload.model_dump()
     try:
-        await save_marquee_config(cfg, request)
-        return {"ok": True, "config": cfg}
+        await save_marquee_config(payload, request)
+        return {"ok": True, "config": payload.model_dump()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save marquee config: {e}")
 
@@ -183,7 +140,7 @@ async def post_config(payload: MarqueeConfig, request: Request):
 @router.post("/test-image")
 async def test_image(request: Request):
     cfg = await load_marquee_config(request)
-    images_root = (cfg.get("paths") or {}).get("images_root")
+    images_root = cfg.images_root
     exists = bool(images_root) and Path(images_root).exists()
     return {
         "ok": True,
@@ -195,7 +152,7 @@ async def test_image(request: Request):
 @router.post("/test-video")
 async def test_video(request: Request):
     cfg = await load_marquee_config(request)
-    videos_root = (cfg.get("paths") or {}).get("videos_root")
+    videos_root = cfg.videos_root
     exists = bool(videos_root) and Path(videos_root).exists()
     return {
         "ok": True,
@@ -227,14 +184,14 @@ def _seed_current_game_from_file() -> None:
         state_path = _state_file_path()
         if state_path.exists():
             data = json.loads(state_path.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and data.get("game_id"):
-                _current_game = {
-                    "game_id": data.get("game_id"),
-                    "title": data.get("title"),
-                    "platform": data.get("platform"),
-                    "region": data.get("region", "North America"),
-                }
-                _marquee_logger.info(f"Seeded marquee state from file: {data.get('title')}")
+            if isinstance(data, dict):
+                state = MarqueeState.model_validate(data)
+                _current_game = state.to_state_dict()
+                _marquee_logger.info(
+                    "Seeded marquee state from file: %s [%s]",
+                    state.title,
+                    state.normalized_event_type(),
+                )
     except Exception as e:
         _marquee_logger.debug(f"Could not seed marquee state: {e}")
 
@@ -253,12 +210,18 @@ def persist_current_game(game: Dict[str, Any]) -> Dict[str, Any]:
     Also triggers LED profile lookup if a binding exists for this game.
     """
     global _current_game
-    _current_game = {
+    state = MarqueeState.model_validate({
         "game_id": game.get("game_id"),
         "title": game.get("title"),
         "platform": game.get("platform"),
         "region": game.get("region", "North America"),
-    }
+        "rom_name": game.get("rom_name"),
+        "source": game.get("source"),
+        "mode": game.get("mode", "video"),
+        "updated_at": game.get("updated_at") or datetime.now(timezone.utc).isoformat(),
+        "event_type": game.get("event_type") or ("GAME" if game.get("title") else "IDLE"),
+    })
+    _current_game = state.to_state_dict()
     try:
         state_path = _state_file_path()
         state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -268,7 +231,7 @@ def persist_current_game(game: Dict[str, Any]) -> Dict[str, Any]:
         pass
     
     # Trigger LED profile lookup for displayed game (Task 5: LED updates for displayed game)
-    _trigger_led_profile_for_game(game.get("game_id"))
+    _trigger_led_profile_for_game(state.game_id)
     
     return _current_game
 
@@ -328,6 +291,30 @@ def _preview_state_file_path() -> Path:
     return Path(drive_root) / ".aa" / "state" / "marquee_preview.json"
 
 
+def reset_marquee_to_idle(source: str = "system") -> Dict[str, Any]:
+    """Clear preview state and return marquee_current.json to idle."""
+    global _preview_game, _preview_mode
+    _preview_game = {}
+    _preview_mode = "image"
+
+    try:
+        preview_path = _preview_state_file_path()
+        preview_path.parent.mkdir(parents=True, exist_ok=True)
+        preview_path.write_text("{}", encoding="utf-8")
+    except Exception:
+        pass
+
+    return persist_current_game({
+        "game_id": None,
+        "title": None,
+        "platform": None,
+        "region": "North America",
+        "source": source,
+        "mode": "image",
+        "event_type": "IDLE",
+    })
+
+
 def persist_preview_game(game: Dict[str, Any], mode: str = "image") -> Dict[str, Any]:
     """
     Update preview state and persist for external apps.
@@ -337,14 +324,17 @@ def persist_preview_game(game: Dict[str, Any], mode: str = "image") -> Dict[str,
     - "video": Play video then show image (for game launch/select)
     """
     global _preview_game, _preview_mode
-    _preview_game = {
+    preview_state = MarqueeState.model_validate({
         "game_id": game.get("game_id"),
         "title": game.get("title"),
         "platform": game.get("platform"),
         "region": game.get("region", "North America"),
         "mode": mode,
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
+        "source": game.get("source"),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "event_type": game.get("event_type") or "GAME",
+    })
+    _preview_game = preview_state.to_state_dict()
     _preview_mode = mode
     
     try:
@@ -410,8 +400,8 @@ async def set_preview(payload: PreviewPayload):
     Uses mode="image" for fast preview, mode="video" when game is selected.
     
     Flow:
-    1. User scrolls through games → POST /preview with mode="image"
-    2. User selects/launches game → POST /preview with mode="video"
+    1. User scrolls through games â†’ POST /preview with mode="image"
+    2. User selects/launches game â†’ POST /preview with mode="video"
     3. Marquee shows image immediately, then plays video if mode="video"
     """
     # Start with provided values
@@ -543,7 +533,7 @@ async def set_queue(payload: QueuePayload):
     Queue items are displayed in sequence. Each item has a type and duration.
     Useful for:
     - Attract mode sequences
-    - Game intro animations (image → video → image)
+    - Game intro animations (image â†’ video â†’ image)
     - Scrolling text announcements
     
     Example:
@@ -699,67 +689,211 @@ def _find_media_file(directory: Path, game_name: str, extensions: list) -> Optio
     return None
 
 
+def _sanitize_game_name(value: str) -> str:
+    return (value or "").replace(":", "").replace("?", "").replace("*", "").replace("/", "").replace("\\", "").replace('"', "")
+
+
+def _path_to_media_url(path: Optional[Path]) -> Optional[str]:
+    if not path:
+        return None
+    encoded = quote(path.as_posix(), safe="/:\\")
+    return f"/api/local/marquee/serve-media?path={encoded}"
+
+
+def _resolve_game_from_cache(
+    game_id: Optional[str] = None,
+    title: Optional[str] = None,
+    platform: Optional[str] = None,
+):
+    resolved_game = None
+
+    if game_id:
+        try:
+            resolved_game = parser.get_game_by_id(game_id)
+        except Exception:
+            resolved_game = None
+
+    if not resolved_game and title:
+        title_lower = title.lower().strip()
+        platform_lower = (platform or "").lower().strip()
+        try:
+            for game in parser.get_all_games() or []:
+                game_title = (getattr(game, "title", "") or "").lower().strip()
+                game_platform = (getattr(game, "platform", "") or "").lower().strip()
+                if game_title == title_lower and (not platform_lower or game_platform == platform_lower):
+                    resolved_game = game
+                    break
+            if not resolved_game and not platform_lower:
+                for game in parser.get_all_games() or []:
+                    game_title = (getattr(game, "title", "") or "").lower().strip()
+                    if game_title == title_lower:
+                        resolved_game = game
+                        break
+        except Exception:
+            resolved_game = None
+
+    resolved_title = title or (getattr(resolved_game, "title", None) if resolved_game else None)
+    resolved_platform = platform or (getattr(resolved_game, "platform", None) if resolved_game else None) or "Arcade"
+    resolved_game_id = game_id or (getattr(resolved_game, "id", None) if resolved_game else None)
+
+    return resolved_game, resolved_game_id, resolved_title, resolved_platform
+
+
+def _resolve_media_assets(
+    request: Optional[Request] = None,
+    *,
+    game_id: Optional[str] = None,
+    title: Optional[str] = None,
+    platform: Optional[str] = None,
+    prefer_video: Optional[bool] = None,
+) -> Dict[str, Any]:
+    settings = _load_media_settings()
+    drive_root = _drive_root(request)
+    launchbox_root = drive_root / "LaunchBox"
+
+    resolved_game, resolved_game_id, resolved_title, resolved_platform = _resolve_game_from_cache(
+        game_id=game_id,
+        title=title,
+        platform=platform,
+    )
+
+    if not resolved_title:
+        return {
+            "ok": False,
+            "game_id": resolved_game_id,
+            "game_title": None,
+            "platform": resolved_platform,
+            "primary_file": None,
+            "primary_type": None,
+            "fallback_used": "no_title",
+            "game_video_file": None,
+            "game_image_file": None,
+            "platform_image_file": None,
+            "idle_image_file": None,
+            "idle_video_file": None,
+        }
+
+    game_name = _sanitize_game_name(resolved_title)
+    image_extensions = [".png", ".jpg", ".jpeg"]
+    video_extensions = [".mp4", ".avi", ".mkv", ".webm"]
+
+    game_video_file: Optional[Path] = None
+    game_image_file: Optional[Path] = None
+    platform_image_file: Optional[Path] = None
+    idle_image_file: Optional[Path] = None
+    idle_video_file: Optional[Path] = None
+
+    custom_image_dir = settings.get("image_dir")
+    if custom_image_dir:
+        custom_path = Path(custom_image_dir)
+        if custom_path.exists():
+            game_image_file = _find_media_file(custom_path, game_name, image_extensions)
+
+    custom_video_dir = settings.get("video_dir")
+    if custom_video_dir:
+        custom_path = Path(custom_video_dir)
+        if custom_path.exists():
+            game_video_file = _find_media_file(custom_path, game_name, video_extensions)
+
+    if not game_video_file and resolved_game:
+        cached_video = getattr(resolved_game, "video_snap_path", None)
+        if cached_video and Path(cached_video).exists():
+            game_video_file = Path(cached_video)
+
+    if not game_image_file and resolved_game:
+        cached_image = getattr(resolved_game, "marquee_image_path", None)
+        if cached_image and Path(cached_image).exists():
+            game_image_file = Path(cached_image)
+
+    if not game_video_file:
+        videos_dir = launchbox_root / "Videos" / resolved_platform
+        game_video_file = _find_media_file(videos_dir, game_name, video_extensions)
+
+    if not game_image_file:
+        images_base = launchbox_root / "Images" / resolved_platform
+        marquee_dirs = [
+            images_base / "Arcade - Marquee",
+            images_base / f"{resolved_platform} - Marquee",
+            images_base / "Marquee",
+            images_base / "Banner",
+        ]
+        regions = ["North America", "World", "Europe", "Japan", ""]
+        for marquee_dir in marquee_dirs:
+            if game_image_file:
+                break
+            for region in regions:
+                search_dir = marquee_dir / region if region else marquee_dir
+                game_image_file = _find_media_file(search_dir, game_name, image_extensions)
+                if game_image_file:
+                    break
+
+    platform_image_file = _find_platform_marquee(launchbox_root, resolved_platform)
+
+    idle_image = settings.get("idle_image")
+    if idle_image and Path(idle_image).exists():
+        idle_image_file = Path(idle_image)
+    else:
+        idle_image_file = _find_default_idle_art(launchbox_root)
+
+    idle_video = settings.get("idle_video")
+    if idle_video and Path(idle_video).exists():
+        idle_video_file = Path(idle_video)
+
+    prefer_video_flag = prefer_video if prefer_video is not None else settings.get("prefer_video", True)
+    primary_file: Optional[Path] = None
+    primary_type: Optional[str] = None
+    fallback_used = "none"
+
+    if prefer_video_flag and game_video_file:
+        primary_file = game_video_file
+        primary_type = "video"
+    elif game_image_file:
+        primary_file = game_image_file
+        primary_type = "image"
+        fallback_used = "none" if not prefer_video_flag else "game_image"
+    elif platform_image_file:
+        primary_file = platform_image_file
+        primary_type = "image"
+        fallback_used = "platform_image"
+    elif idle_image_file:
+        primary_file = idle_image_file
+        primary_type = "idle"
+        fallback_used = "idle_image"
+    elif idle_video_file:
+        primary_file = idle_video_file
+        primary_type = "idle_video"
+        fallback_used = "idle_video"
+    else:
+        fallback_used = "no_media_found"
+
+    return {
+        "ok": primary_file is not None,
+        "game_id": resolved_game_id,
+        "game_title": resolved_title,
+        "platform": resolved_platform,
+        "primary_file": primary_file,
+        "primary_type": primary_type,
+        "fallback_used": fallback_used,
+        "game_video_file": game_video_file,
+        "game_image_file": game_image_file,
+        "platform_image_file": platform_image_file,
+        "idle_image_file": idle_image_file,
+        "idle_video_file": idle_video_file,
+    }
+
+
 @router.get("/media")
 async def get_media(request: Request, game_id: str, platform: str = "Arcade"):
     """
     Resolve video and marquee image URLs for a given game.
     Searches LaunchBox folder structure for matching media.
     """
-    launchbox_root = Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd())) / "LaunchBox"
-
-    # If a UUID is provided, look up the game to get its title for filename matching
-    game_title = None
-    try:
-        game = parser.get_game_by_id(game_id)
-        if game:
-            game_title = getattr(game, "title", None)
-            platform = platform or getattr(game, "platform", platform)
-    except Exception:
-        game_title = None
-    
-    # Normalize game_id for filename matching (remove special chars that aren't in filenames)
-    name_for_match = game_title or game_id
-    game_name = name_for_match.replace(":", "").replace("?", "").replace("*", "").replace("/", "").replace("\\", "")
-    
-    video_url = None
-    image_url = None
-    
-    # Search for video in LaunchBox/Videos/{platform}/
-    videos_dir = launchbox_root / "Videos" / platform
-    video_file = _find_media_file(videos_dir, game_name, [".mp4", ".avi", ".mkv", ".webm"])
-    if video_file:
-        encoded = quote(video_file.as_posix(), safe="/:\\")
-        video_url = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # Search for marquee image in LaunchBox/Images/{platform}/Arcade - Marquee/ or similar
-    # LaunchBox structure: Images/{Platform}/{ImageType}/{Region}/{filename}
-    images_base = launchbox_root / "Images" / platform
-    marquee_dirs = [
-        images_base / "Arcade - Marquee",
-        images_base / f"{platform} - Marquee",
-        images_base / "Marquee",
-    ]
-    
-    # Also check region subfolders
-    regions = ["North America", "World", "Europe", "Japan", ""]
-    image_extensions = [".png", ".jpg", ".jpeg"]
-    
-    for marquee_dir in marquee_dirs:
-        if image_url:
-            break
-        for region in regions:
-            search_dir = marquee_dir / region if region else marquee_dir
-            image_file = _find_media_file(search_dir, game_name, image_extensions)
-            if image_file:
-                encoded = quote(image_file.as_posix(), safe="/:\\")
-                image_url = f"/api/local/marquee/serve-media?path={encoded}"
-                break
-    
+    resolved = _resolve_media_assets(request, game_id=game_id, platform=platform)
     return {
-        "game_id": game_id,
-        "platform": platform,
-        "video_url": video_url,
-        "image_url": image_url,
+        "game_id": resolved["game_id"] or game_id,
+        "platform": resolved["platform"],
+        "video_url": _path_to_media_url(resolved["game_video_file"]),
+        "image_url": _path_to_media_url(resolved["game_image_file"]),
     }
 
 
@@ -868,103 +1002,20 @@ async def get_media_with_fallback(request: Request, game_id: str, platform: str 
         - fallback_used: Which fallback level was used
         - all_urls: Dict of all resolved URLs for advanced clients
     """
-    launchbox_root = Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd())) / "LaunchBox"
-    cfg = load_marquee_config(request)
-    prefer_video = cfg.get("behavior", {}).get("use_video_if_available", True)
-    
-    # Resolve game title
-    game_title = None
-    try:
-        game = parser.get_game_by_id(game_id)
-        if game:
-            game_title = getattr(game, "title", None)
-            platform = platform or getattr(game, "platform", platform)
-    except Exception:
-        pass
-    
-    name_for_match = game_title or game_id
-    game_name = name_for_match.replace(":", "").replace("?", "").replace("*", "").replace("/", "").replace("\\", "")
-    
-    # Initialize result
-    result = {
-        "game_id": game_id,
-        "platform": platform,
-        "primary_url": None,
-        "primary_type": "idle",
-        "fallback_used": "none",
+    resolved = _resolve_media_assets(request, game_id=game_id, platform=platform)
+    return {
+        "game_id": resolved["game_id"] or game_id,
+        "platform": resolved["platform"],
+        "primary_url": _path_to_media_url(resolved["primary_file"]),
+        "primary_type": resolved["primary_type"] or "idle",
+        "fallback_used": resolved["fallback_used"],
         "all_urls": {
-            "game_video": None,
-            "game_image": None,
-            "platform_image": None,
-            "idle_image": None,
+            "game_video": _path_to_media_url(resolved["game_video_file"]),
+            "game_image": _path_to_media_url(resolved["game_image_file"]),
+            "platform_image": _path_to_media_url(resolved["platform_image_file"]),
+            "idle_image": _path_to_media_url(resolved["idle_image_file"]),
         }
     }
-    
-    # 1. Try game video
-    videos_dir = launchbox_root / "Videos" / platform
-    video_file = _find_media_file(videos_dir, game_name, [".mp4", ".avi", ".mkv", ".webm"])
-    if video_file:
-        encoded = quote(video_file.as_posix(), safe="/:\\")
-        result["all_urls"]["game_video"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # 2. Try game marquee image
-    images_base = launchbox_root / "Images" / platform
-    marquee_dirs = [
-        images_base / "Arcade - Marquee",
-        images_base / f"{platform} - Marquee",
-        images_base / "Marquee",
-        images_base / "Banner",
-    ]
-    regions = ["North America", "World", "Europe", "Japan", ""]
-    image_extensions = [".png", ".jpg", ".jpeg"]
-    
-    game_image_file = None
-    for marquee_dir in marquee_dirs:
-        if game_image_file:
-            break
-        for region in regions:
-            search_dir = marquee_dir / region if region else marquee_dir
-            game_image_file = _find_media_file(search_dir, game_name, image_extensions)
-            if game_image_file:
-                break
-    
-    if game_image_file:
-        encoded = quote(game_image_file.as_posix(), safe="/:\\")
-        result["all_urls"]["game_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # 3. Try platform marquee
-    platform_image_file = _find_platform_marquee(launchbox_root, platform)
-    if platform_image_file:
-        encoded = quote(platform_image_file.as_posix(), safe="/:\\")
-        result["all_urls"]["platform_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # 4. Try default idle art
-    idle_file = _find_default_idle_art(launchbox_root)
-    if idle_file:
-        encoded = quote(idle_file.as_posix(), safe="/:\\")
-        result["all_urls"]["idle_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # Determine primary based on priority
-    if prefer_video and result["all_urls"]["game_video"]:
-        result["primary_url"] = result["all_urls"]["game_video"]
-        result["primary_type"] = "video"
-        result["fallback_used"] = "none"
-    elif result["all_urls"]["game_image"]:
-        result["primary_url"] = result["all_urls"]["game_image"]
-        result["primary_type"] = "image"
-        result["fallback_used"] = "none" if not prefer_video else "game_image"
-    elif result["all_urls"]["platform_image"]:
-        result["primary_url"] = result["all_urls"]["platform_image"]
-        result["primary_type"] = "image"
-        result["fallback_used"] = "platform_image"
-    elif result["all_urls"]["idle_image"]:
-        result["primary_url"] = result["all_urls"]["idle_image"]
-        result["primary_type"] = "idle"
-        result["fallback_used"] = "idle_image"
-    else:
-        result["fallback_used"] = "no_media_found"
-    
-    return result
 
 
 # =============================================================================
@@ -1637,21 +1688,15 @@ async def resolve_media(request: Request, payload: ResolvePayload):
     """
     _require_scope(request, ["state", "local"])
     
-    settings = _load_media_settings()
-    drive_root = Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd()))
-    
-    # Determine game name for file matching
-    game_title = payload.title
-    if not game_title and payload.game_id:
-        # Try to look up title from game_id
-        try:
-            game = parser.get_game_by_id(payload.game_id)
-            if game:
-                game_title = getattr(game, "title", None)
-        except Exception:
-            pass
-    
-    if not game_title:
+    resolved = _resolve_media_assets(
+        request,
+        game_id=payload.game_id,
+        title=payload.title,
+        platform=payload.platform,
+        prefer_video=payload.prefer_video,
+    )
+
+    if not resolved["game_title"]:
         return {
             "ok": False,
             "primary_url": None,
@@ -1660,139 +1705,33 @@ async def resolve_media(request: Request, payload: ResolvePayload):
             "message": "NO MEDIA FOUND - No game title provided",
             "all_urls": {}
         }
-    
-    # Normalize game name for file matching
-    game_name = game_title.replace(":", "").replace("?", "").replace("*", "").replace("/", "").replace("\\", "")
-    platform = payload.platform
-    
-    # Initialize result
+
     result = {
-        "ok": True,
-        "game_id": payload.game_id,
-        "game_title": game_title,
-        "platform": platform,
-        "primary_url": None,
-        "primary_type": None,
-        "fallback_used": "none",
+        "ok": resolved["ok"],
+        "game_id": resolved["game_id"],
+        "game_title": resolved["game_title"],
+        "platform": resolved["platform"],
+        "primary_url": _path_to_media_url(resolved["primary_file"]),
+        "primary_type": resolved["primary_type"],
+        "fallback_used": resolved["fallback_used"],
         "all_urls": {
-            "game_video": None,
-            "game_image": None,
-            "platform_image": None,
-            "idle_image": None,
-            "idle_video": None
+            "game_video": _path_to_media_url(resolved["game_video_file"]),
+            "game_image": _path_to_media_url(resolved["game_image_file"]),
+            "platform_image": _path_to_media_url(resolved["platform_image_file"]),
+            "idle_image": _path_to_media_url(resolved["idle_image_file"]),
+            "idle_video": _path_to_media_url(resolved["idle_video_file"])
         }
     }
-    
-    image_extensions = [".png", ".jpg", ".jpeg"]
-    video_extensions = [".mp4", ".avi", ".mkv", ".webm"]
-    
-    # 1. Try custom image_dir from settings
-    custom_image_dir = settings.get("image_dir")
-    if custom_image_dir:
-        custom_path = Path(custom_image_dir)
-        if custom_path.exists():
-            img_file = _find_media_file(custom_path, game_name, image_extensions)
-            if img_file:
-                encoded = quote(img_file.as_posix(), safe="/:\\")
-                result["all_urls"]["game_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # 2. Try custom video_dir from settings
-    custom_video_dir = settings.get("video_dir")
-    if custom_video_dir:
-        custom_path = Path(custom_video_dir)
-        if custom_path.exists():
-            vid_file = _find_media_file(custom_path, game_name, video_extensions)
-            if vid_file:
-                encoded = quote(vid_file.as_posix(), safe="/:\\")
-                result["all_urls"]["game_video"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # 3. Try LaunchBox paths if custom dirs didn't find media
-    launchbox_root = drive_root / "LaunchBox"
-    
-    if not result["all_urls"]["game_video"]:
-        videos_dir = launchbox_root / "Videos" / platform
-        vid_file = _find_media_file(videos_dir, game_name, video_extensions)
-        if vid_file:
-            encoded = quote(vid_file.as_posix(), safe="/:\\")
-            result["all_urls"]["game_video"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    if not result["all_urls"]["game_image"]:
-        images_base = launchbox_root / "Images" / platform
-        marquee_dirs = [
-            images_base / "Arcade - Marquee",
-            images_base / f"{platform} - Marquee",
-            images_base / "Marquee",
-            images_base / "Banner",
-        ]
-        regions = ["North America", "World", "Europe", "Japan", ""]
-        
-        for marquee_dir in marquee_dirs:
-            if result["all_urls"]["game_image"]:
-                break
-            for region in regions:
-                search_dir = marquee_dir / region if region else marquee_dir
-                img_file = _find_media_file(search_dir, game_name, image_extensions)
-                if img_file:
-                    encoded = quote(img_file.as_posix(), safe="/:\\")
-                    result["all_urls"]["game_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-                    break
-    
-    # 4. Try platform marquee as fallback
-    platform_image_file = _find_platform_marquee(launchbox_root, platform)
-    if platform_image_file:
-        encoded = quote(platform_image_file.as_posix(), safe="/:\\")
-        result["all_urls"]["platform_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # 5. Try idle image/video from settings
-    idle_image = settings.get("idle_image")
-    if idle_image and Path(idle_image).exists():
-        encoded = quote(Path(idle_image).as_posix(), safe="/:\\")
-        result["all_urls"]["idle_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    else:
-        # Try default idle locations
-        idle_file = _find_default_idle_art(launchbox_root)
-        if idle_file:
-            encoded = quote(idle_file.as_posix(), safe="/:\\")
-            result["all_urls"]["idle_image"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    idle_video = settings.get("idle_video")
-    if idle_video and Path(idle_video).exists():
-        encoded = quote(Path(idle_video).as_posix(), safe="/:\\")
-        result["all_urls"]["idle_video"] = f"/api/local/marquee/serve-media?path={encoded}"
-    
-    # Determine primary based on priority
-    prefer_video = payload.prefer_video if payload.prefer_video is not None else settings.get("prefer_video", True)
-    
-    if prefer_video and result["all_urls"]["game_video"]:
-        result["primary_url"] = result["all_urls"]["game_video"]
-        result["primary_type"] = "video"
-        result["fallback_used"] = "none"
-    elif result["all_urls"]["game_image"]:
-        result["primary_url"] = result["all_urls"]["game_image"]
-        result["primary_type"] = "image"
-        result["fallback_used"] = "none" if not prefer_video else "game_image"
-    elif result["all_urls"]["platform_image"]:
-        result["primary_url"] = result["all_urls"]["platform_image"]
-        result["primary_type"] = "image"
-        result["fallback_used"] = "platform_image"
-    elif result["all_urls"]["idle_image"]:
-        result["primary_url"] = result["all_urls"]["idle_image"]
-        result["primary_type"] = "idle"
-        result["fallback_used"] = "idle_image"
-    elif result["all_urls"]["idle_video"]:
-        result["primary_url"] = result["all_urls"]["idle_video"]
-        result["primary_type"] = "idle_video"
-        result["fallback_used"] = "idle_video"
-    else:
+
+    if not result["ok"]:
         result["ok"] = False
-        result["fallback_used"] = "no_media_found"
         result["message"] = "NO MEDIA FOUND"
     
     # Log the resolve attempt
     _log_marquee_event_with_identity(request, "media_resolved", {
-        "game_id": payload.game_id,
-        "game_title": game_title,
-        "platform": platform,
+        "game_id": resolved["game_id"],
+        "game_title": resolved["game_title"],
+        "platform": resolved["platform"],
         "primary_type": result["primary_type"],
         "fallback_used": result["fallback_used"]
     })

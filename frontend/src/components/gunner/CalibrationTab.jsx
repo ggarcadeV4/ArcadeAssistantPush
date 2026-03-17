@@ -18,6 +18,11 @@ export default function CalibrationTab() {
     ]
 
     const handleStart = () => {
+        console.warn(
+            '[Gunner] CalibrationTab: Backend wiring pending. ' +
+            'START CALIBRATION does not yet call the backend calibration ' +
+            'endpoint. See gunner.py /calibrate/stream for the real path.'
+        )
         setCalibrating(true)
         setStep(0)
     }
@@ -100,6 +105,9 @@ export default function CalibrationTab() {
                 <button className="gunner-btn-action gunner-btn-action--secondary" onClick={handleReset}>
                     Reset
                 </button>
+            </div>
+            <div style={{ marginTop: 10, color: 'var(--cyber-yellow)', fontSize: '0.9rem' }}>
+                Calibration UI — backend wiring pending (post-duplication)
             </div>
         </div>
     )

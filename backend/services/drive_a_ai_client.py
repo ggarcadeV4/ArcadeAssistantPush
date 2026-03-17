@@ -125,7 +125,92 @@ class SecureAIClient:
         )
         
         return result
-    
+
+    def call_gemini(
+        self,
+        messages: List[Dict[str, str]],
+        model: str = "gemini-2.0-flash",
+        max_tokens: int = 4096,
+        temperature: float = 0.4,
+        panel: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Call Google Gemini API through Supabase Edge Function.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+                      'system' role messages are extracted and sent as systemInstruction.
+            model: Gemini model name
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0.0 to 2.0)
+            panel: Panel name (e.g., 'dewey', 'lora', 'vicky')
+
+        Returns:
+            Gemini API response dict
+        """
+        url = f"{self.supabase_url}/functions/v1/gemini-proxy"
+
+        # Extract system messages and convert to Gemini format
+        system_parts = []
+        gemini_messages = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                system_parts.append(content)
+            else:
+                # Gemini uses 'model' instead of 'assistant'
+                gemini_role = "model" if role == "assistant" else "user"
+                gemini_messages.append({"role": gemini_role, "content": content})
+
+        payload: Dict[str, Any] = {
+            "messages": gemini_messages,
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "cabinet_id": self.cabinet_id,
+            "tenant_id": self.tenant_id,
+            "panel": panel
+        }
+
+        if system_parts:
+            payload["system"] = "\n\n".join(system_parts)
+
+        start_time = time.time()
+        response = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {self.service_key}",
+                "Content-Type": "application/json"
+            },
+            json=payload,
+            timeout=60
+        )
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        response.raise_for_status()
+        result = response.json()
+
+        # Send AI telemetry (fire-and-forget)
+        usage = result.get('usageMetadata', {})
+        _send_telemetry(
+            self.cabinet_id,
+            'INFO',
+            'AI_CALL',
+            f'gemini {model}: {latency_ms}ms',
+            {
+                'provider': 'gemini',
+                'model': model,
+                'panel': panel or 'backend',
+                'latency_ms': latency_ms,
+                'input_tokens': usage.get('promptTokenCount'),
+                'output_tokens': usage.get('candidatesTokenCount')
+            },
+            panel or 'backend'
+        )
+
+        return result
+
     def call_openai(
         self,
         messages: List[Dict[str, str]],

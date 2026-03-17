@@ -9,6 +9,7 @@ import json
 import structlog
 import os
 from backend.services.supabase_client import send_telemetry as sb_send_telemetry
+from backend.services.led_priority_arbiter import get_led_arbiter, LEDPriority
 
 from ..services.voice.pipeline import get_pipeline, ParsingPipeline, ParseResult
 from ..services.voice.models import LightingIntent
@@ -16,6 +17,31 @@ from ..services.voice.models import LightingIntent
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/voice", tags=["Voice Vicky Advanced"])
+
+_VOICE_ACK_ANIMATION = "129"
+_VOICE_ACK_LABEL = "Vicky Voice Acknowledged"
+_VOICE_ACK_SECONDS = 1.5
+
+
+async def _flash_voice_acknowledged() -> None:
+    """Pulse the LED arbiter with a short VOICE-priority magenta acknowledgement."""
+    arbiter = None
+    try:
+        arbiter = get_led_arbiter()
+        await arbiter.claim(
+            LEDPriority.VOICE,
+            animation_code=_VOICE_ACK_ANIMATION,
+            label=_VOICE_ACK_LABEL,
+        )
+        await asyncio.sleep(_VOICE_ACK_SECONDS)
+    except Exception as exc:
+        logger.warning("voice_led_ack_failed", error=str(exc))
+    finally:
+        if arbiter is not None:
+            try:
+                await arbiter.release(LEDPriority.VOICE)
+            except Exception as release_exc:
+                logger.warning("voice_led_ack_release_failed", error=str(release_exc))
 
 
 class ParsePreviewRequest(BaseModel):
@@ -204,8 +230,11 @@ async def process_lighting_command_advanced(
             }
             yield f"data: {json.dumps(apply_update)}\n\n"
 
-            # TODO: Apply to LED hardware (placeholder)
-            # For now, simulate success
+            try:
+                asyncio.create_task(_flash_voice_acknowledged())
+            except Exception as led_exc:
+                logger.warning("voice_led_ack_schedule_failed", error=str(led_exc))
+
             await asyncio.sleep(0.2)
 
             # Complete

@@ -7,12 +7,22 @@ import { getGatewayUrl, getGatewayWsUrl } from './gateway'
 const GATEWAY_URL = getGatewayUrl()
 
 const BASE = '/api/local/scorekeeper'
+let hasWarnedAboutFallbackDeviceId = false
 
 const resolveDeviceId = () => {
-  if (typeof window === 'undefined') {
-    return 'cabinet-001'
+  if (typeof window !== 'undefined') {
+    const aaDeviceId = typeof window.AA_DEVICE_ID === 'string' ? window.AA_DEVICE_ID.trim() : ''
+    if (aaDeviceId) {
+      return aaDeviceId
+    }
   }
-  return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'cabinet-001'
+
+  if (!hasWarnedAboutFallbackDeviceId) {
+    console.warn('[scorekeeperClient] window.AA_DEVICE_ID not available, falling back to demo_001. Cabinet identity may not be unique.')
+    hasWarnedAboutFallbackDeviceId = true
+  }
+
+  return 'demo_001'
 }
 
 const commonHeaders = (panel = 'scorekeeper', scope = 'local') => ({
@@ -46,6 +56,16 @@ export async function getLeaderboard({ game = null, limit = 10 } = {}) {
   return { scores, cached: !!json.cached }
 }
 
+export async function getTopScore() {
+  const res = await fetch(`${BASE}/top-score`, {
+    method: 'GET',
+    headers: commonHeaders()
+  })
+
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Failed to fetch top score' }))
+  return await res.json()
+}
+
 export async function getByGame({ gameId }) {
   const params = new URLSearchParams({ gameId })
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/scores/by-game?${params.toString()}`, {
@@ -75,7 +95,7 @@ export async function previewScoreSubmit(data) {
 }
 
 export async function applyScoreSubmit(data) {
-  const { deviceId = 'demo_001', panel = 'scorekeeper', ...payload } = data || {}
+  const { deviceId = resolveDeviceId(), panel = 'scorekeeper', ...payload } = data || {}
   const headers = commonHeaders(panel, 'state')
   headers['x-device-id'] = deviceId
 
@@ -109,7 +129,7 @@ export async function previewTournamentCreate({
   return await res.json()
 }
 
-export async function applyTournamentCreate({ name, game, player_count, deviceId = 'demo_001', panel = 'scorekeeper' }) {
+export async function applyTournamentCreate({ name, game, player_count, deviceId = resolveDeviceId(), panel = 'scorekeeper' }) {
   const headers = commonHeaders(panel, 'state')
   headers['x-device-id'] = deviceId
 
@@ -180,7 +200,7 @@ export async function previewTournamentReport({ tournament_id, match_index, winn
   return await res.json()
 }
 
-export async function applyTournamentReport({ tournament_id, match_index, winner_player, deviceId = 'demo_001', panel = 'scorekeeper' }) {
+export async function applyTournamentReport({ tournament_id, match_index, winner_player, deviceId = resolveDeviceId(), panel = 'scorekeeper' }) {
   const headers = commonHeaders(panel, 'state')
   headers['x-device-id'] = deviceId
 

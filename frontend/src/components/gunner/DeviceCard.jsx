@@ -6,42 +6,59 @@ import React from 'react'
  */
 export default function DeviceCard({ device }) {
     const {
-        name = 'Unknown Gun',
-        model = 'Unknown',
+        name = 'Light Gun Device',
+        model = null,
         connected = false,
-        battery = 0,
-        firmware = 'N/A',
-        player = '?P'
+        battery = null,
+        firmware = null,
+        player = '?P',
+        vid = null,
+        pid = null,
     } = device || {}
 
-    const batteryClass = battery > 60 ? '--high' : battery > 25 ? '--medium' : '--low'
+    const hasBattery = typeof battery === 'number'
+    const batteryPercent = hasBattery ? battery : 0
+    const batteryClass = batteryPercent > 60 ? '--high' : batteryPercent > 25 ? '--medium' : '--low'
+    const hasFirmware = typeof firmware === 'string' && firmware.trim().length > 0
+    const hasVidPid = Boolean(vid || pid)
 
     return (
         <article className="gunner-device-card">
             <div>
                 <h3 className="gunner-device-card__name">{player} Gun: {name}</h3>
-                <p className="gunner-device-card__model">{model}</p>
+                {model ? <p className="gunner-device-card__model">{model}</p> : null}
                 <div className="gunner-device-card__status">
                     <span className={`gunner-device-card__status-dot gunner-device-card__status-dot--${connected ? 'connected' : 'disconnected'}`} />
                     <span style={{ color: connected ? 'var(--cyber-green)' : 'var(--cyber-red)' }}>
                         {connected ? 'Connected' : 'Disconnected'}
                     </span>
                 </div>
+                {hasVidPid ? (
+                    <div className="gunner-device-card__detail">
+                        {[vid ? `VID: ${vid}` : null, pid ? `PID: ${pid}` : null].filter(Boolean).join(' | ')}
+                    </div>
+                ) : null}
             </div>
             <div>
-                <div className="gunner-device-card__battery">
-                    <div
-                        className={`gunner-device-card__battery-fill gunner-device-card__battery-fill${batteryClass}`}
-                        style={{ width: `${battery}%` }}
-                    />
-                </div>
-                <div className="gunner-device-card__battery-label">
-                    <span>Battery</span>
-                    <span>{battery}%</span>
-                </div>
-                <div className="gunner-device-card__firmware">
-                    Firmware: v{firmware}
-                </div>
+                {hasBattery ? (
+                    <>
+                        <div className="gunner-device-card__battery">
+                            <div
+                                className={`gunner-device-card__battery-fill gunner-device-card__battery-fill${batteryClass}`}
+                                style={{ width: `${batteryPercent}%` }}
+                            />
+                        </div>
+                        <div className="gunner-device-card__battery-label">
+                            <span>Battery</span>
+                            <span>{`${batteryPercent}%`}</span>
+                        </div>
+                    </>
+                ) : null}
+                {hasFirmware ? (
+                    <div className="gunner-device-card__firmware">
+                        Firmware: v{firmware}
+                    </div>
+                ) : null}
             </div>
         </article>
     )

@@ -157,7 +157,7 @@ PlayerSection.displayName = 'PlayerSection';
 
 // ── Main Overlay Component ──────────────────────────────────────────────────
 
-export default function MappingOverlay({ onClose, latestInput }) {
+export default function MappingOverlay({ onClose, onSaved, latestInput }) {
   // Wizard state
   const [phase, setPhase]           = useState('idle'); // idle | mapping | complete | saving | saved | error
   const [currentControl, setCurrentControl] = useState(null);
@@ -314,11 +314,12 @@ export default function MappingOverlay({ onClose, latestInput }) {
       setSaveResult(data);
       setPhase('saved');
       setChuckPrompt(data.chuck_prompt || `Saved ${data.controls_mapped} controls!`);
+      onSaved?.(data);
     } catch (err) {
       setPhase('error');
       setErrorMsg(err.message);
     }
-  }, []);
+  }, [onSaved]);
 
   const handleClose = useCallback(() => {
     fetch(`${API_BASE}/learn-wizard/stop`, { method: 'POST', headers: STATE_HEADERS }).catch(() => {});

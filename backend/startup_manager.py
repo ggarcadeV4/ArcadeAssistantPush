@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 
 from backend.services import audit_log
-from backend.services.cabinet_identity import ensure_local_identity, load_cabinet_identity
+from backend.services.cabinet_identity import ensure_local_identity, load_cabinet_identity, provision_device_id
 
 
 DEFAULT_SANCTIONED_PATHS = [
@@ -153,10 +153,19 @@ async def initialize_app_state(app: FastAPI):
     manifest = {"sanctioned_paths": []}
     policies = {}
     app.state.manifest_missing = True
+    early_device_id = ""
 
     if not drive_root.exists():
         print(f"INFO: Development mode - using empty manifest (drive root missing: {drive_root})")
     else:
+        try:
+            early_device_id = provision_device_id(drive_root)
+            os.environ["AA_DEVICE_ID"] = early_device_id
+            print(f"INFO: Device UUID ready before startup services: {early_device_id}")
+        except Exception as exc:
+            startup_errors.append(f"device ID provisioning failed: {exc}")
+            print(f"WARNING: Device ID provisioning failed: {exc}")
+
         print(f"INFO: Drive detected at {drive_root} - attempting to load manifest.json")
         manifest_path = drive_root / ".aa" / "manifest.json"
         policies_path = drive_root / ".aa" / "policies.json"
@@ -218,6 +227,9 @@ async def initialize_app_state(app: FastAPI):
         except Exception as exc:
             startup_errors.append(f"cabinet identity bootstrap failed: {exc}")
             print(f"WARNING: Cabinet identity bootstrap failed: {exc}")
+
+    if early_device_id:
+        os.environ["AA_DEVICE_ID"] = early_device_id
 
     app.state.drive_root = drive_root
     app.state.manifest = manifest

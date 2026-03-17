@@ -18,6 +18,8 @@ export async function fetchCascadeStatus({ signal } = {}) {
       'Content-Type': 'application/json',
       'x-scope': 'state',
       'x-panel': 'controller-chuck',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': 'controller_chuck_status',
     },
     signal,
@@ -39,6 +41,8 @@ export async function fetchBaseline({ signal } = {}) {
       'Content-Type': 'application/json',
       'x-scope': 'state',
       'x-panel': 'controller-chuck',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': 'controller_chuck_status',
     },
     signal,
@@ -75,6 +79,8 @@ export async function requestCascade({
       'Content-Type': 'application/json',
       'x-scope': 'config',
       'x-panel': 'controller-chuck',
+      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
+      // enabling this path in production fleet deployment.
       'x-device-id': 'controller_chuck',
     },
     body: JSON.stringify(payload),

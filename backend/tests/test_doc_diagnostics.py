@@ -130,3 +130,75 @@ class TestGetVitals:
             assert data["cpu_percent"] is None
             assert data["memory_percent"] is None
             assert any("psutil" in e.lower() for e in data["errors"])
+
+    def test_vitals_hardware_bio_includes_device_latency(self):
+        """Vitals hardware bio normalizes devices and includes per-device latency."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app = _create_test_app(Path(tmpdir))
+            client = TestClient(app)
+
+            with patch(
+                "backend.routers.doc_diagnostics.scan_hardware_bio",
+                return_value={
+                    "devices": [
+                        {
+                            "vid_pid": "d209:0501",
+                            "name": "Ultimarc I-PAC2",
+                            "device_id": "USB\\VID_D209&PID_0501\\ABC123",
+                        }
+                    ],
+                    "device_count": 1,
+                    "scan_timestamp": "2026-03-15T00:00:00+00:00",
+                    "error": None,
+                },
+            ), patch(
+                "backend.routers.doc_diagnostics._measure_device_latency",
+                return_value=0.8,
+            ):
+                resp = client.get("/api/doc/vitals")
+
+            assert resp.status_code == 200
+            data = resp.json()
+            device = data["hardware_bio"]["devices"][0]
+            assert device["latency_ms"] == 0.8
+            assert device["vid"] == "d209"
+            assert device["pid"] == "0501"
+            assert device["status"] == "connected"
+
+
+class TestGetBio:
+    """Unit tests for GET /api/doc/bio."""
+
+    def test_bio_surfaces_existing_device_latency_without_reprobe(self):
+        """Existing device latency data is returned directly without probing again."""
+        app = _create_test_app()
+        client = TestClient(app)
+
+        with patch(
+            "backend.routers.doc_diagnostics.scan_hardware_bio",
+            return_value={
+                "devices": [
+                    {
+                        "vid_pid": "d209:0501",
+                        "name": "Ultimarc I-PAC2",
+                        "device_id": "USB\\VID_D209&PID_0501\\ABC123",
+                        "latency_ms": 1.25,
+                    }
+                ],
+                "device_count": 1,
+                "scan_timestamp": "2026-03-15T00:00:00+00:00",
+                "error": None,
+            },
+        ), patch(
+            "backend.routers.doc_diagnostics._measure_device_latency"
+        ) as measure_latency:
+            resp = client.get("/api/doc/bio")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        device = data["devices"][0]
+        assert device["latency_ms"] == 1.25
+        assert device["vid"] == "d209"
+        assert device["pid"] == "0501"
+        assert device["status"] == "connected"
+        measure_latency.assert_not_called()

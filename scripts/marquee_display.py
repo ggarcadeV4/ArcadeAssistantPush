@@ -24,6 +24,7 @@ will be logged.
 import ctypes
 import json
 import logging
+import msvcrt
 import os
 import sys
 import time
@@ -31,6 +32,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any, Dict, Optional, Tuple
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from backend.models.marquee_config import MarqueeConfig as SharedMarqueeConfig
+from backend.models.marquee_config import MarqueeState as SharedMarqueeState
 
 # Watchdog for file monitoring
 try:
@@ -82,6 +90,7 @@ class MarqueeConfig:
     state_file: Path = field(default_factory=lambda: Path(os.environ.get("AA_DRIVE_ROOT", "A:\\")) / ".aa" / "state" / "marquee_current.json")
     preview_file: Path = field(default_factory=lambda: Path(os.environ.get("AA_DRIVE_ROOT", "A:\\")) / ".aa" / "state" / "marquee_preview.json")
     idle_image: Optional[Path] = None  # Shown when no game selected
+    idle_video: Optional[Path] = None  # Loop when no game is active
     
     # Timing
     image_display_seconds: float = 3.0  # Show image before video starts (for "video" mode)
@@ -106,25 +115,28 @@ def load_config(config_path: Optional[Path] = None) -> MarqueeConfig:
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
-            if 'target_monitor' in data:
-                config.target_monitor = int(data['target_monitor'])
-            if 'fullscreen' in data:
-                config.fullscreen = bool(data['fullscreen'])
-            if 'window_width' in data:
-                config.window_width = int(data['window_width'])
-            if 'window_height' in data:
-                config.window_height = int(data['window_height'])
-            if 'launchbox_root' in data:
-                config.launchbox_root = Path(data['launchbox_root'])
-            if 'state_file' in data:
-                config.state_file = Path(data['state_file'])
-            if 'idle_image' in data and data['idle_image']:
-                config.idle_image = Path(data['idle_image'])
-            if 'image_display_seconds' in data:
-                config.image_display_seconds = float(data['image_display_seconds'])
-            if 'prefer_video' in data:
-                config.prefer_video = bool(data['prefer_video'])
+
+            parsed = SharedMarqueeConfig.model_validate(data)
+            config.target_monitor = int(parsed.target_monitor_index)
+            config.fullscreen = bool(parsed.fullscreen)
+            config.window_width = int(parsed.window_width)
+            config.window_height = int(parsed.window_height)
+            if parsed.launchbox_root:
+                config.launchbox_root = Path(parsed.launchbox_root)
+            if parsed.state_file:
+                config.state_file = Path(parsed.state_file)
+            if parsed.preview_file:
+                config.preview_file = Path(parsed.preview_file)
+            if parsed.idle_image:
+                config.idle_image = Path(parsed.idle_image)
+            if parsed.idle_video:
+                config.idle_video = Path(parsed.idle_video)
+            config.image_display_seconds = float(parsed.image_display_seconds)
+            config.scroll_debounce_ms = int(parsed.scroll_debounce_ms)
+            config.video_loop = bool(parsed.video_loop)
+            config.poll_interval_ms = int(parsed.poll_interval_ms)
+            config.prefer_video = bool(parsed.prefer_video)
+            config.fallback_to_platform_image = bool(parsed.fallback_to_platform_image)
                 
             logging.info(f"Loaded config from {config_path}")
         except Exception as e:
@@ -269,19 +281,26 @@ class GameState:
     platform: Optional[str] = None
     region: str = "North America"
     mode: str = "image"  # "image" for scroll preview, "video" for launched
+    event_type: Optional[str] = None
     
     @classmethod
     def from_json(cls, data: Dict[str, Any]) -> 'GameState':
+        state = SharedMarqueeState.model_validate(data)
         return cls(
-            game_id=data.get('game_id'),
-            title=data.get('title'),
-            platform=data.get('platform'),
-            region=data.get('region', 'North America'),
-            mode=data.get('mode', 'image'),
+            game_id=state.game_id,
+            title=state.title,
+            platform=state.platform,
+            region=state.region,
+            mode=state.mode,
+            event_type=state.event_type,
         )
     
     def is_valid(self) -> bool:
         return bool(self.title and self.platform)
+
+    def normalized_event_type(self) -> str:
+        value = (self.event_type or "GAME").upper()
+        return "GAME" if value not in {"GAME", "IDLE"} else value
 
 
 def load_game_state(state_file: Path) -> Optional[GameState]:
@@ -298,46 +317,90 @@ def load_game_state(state_file: Path) -> Optional[GameState]:
         return None
 
 
+class SingleInstanceLock:
+    """Best-effort single-instance guard using a lock file."""
+
+    def __init__(self, lock_path: Path):
+        self.lock_path = lock_path
+        self._handle = None
+
+    def acquire(self) -> bool:
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = open(self.lock_path, "a+b")
+        try:
+            self._handle.seek(0)
+            msvcrt.locking(self._handle.fileno(), msvcrt.LK_NBLCK, 1)
+            self._handle.seek(0)
+            self._handle.truncate()
+            self._handle.write(str(os.getpid()).encode("utf-8"))
+            self._handle.flush()
+            return True
+        except OSError:
+            try:
+                self._handle.close()
+            except Exception:
+                pass
+            self._handle = None
+            return False
+
+    def release(self) -> None:
+        if not self._handle:
+            return
+        try:
+            self._handle.seek(0)
+            msvcrt.locking(self._handle.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        try:
+            self._handle.close()
+        except Exception:
+            pass
+        self._handle = None
+
+
 # -----------------------------------------------------------------------------
 # File Watcher
 # -----------------------------------------------------------------------------
 
-class StateFileHandler(FileSystemEventHandler):
-    """Watches the state file for changes."""
-    
-    def __init__(self, state_file: Path, callback):
+class WatchedFileHandler(FileSystemEventHandler):
+    """Watches a single file for changes."""
+
+    def __init__(self, watched_file: Path, callback):
         super().__init__()
-        self.state_file = state_file
+        self.watched_file = watched_file
         self.callback = callback
         self.last_modified = 0
-    
+
     def on_modified(self, event):
         if isinstance(event, FileModifiedEvent):
-            # Check if it's our file
-            if Path(event.src_path).resolve() == self.state_file.resolve():
-                # Debounce rapid changes
+            if Path(event.src_path).resolve() == self.watched_file.resolve():
                 now = time.time()
                 if now - self.last_modified > 0.3:
                     self.last_modified = now
-                    logging.debug("State file changed, triggering callback")
+                    logging.debug("Watched file changed: %s", self.watched_file)
                     self.callback()
 
+    def on_created(self, event):
+        self.on_modified(event)
 
-def start_file_watcher(state_file: Path, callback) -> Optional[Observer]:
-    """Start watching the state file for changes."""
+
+def start_file_watchers(watches: list[Tuple[Path, Any]]) -> Optional[Observer]:
+    """Start watchdog observers for one or more files."""
     if not WATCHDOG_AVAILABLE:
-        logging.warning("Watchdog not available, using polling fallback")
         return None
-    
+
     try:
-        handler = StateFileHandler(state_file, callback)
         observer = Observer()
-        observer.schedule(handler, str(state_file.parent), recursive=False)
+        for watched_file, callback in watches:
+            if not watched_file:
+                continue
+            handler = WatchedFileHandler(watched_file, callback)
+            observer.schedule(handler, str(watched_file.parent), recursive=False)
         observer.start()
-        logging.info(f"File watcher started for {state_file}")
+        logging.info("File watcher started for %s", ", ".join(str(path) for path, _ in watches if path))
         return observer
     except Exception as e:
-        logging.error(f"Failed to start file watcher: {e}")
+        logging.error("Failed to start file watcher: %s", e)
         return None
 
 
@@ -354,11 +417,14 @@ class MarqueeDisplay:
         self.config = config
         self.running = False
         self.current_state: Optional[GameState] = None
+        self.current_preview: Optional[GameState] = None
         self.current_video: Optional[Path] = None
         self.current_image: Optional[Path] = None
         self._stop_event = Event()
         self._video_thread: Optional[Thread] = None
         self._video_stop = Event()
+        self._preview_active = False
+        self._media_generation = 0
 
         # Tkinter elements
         self.root: Optional["tk.Tk"] = None
@@ -366,6 +432,31 @@ class MarqueeDisplay:
         self._photo_ref = None  # prevent GC
         self._hwnd: Optional[int] = None
         self._monitor_bounds: Tuple[int, int, int, int] = (0, 0, 1920, 1080)
+
+    def _bump_media_generation(self) -> int:
+        self._media_generation += 1
+        return self._media_generation
+
+    def _apply_preview_overlay(self, target_w: int, target_h: int) -> None:
+        if not self.canvas or not self._preview_active:
+            return
+        padding = 16
+        self.canvas.create_rectangle(
+            padding,
+            padding,
+            target_w - padding,
+            target_h - padding,
+            outline="#c8ff00",
+            width=3,
+        )
+        self.canvas.create_text(
+            target_w - 28,
+            28,
+            text="PREVIEW",
+            anchor="ne",
+            fill="#c8ff00",
+            font=("Segoe UI", 16, "bold"),
+        )
     
     def initialize(self) -> bool:
         """
@@ -420,15 +511,26 @@ class MarqueeDisplay:
     def show_idle(self):
         """Show idle screen (no game selected)."""
         logging.info("Showing idle screen")
+        self._bump_media_generation()
+        self.current_state = None
+        self.current_preview = None
+        self._preview_active = False
         self.stop_video()
+        if self.config.idle_video and self.config.idle_video.exists():
+            self.play_video(self.config.idle_video, loop=True, preview=False)
+            return
+        if self.config.idle_image and self.config.idle_image.exists():
+            self.show_image(self.config.idle_image, preview=False)
+            return
         if self.canvas:
             self.canvas.delete("all")
             self.canvas.configure(bg="black")
     
-    def show_image(self, image_path: Path):
+    def show_image(self, image_path: Path, preview: bool = False):
         """Display a static image."""
         logging.info(f"Showing image: {image_path}")
         self.current_image = image_path
+        self._preview_active = preview
         self.stop_video()
 
         if not (PIL_AVAILABLE and self.canvas and self.root):
@@ -464,11 +566,13 @@ class MarqueeDisplay:
         self.canvas.delete("all")
         self.canvas.configure(bg="black")
         self.canvas.create_image(target_w // 2, target_h // 2, image=photo, anchor="center")
+        self._apply_preview_overlay(target_w, target_h)
     
-    def play_video(self, video_path: Path, loop: bool = True):
+    def play_video(self, video_path: Path, loop: bool = True, preview: bool = False):
         """Play a video file."""
         logging.info(f"Playing video: {video_path} (loop={loop})")
         self.current_video = video_path
+        self._preview_active = preview
         if not CV2_AVAILABLE:
             logging.warning("OpenCV not available; cannot play video.")
             return
@@ -520,6 +624,7 @@ class MarqueeDisplay:
                         if self.canvas:
                             self.canvas.delete("all")
                             self.canvas.create_image(target_w // 2, target_h // 2, image=photo, anchor="center")
+                            self._apply_preview_overlay(target_w, target_h)
                     try:
                         self.root.after(0, _render)
                     except Exception:
@@ -547,8 +652,10 @@ class MarqueeDisplay:
         if not state.is_valid():
             self.show_idle()
             return
-        
+        generation = self._bump_media_generation()
         self.current_state = state
+        self.current_preview = None
+        self._preview_active = False
         
         # Resolve media
         video_path, image_path = resolve_game_media(
@@ -561,19 +668,50 @@ class MarqueeDisplay:
         
         # Display logic: show image first, then video
         if image_path:
-            self.show_image(image_path)
+            self.show_image(image_path, preview=False)
         
         if video_path and self.config.prefer_video:
             # After image_display_seconds, switch to video
             def _start_video():
-                if not self._stop_event.is_set():
-                    self.play_video(video_path, loop=self.config.video_loop)
+                if not self._stop_event.is_set() and generation == self._media_generation:
+                    self.play_video(video_path, loop=self.config.video_loop, preview=False)
             if self.root:
                 self.root.after(int(self.config.image_display_seconds * 1000), _start_video)
             else:
                 _start_video()
         elif not image_path:
             self.show_idle()
+
+    def show_preview(self, state: GameState):
+        """Render a preview state without overriding an active game."""
+        if not state.is_valid():
+            return
+
+        generation = self._bump_media_generation()
+        self.current_preview = state
+        self._preview_active = True
+
+        video_path, image_path = resolve_game_media(
+            self.config,
+            state.title,
+            state.platform,
+        )
+
+        logging.info(f"Preview: {state.title} | Video: {video_path} | Image: {image_path}")
+
+        if image_path:
+            self.show_image(image_path, preview=True)
+
+        if video_path and self.config.prefer_video and state.mode == "video":
+            def _start_video():
+                if not self._stop_event.is_set() and generation == self._media_generation:
+                    self.play_video(video_path, loop=self.config.video_loop, preview=True)
+            if self.root:
+                self.root.after(int(self.config.image_display_seconds * 1000), _start_video)
+            else:
+                _start_video()
+        elif not image_path and video_path:
+            self.play_video(video_path, loop=self.config.video_loop, preview=True)
     
     def run(self):
         """Main display loop."""
@@ -617,21 +755,114 @@ class MarqueeApp:
         self.observer: Optional[Observer] = None
         self.running = False
         self._last_state: Optional[GameState] = None
-    
+        self._last_preview_state: Optional[GameState] = None
+        self._poll_thread: Optional[Thread] = None
+        self._poll_stop = Event()
+        self._state_mtime: Optional[float] = None
+        self._preview_mtime: Optional[float] = None
+
+    def _is_active_game(self) -> bool:
+        return bool(
+            self._last_state
+            and self._last_state.is_valid()
+            and self._last_state.normalized_event_type() == "GAME"
+        )
+
+    def _restore_current_display(self) -> None:
+        if self._is_active_game():
+            self.display.update_game(self._last_state)
+        elif self._last_preview_state and self._last_preview_state.is_valid():
+            self.display.show_preview(self._last_preview_state)
+        else:
+            self.display.show_idle()
+
     def on_state_change(self):
         """Called when the state file changes."""
         state = load_game_state(self.config.state_file)
-        
-        # Only update if state actually changed
-        if state and (not self._last_state or state.game_id != self._last_state.game_id):
-            logging.info(f"Game changed: {state.title} ({state.platform})")
-            self._last_state = state
-            self.display.update_game(state)
-        elif not state or not state.is_valid():
+
+        if not state:
             if self._last_state:
                 logging.info("No game selected, showing idle")
                 self._last_state = None
-                self.display.show_idle()
+            self._restore_current_display()
+            return
+
+        event_type = state.normalized_event_type()
+        if event_type == "IDLE" or not state.is_valid():
+            logging.info("Idle marquee event received")
+            self._last_state = None
+            self._restore_current_display()
+            return
+
+        state_changed = (
+            not self._last_state
+            or state.game_id != self._last_state.game_id
+            or state.title != self._last_state.title
+            or state.platform != self._last_state.platform
+            or state.mode != self._last_state.mode
+            or state.normalized_event_type() != self._last_state.normalized_event_type()
+        )
+        if state_changed:
+            logging.info(f"Game changed: {state.title} ({state.platform})")
+            self._last_state = state
+            self.display.update_game(state)
+
+    def on_preview_change(self):
+        """Called when the preview file changes."""
+        if not self.config.preview_file:
+            return
+
+        state = load_game_state(self.config.preview_file)
+
+        if not state or not state.is_valid():
+            if self._last_preview_state:
+                logging.info("Preview cleared, restoring current display")
+            self._last_preview_state = None
+            self._restore_current_display()
+            return
+
+        self._last_preview_state = state
+
+        if self._is_active_game():
+            logging.info("Preview change ignored because a game is actively playing")
+            return
+
+        logging.info(f"Preview changed: {state.title} ({state.platform})")
+        self.display.show_preview(state)
+
+    def _file_mtime(self, path: Optional[Path]) -> Optional[float]:
+        if not path:
+            return None
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return None
+
+    def _start_polling_fallback(self) -> None:
+        interval = max(100, int(self.config.poll_interval_ms)) / 1000.0
+        logging.warning(
+            "[MarqueeDisplay] Watchdog unavailable — using polling fallback at %sms",
+            self.config.poll_interval_ms,
+        )
+        self._state_mtime = self._file_mtime(self.config.state_file)
+        self._preview_mtime = self._file_mtime(self.config.preview_file)
+        self._poll_stop.clear()
+
+        def _poll_loop():
+            while not self._poll_stop.wait(interval):
+                new_state_mtime = self._file_mtime(self.config.state_file)
+                if new_state_mtime != self._state_mtime:
+                    self._state_mtime = new_state_mtime
+                    self.on_state_change()
+
+                if self.config.preview_file:
+                    new_preview_mtime = self._file_mtime(self.config.preview_file)
+                    if new_preview_mtime != self._preview_mtime:
+                        self._preview_mtime = new_preview_mtime
+                        self.on_preview_change()
+
+        self._poll_thread = Thread(target=_poll_loop, name="marquee-poll", daemon=True)
+        self._poll_thread.start()
     
     def run(self):
         """Run the marquee application."""
@@ -641,9 +872,14 @@ class MarqueeApp:
         logging.info(f"Config: Monitor {self.config.target_monitor}, "
                     f"LaunchBox: {self.config.launchbox_root}")
         logging.info(f"State file: {self.config.state_file}")
+        logging.info(f"Preview file: {self.config.preview_file}")
         
         # Ensure state directory exists
         self.config.state_file.parent.mkdir(parents=True, exist_ok=True)
+        if self.config.preview_file:
+            self.config.preview_file.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            logging.info("[MarqueeDisplay] Preview file not configured — preview watching skipped")
         
         # Initialize display
         if not self.display.initialize():
@@ -651,10 +887,17 @@ class MarqueeApp:
             return
         
         # Start file watcher
-        self.observer = start_file_watcher(self.config.state_file, self.on_state_change)
+        watches = [(self.config.state_file, self.on_state_change)]
+        if self.config.preview_file:
+            watches.append((self.config.preview_file, self.on_preview_change))
+        self.observer = start_file_watchers(watches)
+        if not self.observer:
+            self._start_polling_fallback()
         
         # Load initial state
         self.on_state_change()
+        if self.config.preview_file:
+            self.on_preview_change()
         
         self.running = True
         
@@ -673,6 +916,9 @@ class MarqueeApp:
         if self.observer:
             self.observer.stop()
             self.observer.join(timeout=2)
+        self._poll_stop.set()
+        if self._poll_thread and self._poll_thread.is_alive():
+            self._poll_thread.join(timeout=2)
         
         self.display.stop()
         logging.info("Marquee Display stopped")
@@ -703,15 +949,28 @@ def main():
         format="[%(asctime)s] %(levelname)s: %(message)s",
         datefmt="%H:%M:%S"
     )
+
+    lock: Optional[SingleInstanceLock] = None
+    single_instance_enabled = os.environ.get("AA_MARQUEE_SINGLE_INSTANCE", "1") != "0"
+    if single_instance_enabled:
+        drive_root = Path(os.environ.get("AA_DRIVE_ROOT", "A:\\"))
+        lock = SingleInstanceLock(drive_root / ".aa" / "marquee.lock")
+        if not lock.acquire():
+            logging.info("[MarqueeDisplay] Already running — exiting")
+            sys.exit(0)
     
-    # Load config
-    config_path = Path(args.config) if args.config else None
-    config = load_config(config_path)
-    config.target_monitor = args.monitor
-    
-    # Run app
-    app = MarqueeApp(config)
-    app.run()
+    try:
+        # Load config
+        config_path = Path(args.config) if args.config else None
+        config = load_config(config_path)
+        config.target_monitor = args.monitor
+
+        # Run app
+        app = MarqueeApp(config)
+        app.run()
+    finally:
+        if lock:
+            lock.release()
 
 
 if __name__ == "__main__":

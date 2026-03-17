@@ -15,19 +15,10 @@
 import React, {
   useState, useEffect, useCallback, useMemo, useRef, memo
 } from 'react';
-import { controllerAIChat } from '../../services/controllerAI';
-import { logChatHistory } from '../../services/supabaseClient';
 import { useInputDetection } from '../../hooks/useInputDetection';
-import { speak, stopSpeaking } from '../../services/ttsClient';
 import { useProfileContext } from '../../context/ProfileContext';
-import {
-  fetchBaseline,
-  fetchCascadeStatus,
-  getCascadePreference,
-  requestCascade,
-  setCascadePreference,
-} from './apiHelpers';
 import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
+import MappingOverlay from './MappingOverlay';
 import { chuckContextAssembler } from './chuckContextAssembler';
 import { chuckChips } from './chuckChips';
 import './controller-chuck.css';
@@ -41,10 +32,20 @@ const API_BASE = '/api/local/controller';
 const HARDWARE_API = '/api/local/hardware';
 const CHUCK_VOICE_ID = 'vDchjyOZZytffNeZXfZK';
 
-const CHUCK_GREET = "Yo! Chuck here. Let's get this cabinet wired up right.";
-
 /** Chuck persona config for EngineeringBaySidebar */
 const CHUCK_PERSONA = {
+  agentName: 'Chuck',
+  title: 'CONTROLLER CHUCK',
+  subtitle: 'Arcade Encoder Board Mapping',
+  chatEndpoint: '/api/local/engineering-bay/chat',
+  diagnosisMode: true,
+  diagnosisPrompt: 'CHUCK DIAG - what needs fixing?',
+  chatPrompt: 'Ask Chuck about controller mappings, GPIO, or arcade setup.',
+  quickChips: [
+    'Scan encoder board',
+    'Fix button mapping',
+    'Controller not detected',
+  ],
   id: 'chuck',
   name: 'CHUCK',
   icon: '⚙️',
@@ -104,6 +105,23 @@ const PLAYERS_2P = [
   { id: 'p1', label: 'PLAYER 1', cls: 'p1', layout: LAYOUT_8BTN },
   { id: 'p2', label: 'PLAYER 2', cls: 'p2', layout: LAYOUT_8BTN },
 ];
+
+function resolveChuckDeviceId() {
+  if (typeof window !== 'undefined' && window.AA_DEVICE_ID) {
+    return window.AA_DEVICE_ID;
+  }
+  return 'controller_chuck';
+}
+
+function inferControlType(controlKey) {
+  if (controlKey?.includes('.button') || controlKey?.endsWith('.coin') || controlKey?.endsWith('.start')) {
+    return 'button';
+  }
+  if (controlKey?.includes('.up') || controlKey?.includes('.down') || controlKey?.includes('.left') || controlKey?.includes('.right')) {
+    return 'joystick';
+  }
+  return 'button';
+}
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -189,7 +207,7 @@ const UtilButton = memo(({ label, pinLabel }) => (
 UtilButton.displayName = 'UtilButton';
 
 /** One player card (joystick + button grid + utilities) */
-const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus, latestInput }) => {
+const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus, latestInput, onMapped }) => {
   const { id, label, cls, layout } = player;
   const cardRef = useRef(null);
 
@@ -213,10 +231,6 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
     return pressedKeys?.has(`${id}.${controlKey}`) ?? false;
   }, [id, pressedKeys]);
 
-  const handleBtn = useCallback((num) => {
-    onButtonClick?.(`${id}.button${num}`);
-  }, [id, onButtonClick]);
-
   // Directional mapping state — null means idle
   const [mappingDir, setMappingDir] = useState(null);
   // Button mapping state — which button number is waiting for cabinet input
@@ -236,17 +250,19 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, onButtonClick, playerMo
 
     if (mappingButton !== null) {
       setConfirmedButton({ num: mappingButton, pin });
+      onMapped?.(`${id}.button${mappingButton}`, pin);
       setMappingButton(null);
       const t = setTimeout(() => setConfirmedButton(null), 1800);
       return () => clearTimeout(t);
     }
     if (mappingDir !== null) {
       setConfirmedDir({ dir: mappingDir, pin });
+      onMapped?.(`${id}.${mappingDir}`, pin);
       setMappingDir(null);
       const t = setTimeout(() => setConfirmedDir(null), 1800);
       return () => clearTimeout(t);
     }
-  }, [latestInput]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, latestInput, mappingButton, mappingDir, onMapped]);
 
   const handleDirClick = useCallback((dir) => {
     setMappingDir((prev) => (prev === dir ? null : dir));
@@ -347,6 +363,7 @@ export default function ControllerChuckPanel() {
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [mapping, setMapping] = useState({});
+  const [pendingMappings, setPendingMappings] = useState({});
   const [hasPending, setHasPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -354,14 +371,6 @@ export default function ControllerChuckPanel() {
   // Board / device scan
   const [board, setBoard] = useState(null);
   const [scanLoading, setScanLoading] = useState(false);
-
-  // AI chat
-  const [messages, setMessages] = useState([
-    { id: 'welcome', role: 'chuck', content: CHUCK_GREET }
-  ]);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [isListening, setIsListening] = useState(false);
 
   // Input detection
   const [detectionMode, setDetectionMode] = useState(false);
@@ -373,6 +382,7 @@ export default function ControllerChuckPanel() {
 
   // Chat drawer
   const [chatOpen, setChatOpen] = useState(false);
+  const [mappingOverlayOpen, setMappingOverlayOpen] = useState(false);
 
 
   // Focus mode: which player card is active for mapping (null = all equal)
@@ -419,8 +429,6 @@ export default function ControllerChuckPanel() {
   // Pending changes flash
   const [flashMsg, setFlashMsg] = useState(null);
 
-  const msgIdRef = useRef(0);
-  const nextId = () => `msg-${++msgIdRef.current}`;
 
   // Scroll to top on mount — prevents stale scroll offset from previous panel
   // causing the 4P layout to appear clipped without a full page refresh
@@ -431,46 +439,79 @@ export default function ControllerChuckPanel() {
   }, []);
 
   // ── Load mapping ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_BASE}/mapping`);
-        if (res.ok) {
-          const data = await res.json();
-          setMapping(data.mapping || data || {});
-          flash('Mappings loaded.', 'success');
-        }
-      } catch (err) {
-        console.error('[Chuck] mapping load error:', err);
-        flash('Could not load mappings.', 'error');
-      } finally {
-        setLoading(false);
+  const loadMapping = useCallback(async ({ showFlash = true } = {}) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/mapping`);
+      if (!res.ok) {
+        throw new Error(`Mapping load failed (${res.status})`);
       }
-    };
-    load();
+      const data = await res.json();
+      setMapping(data?.mapping?.mappings || data?.mappings || {});
+      setPendingMappings({});
+      setHasPending(false);
+      if (showFlash) {
+        setFlashMsg({ msg: 'Mappings loaded.', type: 'success' });
+        setTimeout(() => setFlashMsg(null), 3000);
+      }
+    } catch (err) {
+      console.error('[Chuck] mapping load error:', err);
+      setFlashMsg({ msg: 'Could not load mappings.', type: 'error' });
+      setTimeout(() => setFlashMsg(null), 3000);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadMapping();
+  }, [loadMapping]);
 
   // ── Scan connected encoder board ────────────────────────────────────────────
   const scanDevices = useCallback(async () => {
     setScanLoading(true);
     try {
-      const res = await fetch(`${HARDWARE_API}/arcade/boards/detect`);
+      const res = await fetch(`${HARDWARE_API}/arcade/boards`);
       if (res.ok) {
         const data = await res.json();
-        setBoard({
-          name: data.name || data.board_name || 'Unknown Board',
-          vid: data.vid || '—',
-          pid: data.pid || '—',
-          detected: data.detected ?? true,
-          status: data.detected ? 'ready' : 'offline',
-        });
+        const boards = Array.isArray(data?.boards) ? data.boards : [];
+        if (boards.length > 0) {
+          const boardNames = boards.map((entry) => entry.name || entry.board_name || 'Unknown Board');
+          const primaryBoard = boards[0] || {};
+          setBoard({
+            name: boardNames.join(', '),
+            vid: boards.length === 1 ? (primaryBoard.vid || '—') : `${boards.length} boards`,
+            pid: boards.length === 1 ? (primaryBoard.pid || '—') : 'detected',
+            detected: true,
+            status: 'ready',
+          });
+        } else {
+          setBoard({
+            name: 'No encoder boards detected.',
+            vid: '—',
+            pid: '—',
+            detected: false,
+            status: 'offline',
+          });
+        }
       } else {
-        setBoard((prev) => ({ ...prev, status: 'offline' }));
+        setBoard({
+          name: 'No encoder boards detected.',
+          vid: '—',
+          pid: '—',
+          detected: false,
+          status: 'offline',
+        });
       }
     } catch (err) {
       console.error('[Chuck] device scan error:', err);
-      setBoard((prev) => ({ ...prev, status: 'offline' }));
+      setBoard({
+        name: 'No encoder boards detected.',
+        vid: '—',
+        pid: '—',
+        detected: false,
+        status: 'offline',
+      });
     } finally {
       setScanLoading(false);
     }
@@ -501,84 +542,114 @@ export default function ControllerChuckPanel() {
   }, []);
 
   // ── AI Chat ─────────────────────────────────────────────────────────────────
-  const addMsg = useCallback((role, content) => {
-    setMessages((prev) => [...prev, { id: nextId(), role, content }]);
+  // ── Preview / Apply / Reset ─────────────────────────────────────────────────
+  const handleMappedControl = useCallback((controlKey, pin) => {
+    const normalizedPin = Number(pin);
+    if (!controlKey || Number.isNaN(normalizedPin)) {
+      return;
+    }
+
+    setMapping((prev) => ({
+      ...prev,
+      [controlKey]: {
+        ...(prev[controlKey] || {}),
+        pin: normalizedPin,
+        type: prev[controlKey]?.type || inferControlType(controlKey),
+      },
+    }));
+
+    setPendingMappings((prev) => ({
+      ...prev,
+      [controlKey]: {
+        ...(mapping[controlKey] || prev[controlKey] || {}),
+        pin: normalizedPin,
+        type: mapping[controlKey]?.type || prev[controlKey]?.type || inferControlType(controlKey),
+      },
+    }));
+    setHasPending(true);
+  }, [mapping]);
+
+  const handleOpenMappingOverlay = useCallback(() => {
+    setMappingOverlayOpen(true);
+    setDetectionMode(true);
   }, []);
 
-  const handleSend = useCallback(async (text) => {
-    addMsg('user', text);
-    setAiLoading(true);
-    try {
-      const ctx = {
-        mapping,
-        has_pending: hasPending,
-        board_name: board?.name || 'Unknown',
-        board_detected: board?.detected ?? false,
-      };
-      const result = await controllerAIChat(text, ctx, { panel: 'controller-chuck' });
-      const reply =
-        result?.message?.content ||
-        result?.reply ||
-        result?.response ||
-        "Yo! Ask me anything about your arcade controller setup.";
-      addMsg('chuck', reply);
-      if (voiceEnabled) {
-        try { await speak(reply, { voice_id: CHUCK_VOICE_ID }); } catch { /* noop */ }
-      }
-      await logChatHistory({ panel: 'controller-chuck', role: 'assistant', content: reply });
-    } catch (err) {
-      console.error('[Chuck] AI error:', err);
-      addMsg('chuck', "Sorry pal, hit a snag. Try again?");
-    } finally {
-      setAiLoading(false);
+  const handleOverlaySaved = useCallback(async (saveResult) => {
+    if (saveResult?.cascade_preference === 'auto') {
+      console.log('[Chuck] Mapping saved, cascade queued');
     }
-  }, [addMsg, mapping, hasPending, board, voiceEnabled]);
+    setMappingOverlayOpen(false);
+    setDetectionMode(false);
+    await loadMapping({ showFlash: false });
+    flash('Mappings saved from overlay.', 'success');
+  }, [flash, loadMapping]);
 
-  // ── Preview / Apply / Reset ─────────────────────────────────────────────────
+  const handleOverlayClose = useCallback(() => {
+    setMappingOverlayOpen(false);
+    setDetectionMode(false);
+  }, []);
+
   const handlePreview = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/preview`, {
+      const res = await fetch(`${API_BASE}/mapping/preview`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mapping }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-scope': 'state',
+          'x-panel': 'controller-chuck',
+          'x-device-id': resolveChuckDeviceId(),
+        },
+        body: JSON.stringify({ mappings: pendingMappings }),
       });
       const data = await res.json();
       flash(`Preview: ${data.summary || 'Changes ready.'}`, 'info');
     } catch { flash('Preview failed.', 'error'); }
-  }, [mapping, flash]);
+  }, [flash, pendingMappings]);
 
   const handleApply = useCallback(async () => {
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/apply`, {
+      const res = await fetch(`${API_BASE}/mapping/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mapping }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-scope': 'config',
+          'x-panel': 'controller-chuck',
+          'x-device-id': resolveChuckDeviceId(),
+        },
+        body: JSON.stringify({ mappings: pendingMappings }),
       });
       if (res.ok) {
+        setPendingMappings({});
         setHasPending(false);
         flash('Boom! Mappings applied.', 'success');
-        addMsg('chuck', "Boom! Mappings applied. Backed up the old one just in case.");
       } else {
         flash('Apply failed. Check backend.', 'error');
       }
     } catch { flash('Apply failed.', 'error'); }
     finally { setSubmitting(false); }
-  }, [mapping, flash, addMsg]);
+  }, [flash, pendingMappings]);
 
   const handleReset = useCallback(async () => {
     if (!window.confirm("You sure? This'll restore factory defaults.")) return;
     try {
-      const res = await fetch(`${API_BASE}/reset`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/mapping/reset`, {
+        method: 'POST',
+        headers: {
+          'x-scope': 'config',
+          'x-panel': 'controller-chuck',
+          'x-device-id': resolveChuckDeviceId(),
+        },
+      });
       if (res.ok) {
         const data = await res.json();
-        setMapping(data.mapping || {});
+        setMapping(data?.mapping?.mappings || data?.mappings || {});
+        setPendingMappings({});
         setHasPending(false);
         flash('Reset to factory defaults.', 'success');
-        addMsg('chuck', "Done! Back to factory defaults. Fresh start, pal.");
       }
     } catch { flash('Reset failed.', 'error'); }
-  }, [flash, addMsg]);
+  }, [flash]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const boardStatus = scanLoading ? 'scanning' : board?.detected ? 'ready' : 'offline';
@@ -701,6 +772,13 @@ export default function ControllerChuckPanel() {
                 </button>
 
                 <button
+                  className={`chuck-strip-btn ${mappingOverlayOpen ? 'active' : ''}`}
+                  onClick={handleOpenMappingOverlay}
+                  title="Launch the guided mapping overlay"
+                >
+                  MAP
+                </button>
+                <button
                   className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
                   onClick={() => setChatOpen(v => !v)}
                   title="Chat with Chuck"
@@ -749,6 +827,7 @@ export default function ControllerChuckPanel() {
                     onReturnEnd={handleReturnEnd}
                     onFocus={handleFocus}
                     latestInput={latestInput}
+                    onMapped={handleMappedControl}
                   />
                 ))}
               </div>
@@ -790,10 +869,19 @@ export default function ControllerChuckPanel() {
                     onReturnEnd={handleReturnEnd}
                     onFocus={handleFocus}
                     latestInput={latestInput}
+                    onMapped={handleMappedControl}
                   />
                 ))}
             </div>
           </main>
+
+          {mappingOverlayOpen && (
+            <MappingOverlay
+              latestInput={latestInput}
+              onClose={handleOverlayClose}
+              onSaved={handleOverlaySaved}
+            />
+          )}
 
           {/* ── Chuck AI Sidebar (Slide-out Drawer) ── */}
           <div

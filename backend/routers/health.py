@@ -77,11 +77,7 @@ def _build_summary_payload(request: Request, hardware_status: Dict[str, Any], ti
             )
         ),
         "tts_usage": None,
-        "llm_provider": (
-            "claude"
-            if os.getenv("ANTHROPIC_API_KEY")
-            else ("openai" if os.getenv("OPENAI_API_KEY") else "unconfigured")
-        ),
+        "llm_provider": "gemini",
     }
 
 

@@ -290,6 +290,71 @@ async def read_scores(scores_file: Path) -> List[Dict[str, Any]]:
     return await asyncio.to_thread(_do_read)
 
 
+def _normalize_top_score_payload(entry: Optional[Dict[str, Any]], source: str) -> Dict[str, Any]:
+    if not entry:
+        return {
+            "score": None,
+            "player": None,
+            "game": None,
+            "date": None,
+            "source": source,
+        }
+
+    raw_date = entry.get("achieved_at") or entry.get("timestamp") or entry.get("date")
+    date_value: Optional[str] = None
+    if raw_date:
+        date_value = str(raw_date)[:10]
+
+    return {
+        "score": entry.get("score"),
+        "player": entry.get("player"),
+        "game": entry.get("game_title") or entry.get("game") or entry.get("title"),
+        "date": date_value,
+        "source": source,
+    }
+
+
+def _read_top_score_from_supabase(device_id: str) -> Optional[Dict[str, Any]]:
+    if not device_id or device_id == "unknown":
+        return None
+
+    try:
+        sb = get_supabase_client()
+        client = sb._get_client(admin=bool(getattr(sb, "service_key", None)))  # type: ignore[attr-defined]
+        result = (
+            client.table("cabinet_game_score")
+            .select("player,score,game_title,achieved_at")
+            .eq("cabinet_id", device_id)
+            .order("score", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if rows:
+            return rows[0]
+    except Exception as exc:
+        logger.warning("top_score_supabase_failed", error=str(exc), device_id=device_id)
+
+    return None
+
+
+async def _read_top_score_from_local(drive_root: Path) -> Optional[Dict[str, Any]]:
+    all_scores = await read_scores(get_scores_file(drive_root))
+    if not all_scores:
+        return None
+
+    def _score_value(entry: Dict[str, Any]) -> int:
+        try:
+            return int(entry.get("score", 0) or 0)
+        except Exception:
+            return 0
+
+    top_entry = max(all_scores, key=_score_value, default=None)
+    if not top_entry or _score_value(top_entry) <= 0:
+        return None
+    return top_entry
+
+
 def _normalize_game_name(value: Optional[str]) -> str:
     if not value:
         return ""
@@ -998,6 +1063,27 @@ async def get_leaderboard(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/top-score")
+async def get_top_score(request: Request):
+    """Get the cabinet's all-time top score, preferring Supabase with local fallback."""
+    try:
+        drive_root = request.app.state.drive_root
+        device_id = _resolve_device_id(request)
+
+        supabase_entry = await asyncio.to_thread(_read_top_score_from_supabase, device_id)
+        if supabase_entry:
+            return _normalize_top_score_payload(supabase_entry, "supabase")
+
+        local_entry = await _read_top_score_from_local(drive_root)
+        if local_entry:
+            return _normalize_top_score_payload(local_entry, "local")
+
+        return _normalize_top_score_payload(None, "none")
+    except Exception as e:
+        logger.error("get_top_score_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve top score")
 
 @router.post("/submit/preview")
 async def preview_score_submit(request: Request, score_data: ScoreSubmit):

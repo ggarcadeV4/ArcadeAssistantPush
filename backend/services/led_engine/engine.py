@@ -271,18 +271,42 @@ class LEDEngine:
         pattern = self._active_pattern
         renderer = PatternRenderer(channel_count=device.channel_count)
         params = pattern.params if pattern else {}
-        color = str(params.get("color", "#00E5FF"))
         name = (pattern.name or "solid") if pattern else "solid"
-        if name == "pulse":
+        default_color = "#00E5FF"
+        if name == "idle_pulse":
+            default_color = "#f59e0b"
+        elif name == "knight_rider":
+            default_color = "#ef4444"
+        color = str(params.get("color", default_color))
+        if name in {"pulse", "idle_pulse", "breathe"}:
             return renderer.pulse(color, time_ms)
         if name == "chase":
             return renderer.chase(color, time_ms)
         if name == "rainbow":
             return renderer.rainbow(time_ms)
+        if name == "knight_rider":
+            return self._knight_rider_frame(device.channel_count, color, time_ms)
         if name == "solid":
             return renderer.solid(color)
         logger.debug("Unknown pattern '%s', falling back to solid", name)
         return renderer.solid(color)
+
+    def _knight_rider_frame(self, channel_count: int, color: str, time_ms: float) -> List[int]:
+        """Render a simple back-and-forth sweep for Knight Rider mode."""
+        frame = [0] * channel_count
+        if channel_count <= 0:
+            return frame
+
+        value = color_to_brightness(color)
+        if channel_count == 1:
+            frame[0] = value
+            return frame
+
+        cycle = max(1, (channel_count * 2) - 2)
+        step = int(time_ms / 120) % cycle
+        index = step if step < channel_count else cycle - step
+        frame[index] = value
+        return frame
 
     def _convert_resolved_buttons(self, resolved_buttons: Iterable[Dict[str, object]]) -> Iterable[LEDChannelAssignment]:
         assignments: List[LEDChannelAssignment] = []

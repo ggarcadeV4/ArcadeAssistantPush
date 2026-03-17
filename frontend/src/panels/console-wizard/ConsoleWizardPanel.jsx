@@ -17,8 +17,8 @@ import WizNavSidebar from './WizNavSidebar';
 const WIZ_PERSONA = {
   id: 'wiz',
   name: 'WIZ',
-  icon: '??',
-  icon2: '??',
+  icon: '🕹️',
+  icon2: '🎮',
   accentColor: '#a78bfa',
   accentGlow: 'rgba(167,139,250,0.35)',
   scannerLabel: 'CONJURING...',
@@ -172,10 +172,15 @@ const TTS_VOICE_ID = 'CwhRBWXzGAHq8TQ4Fs17';
 const DEFAULT_SCOPE = 'state';
 const PREVIEW_SCOPE = 'state';  // Fixed: backend requires 'state' for dry_run=true
 const MUTATION_SCOPE = 'config';
+const wizDeviceId = window.AA_DEVICE_ID || (() => {
+  console.warn('[Wiz] window.AA_DEVICE_ID not available, ' +
+    'falling back to cabinet-001. Cabinet identity may not be unique.');
+  return 'cabinet-001';
+})();
 
 const panelHeaders = (scope = DEFAULT_SCOPE) => ({
   'Content-Type': 'application/json',
-  'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
+  'x-device-id': wizDeviceId,
   'x-panel': 'console-wizard',
   'x-scope': scope,
 });
@@ -220,6 +225,7 @@ const statusAttention = new Set(['warning', 'error']);
 const healthAttention = new Set([
   'corrupted_config',
   'missing_config',
+  'modified',
   'no_default_snapshot',
 ]);
 
@@ -227,6 +233,8 @@ const describeHealth = (entry) => {
   if (!entry) return 'No issues detected for this emulator.';
   if (entry.details) return entry.details;
   switch (entry.status) {
+    case 'modified':
+      return 'Config drift detected. Preview and repair recommended.';
     case 'corrupted_config':
       return 'Config appears corrupted. Preview and repair recommended.';
     case 'missing_config':

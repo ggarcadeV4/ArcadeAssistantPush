@@ -36,9 +36,14 @@ const WIZARD_SEQUENCE = [
 ];
 
 const API_BASE = '';
+const deviceId = window.AA_DEVICE_ID || (() => {
+  console.warn('[Wiz] window.AA_DEVICE_ID not available, ' +
+    'falling back to cabinet-001. Cabinet identity may not be unique.');
+  return 'cabinet-001';
+})();
 const HEADERS = (scope = 'state') => ({
   'Content-Type': 'application/json',
-  'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
+  'x-device-id': deviceId,
   'x-panel': 'console-wizard',
   'x-scope': scope,
 });

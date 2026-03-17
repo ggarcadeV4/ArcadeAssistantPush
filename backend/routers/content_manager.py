@@ -8,6 +8,7 @@ Handles ROM/Asset path management, RetroFE collections, and marquee configuratio
 """
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -19,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
 
+from backend.models.marquee_config import MarqueeConfig as SharedMarqueeConfig
 # Import path utilities from existing modules
 try:
     from backend.constants.a_drive_paths import AA_DRIVE_ROOT, STATE_DIR
@@ -28,6 +30,8 @@ except ImportError:
 AA_DRIVE_ROOT = get_drive_root(allow_cwd_fallback=True)
 STATE_DIR = AA_DRIVE_ROOT / ".aa" / "state"
 from backend.constants.paths import Paths
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/content", tags=["content-manager"])
 registry_router = APIRouter(prefix="/api/local/registry", tags=["content-registry"])
@@ -100,12 +104,7 @@ class SafeArea(BaseModel):
     height: int = 360
 
 
-class MarqueeConfig(BaseModel):
-    targetDisplay: str = "Display 2 – Marquee"
-    resolution: str = "1920x360"
-    safeArea: SafeArea = SafeArea()
-    useVideo: bool = True
-    useFallback: bool = True
+MarqueeConfig = SharedMarqueeConfig
 
 
 class RetroFECollection(BaseModel):
@@ -118,6 +117,15 @@ class GenerateRequest(BaseModel):
     system: str
 class RefreshRegistryRequest(BaseModel):
     save: bool = True
+
+
+class MarqueeTestRequest(BaseModel):
+    title: Optional[str] = None
+    platform: Optional[str] = None
+
+
+class MarqueeBrowseRequest(BaseModel):
+    platform: Optional[str] = None
 
 
 # ============================================================================
@@ -804,15 +812,16 @@ async def get_marquee_config(request: Request):
         data = load_json_file(MARQUEE_CONFIG_FILE, None)
     if data is None:
         data = dict(MARQUEE_DEFAULT)
-    
-    # Add available displays (TODO: detect from system)
-    data["displays"] = [
-        "Display 1 – Main",
-        "Display 2 – Marquee",
-        "Display 3 – Auxiliary",
+
+    cfg = MarqueeConfig.model_validate(data)
+    payload = cfg.model_dump()
+    payload["displays"] = [
+        "Display 1 - Main",
+        "Display 2 - Marquee",
+        "Display 3 - Auxiliary",
     ]
-    
-    return data
+
+    return payload
 
 
 @router.post("/marquee")
@@ -841,25 +850,173 @@ async def save_marquee_config(config: MarqueeConfig, request: Request):
         raise HTTPException(status_code=500, detail="Failed to save marquee configuration")
 
 
+def _match_platform(game_platform: Optional[str], platform_filter: Optional[str]) -> bool:
+    if not platform_filter:
+        return True
+    return (game_platform or "").strip().lower() == platform_filter.strip().lower()
+
+
+def _iter_marquee_candidates(platform_filter: Optional[str] = None):
+    from backend.services.launchbox_parser import parser as launchbox_parser
+
+    try:
+        for game in launchbox_parser.get_all_games() or []:
+            if _match_platform(getattr(game, "platform", None), platform_filter):
+                yield game
+    except Exception:
+        return
+
+
 @router.post("/marquee/test/image")
-async def test_marquee_image():
+async def test_marquee_image(request: Request, payload: Optional[MarqueeTestRequest] = None):
     """Display test image on marquee monitor."""
-    # TODO: Implement actual marquee test
-    return {"success": True, "message": "Test image would be displayed"}
+    try:
+        from backend.routers import marquee as marquee_router
+
+        selected_title = payload.title if payload else None
+        selected_platform = payload.platform if payload else None
+        resolved = None
+
+        if selected_title:
+            resolved = marquee_router._resolve_media_assets(  # type: ignore[attr-defined]
+                request,
+                title=selected_title,
+                platform=selected_platform,
+                prefer_video=False,
+            )
+        else:
+            for game in _iter_marquee_candidates(selected_platform):
+                resolved = marquee_router._resolve_media_assets(  # type: ignore[attr-defined]
+                    request,
+                    game_id=getattr(game, "id", None),
+                    title=getattr(game, "title", None),
+                    platform=getattr(game, "platform", None),
+                    prefer_video=False,
+                )
+                if resolved.get("game_image_file"):
+                    break
+
+        if not resolved or not resolved.get("game_image_file"):
+            title_label = selected_title or "the requested game"
+            return {"status": "no_media", "message": f"No marquee image found for {title_label}"}
+
+        marquee_router.persist_current_game({
+            "game_id": resolved.get("game_id"),
+            "title": resolved.get("game_title"),
+            "platform": resolved.get("platform"),
+            "mode": "image",
+            "event_type": "GAME",
+            "source": "content_manager_test_image",
+        })
+        return {
+            "status": "ok",
+            "image_path": str(resolved["game_image_file"]),
+            "game": resolved.get("game_title"),
+        }
+    except Exception as e:
+        logger.warning("[ContentManager] test marquee image failed: %s", e)
+        return {"status": "no_media", "message": f"Unable to display marquee image: {e}"}
 
 
 @router.post("/marquee/test/video")
-async def test_marquee_video():
+async def test_marquee_video(request: Request, payload: Optional[MarqueeTestRequest] = None):
     """Display test video on marquee monitor."""
-    # TODO: Implement actual marquee test
-    return {"success": True, "message": "Test video would be displayed"}
+    try:
+        from backend.routers import marquee as marquee_router
+
+        selected_title = payload.title if payload else None
+        selected_platform = payload.platform if payload else None
+        resolved = None
+
+        if selected_title:
+            resolved = marquee_router._resolve_media_assets(  # type: ignore[attr-defined]
+                request,
+                title=selected_title,
+                platform=selected_platform,
+                prefer_video=True,
+            )
+        else:
+            for game in _iter_marquee_candidates(selected_platform):
+                resolved = marquee_router._resolve_media_assets(  # type: ignore[attr-defined]
+                    request,
+                    game_id=getattr(game, "id", None),
+                    title=getattr(game, "title", None),
+                    platform=getattr(game, "platform", None),
+                    prefer_video=True,
+                )
+                if resolved.get("game_video_file"):
+                    break
+
+        if not resolved or not resolved.get("game_video_file"):
+            title_label = selected_title or "the requested game"
+            return {"status": "no_media", "message": f"No video snap found for {title_label}"}
+
+        marquee_router.persist_current_game({
+            "game_id": resolved.get("game_id"),
+            "title": resolved.get("game_title"),
+            "platform": resolved.get("platform"),
+            "mode": "video",
+            "event_type": "GAME",
+            "source": "content_manager_test_video",
+        })
+        return {
+            "status": "ok",
+            "video_path": str(resolved["game_video_file"]),
+            "game": resolved.get("game_title"),
+        }
+    except Exception as e:
+        logger.warning("[ContentManager] test marquee video failed: %s", e)
+        return {"status": "no_media", "message": f"Unable to display marquee video: {e}"}
 
 
 @router.post("/marquee/test/browse")
-async def test_marquee_browse():
+async def test_marquee_browse(request: Request, payload: Optional[MarqueeBrowseRequest] = None):
     """Simulate game browsing with marquee updates."""
-    # TODO: Implement actual marquee simulation
-    return {"success": True, "message": "Browse simulation would start"}
+    try:
+        from backend.routers import marquee as marquee_router
+
+        platform_filter = payload.platform if payload else None
+        previews: List[Dict[str, Any]] = []
+
+        for game in _iter_marquee_candidates(platform_filter):
+            resolved = marquee_router._resolve_media_assets(  # type: ignore[attr-defined]
+                request,
+                game_id=getattr(game, "id", None),
+                title=getattr(game, "title", None),
+                platform=getattr(game, "platform", None),
+                prefer_video=False,
+            )
+            if resolved.get("game_image_file"):
+                previews.append({
+                    "game_id": resolved.get("game_id"),
+                    "title": resolved.get("game_title"),
+                    "platform": resolved.get("platform"),
+                })
+            if len(previews) >= 10:
+                break
+
+        if not previews:
+            return {"status": "no_media", "message": "No marquee images found"}
+
+        first_preview = previews[0]
+        marquee_router.persist_preview_game(
+            {
+                "game_id": first_preview.get("game_id"),
+                "title": first_preview.get("title"),
+                "platform": first_preview.get("platform"),
+                "event_type": "GAME",
+                "source": "content_manager_test_browse",
+            },
+            mode="image",
+        )
+        return {
+            "status": "ok",
+            "preview_count": len(previews),
+            "first_preview": first_preview.get("title"),
+        }
+    except Exception as e:
+        logger.warning("[ContentManager] test marquee browse failed: %s", e)
+        return {"status": "no_media", "message": f"Unable to start marquee browse preview: {e}"}
 
 
 # ============================================================================

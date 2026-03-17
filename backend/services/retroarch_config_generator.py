@@ -43,7 +43,9 @@ def generate_retroarch_config(
     player: int = 1,
     system: Optional[str] = None,
     include_hotkeys: bool = True,
-    include_deadzones: bool = True
+    include_deadzones: bool = True,
+    custom_mappings: Optional[Dict[str, Any]] = None,
+    deadzone_override: Optional[float] = None,
 ) -> str:
     """Generate RetroArch .cfg file content from controller profile
 
@@ -53,6 +55,8 @@ def generate_retroarch_config(
         system: Optional system override (e.g., 'snes', 'genesis', 'ps1')
         include_hotkeys: Include hotkey mappings (menu, save/load state, etc.)
         include_deadzones: Include analog deadzone settings
+        custom_mappings: Optional wizard-captured overrides keyed by logical control name
+        deadzone_override: Optional wizard-captured deadzone override
 
     Returns:
         RetroArch .cfg file content as string
@@ -135,6 +139,12 @@ def generate_retroarch_config(
             else:
                 player_mappings[key] = value
 
+        player_mappings = _apply_custom_mapping_overrides(
+            player_mappings,
+            custom_mappings,
+            player=player,
+        )
+
         # Single-pass key categorization for better performance
         button_keys = []
         axis_keys = []
@@ -175,14 +185,14 @@ def generate_retroarch_config(
             if deadzones:
                 # Left analog stick deadzone
                 if 'left_stick_x' in deadzones or 'left_stick_y' in deadzones:
-                    deadzone = deadzones.get('left_stick_x', 0.15)
+                    deadzone = deadzone_override if isinstance(deadzone_override, (int, float)) else deadzones.get('left_stick_x', 0.15)
                     config_lines.append(f'input_player{player}_analog_dpad_mode = "0"')
                     config_lines.append(f'input_player{player}_l_x_deadzone = "{deadzone}"')
                     config_lines.append(f'input_player{player}_l_y_deadzone = "{deadzone}"')
 
                 # Right analog stick deadzone
                 if 'right_stick_x' in deadzones or 'right_stick_y' in deadzones:
-                    deadzone = deadzones.get('right_stick_x', 0.15)
+                    deadzone = deadzone_override if isinstance(deadzone_override, (int, float)) else deadzones.get('right_stick_x', 0.15)
                     config_lines.append(f'input_player{player}_r_x_deadzone = "{deadzone}"')
                     config_lines.append(f'input_player{player}_r_y_deadzone = "{deadzone}"')
 
@@ -235,6 +245,108 @@ def generate_retroarch_config(
     except Exception as e:
         logger.error(f"Unexpected error in config generation: {e}", exc_info=True)
         raise RetroArchConfigError(f"Failed to generate RetroArch config: {str(e)}")
+
+
+def _normalize_mapping_value(value: Any) -> Optional[tuple[str, str]]:
+    """Translate wizard-captured values into RetroArch button/axis syntax."""
+    if isinstance(value, bool) or value is None:
+        return None
+
+    if isinstance(value, (int, float)):
+        return ("btn", str(int(value)))
+
+    if isinstance(value, str):
+        raw = value.strip().lower()
+        if raw.isdigit():
+            return ("btn", raw)
+        if raw.startswith('axis-'):
+            remainder = raw[len('axis-'):]
+            try:
+                axis_index, direction = remainder.rsplit('-', 1)
+            except ValueError:
+                return None
+            if axis_index.isdigit() and direction in {'neg', 'pos'}:
+                prefix = '-' if direction == 'neg' else '+'
+                return ("axis", f"{prefix}{axis_index}")
+
+    return None
+
+
+def _override_mapping_key(
+    player_mappings: Dict[str, Any],
+    *,
+    player: int,
+    suffix: str,
+    value_kind: str,
+    value: str,
+) -> None:
+    btn_candidates = [
+        f'input_player{player}_{suffix}_btn',
+        f'input_{suffix}_btn',
+    ]
+    axis_candidates = [
+        f'input_player{player}_{suffix}_axis',
+        f'input_{suffix}_axis',
+    ]
+
+    if value_kind == 'btn':
+        for key in axis_candidates:
+            player_mappings.pop(key, None)
+        target_key = next((key for key in btn_candidates if key in player_mappings), btn_candidates[0])
+        player_mappings[target_key] = value
+        return
+
+    for key in btn_candidates:
+        player_mappings.pop(key, None)
+    target_key = next((key for key in axis_candidates if key in player_mappings), axis_candidates[0])
+    player_mappings[target_key] = value
+
+
+def _apply_custom_mapping_overrides(
+    player_mappings: Dict[str, Any],
+    custom_mappings: Optional[Dict[str, Any]],
+    *,
+    player: int,
+) -> Dict[str, Any]:
+    if not custom_mappings:
+        return player_mappings
+
+    mapping_specs = {
+        'up': 'up',
+        'down': 'down',
+        'left': 'left',
+        'right': 'right',
+        'a': 'a',
+        'b': 'b',
+        'x': 'x',
+        'y': 'y',
+        'l': 'l',
+        'r': 'r',
+        'zl': 'l2',
+        'zr': 'r2',
+        'select': 'select',
+        'start': 'start',
+        'l3': 'l3',
+        'r3': 'r3',
+    }
+
+    overridden = dict(player_mappings)
+    for logical_key, suffix in mapping_specs.items():
+        if logical_key not in custom_mappings:
+            continue
+        normalized = _normalize_mapping_value(custom_mappings.get(logical_key))
+        if not normalized:
+            continue
+        value_kind, value = normalized
+        _override_mapping_key(
+            overridden,
+            player=player,
+            suffix=suffix,
+            value_kind=value_kind,
+            value=value,
+        )
+
+    return overridden
 
 
 def validate_retroarch_config(config_content: str) -> List[str]:

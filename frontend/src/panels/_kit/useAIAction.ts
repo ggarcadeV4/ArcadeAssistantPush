@@ -1,6 +1,24 @@
 import { useState, useCallback } from 'react'
 import { chat } from '../../services/aiClient'
 
+let hasWarnedAboutFallbackDeviceId = false
+
+function resolveDeviceId(): string {
+  if (typeof window !== 'undefined') {
+    const aaDeviceId = typeof window.AA_DEVICE_ID === 'string' ? window.AA_DEVICE_ID.trim() : ''
+    if (aaDeviceId) {
+      return aaDeviceId
+    }
+  }
+
+  if (!hasWarnedAboutFallbackDeviceId) {
+    console.warn('[useAIAction] window.AA_DEVICE_ID not available, falling back to demo_001. Cabinet identity may not be unique.')
+    hasWarnedAboutFallbackDeviceId = true
+  }
+
+  return 'demo_001'
+}
+
 interface AIActionHookResult {
   // Primary AI execution - flexible signature for panel usage
   executeAction: (actionType: string, data?: any) => Promise<any>
@@ -18,7 +36,7 @@ interface AIActionHookResult {
   isLoading: boolean
 }
 
-export function useAIAction(panel: string = 'default', deviceId = 'demo_001'): AIActionHookResult {
+export function useAIAction(panel: string = 'default', deviceId = resolveDeviceId()): AIActionHookResult {
   const [isLoading, setIsLoading] = useState(false)
 
   const askClaude = useCallback(async (envelope: any, messages: any[]) => {

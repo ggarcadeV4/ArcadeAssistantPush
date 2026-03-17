@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAIAction } from '../_kit'
-import { getLeaderboard, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper, getScoreTrackingCoverage, getScoreReviewQueue, reviewScoreAttempt } from '../../services/scorekeeperClient'
+import { getLeaderboard, getTopScore, getByGame, applyTournamentCreate, previewScoreSubmit, applyScoreSubmit, previewTournamentReport, applyTournamentReport, getTournament, listTournaments, submitScoreViaPlugin, resolveGameByTitle, undoScorekeeper, restoreScorekeeper, getScoreTrackingCoverage, getScoreReviewQueue, reviewScoreAttempt } from '../../services/scorekeeperClient'
 import { useLocation } from 'react-router-dom'
 import { getConsent, getProfile } from '../../services/profileClient'
 import { useProfileContext } from '../../context/ProfileContext'
@@ -305,6 +305,8 @@ export default function ScoreKeeperPanel() {
 
   // Leaderboard state
   const [leaderboardData, setLeaderboardData] = useState([])
+  const [topScoreBanner, setTopScoreBanner] = useState(null)
+  const [topScoreLoading, setTopScoreLoading] = useState(true)
   const [scoresCached, setScoresCached] = useState(false)
   const [pluginPaused, setPluginPaused] = useState(false)
   const [gameFilter, setGameFilter] = useState('')
@@ -453,6 +455,29 @@ export default function ScoreKeeperPanel() {
     }
   }, [])
 
+  const refreshTopScoreBanner = useCallback(async () => {
+    setTopScoreLoading(true)
+    try {
+      const result = await getTopScore()
+      const numericScore = Number(result?.score)
+      if (Number.isFinite(numericScore) && numericScore > 0) {
+        setTopScoreBanner({
+          score: numericScore,
+          player: result?.player || null,
+          game: result?.game || null,
+          date: result?.date || null
+        })
+      } else {
+        setTopScoreBanner(null)
+      }
+    } catch (err) {
+      console.warn('[ScoreKeeper] Top score banner unavailable:', err)
+      setTopScoreBanner(null)
+    } finally {
+      setTopScoreLoading(false)
+    }
+  }, [])
+
   // Auto-scroll chat to bottom
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -522,6 +547,23 @@ export default function ScoreKeeperPanel() {
       }
     })()
   }, [applyBackendTournament, refreshTrackingDashboard])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadTopScore = async () => {
+      if (cancelled) return
+      await refreshTopScoreBanner()
+    }
+
+    loadTopScore()
+    const intervalId = window.setInterval(loadTopScore, 60000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [refreshTopScoreBanner])
 
   // Reactive profile sync: when Vicky or another panel updates the profile, Sam knows immediately
   useEffect(() => {
@@ -1198,10 +1240,20 @@ Current tournament context will be provided. Use it to give specific advice.`,
               </div>
             </div>
             <div className="sam-header-divider" />
-            {leaderboardData.length > 0 && (
-              <div className="sam-header-ticker">
+            {(topScoreLoading || topScoreBanner) && (
+              <div
+                className="sam-header-ticker"
+                style={topScoreLoading ? { opacity: 0.55 } : undefined}
+              >
                 <span className="material-symbols-outlined">bolt</span>
-                <span>{formatScoreValue(leaderboardData[0]?.score ?? leaderboardData[0]?.bestScore)} pts to beat!</span>
+                <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+                  <span>{topScoreLoading ? '... PTS TO BEAT!' : `${formatScoreValue(topScoreBanner?.score)} PTS TO BEAT!`}</span>
+                  {!topScoreLoading && (topScoreBanner?.player || topScoreBanner?.game) && (
+                    <span style={{ fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.03em', opacity: 0.85 }}>
+                      {[topScoreBanner?.player, topScoreBanner?.game].filter(Boolean).join(' — ')}
+                    </span>
+                  )}
+                </span>
               </div>
             )}
           </div>

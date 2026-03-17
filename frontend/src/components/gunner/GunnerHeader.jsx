@@ -4,6 +4,8 @@ import React from 'react'
  * GunnerHeader — Title bar with neon styling
  * Shows "GUNNER: RETRO SHOOTER CONTROL CENTER" + MAC/Fleet status
  */
+// TODO: Replace with live MAC address from cabinet manifest
+// TODO: Replace with live fleet status from heartbeat
 export default function GunnerHeader({ macAddress = 'AB12', fleetStatus = 'Connected' }) {
     return (
         <header className="gunner-header">

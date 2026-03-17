@@ -80,6 +80,11 @@ const generateDeviceId = () => {
 
 const resolveLaunchboxDeviceId = () => {
   try {
+    const aaDeviceId = String(window?.AA_DEVICE_ID || '').trim()
+    if (aaDeviceId) return aaDeviceId
+
+    console.warn('[LoRa] window.AA_DEVICE_ID not available, falling back to local device ID. Cabinet identity may not be unique.')
+
     if (typeof window === 'undefined' || !window.localStorage) {
       return generateDeviceId()
     }

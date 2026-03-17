@@ -1097,6 +1097,66 @@ class GameLauncher:
                         "stderr_trap": trap_result,
                     }
 
+            # Daphne/Hypseus laserdisc direct launch
+            if platform_key == "daphne" and not daphne_uses_mame:
+                exe = r"A:\Emulators\Hypseus\Hypseus Singe\hypseus.exe"
+                homedir = r"A:\Roms\DAPHNE"
+
+                daphne_game_map = {
+                    "astron belt": ("astron", r"A:\Roms\DAPHNE\framefile\astron.txt"),
+                    "badlands": ("badlands", r"A:\Roms\DAPHNE\framefile\badlands.txt"),
+                    "bega's battle": ("bega", r"A:\Roms\DAPHNE\framefile\bega.txt"),
+                    "cobra command": ("cobraab", r"A:\Roms\DAPHNE\framefile\cobraab.txt"),
+                    "dragon's lair hd": ("lair", r"A:\Roms\DAPHNE\vldp\lair\lair.txt"),
+                    "dragon's lair ii hd": ("lair2", r"A:\Roms\DAPHNE\vldp\lair2\dl2-framefile.txt"),
+                    "galaxy ranger": ("galaxy", r"A:\Roms\DAPHNE\framefile\galaxy.txt"),
+                    "gp world": ("gpworld", r"A:\Roms\DAPHNE\framefile\gpworld.txt"),
+                    "inter stellar": ("interstellar", r"A:\Roms\DAPHNE\framefile\interstellar.txt"),
+                    "mach 3": ("mach3", r"A:\Roms\DAPHNE\framefile\mach3.txt"),
+                    "road blaster": ("roadblaster", r"A:\Roms\DAPHNE\framefile\roadblaster.txt"),
+                    "space ace hd": ("ace", r"A:\Roms\DAPHNE\vldp\ace\ace.txt"),
+                    "super don quix-ote": ("sdq", r"A:\Roms\DAPHNE\framefile\sdq.txt"),
+                    "thayer's quest": ("tq", r"A:\Roms\DAPHNE\framefile\tq.txt"),
+                    "us vs them": ("uvt", r"A:\Roms\DAPHNE\framefile\uvt.txt"),
+                }
+
+                ahk_stem = Path(str(getattr(game, "application_path", "") or "")).stem.lower()
+                if ahk_stem not in daphne_game_map:
+                    raise ValueError(f"No Hypseus mapping for Daphne game: {ahk_stem}")
+
+                game_name, framefile = daphne_game_map[ahk_stem]
+                command = [
+                    exe,
+                    game_name,
+                    "vldp",
+                    "-homedir", homedir,
+                    "-framefile", framefile,
+                    "-fullscreen",
+                    "-x", "1920",
+                    "-y", "1080",
+                ]
+                hypseus_exe = Path(command[0])
+                logger.info(
+                    f"[DIRECT] Hypseus launch: exe={hypseus_exe}, game={game_name}, framefile={framefile}, cwd={hypseus_exe.parent}"
+                )
+                win_command = _convert_wsl_paths_for_windows(command)
+                wsl_cwd = str(hypseus_exe.parent)
+                if dry_run_enabled():
+                    logger.info(f"[DIRECT] Hypseus DRY-RUN: {' '.join(win_command)}")
+                    return {"success": True, "command": " ".join(win_command), "message": "dry-run"}
+                hypseus_env = os.environ.copy()
+                hypseus_env["SDL_VIDEODRIVER"] = "windows"
+                trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd, env=hypseus_env)
+                if trap_result["success"]:
+                    logger.info(f"[DIRECT] Hypseus launch SUCCESS: {' '.join(win_command)}")
+                    return {"success": True, "command": " ".join(win_command)}
+                logger.warning(f"[DIRECT] Hypseus launch FAILED (code {trap_result['return_code']})")
+                return {
+                    "success": False,
+                    "command": " ".join(win_command),
+                    "stderr_trap": trap_result,
+                }
+
             # Try registered adapters (e.g., RetroArch) for consoles
             manifest = self._load_launchers_config() or {}
             last_msg: Optional[str] = None

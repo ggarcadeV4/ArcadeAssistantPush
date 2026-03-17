@@ -113,13 +113,15 @@ def load_detector_registry() -> Dict[str, Type['HardwareDetector']]:
     MockDetectorClass = _lazy_import_detector('mock')
     registry['mock'] = MockDetectorClass
 
-    # USB detector (conditional on HID availability)
+    # Register USB detector even when HID support is missing so the factory can
+    # explicitly select the real detector path instead of silently falling back
+    # to mock mode.
+    USBDetectorClass = _lazy_import_detector('usb')
+    registry['usb'] = USBDetectorClass
     if _check_hid_available():
-        USBDetectorClass = _lazy_import_detector('usb')
-        registry['usb'] = USBDetectorClass
         logger.info("Registered USB detector")
     else:
-        logger.warning("USB detector not available (HID missing)")
+        logger.warning("USB detector registered, but HID support is unavailable")
 
     # Future: Plugin discovery via entry_points
     # try:
@@ -177,33 +179,27 @@ def detector_factory() -> 'HardwareDetector':
     1. Check AA_USE_MOCK_GUNNER env var (explicit override)
     2. Check ENVIRONMENT env var (dev/prod)
     3. Check HID availability via registry
-    4. Default to MockDetector in development, USBDetector in production
+    4. Use MockDetector only when explicitly requested in development
 
     Returns:
         Cached HardwareDetector instance
     """
-    # Check explicit mock override
+    app_env = os.getenv('ENVIRONMENT', 'dev')
     env_mock_str = os.getenv('AA_USE_MOCK_GUNNER', '').lower()
-    if env_mock_str in ('true', '1', 'yes'):
-        logger.info("Factory: Using MockDetector (AA_USE_MOCK_GUNNER=true)")
+    mock_override = env_mock_str in ('true', '1', 'yes')
+
+    if app_env == 'dev' and mock_override:
+        logger.warning("Gunner: MockDetector active (AA_USE_MOCK_GUNNER=true)")
         return get_detector_instance('mock')
 
-    # Check app environment from environment variable
-    app_env = os.getenv('ENVIRONMENT', 'dev')
+    registry = load_detector_registry()
 
-    # Determine detector key based on environment
-    if app_env == 'dev':
-        detector_key = 'mock'
-        logger.info("Factory: Development mode - using MockDetector")
+    if 'usb' in registry:
+        detector_key = 'usb'
+        logger.info("Factory: %s mode - using USBDetector", app_env)
     else:
-        # Production: try USB, fallback to mock if unavailable
-        registry = load_detector_registry()
-        if 'usb' in registry:
-            detector_key = 'usb'
-            logger.info("Factory: Production mode - using USBDetector")
-        else:
-            detector_key = 'mock'
-            logger.warning("Factory: USB unavailable in production - using MockDetector")
+        detector_key = 'usb'
+        logger.warning("Factory: USB detector missing from registry in %s mode", app_env)
 
     return get_detector_instance(detector_key)
 
@@ -284,7 +280,7 @@ def is_mock_mode() -> bool:
     app_env = os.getenv('ENVIRONMENT', 'dev')
     hid_available = _check_hid_available()
 
-    return env_mock or app_env == 'dev' or not hid_available
+    return app_env == 'dev' and env_mock
 
 
 def get_detector_status() -> dict:

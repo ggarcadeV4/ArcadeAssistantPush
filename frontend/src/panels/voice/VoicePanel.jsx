@@ -3,7 +3,7 @@ import { PanelShell } from '../_kit'
 import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar'
 import '../_kit/EngineeringBaySidebar.css'
 import './voice.css'
-import { getConsent, previewConsent, applyConsent, previewProfile, applyProfile } from '../../services/profileClient'
+import { getConsent, getPrimaryProfile, previewConsent, applyConsent, previewProfile, applyProfile } from '../../services/profileClient'
 import { speakAsVicky, stopSpeaking } from '../../services/ttsClient'
 import { startPlayerSession } from '../../services/playerTrackingClient'
 import { chat as aiChat } from '../../services/aiClient'
@@ -40,6 +40,19 @@ const normalizePlayerId = (raw = '', fallback = 'guest') => {
   return cleaned || fallback
 }
 
+const resolvePrimaryPlayerSlot = (players = [], displayName = '') => {
+  const normalizedName = String(displayName || '').trim().toLowerCase()
+  if (normalizedName) {
+    const exactMatch = players.findIndex(player => String(player?.user || '').trim().toLowerCase() === normalizedName)
+    if (exactMatch >= 0) return exactMatch
+  }
+  const assignedSeat = players.findIndex(player => {
+    const user = String(player?.user || '').trim().toLowerCase()
+    return user && user !== 'none' && user !== 'guest'
+  })
+  return assignedSeat >= 0 ? assignedSeat : 0
+}
+
 const toSessionPlayers = (players = []) => {
   const seats = []
   for (let index = 0; index < 4; index += 1) {
@@ -68,8 +81,8 @@ const DEFAULT_USER_OPTIONS = ['None', 'Dad', 'Mom', 'Kid Y', 'Kid Z', 'Guest']
 const VICKY_PERSONA = {
   id: 'vicky',
   name: 'VICKY',
-  icon: 'ðŸŽ™ï¸',
-  icon2: 'ðŸ—£ï¸',
+  icon: '\uD83C\uDFA4',
+  icon2: '\uD83D\uDDE3\uFE0F',
   accentColor: '#c8ff00',
   accentGlow: 'rgba(200, 255, 0, 0.35)',
   scannerLabel: 'LISTENING...',
@@ -94,6 +107,7 @@ export default function VoicePanel() {
   const [warn, setWarn] = useState('')
   const [consent, setConsent] = useState({ accepted: false, consentVersion: '2.0', scopes: [] })
   const [showConsent, setShowConsent] = useState(false)
+  const [consentReady, setConsentReady] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
   const [agreeNetwork, setAgreeNetwork] = useState(false)
   const [agreeLeaderboard, setAgreeLeaderboard] = useState(false)
@@ -176,12 +190,12 @@ export default function VoicePanel() {
         return lastEvent  // Has tts_response, intent, etc.
       }
       if (lastEvent?.status === 'error' && lastEvent?.suggestion) {
-        return null  // Not a lighting command â€” fall through to AI chat
+        return null  // Not a lighting command Ã¢â‚¬â€ fall through to AI chat
       }
       return null
     } catch (err) {
       console.debug('[VoicePanel] Lighting command endpoint unavailable:', err.message)
-      return null  // Backend down or error â€” fall through to AI chat
+      return null  // Backend down or error Ã¢â‚¬â€ fall through to AI chat
     }
   }, [primaryUserId])
 
@@ -191,7 +205,7 @@ export default function VoicePanel() {
     setMessages(prev => [...prev, { role, text: String(text ?? '') }])
   }, [])
 
-  // ---- Voice transcription callback (wires useGemSpeech â†’ AI chat) ----
+  // ---- Voice transcription callback (wires useGemSpeech Ã¢â€ â€™ AI chat) ----
   const handleVoiceTranscript = useCallback((text) => {
     if (!text) return
     // Display as user message
@@ -202,7 +216,7 @@ export default function VoicePanel() {
     // Step 1: Try as a lighting command first (SSE endpoint)
     tryLightingCommand(text).then(async (cmdResult) => {
       if (cmdResult) {
-        // Lighting command recognized and applied â€” speak the confirmation
+        // Lighting command recognized and applied Ã¢â‚¬â€ speak the confirmation
         const confirmText = cmdResult.tts_response || 'Lighting command applied.'
         addMessage(confirmText, 'assistant')
         try {
@@ -213,10 +227,10 @@ export default function VoicePanel() {
         } finally {
           setIsSpeaking(false)
         }
-        return  // Done â€” don't fall through to AI chat
+        return  // Done Ã¢â‚¬â€ don't fall through to AI chat
       }
 
-      // Step 2: Not a lighting command â€” send to AI chat (existing flow)
+      // Step 2: Not a lighting command Ã¢â‚¬â€ send to AI chat (existing flow)
       const profileName = (sharedProfile?.displayName || profile.displayName || '').trim() || 'Guest'
       const hasProfileName = Boolean((sharedProfile?.displayName || profile.displayName || '').trim())
       const profileContext = {
@@ -416,7 +430,7 @@ export default function VoicePanel() {
     }
   }, [players, addMessage, primaryUserId, primaryUserName, sessionPlayers])
 
-  // Handoff effect (handles Dewey â†’ Voice context handoff)
+  // Handoff effect (handles Dewey Ã¢â€ â€™ Voice context handoff)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const handoffContext = urlParams.get('context')
@@ -438,11 +452,16 @@ export default function VoicePanel() {
     // Check for JSON handoff from Dewey (only when arriving via Dewey URL context)
     if (shouldHandoff) (async () => {
       try {
+        const deviceId = window.AA_DEVICE_ID || (() => {
+          console.warn('[Vicky] window.AA_DEVICE_ID not available, ' +
+            'falling back to cabinet-001. Cabinet identity may not be unique.')
+          return 'cabinet-001'
+        })()
         const response = await fetch('/api/local/dewey/handoff/voice', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
+            'x-device-id': deviceId,
             'x-panel': 'voice',
             'x-scope': 'state'
           }
@@ -635,16 +654,30 @@ export default function VoicePanel() {
 
   // Load consent/profile on mount
   useEffect(() => {
-    (async () => {
+    let isActive = true
+    ;(async () => {
       try {
-        const c = await getConsent().catch(() => ({ accepted: false }))
+        const [c, primary] = await Promise.all([
+          getConsent().catch(() => ({ accepted: false })),
+          getPrimaryProfile().catch(() => ({ profile: {}, exists: false }))
+        ])
+        if (!isActive) return
         const accepted = !!(c?.accepted || c?.consent?.accepted)
+        const primaryProfile = primary?.profile || {}
+        const primaryName = String(primaryProfile.display_name || primaryProfile.displayName || '').trim()
+        const isReturningPlayer = Boolean(primaryName) && !/^guest$/i.test(primaryName)
         setConsent(c?.consent || { accepted: false, consentVersion: '1.0', scopes: [] })
-        setShowConsent(!accepted)
+        setShowConsent(!(accepted && isReturningPlayer))
       } catch {
+        if (!isActive) return
         setShowConsent(true)
+      } finally {
+        if (isActive) setConsentReady(true)
       }
     })()
+    return () => {
+      isActive = false
+    }
   }, [])
 
   useEffect(() => {
@@ -708,7 +741,7 @@ export default function VoicePanel() {
   const formatTendencyValue = (value) => {
     if (Array.isArray(value)) return value.join(', ')
     if (value && typeof value === 'object') {
-      return Object.entries(value).map(([k, v]) => `${formatTendencyLabel(k)}: ${v}`).join(' â€¢ ')
+      return Object.entries(value).map(([k, v]) => `${formatTendencyLabel(k)}: ${v}`).join(' | ')
     }
     return String(value ?? '')
   }
@@ -772,25 +805,37 @@ export default function VoicePanel() {
       const fallbackUserId = (profile.userId || profile.initials || profile.displayName || primaryUserName || 'guest').trim()
       const resolvedUserId = (fallbackUserId || 'guest').slice(0, 8)
 
-      const payload = {
+      const resolvedDisplayName = (profile.displayName || primaryUserName || 'Guest').trim() || 'Guest'
+      const normalizedVocabulary = vocabText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+      const primaryPlayerSlot = resolvePrimaryPlayerSlot(players, resolvedDisplayName)
+      const primaryPlayer = players[primaryPlayerSlot] || { controller: 'Not Assigned' }
+      const profilePayload = {
         user_id: resolvedUserId,
-        display_name: profile.displayName || 'Player',
+        display_name: resolvedDisplayName,
         initials: profile.initials || 'PL',
         voice_prefs: voiceAssignments,
-        vocabulary: vocabText.split('\n').filter(line => line.trim()),
-        training_phrases: []
+        vocabulary: normalizedVocabulary,
+        training_phrases: [],
+        player_position: `P${primaryPlayerSlot + 1}`,
+        controller_assignment: primaryPlayer.controller || 'Not Assigned',
+        custom_vocabulary: normalizedVocabulary,
+        consent_active: !!consent?.accepted
       }
 
-      console.log('[Voice Panel] Primary profile payload:', payload)
+      console.log('[Voice Panel] Primary profile payload:', profilePayload)
 
       // Call the new broadcast endpoint
       const response = await fetch(`${GATEWAY}/api/local/profile/primary`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'x-panel': 'voice',
           'x-scope': 'state'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(profilePayload)
       })
 
       if (!response.ok) {
@@ -803,8 +848,8 @@ export default function VoicePanel() {
       // Also update the local profile using the old method for compatibility
       const legacyPayload = {
         ...profile,
-        displayName: payload.display_name,
-        initials: payload.initials,
+        displayName: profilePayload.display_name,
+        initials: profilePayload.initials,
         userId: resolvedUserId,
         preferences: preferencesPayload
       }
@@ -817,8 +862,8 @@ export default function VoicePanel() {
       // Update ScoreKeeper session context (Vicky is source of truth)
       try {
         await startPlayerSession({
-          playerName: payload.display_name,
-          playerId: payload.user_id,
+          playerName: profilePayload.display_name,
+          playerId: profilePayload.user_id,
           players: sessionPlayers,
           panel: 'voice'
         })
@@ -827,15 +872,17 @@ export default function VoicePanel() {
       }
 
       // Show success toast
-      setSaveToast('Primary user saved and broadcast to Arcade Assistant âœ“')
-      addMessage('âœ… Profile saved and broadcast to all agents!', 'assistant')
+      setSaveToast('Primary user saved and broadcast to Arcade Assistant')
+      addMessage('Profile saved and broadcast to all agents!', 'assistant')
+
+      console.log('[Vicky] Profile broadcast complete:', profilePayload)
 
       // Auto-hide toast after 4 seconds
       setTimeout(() => setSaveToast(''), 4000)
     } catch (e) {
       console.error('[Voice Panel] Profile save error:', e)
       setSaveToast(`Error: ${e.message || 'Failed to save profile'}`)
-      addMessage('âŒ Failed to save profile.', 'assistant')
+      addMessage('Failed to save profile.', 'assistant')
 
       // Auto-hide error toast after 6 seconds
       setTimeout(() => setSaveToast(''), 6000)
@@ -957,7 +1004,7 @@ export default function VoicePanel() {
               aria-pressed={chatOpen}
               style={{ color: '#ffffff', fontSize: '15px', fontWeight: 700 }}
             >
-              <span className="chat-icon">{chatOpen ? 'âœ•' : 'ðŸ’¬'}</span>
+              <span className="chat-icon">{chatOpen ? '\u2715' : '\uD83D\uDCAC'}</span>
               <span className="chat-label">{chatOpen ? 'Close Chat' : 'Chat with AI'}</span>
             </button>
           }
@@ -969,7 +1016,7 @@ export default function VoicePanel() {
                   <h2 style={{ marginTop: 0, color: '#c8ff00', fontSize: '1.4em' }}>Welcome to the Arcade Assistant Network</h2>
                   <p style={{ marginTop: 8, marginBottom: 16, fontSize: '1em', lineHeight: 1.7, color: '#d1d5db' }}>
                     This cabinet is powered by <strong style={{ color: '#ffffff' }}>Arcade Assistant</strong>, built by <strong style={{ color: '#ffffff' }}>G&G Arcade</strong>.
-                    By opting in below, you agree to connect this cabinet to the Arcade Assistant Network â€” enabling shared leaderboards,
+                    By opting in below, you agree to connect this cabinet to the Arcade Assistant Network - enabling shared leaderboards,
                     score syncing across cabinets, and personalized AI features. <strong style={{ color: '#c8ff00' }}>Opting in is completely optional.</strong> The
                     cabinet works fully offline without it.
                   </p>
@@ -997,21 +1044,21 @@ export default function VoicePanel() {
                   <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
                       <input type="checkbox" checked={agreeNetwork} onChange={(e) => setAgreeNetwork(e.target.checked)} style={{ marginTop: 3, accentColor: '#c8ff00' }} />
-                      <span><strong style={{ color: '#ffffff' }}>Join the Arcade Assistant Network</strong> â€” I consent to having my display name, scores, and session data shared across connected cabinets operated by G&G Arcade.</span>
+                      <span><strong style={{ color: '#ffffff' }}>Join the Arcade Assistant Network</strong> - I consent to having my display name, scores, and session data shared across connected cabinets operated by G&G Arcade.</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
                       <input type="checkbox" checked={agreeLeaderboard} onChange={(e) => setAgreeLeaderboard(e.target.checked)} style={{ marginTop: 3, accentColor: '#c8ff00' }} />
-                      <span><strong style={{ color: '#ffffff' }}>Public Leaderboards</strong> â€” I agree that my display name and scores may appear on publicly visible leaderboards within the Arcade Assistant Network.</span>
+                      <span><strong style={{ color: '#ffffff' }}>Public Leaderboards</strong> - I agree that my display name and scores may appear on publicly visible leaderboards within the Arcade Assistant Network.</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
                       <input type="checkbox" checked={agreeContact} onChange={(e) => setAgreeContact(e.target.checked)} style={{ marginTop: 3, accentColor: '#c8ff00' }} />
-                      <span><strong style={{ color: '#ffffff' }}>Communications (Optional)</strong> â€” I agree to receive occasional updates, event notifications, or promotions from G&G Arcade via email or SMS. I can unsubscribe at any time.</span>
+                      <span><strong style={{ color: '#ffffff' }}>Communications (Optional)</strong> - I agree to receive occasional updates, event notifications, or promotions from G&G Arcade via email or SMS. I can unsubscribe at any time.</span>
                     </label>
                   </div>
 
                   <p style={{ fontSize: '0.82em', color: '#9ca3af', lineHeight: 1.6, marginBottom: 4 }}>
                     By clicking "I Agree," you confirm that you have read and accept the <span style={{ color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowTerms(true)}>Terms of Service & Privacy Policy</span>.
-                    Your consent is recorded with a timestamp and can be revoked at any time via <strong>Settings â†’ Permissions</strong>.
+                    Your consent is recorded with a timestamp and can be revoked at any time via <strong>Settings -&gt; Permissions</strong>.
                     G&G Arcade reserves the right to update these terms; material changes will require renewed consent.
                     This cabinet is intended for use in a public arcade environment. If you are under the age of 16, please ask a parent or guardian before opting in.
                   </p>
@@ -1019,14 +1066,14 @@ export default function VoicePanel() {
                   {consentError && (
                     <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 6, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>{consentError}</span>
-                      <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">Ã—</button>
+                      <button type="button" onClick={() => setConsentError('')} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss error">x</button>
                     </div>
                   )}
 
                   <div style={{ display: 'flex', gap: 12, marginTop: 18, alignItems: 'center' }}>
                     <button className="btn" disabled={!canApplyConsent || consentSaving} onClick={handleApplyConsent} aria-label="Agree and continue">{consentSaving ? 'Saving...' : 'I Agree'}</button>
                     <button className="btn btn-secondary" onClick={() => { setShowConsent(false); setWarn(''); }} aria-label="Continue offline">Continue Offline</button>
-                    <button type="button" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9em' }} onClick={() => setShowTerms(true)}>Full Terms & Privacy â†’</button>
+                    <button type="button" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9em' }} onClick={() => setShowTerms(true)}>Full Terms & Privacy -&gt;</button>
                   </div>
                 </div>
               </div>
@@ -1038,7 +1085,7 @@ export default function VoicePanel() {
                 <div style={{ width: '800px', maxWidth: '95vw', maxHeight: '90vh', background: '#0b1020', border: '1px solid #243144', borderRadius: 8, padding: 24, color: '#e5e7eb', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <h2 style={{ margin: 0, color: '#c8ff00' }}>Terms & Privacy (Local-First)</h2>
-                    <button type="button" onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5em', cursor: 'pointer' }} aria-label="Close">Ã—</button>
+                    <button type="button" onClick={() => setShowTerms(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5em', cursor: 'pointer' }} aria-label="Close">x</button>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9em', lineHeight: 1.6 }}>
                     <p><strong>Operator / Publisher:</strong> G & G Arcade ("G&G," "we," "us")<br />
@@ -1094,6 +1141,13 @@ export default function VoicePanel() {
               </div>
             )}
 
+            {!consentReady && (
+              <section className="section">
+                <div className="tendencies-note">Loading privacy settings...</div>
+              </section>
+            )}
+
+            <div style={{ display: consentReady && !showConsent ? undefined : 'none' }}>
             {/* Add User Name Modal */}
             {addUserModal.open && (
               <div role="dialog" aria-modal="true" aria-label="Add new user" style={{ position: 'fixed', inset: 0, background: 'rgba(5,8,16,0.88)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1157,7 +1211,7 @@ export default function VoicePanel() {
               {warn && (
                 <div className="text-sm" style={{ color: '#fbbf24', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }} role="status" aria-live="polite">
                   <span>{warn}</span>
-                  <button type="button" onClick={() => setWarn('')} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss warning">Ã—</button>
+                  <button type="button" onClick={() => setWarn('')} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', padding: '0 4px', fontSize: '1.1em' }} aria-label="Dismiss warning">x</button>
                 </div>
               )}
               <div className="voice-transcript-box" style={{ padding: '8px', border: '1px solid #374151', borderRadius: 6, background: '#0b1020' }}>
@@ -1291,7 +1345,7 @@ export default function VoicePanel() {
               </div>
               <div className="action-bar">
                 <button className="btn btn-secondary" onClick={handleCopySetup}>
-                  ðŸ“‹ Copy Setup Link
+                  Copy Setup Link
                 </button>
                 <button className="btn" onClick={handleStartSession}>Start Session</button>
               </div>
@@ -1402,6 +1456,7 @@ export default function VoicePanel() {
                 </button>
               </div>
             </section>
+            </div>
           </div>
         </PanelShell>
       </div>

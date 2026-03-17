@@ -4037,9 +4037,9 @@ async def pegasus_exit(request: Request):
     Clears marquee preview state and resets runtime state to browse mode.
     This prevents LoRa from reading stale game state after returning to menu.
     """
-    # Clear marquee preview
+    # Return marquee to idle
     try:
-        await marquee_router.clear_preview()
+        await asyncio.to_thread(marquee_router.reset_marquee_to_idle, "pegasus_exit")
     except Exception as e:
         logger.debug(f"Marquee clear failed (non-critical): {e}")
     

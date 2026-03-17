@@ -20,28 +20,25 @@ import os
 import psutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 import httpx
 
 from backend.services.led_priority_arbiter import get_led_arbiter, LEDPriority
+from backend.services.led_blinky_translator import resolve_animation_code
+from backend.services.blinky_service import BlinkyProcessManager
 from backend.services.score_tracking import CanonicalGameEvent, get_score_tracking_service
 
 logger = logging.getLogger(__name__)
 
-
-# B5 FIX: Genre-Aware LED Animation Codes for LEDBlinky
-# Each genre tag maps to a distinct animation code that makes the cabinet
-# "feel" different per game type. Code "1" is the fallback (static ON).
-GENRE_ANIMATION_MAP = {
-    "LED:FIGHTING":   "3",    # Aggressive strobing
-    "LED:RACING":     "4",    # Circular chase
-    "LED:SHOOTER":    "5",    # Rapid pulse
-    "LED:SPORTS":     "6",    # Slow sweep
-    "LED:LIGHTGUN":   "7",    # Target flash
-    "LED:PLATFORMER": "8",    # Color cycle
-    "LED:PUZZLE":     "9",    # Breathing
-    "LED:STANDARD":   "1",    # Static ON (default)
+ANIMATION_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
+    "1": (0xF5, 0x9E, 0x0B),  # idle/default amber
+    "2": (0xEF, 0x44, 0x44),  # shooter red
+    "3": (0xF9, 0x73, 0x16),  # fighting orange
+    "4": (0x06, 0xB6, 0xD4),  # racing cyan
+    "5": (0x22, 0xC5, 0x5E),  # sports green
+    "9": (0xD9, 0x46, 0xEF),  # voice active magenta
+    "129": (0xD9, 0x46, 0xEF),  # strobe/ack pulse rendered as Vicky magenta on HID path
 }
 
 
@@ -55,10 +52,7 @@ def get_animation_for_game(tags: list) -> str:
     Returns:
         Animation code string (e.g. "3" for fighting games)
     """
-    for tag in tags:
-        if tag in GENRE_ANIMATION_MAP:
-            return GENRE_ANIMATION_MAP[tag]
-    return GENRE_ANIMATION_MAP["LED:STANDARD"]
+    return resolve_animation_code(tags=tags)
 
 
 @dataclass
@@ -76,6 +70,7 @@ class TrackedGame:
     player: Optional[str] = None
     session_id: Optional[str] = None
     is_mame: bool = False
+    tags: List[str] = field(default_factory=list)
 
 
 class GameLifecycleService:
@@ -91,12 +86,14 @@ class GameLifecycleService:
         self._monitor_task: Optional[asyncio.Task] = None
         self._running = False
         self._poll_interval = 2.0  # seconds
+        self._led_callback_registered = False
     
     async def start(self) -> None:
         """Start the background monitor."""
         if self._running:
             return
-        
+
+        self._ensure_led_callback_registered()
         self._running = True
         self._monitor_task = asyncio.create_task(self._monitor_loop())
         logger.info("GameLifecycleService started")
@@ -123,7 +120,8 @@ class GameLifecycleService:
         source: str = "arcade_assistant",
         launch_method: str = "pid_monitor",
         player: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> None:
         """
         Start tracking a game launch.
@@ -148,7 +146,8 @@ class GameLifecycleService:
             launch_method=launch_method,
             player=player,
             session_id=session_id,
-            is_mame=is_mame
+            is_mame=is_mame,
+            tags=list(tags or []),
         )
         
         self._tracked_games[pid] = tracked
@@ -177,8 +176,8 @@ class GameLifecycleService:
             logger.warning(f"Score tracking launch record failed: {tracking_error}")
 
         try:
-            tags = getattr(tracked, "tags", []) or []
-            animation = get_animation_for_game(tags)
+            self._ensure_led_callback_registered()
+            animation = get_animation_for_game(tracked.tags)
             arbiter = get_led_arbiter()
             asyncio.create_task(
                 arbiter.claim(
@@ -189,6 +188,64 @@ class GameLifecycleService:
             )
         except Exception as e:
             logger.warning(f"LED arbiter claim failed (non-fatal): {e}")
+
+        try:
+            blinky = BlinkyProcessManager.get_instance()
+            if getattr(blinky, "_is_running", False) and rom_name:
+                asyncio.create_task(blinky.game_launch(rom_name, emulator or "MAME"))
+        except Exception as e:
+            logger.warning(f"[LED] LEDBlinky game_launch failed: {e}")
+
+    def _ensure_led_callback_registered(self) -> None:
+        """Register the LED arbiter callback once per process.
+
+        The arbiter speaks in LEDBlinky animation codes, while the native
+        hardware service writes direct RGB values per port. This adapter keeps
+        the callback registration local to the lifecycle service and works in
+        both mock and native hardware modes.
+        """
+        if self._led_callback_registered:
+            return
+
+        try:
+            from backend.services.led_hardware import LEDHardwareService
+
+            led_hardware = LEDHardwareService()
+            arbiter = get_led_arbiter()
+
+            async def fire_animation(animation_code: str, rom_name: Optional[str] = None) -> None:
+                try:
+                    if os.getenv("AA_DISABLE_NATIVE_LED", "1") == "1":
+                        logger.info(
+                            "[MOCK][LEDArbiter] Fire callback invoked",
+                            extra={"animation_code": animation_code, "rom_name": rom_name},
+                        )
+                        return
+
+                    color = ANIMATION_COLOR_MAP.get(str(animation_code), ANIMATION_COLOR_MAP["1"])
+                    ports = led_hardware.get_devices()
+                    if not ports:
+                        logger.warning("LED arbiter fire skipped - no LED devices detected")
+                        return
+
+                    for device in ports:
+                        device_id = int(device.get("id", 0))
+                        max_ports = min(int(device.get("ports", 0) or 0), 16)
+                        for port in range(1, max_ports + 1):
+                            led_hardware.write_port(device_id, port, color)
+
+                    logger.info(
+                        "LED arbiter fired",
+                        extra={"animation_code": animation_code, "rom_name": rom_name},
+                    )
+                except Exception as fire_exc:
+                    logger.warning(f"[LEDFireCallback] Failed to fire LED command: {fire_exc}")
+
+            arbiter.set_fire_callback(fire_animation)
+            self._led_callback_registered = True
+            logger.info("[LEDArbiter] Fire callback registered — LED commands will now execute")
+        except Exception as exc:
+            logger.warning(f"Failed to register LED arbiter callback: {exc}")
 
     def untrack_game(self, pid: int) -> Optional[TrackedGame]:
         """Stop tracking a game and return its info."""
@@ -247,6 +304,13 @@ class GameLifecycleService:
             await arbiter.release(LEDPriority.GAME)
         except Exception as e:
             logger.warning(f"LED arbiter release failed (non-fatal): {e}")
+
+        try:
+            blinky = BlinkyProcessManager.get_instance()
+            if getattr(blinky, "_is_running", False):
+                await blinky.game_stop()
+        except Exception as e:
+            logger.warning(f"[LED] LEDBlinky game_stop failed: {e}")
 
         logger.info(
             f"Game exited: {tracked.game_title} after {play_duration:.0f}s "
@@ -641,9 +705,16 @@ def track_game_launch(
     launch_method: str = "pid_monitor",
     player: Optional[str] = None,
     session_id: Optional[str] = None,
+    tags: Optional[List[str]] = None,
 ) -> None:
     """Convenience function to track a game launch."""
     service = get_game_lifecycle()
+    try:
+        loop = asyncio.get_running_loop()
+        if not service._running:
+            loop.create_task(service.start())
+    except RuntimeError:
+        pass
     service.track_game(
         game_id,
         game_title,
@@ -655,6 +726,7 @@ def track_game_launch(
         launch_method,
         player,
         session_id,
+        tags,
     )
 
 

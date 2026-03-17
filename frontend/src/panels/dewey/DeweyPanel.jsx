@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import './DeweyPanel.css'
-import { chat as aiChat } from '../../services/aiClient'
 import { speakAsDewey, stopSpeaking, isSpeaking } from '../../services/ttsClient'
 import { useProfileContext } from '../../context/ProfileContext'
 import useGemSpeech from '../../hooks/useGemSpeech'
-import { getHeadlines } from '../../services/newsClient'
 import TriviaExperience from './trivia/TriviaExperience'
 import GamingNews from './news/GamingNews'
 import { searchArcadeLore } from '../../services/deweySearchClient'
@@ -20,19 +18,6 @@ const DEFAULT_PROFILE_OPTIONS = [
   { userId: 'tim', displayName: 'Tim', initials: 'TI' },
   { userId: 'sarah', displayName: 'Sarah', initials: 'SA' }
 ]
-
-const AGENT_SUMMARY = [
-  'Available specialists:',
-  '* Vicky - voice macros and general introductions.',
-  '* LoRa - LaunchBox librarian for launching/importing games.',
-  '* Control-a-Chuck - arcade panel controls, joystick/buttons, wiring, and pin mapping.',
-  '* Control-a-Wizard - gamepad/controller setup (Xbox/PlayStation/8BitDo), profiles, and remapping.',
-  '* LED Blinky - cabinet & LED lighting scenes.',
-  '* Gunner - light gun calibration.',
-  '* Scorekeeper Sam - tournaments, stats, and leaderboards.',
-  '* Doc - diagnostics and health monitoring.',
-  '* Wiz - modding, scripting, and automations.'
-].join('\n')
 
 const PANEL_CAPABILITIES = [
   {
@@ -292,78 +277,69 @@ const DEFAULT_GALLERY = [
 const DEFAULT_LORE = 'The Golden Age of Arcade Games was a peak era of arcade video game popularity, innovation, and earnings. From space shooters to maze chases, these cabinets defined a generation\'s culture.'
 const DEFAULT_ERA = 'Era Analysis: 1978-1983'
 
-const buildSystemPrompt = (user) => {
-  const prefs = user?.preferences || {}
-  const preferenceLines = []
-
-  if (prefs.genres?.length) {
-    preferenceLines.push(`Favorite genres: ${prefs.genres.join(', ')}.`)
-  }
-  if (prefs.franchises?.length) {
-    preferenceLines.push(`Favorite franchises: ${prefs.franchises.join(', ')}.`)
-  }
-  if (prefs.keywords?.length) {
-    preferenceLines.push(`Key interests: ${prefs.keywords.join(', ')}.`)
-  }
-
-  const preferenceSummary = preferenceLines.length > 0
-    ? preferenceLines.join(' ')
-    : 'No saved preferences yet - ask quick follow-ups to learn their tastes.'
-
-  return [
-    'You are Dewey, the Arcade Historian and AI concierge for G&G Arcade.',
-    'You synthesize technical lore and media on demand about arcade games, cabinets, and gaming history.',
-    `Current user: ${user?.name || 'Guest'}. ${preferenceSummary}`,
-    AGENT_SUMMARY,
-    '',
-    '=== YOUR CAPABILITIES ===',
-    'You have a VISUAL GALLERY built into your interface that automatically displays arcade cabinet images, game screenshots, and technical specs.',
-    'When you talk about a game, the gallery AUTOMATICALLY fetches and shows real images of the arcade cabinet, flyer art, and gameplay screenshots.',
-    'You CAN and DO show images. NEVER say you cannot show images or pictures. The gallery handles it visually.',
-    'When a user asks to see a cabinet or what a game looks like, confidently describe it AND know that the gallery above your response is showing them the actual image.',
-    '',
-    '=== MEDIA MODE ===',
-    'When the user asks about a SPECIFIC game or arcade cabinet, you MUST include a ```json metadata block at the END of your response.',
-    'The JSON block should contain an array of 1-3 game objects with these fields:',
-    '  { "title": "Game Name", "publisher": "Publisher", "year": "1980", "genre": "Genre",',
-    '    "cpu": "Z80 @ 3.072 MHz", "resolution": "224x288", "description": "2-3 sentence lore",',
-    '    "tags": ["Iconic", "Golden Age"], "era": "Era title", "eraDescription": "Era summary" }',
-    'The first item is the PRIMARY game (shown as the center card). Include 1-2 related games as side cards.',
-    'Outside the JSON block, write a SHORT conversational response (2-3 sentences).',
-    'Reference the gallery: say things like "Check out the gallery above!" or "I\'ve pulled up the cabinet for you" or "Take a look at that classic artwork above."',
-    '',
-    '=== ROUTING MODE ===',
-    'For technical issues (controllers, LEDs, guns, performance), acknowledge briefly and note a specialist chip will appear.',
-    'Routing truth: control panel, arcade buttons/joystick, wiring, or pin mapping -> Control-a-Chuck.',
-    'Routing truth: gamepad/controller, Xbox/PlayStation/8BitDo, xinput/dinput, or controller profiles -> Control-a-Wizard.',
-    'Recommend at most 2 helper chips; prefer 1 when intent is clear.',
-    'For general chat, news, or trivia, respond normally with 2-3 sentences.',
-    '',
-    'Guidelines:',
-    '- Keep conversational replies SHORT (2-3 sentences, under 60 words)',
-    '- NEVER say you cannot show images, pictures, or visuals - your gallery does this automatically',
-    '- DO NOT ask follow-up questions for technical issues - let specialists handle details',
-    '- The UI will automatically show specialist chips based on keywords',
-    '- For game queries, ALWAYS include the ```json block so the gallery can render',
-    '- Be enthusiastic about showing off arcade history - you are a museum curator with a digital exhibit'
-  ].join('\n')
-}
-
-const buildClaudeMessages = ({ history, systemPrompt, userText }) => {
-  const trimmedUser = htmlToPlainText(userText)
-  const chatHistory = (history || [])
+const buildConversationHistory = (history = []) => (
+  (history || [])
     .filter(msg => msg.role === 'user' || msg.role === 'dewey')
     .slice(-MAX_HISTORY_MESSAGES)
     .map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
+      role: msg.role === 'user' ? 'user' : 'dewey',
       content: htmlToPlainText(msg.text)
     }))
+)
 
-  const payload = [{ role: 'system', content: systemPrompt }, ...chatHistory]
-  if (!chatHistory.length || chatHistory[chatHistory.length - 1]?.content !== trimmedUser) {
-    payload.push({ role: 'user', content: trimmedUser })
+const streamDeweyChat = async ({ message, userName, userPreferences, conversationHistory }) => {
+  const deviceId = window.AA_DEVICE_ID || (() => {
+    console.warn('[Dewey] window.AA_DEVICE_ID not available, ' +
+      'falling back to cabinet-001. Cabinet identity may not be unique.')
+    return 'cabinet-001'
+  })()
+
+  const response = await fetch('/api/local/dewey/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-panel': 'dewey',
+      'x-scope': 'state',
+      'x-device-id': deviceId
+    },
+    body: JSON.stringify({
+      message,
+      user_name: userName,
+      user_preferences: userPreferences,
+      conversation_history: conversationHistory
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    let detail = response.statusText
+    if (errorText) {
+      try {
+        const parsed = JSON.parse(errorText)
+        detail = parsed?.detail || detail
+      } catch {
+        detail = errorText
+      }
+    }
+    throw new Error(detail || 'Dewey chat request failed')
   }
-  return payload
+
+  if (!response.body) {
+    return response.text()
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let reply = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    reply += decoder.decode(value, { stream: true })
+  }
+
+  reply += decoder.decode()
+  return reply
 }
 
 export default function DeweyPanel() {
@@ -491,8 +467,6 @@ export default function DeweyPanel() {
       console.warn('[Dewey] Failed to persist selected profile:', err)
     }
   }, [profileOptions, refreshProfile, setProfileSnapshot, sharedProfile])
-
-  const systemPrompt = useMemo(() => buildSystemPrompt(currentUser), [currentUser])
 
   const interruptSpeech = useCallback(() => {
     try { stopSpeaking() } catch { }
@@ -664,57 +638,14 @@ export default function DeweyPanel() {
         })
       }
 
-      // Check if user is asking about gaming news
-      const newsKeywords = ['news', 'headlines', 'announcement', 'latest', 'recent', 'gaming news', 'whats new', "what's new", 'happening in gaming']
-      const isAboutNews = newsKeywords.some(keyword => lower.includes(keyword))
+      const conversationHistory = buildConversationHistory(messagesRef.current)
 
-      let enhancedSystemPrompt = systemPrompt
-
-      // Fetch real headlines if asking about news
-      if (isAboutNews) {
-        try {
-          const newsData = await getHeadlines({ limit: 10 })
-          if (newsData.headlines && newsData.headlines.length > 0) {
-            const headlinesSummary = newsData.headlines
-              .slice(0, 10)
-              .map((h, i) => `${i + 1}. ${h.source}: "${h.title}" (${h.published_relative})`)
-              .join('\n')
-
-            enhancedSystemPrompt = systemPrompt + '\n\n' +
-              '=== CURRENT GAMING HEADLINES (Real-time RSS) ===\n' +
-              headlinesSummary + '\n' +
-              '=== END HEADLINES ===\n\n' +
-              'Reference these actual headlines when discussing gaming news. Be specific about sources and recency.'
-          }
-        } catch (err) {
-          console.warn('Failed to fetch news for context:', err)
-          // Continue without headlines rather than failing the whole response
-        }
-      }
-
-      const claudeMessages = buildClaudeMessages({
-        history: messagesRef.current,
-        systemPrompt: enhancedSystemPrompt,
-        userText: trimmed
+      const rawReply = await streamDeweyChat({
+        message: trimmed,
+        userName: currentUser.name,
+        userPreferences: currentUser.preferences,
+        conversationHistory
       })
-
-      const response = await aiChat({
-        provider: 'gemini',
-        scope: 'state',
-        messages: claudeMessages,
-        temperature: 0.4,
-        max_tokens: 260,
-        metadata: {
-          panel: 'dewey',
-          persona: 'dewey',
-          userId: currentUser.id,
-          profileName: currentUser.name,
-          model: 'gemini-2.0-flash',
-          ...metadata
-        }
-      })
-
-      const rawReply = response?.message?.content || response?.response || ''
 
       // Parse media payload: strip ```json blocks and populate gallery
       const { text: cleanReply, media } = parseMediaPayload(rawReply)
@@ -769,7 +700,7 @@ export default function DeweyPanel() {
         })
       }
 
-      return response
+      return rawReply
     } catch (error) {
       console.error('Dewey chat error', error)
       setRecommendedPanels([])
@@ -1137,13 +1068,19 @@ export default function DeweyPanel() {
 
   async function sendHandoffToServer(targetPanelId, handoffText) {
     try {
+      const deviceId = window.AA_DEVICE_ID || (() => {
+        console.warn('[Dewey] window.AA_DEVICE_ID not available, ' +
+          'falling back to cabinet-001. Cabinet identity may not be unique.')
+        return 'cabinet-001'
+      })()
+
       console.log('[Dewey] Sending handoff to server:', { target: targetPanelId, summary: handoffText })
       const response = await fetch('/api/local/dewey/handoff', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-panel': 'dewey',
-          'x-device-id': 'CAB-0001',
+          'x-device-id': deviceId,
           'x-scope': 'state'
         },
         body: JSON.stringify({

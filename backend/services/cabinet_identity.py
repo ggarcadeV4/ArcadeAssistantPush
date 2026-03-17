@@ -17,6 +17,8 @@ DEVICE_ID_RELATIVE = Path(".aa/device_id.txt")
 CABINET_MANIFEST_RELATIVE = Path(".aa/cabinet_manifest.json")
 CONTROLS_RELATIVE = Path("config/mappings/controls.json")
 KNOWLEDGE_BASE_RELATIVE = Path(".aa/state/knowledge_base")
+PROJECT_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+PLACEHOLDER_DEVICE_ID = "00000000-0000-0000-0000-000000000001"
 
 
 @dataclass
@@ -106,6 +108,47 @@ def _read_device_id(path: Path) -> str:
         return ""
 
 
+def _resolve_env_path(env: Optional[Dict[str, str]] = None) -> Path:
+    env = env or os.environ
+    configured = (env.get("AA_ENV_FILE") or "").strip()
+    if configured:
+        return Path(configured)
+    return PROJECT_ENV_PATH
+
+
+def _update_env_device_id(env_path: Path, device_id: str) -> None:
+    existing_text = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+    newline = "\r\n" if "\r\n" in existing_text else "\n"
+    replacement = f"AA_DEVICE_ID={device_id}"
+    lines = existing_text.splitlines(keepends=True)
+    updated_lines = []
+    replaced = False
+
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("AA_DEVICE_ID="):
+            if line.endswith("\r\n"):
+                line_ending = "\r\n"
+            elif line.endswith("\n"):
+                line_ending = "\n"
+            else:
+                line_ending = ""
+            updated_lines.append(f"{replacement}{line_ending}")
+            replaced = True
+        else:
+            updated_lines.append(line)
+
+    if not replaced:
+        if updated_lines and not updated_lines[-1].endswith(("\n", "\r\n")):
+            updated_lines[-1] = updated_lines[-1] + newline
+        updated_lines.append(f"{replacement}{newline}")
+
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = env_path.with_name(env_path.name + ".tmp")
+    temp_path.write_text("".join(updated_lines), encoding="utf-8")
+    temp_path.replace(env_path)
+
+
 def _identity_paths(drive_root: Optional[Path]) -> Dict[str, Optional[Path]]:
     if not drive_root:
         return {
@@ -119,6 +162,45 @@ def _identity_paths(drive_root: Optional[Path]) -> Dict[str, Optional[Path]]:
         "cabinet_manifest": root / CABINET_MANIFEST_RELATIVE,
         "controls": root / CONTROLS_RELATIVE,
     }
+
+
+def is_placeholder_device_id(device_id: Optional[str]) -> bool:
+    value = (device_id or "").strip()
+    if not value or value == PLACEHOLDER_DEVICE_ID:
+        return True
+
+    try:
+        parsed = uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        return True
+
+    return parsed.version != 4 or str(parsed) != value.lower()
+
+
+def provision_device_id(drive_root: Path) -> str:
+    root = Path(drive_root)
+    device_id_path = root / DEVICE_ID_RELATIVE
+    env_path = _resolve_env_path()
+
+    current_device_id = _read_device_id(device_id_path)
+    generated = False
+
+    if is_placeholder_device_id(current_device_id):
+        current_device_id = str(uuid.uuid4())
+        generated = True
+        logger.info("Generated new device UUID: %s", current_device_id)
+    else:
+        logger.info("Using existing device UUID: %s", current_device_id)
+
+    device_id_path.parent.mkdir(parents=True, exist_ok=True)
+    device_id_path.write_text(current_device_id + "\n", encoding="utf-8")
+    _update_env_device_id(env_path, current_device_id)
+    os.environ["AA_DEVICE_ID"] = current_device_id
+
+    if generated:
+        logger.debug("Provisioned AA_DEVICE_ID into %s and %s", device_id_path, env_path)
+
+    return current_device_id
 
 
 def build_controls_skeleton() -> Dict[str, Any]:
@@ -240,12 +322,15 @@ def ensure_local_identity(
     aa_root = root / ".aa"
     aa_root.mkdir(parents=True, exist_ok=True)
 
-    auto_generated = False
-    if not identity.device_id:
-        identity.device_id = str(uuid.uuid4())
-        identity.source = "generated"
-        auto_generated = True
+    original_device_id = _read_device_id(root / DEVICE_ID_RELATIVE)
+    provisioned_device_id = provision_device_id(root)
+    env["AA_DEVICE_ID"] = provisioned_device_id
+    auto_generated = is_placeholder_device_id(original_device_id)
 
+    identity = load_cabinet_identity(root, env=env)
+    identity.device_id = provisioned_device_id
+    if auto_generated:
+        identity.source = "generated"
     identity.mac_address = (identity.mac_address or _detect_mac_address()).strip().lower()
 
     if identity.device_id_path:

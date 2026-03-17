@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import defaultdict, deque
-from typing import Deque, DefaultDict
+from datetime import datetime
+import json
+import os
+from pathlib import Path
+import random
+import re
+from typing import Any, Deque, DefaultDict, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from backend.services.dewey.service import (
     DeweyService,
@@ -16,8 +25,11 @@ from backend.services.dewey.service import (
     ProfileUpdate,
     get_dewey_service,
 )
+from backend.services.drive_a_ai_client import SecureAIClient
+from backend.services.policies import require_scope
 
 router = APIRouter(prefix="/api/local/dewey", tags=["dewey"])
+logger = logging.getLogger(__name__)
 
 
 class SimpleRateLimiter:
@@ -44,6 +56,237 @@ class SimpleRateLimiter:
 
 CREATE_LIMITER = SimpleRateLimiter(times=5, seconds=60)
 UPDATE_LIMITER = SimpleRateLimiter(times=10, seconds=60)
+_MAX_HISTORY_MESSAGES = 12
+_DEFAULT_USER_PREFERENCES = "No saved preferences yet - ask quick follow-ups to learn their tastes."
+_NEWS_KEYWORDS = [
+    "news", "headlines", "announcement", "latest", "recent",
+    "gaming news", "whats new", "what's new", "happening in gaming",
+]
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _prompt_candidates(filename: str, drive_root: Optional[Path]) -> List[Path]:
+    candidates: List[Path] = []
+    if drive_root:
+        candidates.extend([
+            drive_root / "prompts" / filename,
+            drive_root / ".aa" / "prompts" / filename,
+        ])
+    env_root = Path(os.getenv("AA_DRIVE_ROOT", str(_project_root())))
+    candidates.extend([
+        _project_root() / "prompts" / filename,
+        env_root / "prompts" / filename,
+        env_root / ".aa" / "prompts" / filename,
+    ])
+
+    deduped: List[Path] = []
+    seen = set()
+    for candidate in candidates:
+        key = str(candidate.resolve()) if candidate.exists() else str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+    return deduped
+
+
+def _read_prompt_text(filename: str, drive_root: Optional[Path]) -> str:
+    for candidate in _prompt_candidates(filename, drive_root):
+        if candidate.exists():
+            return candidate.read_text(encoding="utf-8").strip()
+    raise FileNotFoundError(f"Prompt file not found: {filename}")
+
+
+def _format_user_preferences(user_preferences: Any) -> str:
+    if isinstance(user_preferences, str):
+        text = user_preferences.strip()
+        return text or _DEFAULT_USER_PREFERENCES
+
+    prefs = user_preferences if isinstance(user_preferences, dict) else {}
+    preference_lines: List[str] = []
+
+    genres = prefs.get("genres") or []
+    if genres:
+        preference_lines.append(f"Favorite genres: {', '.join(str(item) for item in genres)}.")
+
+    franchises = prefs.get("franchises") or []
+    if franchises:
+        preference_lines.append(f"Favorite franchises: {', '.join(str(item) for item in franchises)}.")
+
+    keywords = prefs.get("keywords") or []
+    if keywords:
+        preference_lines.append(f"Key interests: {', '.join(str(item) for item in keywords)}.")
+
+    return " ".join(preference_lines) if preference_lines else _DEFAULT_USER_PREFERENCES
+
+
+def _html_to_plain_text(value: str = "") -> str:
+    if not value:
+        return ""
+    return (
+        value.replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n")
+        .replace("&nbsp;", " ")
+        .replace("\r", "")
+        .strip()
+    )
+
+
+def _extract_gemini_text(result: Dict[str, Any]) -> str:
+    """Extract text from Gemini API response."""
+    # Gemini format: candidates[0].content.parts[0].text
+    candidates = result.get("candidates", [])
+    if candidates:
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text_parts = [
+            str(part.get("text", "")).strip()
+            for part in parts
+            if isinstance(part, dict) and part.get("text")
+        ]
+        if text_parts:
+            return "\n".join(text_parts).strip()
+
+    # Fallback: try Anthropic-style format (in case of proxy normalization)
+    content = result.get("content")
+    if isinstance(content, list):
+        text_parts = [
+            str(block.get("text", "")).strip()
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        return "\n".join(part for part in text_parts if part).strip()
+
+    if isinstance(content, str):
+        return content.strip()
+
+    # Last resort: check for message.content or response
+    message = result.get("message")
+    if isinstance(message, dict):
+        nested = message.get("content")
+        if isinstance(nested, str):
+            return nested.strip()
+
+    response_text = result.get("response")
+    if isinstance(response_text, str):
+        return response_text.strip()
+
+    return ""
+
+
+def _call_gemini(
+    messages: List[Dict[str, str]],
+    *,
+    model: str = "gemini-2.0-flash",
+    max_tokens: int = 260,
+    temperature: float = 0.4,
+    panel: str = "dewey",
+) -> str:
+    client = SecureAIClient()
+    result = client.call_gemini(
+        messages=messages,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        panel=panel,
+    )
+    reply = _extract_gemini_text(result)
+    if not reply:
+        raise ValueError("Gemini proxy returned an empty Dewey response")
+    return reply
+
+
+def _is_news_query(message: str) -> bool:
+    lower = (message or "").lower()
+    return any(keyword in lower for keyword in _NEWS_KEYWORDS)
+
+
+async def _build_news_context(message: str) -> str:
+    if not _is_news_query(message):
+        return ""
+
+    try:
+        from backend.routers.gaming_news import fetch_all_headlines
+
+        headlines = await fetch_all_headlines()
+        if not headlines:
+            return ""
+
+        headlines_summary = "\n".join(
+            f"{index + 1}. {headline.get('source', 'Unknown')}: "
+            f"\"{headline.get('title', '')}\" "
+            f"({headline.get('published_relative', 'Unknown')})"
+            for index, headline in enumerate(headlines[:10])
+        )
+
+        return (
+            "\n\n=== CURRENT GAMING HEADLINES (Real-time RSS) ===\n"
+            f"{headlines_summary}\n"
+            "=== END HEADLINES ===\n\n"
+            "Reference these actual headlines when discussing gaming news. "
+            "Be specific about sources and recency."
+        )
+    except Exception as exc:  # pragma: no cover - news enrichment should fail open
+        logger.warning("Failed to load Dewey news context: %s", exc)
+        return ""
+
+
+def _build_system_prompt(
+    *,
+    drive_root: Optional[Path],
+    user_name: str,
+    user_preferences: Any,
+    knowledge_text: str,
+    news_context: str,
+) -> str:
+    base_prompt = _read_prompt_text("dewey.prompt", drive_root)
+    system_prompt = (
+        base_prompt
+        .replace("{user_name}", user_name or "Guest")
+        .replace("{user_preferences}", _format_user_preferences(user_preferences))
+    )
+
+    if knowledge_text:
+        system_prompt += "\n\n--- KNOWLEDGE BASE ---\n" + knowledge_text.strip()
+
+    if news_context:
+        system_prompt += news_context
+
+    return system_prompt
+
+
+def _build_anthropic_messages(
+    *,
+    history: List[Dict[str, str]],
+    system_prompt: str,
+    user_text: str,
+) -> List[Dict[str, str]]:
+    trimmed_user = _html_to_plain_text(user_text)
+    chat_history = [
+        {
+            "role": "user" if turn.get("role") == "user" else "assistant",
+            "content": _html_to_plain_text(turn.get("content", "")),
+        }
+        for turn in (history or [])
+        if turn.get("role") in {"user", "dewey", "assistant"}
+    ]
+
+    chat_history = [turn for turn in chat_history if turn["content"]]
+    chat_history = chat_history[-_MAX_HISTORY_MESSAGES:]
+
+    payload = [{"role": "system", "content": system_prompt}, *chat_history]
+    if not chat_history or chat_history[-1].get("content") != trimmed_user:
+        payload.append({"role": "user", "content": trimmed_user})
+    return payload
+
+
+async def _stream_text_chunks(text: str, chunk_size: int = 160):
+    for start in range(0, len(text), chunk_size):
+        yield text[start:start + chunk_size]
+        await asyncio.sleep(0)
 
 
 @router.get("/profiles/{user_id}", response_model=ProfileData)
@@ -71,17 +314,75 @@ async def update_profile(
 
 
 # ============================================================================
-# TRIVIA ENDPOINTS
+# CHAT ENDPOINT
 # ============================================================================
 
-import json
-import os
-import random
-from datetime import datetime
-from pathlib import Path
-from typing import List, Optional
-from fastapi import Header, Request
-from pydantic import BaseModel
+class DeweyChatTurn(BaseModel):
+    role: str
+    content: Optional[str] = None
+    text: Optional[str] = None
+
+
+class DeweyChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    user_name: Optional[str] = "Guest"
+    user_preferences: Any = None
+    conversation_history: List[DeweyChatTurn] = Field(default_factory=list)
+
+
+@router.post("/chat")
+async def dewey_chat(request: Request, payload: DeweyChatRequest):
+    require_scope(request, "state")
+
+    drive_root = getattr(request.app.state, "drive_root", None)
+    drive_root = Path(drive_root) if drive_root else None
+    user_name = (payload.user_name or "Guest").strip() or "Guest"
+    user_message = payload.message.strip()
+
+    try:
+        knowledge_text = _read_prompt_text("dewey_knowledge.md", drive_root)
+        news_context = await _build_news_context(user_message)
+        system_prompt = _build_system_prompt(
+            drive_root=drive_root,
+            user_name=user_name,
+            user_preferences=payload.user_preferences,
+            knowledge_text=knowledge_text,
+            news_context=news_context,
+        )
+        conversation_history = [
+            {
+                "role": turn.role,
+                "content": turn.content if turn.content is not None else (turn.text or ""),
+            }
+            for turn in payload.conversation_history
+        ]
+        anthropic_messages = _build_anthropic_messages(
+            history=conversation_history,
+            system_prompt=system_prompt,
+            user_text=user_message,
+        )
+        reply = await asyncio.to_thread(_call_gemini, anthropic_messages)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Dewey chat failed")
+        raise HTTPException(status_code=500, detail=f"Dewey chat failed: {exc}") from exc
+
+    return StreamingResponse(
+        _stream_text_chunks(reply),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ============================================================================
+# TRIVIA ENDPOINTS
+# ============================================================================
 
 # Paths
 TRIVIA_DB_PATH = os.path.join(os.path.dirname(__file__), "../../frontend/src/panels/dewey/trivia/triviaDatabase.json")
@@ -116,6 +417,177 @@ class HandoffRequest(BaseModel):
     target: str
     summary: str
     timestamp: str
+
+
+def get_collection_sample(count: int = 20) -> List[Dict[str, Any]]:
+    """
+    Return a randomized sample of real LaunchBox games.
+
+    Prefers played games (play_count > 0). Falls back to the general library
+    if too few played titles are available. Returns an empty list on any cache
+    or parser failure so callers can degrade gracefully.
+    """
+    try:
+        from backend.services import launchbox_cache
+        from backend.services.launchbox_parser import parser
+
+        cache_stats = parser.get_cache_stats()
+        if cache_stats.get("is_mock_data"):
+            return []
+
+        raw_games = launchbox_cache.get_games()
+    except Exception as exc:
+        logger.warning("Failed to load LaunchBox cache for Dewey collection trivia: %s", exc)
+        return []
+
+    if not raw_games:
+        return []
+
+    normalized_games: List[Dict[str, Any]] = []
+    for game in raw_games:
+        title = getattr(game, "title", None)
+        platform = getattr(game, "platform", None)
+        genre = getattr(game, "genre", None)
+        year = getattr(game, "year", None)
+
+        if not title or not platform:
+            continue
+
+        normalized_games.append({
+            "title": title,
+            "genre": genre or "Unknown",
+            "platform": platform,
+            "year": year,
+            "developer": getattr(game, "developer", None) or "",
+            "publisher": getattr(game, "publisher", None) or "",
+            "play_count": int(getattr(game, "play_count", 0) or 0),
+        })
+
+    if not normalized_games:
+        return []
+
+    played_games = [game for game in normalized_games if game.get("play_count", 0) > 0]
+    sample_pool = played_games if len(played_games) >= count else normalized_games
+
+    if len(sample_pool) <= count:
+        shuffled = list(sample_pool)
+        random.shuffle(shuffled)
+        return shuffled
+
+    return random.sample(sample_pool, count)
+
+
+def _extract_json_block(text: str) -> Any:
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Empty AI response while generating collection trivia")
+
+    fenced_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, re.IGNORECASE)
+    if fenced_match:
+        raw = fenced_match.group(1).strip()
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(raw[start:end + 1])
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(raw[start:end + 1])
+
+    raise ValueError("Collection trivia generator returned invalid JSON")
+
+
+def _normalize_collection_questions(payload: Any) -> List[Dict[str, Any]]:
+    if isinstance(payload, dict):
+        items = payload.get("questions", [])
+    elif isinstance(payload, list):
+        items = payload
+    else:
+        raise ValueError("Collection trivia payload must be a JSON array or object with questions")
+
+    normalized: List[Dict[str, Any]] = []
+    for index, item in enumerate(items[:10], start=1):
+        if not isinstance(item, dict):
+            continue
+
+        question_text = str(item.get("question", "")).strip()
+        options = item.get("options", [])
+        answer = str(item.get("answer", "")).strip()
+        difficulty = str(item.get("difficulty", "medium")).strip().lower() or "medium"
+        game_title = str(item.get("game_title", "")).strip()
+
+        if not question_text or len(options) != 4 or not answer:
+            continue
+
+        normalized_options = [str(option).strip() for option in options]
+        try:
+            correct_index = normalized_options.index(answer)
+        except ValueError:
+            letter_match = re.fullmatch(r"([A-D])(?:[).:\s].*)?", answer, re.IGNORECASE)
+            if letter_match:
+                correct_index = ord(letter_match.group(1).upper()) - ord("A")
+            else:
+                continue
+
+        if correct_index < 0 or correct_index >= len(normalized_options):
+            continue
+
+        if difficulty not in {"easy", "medium", "hard"}:
+            difficulty = "medium"
+
+        normalized.append({
+            "id": f"collection_dynamic_{index:03d}",
+            "category": ["collection"],
+            "difficulty": difficulty,
+            "question": question_text,
+            "choices": normalized_options,
+            "correct_index": correct_index,
+            "metadata": {
+                "game_title": game_title,
+                "generated": True,
+            },
+        })
+
+    if len(normalized) != 10:
+        raise ValueError(f"Expected 10 collection questions, got {len(normalized)}")
+
+    return normalized
+
+
+def _build_collection_trivia_prompt(sample_games: List[Dict[str, Any]]) -> str:
+    sample_blob = json.dumps(sample_games, indent=2, ensure_ascii=False)
+    return (
+        "You are generating Arcade Assistant trivia for Dewey's 'Your Collection' mode.\n"
+        "Use ONLY the games in the provided LaunchBox sample.\n"
+        "Do NOT invent games, sequels, platforms, or facts outside this list.\n"
+        "Generate exactly 10 multiple-choice trivia questions.\n"
+        "Question mix must include release year, developer, sequel, platform-original, "
+        "genre classification, and hardware milestone style questions where the sample supports them.\n"
+        "Across the 10 questions, target a difficulty split of roughly 3 easy, 4 medium, 3 hard.\n"
+        "Every question must be specifically about a title present in the sample.\n"
+        "Return ONLY valid JSON.\n"
+        "JSON format:\n"
+        "{\n"
+        '  "questions": [\n'
+        "    {\n"
+        '      "question": "string",\n'
+        '      "options": ["A", "B", "C", "D"],\n'
+        '      "answer": "must exactly match one option",\n'
+        '      "difficulty": "easy|medium|hard",\n'
+        '      "game_title": "title from sample"\n'
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        "LaunchBox sample:\n"
+        f"{sample_blob}"
+    )
 
 
 # Utility Functions
@@ -244,6 +716,56 @@ async def get_collection_questions(limit: int = 10):
         "questions": [],
         "count": 0,
         "note": "LaunchBox integration coming soon - will generate questions from your game collection"
+    }
+
+
+@router.post("/trivia/collection")
+async def generate_collection_trivia(request: Request):
+    """
+    Generate collection-specific trivia from the real LaunchBox cache.
+    """
+    require_scope(request, "state")
+
+    sample_games = get_collection_sample(20)
+    if not sample_games:
+        raise HTTPException(
+            status_code=503,
+            detail="Your Collection requires an active LaunchBox library. Start LaunchBox and try again.",
+        )
+
+    prompt = _build_collection_trivia_prompt(sample_games)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an exacting trivia generator for an arcade cabinet. "
+                "Return JSON only, with no prose, markdown, or explanation."
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    try:
+        raw_reply = await asyncio.to_thread(
+            _call_gemini,
+            messages,
+            model="gemini-2.0-flash",
+            max_tokens=2200,
+            temperature=0.2,
+            panel="dewey",
+        )
+        parsed = _extract_json_block(raw_reply)
+        questions = _normalize_collection_questions(parsed)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Collection trivia generation failed: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Collection trivia generation failed")
+        raise HTTPException(status_code=500, detail=f"Collection trivia generation failed: {exc}") from exc
+
+    return {
+        "questions": questions,
+        "count": len(questions),
+        "source_sample_size": len(sample_games),
     }
 
 

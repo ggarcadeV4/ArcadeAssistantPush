@@ -19,15 +19,111 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Iterable, Optional
 from xml.dom import minidom
 from datetime import datetime
 
 from backend.constants.paths import Paths
 
 logger = logging.getLogger(__name__)
+
+
+GENRE_ANIMATION_CODES: dict[str, str] = {
+    "fighting": "3",
+    "racing": "4",
+    "shooter": "2",
+    "sports": "5",
+    "platformer": "1",
+    "puzzle": "1",
+    "lightgun": "2",
+    "maze": "1",
+    "trackball": "1",
+    "default": "1",
+}
+
+_CANONICAL_GENRE_ALIASES: dict[str, str] = {
+    "fight": "fighting",
+    "fighter": "fighting",
+    "fighters": "fighting",
+    "fighting game": "fighting",
+    "fighting games": "fighting",
+    "versus fighting": "fighting",
+    "vs fighting": "fighting",
+    "beat em up": "fighting",
+    "beat em ups": "fighting",
+    "beatemup": "fighting",
+    "beat em up brawler": "fighting",
+    "brawler": "fighting",
+    "race": "racing",
+    "racer": "racing",
+    "racing game": "racing",
+    "driving": "racing",
+    "driving racing": "racing",
+    "arcade racing": "racing",
+    "kart racing": "racing",
+    "vehicular combat": "racing",
+    "shmup": "shooter",
+    "shoot em up": "shooter",
+    "shoot em ups": "shooter",
+    "shoot em up shooter": "shooter",
+    "shoot up": "shooter",
+    "shooting": "shooter",
+    "scrolling shooter": "shooter",
+    "vertical shooter": "shooter",
+    "horizontal shooter": "shooter",
+    "run and gun": "shooter",
+    "stg": "shooter",
+    "bullet hell": "shooter",
+    "danmaku": "shooter",
+    "light gun": "lightgun",
+    "light gun shooter": "lightgun",
+    "lightgun shooter": "lightgun",
+    "rail shooter": "lightgun",
+    "on rails shooter": "lightgun",
+    "gun game": "lightgun",
+    "arcade shooter": "lightgun",
+    "platform": "platformer",
+    "platformer": "platformer",
+    "platformers": "platformer",
+    "side scroller": "platformer",
+    "side scroller action": "platformer",
+    "run jump": "platformer",
+    "run and jump": "platformer",
+    "action adventure": "platformer",
+    "sports game": "sports",
+    "sports": "sports",
+    "baseball": "sports",
+    "basketball": "sports",
+    "football": "sports",
+    "soccer": "sports",
+    "hockey": "sports",
+    "golf": "sports",
+    "tennis": "sports",
+    "puzzle game": "puzzle",
+    "puzzle": "puzzle",
+    "match": "puzzle",
+    "drop": "puzzle",
+    "blocks": "puzzle",
+    "maze": "maze",
+    "trackball": "trackball",
+}
+
+_CINEMA_TAG_TO_GENRE: dict[str, str] = {
+    "LED:FIGHTING": "fighting",
+    "LED:BEATEMUP": "fighting",
+    "LED:RACING": "racing",
+    "LED:SHOOTER": "shooter",
+    "LED:SPORTS": "sports",
+    "LED:LIGHTGUN": "lightgun",
+    "LED:PLATFORMER": "platformer",
+    "LED:PUZZLE": "puzzle",
+    "LED:MAZE": "maze",
+    "LED:TRACKBALL": "trackball",
+    "LED:STANDARD": "default",
+}
 
 
 # =============================================================================
@@ -80,6 +176,89 @@ LOGICAL_TO_MAME = {
 
 # Reverse mapping for validation
 MAME_TO_LOGICAL = {v: k for k, v in LOGICAL_TO_MAME.items()}
+
+
+def _sanitize_genre_value(value: Optional[str]) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (value or "").strip().lower()).strip()
+
+
+def normalize_genre(genre: Optional[str]) -> Optional[str]:
+    """Normalize LaunchBox/cinema genre labels to canonical animation keys."""
+    value = _sanitize_genre_value(genre)
+    if not value:
+        return None
+
+    if value in GENRE_ANIMATION_CODES:
+        return value
+
+    alias = _CANONICAL_GENRE_ALIASES.get(value)
+    if alias:
+        return alias
+
+    if "fight" in value or "brawler" in value or "beat em up" in value:
+        return "fighting"
+    if "racing" in value or "driving" in value or "race" in value:
+        return "racing"
+    if "light gun" in value or "rail shooter" in value or "gun game" in value:
+        return "lightgun"
+    if "shooter" in value or "shmup" in value or "shoot em up" in value:
+        return "shooter"
+    if "sport" in value or value in {"baseball", "basketball", "football", "soccer", "hockey", "golf", "tennis"}:
+        return "sports"
+    if "platform" in value or "side scroller" in value or "run jump" in value:
+        return "platformer"
+    if "puzzle" in value or "match" in value or "drop" in value or "blocks" in value:
+        return "puzzle"
+    if "maze" in value:
+        return "maze"
+    if "trackball" in value:
+        return "trackball"
+    return None
+
+
+def resolve_genre_key(
+    genre: Optional[str] = None,
+    *,
+    tags: Optional[Iterable[str]] = None,
+    cinema_tag: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve the best canonical genre key from explicit genre, tags, or cinema tag."""
+    normalized = normalize_genre(genre)
+    if normalized:
+        return normalized
+
+    if cinema_tag:
+        cinema_genre = _CINEMA_TAG_TO_GENRE.get(cinema_tag.upper())
+        if cinema_genre:
+            return cinema_genre
+
+    for tag in tags or ():
+        if not tag:
+            continue
+        tag_upper = tag.upper()
+        if tag_upper.startswith("LED:"):
+            cinema_genre = _CINEMA_TAG_TO_GENRE.get(tag_upper)
+            if cinema_genre:
+                return cinema_genre
+
+        normalized = normalize_genre(tag)
+        if normalized:
+            return normalized
+
+    return None
+
+
+def resolve_animation_code(
+    genre: Optional[str] = None,
+    *,
+    tags: Optional[Iterable[str]] = None,
+    cinema_tag: Optional[str] = None,
+) -> str:
+    """Resolve the LEDBlinky animation code for a genre with a safe default."""
+    genre_key = resolve_genre_key(genre, tags=tags, cinema_tag=cinema_tag)
+    if not genre_key:
+        return GENRE_ANIMATION_CODES["default"]
+    return GENRE_ANIMATION_CODES.get(genre_key, GENRE_ANIMATION_CODES["default"])
 
 
 # =============================================================================

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import CategorySelector from './CategorySelector'
 import DifficultySelector from './DifficultySelector'
@@ -13,6 +13,28 @@ const SCREENS = {
   QUESTIONS: 'questions',
   RESULTS: 'results',
   LOADING: 'loading'
+}
+
+const COLLECTION_LIBRARY_ERROR = 'Your Collection requires an active LaunchBox library. Start LaunchBox and try again.'
+
+async function fetchCollectionTriviaQuestions() {
+  const response = await fetch('/api/local/dewey/trivia/collection', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-panel': 'dewey',
+      'x-scope': 'state',
+      'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001'
+    },
+    body: JSON.stringify({})
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: COLLECTION_LIBRARY_ERROR }))
+    throw new Error(error.detail || COLLECTION_LIBRARY_ERROR)
+  }
+
+  return response.json()
 }
 
 export default function TriviaExperience({ currentUser, onExit }) {
@@ -53,6 +75,13 @@ export default function TriviaExperience({ currentUser, onExit }) {
     setCurrentScreen(SCREENS.DIFFICULTY)
   }
 
+  const loadTriviaQuestions = useCallback(async (category, difficulty) => {
+    if (category === 'collection') {
+      return fetchCollectionTriviaQuestions()
+    }
+    return getQuestions(category, difficulty, 10)
+  }, [])
+
   const handleSelectDifficulty = async (difficulty) => {
     setSelectedDifficulty(difficulty)
     setError(null)
@@ -60,7 +89,7 @@ export default function TriviaExperience({ currentUser, onExit }) {
     setCurrentScreen(SCREENS.LOADING)
 
     try {
-      const response = await getQuestions(selectedCategory, difficulty, 10)
+      const response = await loadTriviaQuestions(selectedCategory, difficulty)
 
       if (!response.questions || response.questions.length === 0) {
         throw new Error('No questions available for this category/difficulty combination')
@@ -70,7 +99,11 @@ export default function TriviaExperience({ currentUser, onExit }) {
       setCurrentScreen(SCREENS.QUESTIONS)
     } catch (err) {
       console.error('Failed to load questions:', err)
-      setError(err.message || 'Failed to load trivia questions')
+      if (selectedCategory === 'collection') {
+        setError(COLLECTION_LIBRARY_ERROR)
+      } else {
+        setError(err.message || 'Failed to load trivia questions')
+      }
       setCurrentScreen(SCREENS.DIFFICULTY)
     } finally {
       setLoading(false)
@@ -92,26 +125,30 @@ export default function TriviaExperience({ currentUser, onExit }) {
     setCurrentScreen(SCREENS.RESULTS)
   }
 
-  const handlePlayAgain = () => {
+  const handlePlayAgain = useCallback(() => {
     // Same category/difficulty - just load new questions
     setError(null)
     setLoading(true)
     setCurrentScreen(SCREENS.LOADING)
 
-    getQuestions(selectedCategory, selectedDifficulty, 10)
+    loadTriviaQuestions(selectedCategory, selectedDifficulty)
       .then(response => {
         setQuestions(response.questions)
         setCurrentScreen(SCREENS.QUESTIONS)
       })
       .catch(err => {
         console.error('Failed to load questions:', err)
-        setError(err.message || 'Failed to load trivia questions')
+        if (selectedCategory === 'collection') {
+          setError(COLLECTION_LIBRARY_ERROR)
+        } else {
+          setError(err.message || 'Failed to load trivia questions')
+        }
         setCurrentScreen(SCREENS.DIFFICULTY)
       })
       .finally(() => {
         setLoading(false)
       })
-  }
+  }, [loadTriviaQuestions, selectedCategory, selectedDifficulty])
 
   const handleChangeCategory = () => {
     setSelectedCategory(null)

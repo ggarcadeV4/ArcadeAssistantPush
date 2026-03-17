@@ -39,6 +39,20 @@ export default function RetroModesTab() {
         setFilters(prev => ({ ...prev, [key]: value }))
     }
 
+    const handleApplyMode = () => {
+        console.warn(
+            '[Gunner] RetroModesTab: Apply Mode not yet wired ' +
+            'to backend. See gunner.py retro mode registry for real path.'
+        )
+    }
+
+    const handleOptimizeForFleet = () => {
+        console.warn(
+            '[Gunner] RetroModesTab: Optimize for Fleet not ' +
+            'yet wired to Supabase fleet sync.'
+        )
+    }
+
     return (
         <div className="gunner-retro">
             {/* Engine Cards Row */}
@@ -114,8 +128,11 @@ export default function RetroModesTab() {
 
             {/* Action Buttons */}
             <div className="gunner-retro__actions">
-                <button className="gunner-btn-action">[Apply Mode]</button>
-                <button className="gunner-btn-action gunner-btn-action--green">[Optimize for Fleet]</button>
+                <button className="gunner-btn-action" onClick={handleApplyMode}>[Apply Mode]</button>
+                <button className="gunner-btn-action gunner-btn-action--green" onClick={handleOptimizeForFleet}>[Optimize for Fleet]</button>
+            </div>
+            <div style={{ marginTop: 10, color: 'var(--cyber-yellow)', fontSize: '0.9rem' }}>
+                Display mode application — backend wiring pending (post-duplication)
             </div>
         </div>
     )

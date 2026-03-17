@@ -3,8 +3,8 @@
   "version": "1.0",
   "created_at": "2025-10-16T10:00:00Z",
   "board": {
-    "vid": "0x045E",
-    "pid": "0x028E",
+    "vid": "0xD209",
+    "pid": "0x1601",
     "name": "PacDrive 2000T",
     "detected": false,
     "modes": {

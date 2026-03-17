@@ -6,15 +6,13 @@ function buildDocHeaders(options = {}) {
     'x-scope': scope,
     'x-panel': 'doc'
   }
-  try {
-    const storageDevice =
-      typeof window !== 'undefined' && window.localStorage
-        ? window.localStorage.getItem('aa_device_id')
-        : null
-    headers['x-device-id'] = storageDevice || 'doc-panel'
-  } catch {
-    headers['x-device-id'] = 'doc-panel'
-  }
+  const deviceId =
+    (typeof window !== 'undefined' && window.AA_DEVICE_ID) || (() => {
+      console.warn('[Doc] window.AA_DEVICE_ID not available, ' +
+        'falling back to doc-panel. Cabinet identity may not be unique.')
+      return 'doc-panel'
+    })()
+  headers['x-device-id'] = deviceId
   const corrId =
     typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()

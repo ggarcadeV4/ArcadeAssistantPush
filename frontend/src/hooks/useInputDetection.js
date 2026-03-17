@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
 const STATE_HEADERS = { 'x-scope': 'state' };
-const DETECT_HEADERS = {
-  'Content-Type': 'application/json',
-  'x-scope': 'state',
-};
-
 export function useInputDetection(enabled = false) {
   const [latestInput, setLatestInput] = useState(null);
   const [isActive, setIsActive] = useState(false);
@@ -45,7 +40,7 @@ export function useInputDetection(enabled = false) {
         .catch(() => {});
     };
 
-    fetch('/api/local/controller/input/start', { headers: STATE_HEADERS })
+    fetch('/api/local/controller/input/start', { method: 'GET', headers: STATE_HEADERS })
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to start detection (${response.status})`);
@@ -64,43 +59,12 @@ export function useInputDetection(enabled = false) {
         }
       });
 
-    const handleKeyDown = (event) => {
-      if (!mountedRef.current) return;
-      const tag = (event.target?.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-
-      fetch('/api/local/controller/input/detect', {
-        method: 'POST',
-        headers: DETECT_HEADERS,
-        body: JSON.stringify({ keycode: event.code }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (!mountedRef.current) return;
-          const eventData = data?.event || null;
-          if (eventData) {
-            lastTimestampRef.current = eventData.timestamp ?? Date.now() / 1000;
-          }
-          setLatestInput(eventData);
-          setError(null);
-        })
-        .catch((err) => {
-          if (mountedRef.current) {
-            setError(err.message || 'Detection failed');
-          }
-        });
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
     return () => {
       cancelled = true;
       if (pollId) {
         window.clearInterval(pollId);
       }
-      window.removeEventListener('keydown', handleKeyDown);
-      fetch('/api/local/controller/input/stop', { headers: STATE_HEADERS })
+      fetch('/api/local/controller/input/stop', { method: 'GET', headers: STATE_HEADERS })
         .catch(() => {})
         .finally(() => {
           if (mountedRef.current) {

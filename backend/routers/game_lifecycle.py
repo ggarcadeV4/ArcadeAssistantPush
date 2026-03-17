@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Request
 from backend.services.score_tracking import CanonicalGameEvent, get_score_tracking_service
+from backend.services.led_blinky_translator import resolve_animation_code, resolve_genre_key
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("game_lifecycle")
@@ -78,28 +79,6 @@ def _extract_cinema_tag(tags: List[str]) -> Optional[str]:
             return tag.upper()
     return None
 
-
-# LEDBlinky animation codes (from LEDBlinky docs):
-#   1 = Game Start animation
-#   2 = Game Quit animation  
-#   3 = Pause animation
-#   4 = Screen Saver Start
-#   5 = Screen Saver Stop
-#  14 = Set individual LED (e.g., "14", "1,48" = LED 1 brightness 48)
-
-CINEMA_TAG_TO_ANIMATION = {
-    "LED:FIGHTING":    "1",
-    "LED:RACING":      "1",
-    "LED:SHOOTER":     "1",
-    "LED:SPORTS":      "1",
-    "LED:BEATEMUP":    "1",
-    "LED:LIGHTGUN":    "1",
-    "LED:PLATFORMER":  "1",
-    "LED:PUZZLE":      "1",
-    "LED:MAZE":        "1",
-    "LED:TRACKBALL":   "1",
-    "LED:STANDARD":    "1",
-}
 
 # Map Cinema tags to color themes from configs/ledblinky/colors.json.
 # These provide a genre-appropriate color wash on the Python HID stack
@@ -188,9 +167,10 @@ async def _reset_leds_to_idle() -> str:
 
 
 async def _call_ledblinky(
-    animation_code: str,
+    animation_code: Optional[str] = None,
     rom_name: Optional[str] = None,
     cinema_tag: Optional[str] = None,
+    genre: Optional[str] = None,
 ) -> str:
     """Call LEDBlinky.exe with the given animation code.
     
@@ -198,9 +178,10 @@ async def _call_ledblinky(
     stack via _apply_genre_theme() so LEDs still respond.
     
     Args:
-        animation_code: LEDBlinky animation code (e.g., "1" for game start)
+        animation_code: Optional LEDBlinky animation code override
         rom_name: Optional ROM name for game-specific lighting
         cinema_tag: Optional cinema tag for HID fallback (e.g., "LED:FIGHTING")
+        genre: Optional normalized or raw genre hint used to resolve animation code
         
     Returns:
         Status string: "ok", "not_found", "fallback_hid", or "error: <message>"
@@ -213,7 +194,8 @@ async def _call_ledblinky(
         return "not_found"
     
     try:
-        cmd = [str(LEDBLINKY_EXE), animation_code]
+        resolved_animation = animation_code or resolve_animation_code(genre=genre, cinema_tag=cinema_tag)
+        cmd = [str(LEDBLINKY_EXE), resolved_animation]
         if rom_name:
             cmd.append(rom_name)
             
@@ -229,7 +211,7 @@ async def _call_ledblinky(
         )
         
         if result.returncode == 0:
-            logger.info(f"[LEDBlinky] Success: animation={animation_code} rom={rom_name}")
+            logger.info(f"[LEDBlinky] Success: animation={resolved_animation} rom={rom_name}")
             return "ok"
         else:
             logger.warning(f"[LEDBlinky] Non-zero exit: {result.returncode} - {result.stderr}")
@@ -278,6 +260,7 @@ def _bridge_track_game(
     source: str = "launchbox_plugin",
     launch_method: str = "plugin_event",
     player: Optional[str] = None,
+    tags: Optional[List[str]] = None,
 ) -> str:
     """Register the game with score tracking and lifecycle monitoring."""
     global _active_game
@@ -326,6 +309,7 @@ def _bridge_track_game(
                 launch_method=launch_method,
                 player=player,
                 session_id=session.get("session_id"),
+                tags=tags,
             )
             return "tracked"
         except Exception as e:
@@ -532,6 +516,45 @@ async def _bridge_clear_session() -> None:
         logger.debug(f"[SessionBridge] Failed to clear session (non-critical): {e}")
 
 
+async def _push_marquee_game_state(
+    *,
+    game_name: str,
+    game_id: Optional[str],
+    platform: Optional[str],
+    rom_name: Optional[str],
+    source: str,
+) -> None:
+    """Write marquee state for a launched game without blocking launch flow."""
+    try:
+        from backend.routers import marquee as marquee_router
+
+        await asyncio.to_thread(
+            marquee_router.persist_current_game,
+            {
+                "game_id": game_id,
+                "title": game_name,
+                "platform": platform or "Arcade",
+                "region": "North America",
+                "rom_name": rom_name,
+                "source": source,
+                "mode": "video",
+                "event_type": "GAME",
+            },
+        )
+    except Exception as exc:
+        logger.warning("[GameStart] Marquee switch failed: %s", exc)
+
+
+async def _push_marquee_idle_state(source: str) -> None:
+    """Return marquee state to idle without blocking stop flow."""
+    try:
+        from backend.routers import marquee as marquee_router
+
+        await asyncio.to_thread(marquee_router.reset_marquee_to_idle, source)
+    except Exception as exc:
+        logger.warning("[GameStop] Marquee idle reset failed: %s", exc)
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
@@ -554,18 +577,23 @@ async def game_start(request: GameStartRequest):
         }
     """
     cinema_tag = _extract_cinema_tag(request.tags)
+    launch_genre = resolve_genre_key(tags=request.tags, cinema_tag=cinema_tag)
     
     logger.info(
-        f"[GameStart] {request.game_name} | tag={cinema_tag} | "
+        f"[GameStart] {request.game_name} | genre={launch_genre or 'default'} | tag={cinema_tag} | "
         f"rom={request.rom_name} | platform={request.platform}"
     )
     
-    # Determine LEDBlinky animation code
-    animation = CINEMA_TAG_TO_ANIMATION.get(cinema_tag or "", "1")
+    animation = resolve_animation_code(genre=launch_genre, tags=request.tags, cinema_tag=cinema_tag)
     
     # Fire LEDBlinky (per-button ROM-specific layout via CLI)
     # If LEDBlinky fails, falls back to HID genre theme automatically
-    blinky_status = await _call_ledblinky(animation, request.rom_name, cinema_tag=cinema_tag)
+    blinky_status = await _call_ledblinky(
+        animation,
+        request.rom_name,
+        cinema_tag=cinema_tag,
+        genre=launch_genre,
+    )
     
     # Apply genre color theme to HID LEDs (cosmetic overlay, non-blocking)
     theme_status = await _apply_genre_theme(cinema_tag)
@@ -581,11 +609,21 @@ async def game_start(request: GameStartRequest):
         source=request.source,
         launch_method=request.launch_method,
         player=request.player,
+        tags=request.tags,
     )
     
     # Bridge to session store (Break 5 fix) - fire-and-forget
     asyncio.create_task(
         _bridge_update_session(request.game_name, request.rom_name, request.platform)
+    )
+    asyncio.create_task(
+        _push_marquee_game_state(
+            game_name=request.game_name,
+            game_id=request.game_id,
+            platform=request.platform,
+            rom_name=request.rom_name,
+            source=request.source,
+        )
     )
     
     return GameLifecycleResponse(
@@ -619,6 +657,7 @@ async def game_stop():
     
     # Clear session context (Break 5 fix) - fire-and-forget
     asyncio.create_task(_bridge_clear_session())
+    asyncio.create_task(_push_marquee_idle_state("game_lifecycle_stop"))
     
     return GameLifecycleResponse(
         success=True,
