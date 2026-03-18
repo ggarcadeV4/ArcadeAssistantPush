@@ -1,45 +1,5 @@
 # ROLLING LOG — Arcade Assistant
 
-## 2026-03-16 NIGHT (Antigravity Session — Daphne/Hypseus Laserdisc Fix)
-
-**Net Progress**: Fixed Daphne laserdisc game launching from LoRa. Root cause chain: ancient `daphne.exe` → modern `hypseus.exe` swap required 4 cascading fixes. Road Blaster confirmed working end-to-end from LoRa. 15 DAPHNE `.ahk` scripts and `Emulators.xml` updated. New direct launch block added to `launcher.py` for Hypseus with game map, `-homedir`, absolute framefile paths, and `SDL_VIDEODRIVER=windows` env override.
-
-**Key Wins:**
-- **DLL Path Fix** — `.ahk` scripts pointed to `A:\Emulators\Hypseus\hypseus.exe` (root, no DLLs). Fixed to `A:\Emulators\Hypseus\Hypseus Singe\hypseus.exe` where DLLs live (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, etc.).
-- **Homedir Fix** — Added `-homedir "A:\Roms\DAPHNE"` so Hypseus finds `roms/`, `vldp/`, `framefile/` in the correct location instead of its own install directory.
-- **Absolute Framefile Paths** — Changed framefile args from relative (`framefile/roadblaster.txt`) to absolute (`A:\Roms\DAPHNE\framefile\roadblaster.txt`). Hypseus resolves `-framefile` relative to its own exe, NOT `-homedir`.
-- **SDL_VIDEODRIVER=windows** — Subprocess launched from backend inherits headless SDL context (video driver defaults to `dummy`). Explicit env override passes `SDL_VIDEODRIVER=windows` to the Hypseus process.
-- **Direct Launch Block** — New Daphne/Hypseus code path at `launcher.py:1100`. Contains `DAPHNE_GAME_MAP` (15 games mapping `.ahk` stems → Hypseus internal names + framefile paths). Uses `_launch_with_stderr_trap()` matching MAME block pattern.
-- **Plugin Port Fix** — Changed `A:\LaunchBox\Plugins\ArcadeAssistant\config.json` port from `10099` to `9999`.
-- **Emulators.xml** — New "Hypseus Singe" entry added at line 4668, pointing to correct exe path.
-
-**⚠️ GOTCHAS FOR NEXT AGENT:**
-- **HD titles are Additional Apps** — Dragon's Lair HD / Space Ace HD / Dragon's Lair II HD are "Additional App" entries in `Daphne.xml`, NOT primary `ApplicationPath`. From LoRa, the primary launch uses `SINGE-HYPSEUS\*.ahk` scripts. The HD versions only launch from LaunchBox right-click menu.
-- **SINGE2 games are NOT fixed** — The Daphne platform in LaunchBox includes ~30 SINGE2 games (Altered Carbon, Asterix, Cliffhanger, etc.) that use `Singe.exe`. These have a separate "Couldn't find matching render driver" error. They are a different fix path.
-- **Plugin bridge requires LaunchBox running** — Port 9999 only works when LaunchBox is open. Manual restart required after any config change.
-- **LaunchBox restart is manual** — Kill BigBox/LaunchBox in Task Manager, reopen from desktop. Plugin re-initializes on port 9999 after ~15s.
-
-**Files Modified (by Codex, verified by Antigravity):**
-- `A:\Roms\DAPHNE\*.ahk` (all 15) — exe path, `-homedir`, framefile paths
-- `A:\LaunchBox\Data\Emulators.xml` — Hypseus Singe entry
-- `A:\LaunchBox\Plugins\ArcadeAssistant\config.json` — port 10099→9999
-- `A:\Arcade Assistant Local\backend\services\launcher.py` — Daphne direct launch block + SDL env
-
-**Crash Code Reference:**
-| Code | Hex | Meaning | Fix Applied |
-|------|-----|---------|-------------|
-| 3221225781 | 0xC0000135 | DLL NOT FOUND | Exe path → `Hypseus Singe\` |
-| 150 | — | SDL video driver error | `SDL_VIDEODRIVER=windows` |
-| 1 | — | Render driver / framefile | Absolute framefile paths |
-
-**State of Union — What's Next:**
-1. ✅ **Road Blaster** — Confirmed working from LoRa
-2. 🔲 **Spot-check Astron Belt** — Standard framefile path (not yet tested)
-3. 🔲 **SINGE2 platform fix** — Separate task, uses `Singe.exe` not Hypseus
-4. 🔲 **HD title accessibility** — HD versions only reachable via LaunchBox Additional Apps, not from LoRa
-
----
-
 ## 2026-03-16 LATE (Antigravity Session — Dewey Chat & News Voice Fix)
 
 **Net Progress**: Fixed Dewey's main chat (400/500 errors from calling anthropic-proxy directly) by migrating to Gemini. Fixed Gaming News chat echo (ref-based guard replaces slow state guard). Added TTS voice output to News Chat via `/api/voice/tts` with Dewey's voice ID. Changed News Chat mic from auto-send to push-to-talk (user reviews transcript before sending).

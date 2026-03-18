@@ -34,7 +34,6 @@ const DOC_PERSONA = {
   accentColor: '#ec4899',
   accentGlow: 'rgba(236,72,153,0.35)',
   voiceProfile: 'doc',
-  showDiagnosisToggle: false,
   chips: [
     { label: '🔍 CPU Review', text: 'Give me a detailed CPU usage breakdown.' },
     { label: '🖥️ Hardware Check', text: 'What is the current status of all connected hardware?' },
@@ -378,16 +377,29 @@ export default function SystemHealthPanel() {
 
   // Process groups
   const processGroups = useMemo(() => {
-    const rawGroups = processState.data?.groups || []
-    if (!Array.isArray(rawGroups)) return []
+    const rawProcesses = processState.data?.processes || processState.data || []
+    if (!Array.isArray(rawProcesses)) return []
+    const assistantProcs = []
+    const systemProcs = []
+    rawProcesses.forEach(proc => {
+      const name = (proc.name || '').toLowerCase()
+      const path = (proc.path || '').toLowerCase()
+      if (name.includes('assistant') || name.includes('doc') || name.includes('gunner') ||
+          name.includes('vicky') || name.includes('chuck') || name.includes('blinky') ||
+          name.includes('wiz') || name.includes('arcade') || name.includes('emulat') ||
+          path.includes('/opt/doc') || path.includes('/opt/games')) {
+        assistantProcs.push(proc)
+      } else {
+        systemProcs.push(proc)
+      }
+    })
     const sortFn = processSortBy === 'memory'
       ? (a, b) => (b.memory_bytes || 0) - (a.memory_bytes || 0)
       : (a, b) => (b.cpu_percent || 0) - (a.cpu_percent || 0)
-    return rawGroups.map(group => ({
-      id: group.id || group.title || 'process-group',
-      title: group.title || 'Process Group',
-      processes: Array.isArray(group.processes) ? [...group.processes].sort(sortFn) : []
-    }))
+    return [
+      { id: 'assistant', title: 'Assistant Services', processes: assistantProcs.sort(sortFn) },
+      { id: 'system', title: 'System', processes: systemProcs.sort(sortFn) }
+    ]
   }, [processState.data, processSortBy])
 
   const processesUnavailable = processState.data?.unavailable === true

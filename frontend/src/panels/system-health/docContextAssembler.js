@@ -12,12 +12,6 @@
  */
 
 const HEALTH_API = '/api/local/health';
-const deviceId =
-    (typeof window !== 'undefined' && window.AA_DEVICE_ID) || (() => {
-        console.warn('[Doc] window.AA_DEVICE_ID not available, ' +
-            'falling back to doc-panel. Cabinet identity may not be unique.');
-        return 'doc-panel';
-    })();
 
 /** Silent fetch — returns null on any error */
 async function safeFetch(url) {
@@ -26,7 +20,7 @@ async function safeFetch(url) {
             headers: {
                 'x-panel': 'doc',
                 'x-scope': 'state',
-                'x-device-id': deviceId,
+                'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
             },
         });
         if (!res.ok) return null;

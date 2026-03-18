@@ -197,6 +197,27 @@ backend/
 
 ---
 
+## Marquee System (Third Screen)
+
+The marquee display shows game artwork/videos on a secondary monitor (the physical cabinet marquee). Two implementations exist:
+
+| Component | Type | File | Notes |
+|-----------|------|------|-------|
+| Python Watcher | Standalone tkinter app | `scripts/marquee_display.py` | Borderless fullscreen on secondary monitor, file-watches `.aa/state/marquee_current.json` |
+| React Display | Browser route | `frontend/src/panels/marquee/MarqueeDisplayV2.jsx` | Route: `/marquee-v2`, launched via button in Content Display Manager |
+| Preview Hook | Batch script | `scripts/aa_marquee_preview.bat` | Called by Pegasus on game scroll |
+| Backend API | FastAPI router | `backend/routers/marquee.py` | Config, media resolution, message queue, now-playing |
+
+**Auto-Launch:** `start-aa.bat` on the A: drive launches `marquee_display.py` automatically via `AA_MARQUEE_ENABLED` env var.
+
+> ⚠️ **TEMPORARILY DISABLED (2026-03-16):** `AA_MARQUEE_ENABLED=0` in `start-aa.bat` on A: drive.
+> The Python marquee display opens a borderless, topmost, fullscreen black window on the secondary monitor.
+> On a dev machine with a regular second monitor, this blacks out the screen with no close button.
+> **RE-ENABLE before drive duplication for live cabinet hardware** — the cabinet will have a dedicated marquee display.
+> Future improvement: add GUI toggle in Content Display Manager to enable/disable at runtime.
+
+---
+
 ## Supabase Edge Functions
 
 | Function | JWT Verify | Purpose |
@@ -219,6 +240,7 @@ backend/
 | B6/B7 Wake Word & TTS Dropping | Medium | Voice panel fixes |
 | Handoff Protocol URL standard | Medium | Inter-panel communication |
 | Diagnosis Mode Phase 2 (Supabase tables) | Medium | `controller_mappings`, `encoder_devices`, `controller_mappings_history` |
+| Marquee auto-launch disabled (dev) | Low | `AA_MARQUEE_ENABLED=0` in A: `start-aa.bat` — re-enable before duplication |
 | F9 Overlay Z-Index | Backlog | Electron `setAlwaysOnTop` |
 | LaunchBox LoRa deep build | Backlog | Most complex panel -- future session |
 
@@ -297,6 +319,7 @@ backend/
 | S2 | Device ID mismatch fix (`.env` vs Supabase `00000000-...`) | PENDING | Us or admin portal |
 | S3 | ElevenLabs placeholder API key replacement | PENDING | |
 | S4 | Drive letter `A:\` auto-detection robustness | DONE | `start-aa.bat` uses `%~d0` |
+| S5 | Re-enable marquee auto-launch (`AA_MARQUEE_ENABLED=1`) | PENDING | Disabled 2026-03-16 for dev — re-enable before golden image |
 
 ---
 ## Git / Deployment
