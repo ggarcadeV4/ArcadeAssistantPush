@@ -77,22 +77,39 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
             p = (LaunchBoxPaths.LAUNCHBOX_ROOT / p).resolve()
         except Exception:
             p = p.resolve()
+
+    # Fallback: LaunchBox may report 'Sega Model 3' as the ROM folder but
+    # the physical ROMs live under A:\Roms\MODEL3.  Try the alternate path
+    # before giving up.
+    if not p.exists():
+        alt = Path(r"A:\Roms\MODEL3") / p.name
+        if alt.exists():
+            p = alt
+
     args = []
     if launch_fullscreen_enabled():
         args.append('-fullscreen')
-    # Prefer passing the ZIP directly to Supermodel; avoid extraction complexity.
-    # Supermodel accepts the ROM set as a path or basename.
+    # Supermodel needs to run from its own install dir so it can find Config/Games.xml.
+    # Pass the absolute ROM path on the command line.
     extracted_root = None
     if p.suffix.lower() == '.zip':
-        rom_arg = str(p)  # pass full path to zip
-        cwd = str(p.parent)
-    else:
-        # Non-archive: pass full path (or basename)
         rom_arg = str(p)
-        cwd = str(p.parent)
+        cwd = str(exe.parent)
+    else:
+        rom_arg = str(p)
+        cwd = str(exe.parent)
 
     args.append(rom_arg)
-    return {"exe": str(exe), "args": args, "cwd": cwd, "extracted_root": str(extracted_root) if extracted_root else None, "notes": f"supermodel:rom={Path(rom_arg).name}"}
+    # no_pipe: Supermodel uses OpenGL which requires a real display context.
+    # The stderr trap's stdout=PIPE, stderr=PIPE prevents OpenGL init.
+    return {
+        "exe": str(exe),
+        "args": args,
+        "cwd": cwd,
+        "extracted_root": str(extracted_root) if extracted_root else None,
+        "notes": f"supermodel:rom={Path(rom_arg).name}",
+        "no_pipe": True,
+    }
 
 
 def launch(game: Any, manifest: Dict[str, Any], runner) -> Dict[str, Any]:

@@ -37,8 +37,56 @@ from backend.services.adapters.adapter_utils import dry_run_enabled
 from backend.services.platform_names import normalize_key
 from backend.services.ps2_resolver import load_overrides
 import shutil
+import socket
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Launcher Agent client — sends launch commands to arcade_launcher_agent.py
+# which runs in a clean interactive session (not under run-backend.bat's
+# redirected stdout chain).  Required for OpenGL emulators like Supermodel.
+# ---------------------------------------------------------------------------
+_AGENT_HOST = "127.0.0.1"
+_AGENT_PORT = int(os.getenv("AA_LAUNCHER_AGENT_PORT", "9123"))
+_AGENT_TIMEOUT = 5.0  # seconds
+
+
+def _launch_via_agent(
+    command: list,
+    cwd: str = None,
+    env_override: dict = None,
+) -> dict:
+    """Send a launch command to the Launcher Agent.
+
+    Returns dict with {"ok": True, "pid": ...} on success,
+    or {"ok": False, "error": "..."} on failure / agent unreachable.
+    """
+    payload = {
+        "exe": str(command[0]),
+        "args": [str(a) for a in command[1:]],
+        "cwd": str(cwd) if cwd else None,
+        "env_override": env_override or {},
+    }
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(_AGENT_TIMEOUT)
+        sock.connect((_AGENT_HOST, _AGENT_PORT))
+        sock.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+        sock.shutdown(socket.SHUT_WR)            # signal end of request
+        resp_data = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            resp_data += chunk
+        sock.close()
+        result = json.loads(resp_data.decode("utf-8").strip())
+        logger.info("[Agent] response: %s", result)
+        return result
+    except Exception as e:
+        logger.warning("[Agent] unreachable (%s:%d): %s", _AGENT_HOST, _AGENT_PORT, e)
+        return {"ok": False, "error": str(e)}
+
 
 
 def _convert_wsl_paths_for_windows(command: List[str]) -> List[str]:
@@ -222,6 +270,16 @@ class GameLauncher:
             if protected and (game.platform in protected):
                 methods = [(n, f) for (n, f) in methods if n != 'direct']
 
+
+        # Direct-preferred platforms: reorder so 'direct' runs FIRST.
+        # These platforms have dedicated adapters (e.g., Supermodel) and must
+        # bypass the plugin bridge which would delegate to LaunchBox's UI.
+        direct_preferred = {'sega model 3'}
+        if normalize_key(getattr(game, 'platform', '') or '') in direct_preferred:
+            direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
+            other_methods = [(n, f) for (n, f) in methods if n != 'direct']
+            if direct_methods:
+                methods = direct_methods + other_methods
         # Try each method in sequence (optimized: early return on success)
         for method_name, method_func in methods:
             result = self._try_launch_method(game, method_name, method_func, profile_hint)
@@ -792,7 +850,28 @@ class GameLauncher:
 
         # Launch with proper error handling
         try:
-            if working_dir and working_dir.exists():
+            # OpenGL/DirectX emulators (e.g. Supermodel) need full process
+            # detachment via cmd.exe /c start — direct subprocess.Popen
+            # prevents SDL/OpenGL from hooking into the Windows DWM + GPU.
+            emu_title = getattr(emulator, 'title', '') or ''
+            needs_detach = 'supermodel' in emu_title.lower() or 'supermodel' in str(command[0]).lower()
+
+            if needs_detach:
+                # Route through the Launcher Agent — a separate process running
+                # in a clean interactive session without poisoned console handles.
+                # Required because run-backend.bat redirects stdout/stderr to a
+                # log file, which taints the entire process tree and prevents
+                # SDL/OpenGL from initialising.
+                agent_result = _launch_via_agent(win_command, cwd=wsl_cwd)
+                if agent_result.get("ok"):
+                    logger.info("[DetectedEmu] Launched %s via agent, PID=%s",
+                                emu_title, agent_result.get('pid'))
+                else:
+                    raise RuntimeError(
+                        f"Launcher Agent failed for {emu_title}: "
+                        f"{agent_result.get('error', 'unknown')}"
+                    )
+            elif working_dir and working_dir.exists():
                 subprocess.Popen(win_command, cwd=wsl_cwd)
             else:
                 if working_dir:
@@ -1316,7 +1395,8 @@ class GameLauncher:
                     if dry_run_enabled():
                         logger.info(f"[DIRECT] Adapter {adapter_name} DRY-RUN: {' '.join([exe, *[str(a) for a in args]])}")
                         return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
-                    self._run_adapter_process(exe, args, cwd, cleanup_cb)
+                    no_pipe = bool((cfg or {}).get("no_pipe"))
+                    self._run_adapter_process(exe, args, cwd, cleanup_cb, no_pipe=no_pipe)
                     logger.info(f"[DIRECT] Adapter {adapter_name} launch SUCCESS: {' '.join([exe, *[str(a) for a in args]])}")
                     return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
 
@@ -1333,11 +1413,16 @@ class GameLauncher:
                 pass
 
     @staticmethod
-    def _run_adapter_process(exe: str, args: List[str], cwd: Optional[str], on_exit: Optional[Callable[[], None]] = None) -> None:
+    def _run_adapter_process(exe: str, args: List[str], cwd: Optional[str], on_exit: Optional[Callable[[], None]] = None, *, no_pipe: bool = False) -> None:
         """Execute adapter-provided command line.
 
         Uses working directory if provided; otherwise defaults to exe parent.
         Works in Windows and WSL interop environments.
+
+        Args:
+            no_pipe: If True, launch without stdout/stderr PIPE capture.
+                     Required for OpenGL/DirectX emulators (e.g. Supermodel)
+                     that fail with 'OpenGL not available' when pipes are attached.
         """
         workdir = Path(cwd) if cwd else Path(exe).parent
         try:
@@ -1386,6 +1471,33 @@ class GameLauncher:
                             except Exception:
                                 pass
                     threading.Thread(target=_delayed, daemon=True).start()
+            elif no_pipe:
+                # Route through the Launcher Agent (see _execute_emulator).
+                full_command = [exe, *args]
+                win_command = _convert_wsl_paths_for_windows(full_command)
+                wsl_cwd = str(workdir)
+                agent_result = _launch_via_agent(win_command, cwd=wsl_cwd)
+                if agent_result.get("ok"):
+                    logger.info("[Adapter] Launched via agent, PID=%s", agent_result.get('pid'))
+                else:
+                    raise RuntimeError(
+                        f"Launcher Agent failed: {agent_result.get('error', 'unknown')}"
+                    )
+                if on_exit:
+                    # No direct process handle with cmd.exe /c start; use delayed cleanup
+                    try:
+                        ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
+                    except Exception:
+                        ttl = 900
+                    def _delayed_np():
+                        try:
+                            time.sleep(max(1, ttl))
+                        finally:
+                            try:
+                                on_exit()
+                            except Exception:
+                                pass
+                    threading.Thread(target=_delayed_np, daemon=True).start()
             else:
                 # Convert paths for WSL
                 full_command = [exe, *args]
