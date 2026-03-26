@@ -61,6 +61,11 @@ _input_detection_lock = Lock()
 _latest_input_event: Optional[InputEvent] = None
 
 
+def get_latest_event() -> Optional[InputEvent]:
+    """Get the most recent input event captured by the service."""
+    return _latest_input_event
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -697,15 +702,22 @@ async def get_controller_devices(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/input/start")
-async def start_input_detection(request: Request, board_type: Optional[str] = None):
+async def start_input_detection(
+    request: Request,
+    board_type: Optional[str] = None,
+    learn_mode: bool = False
+):
     """Begin listening for encoder inputs."""
     require_scope(request, "state")
     service = get_input_detection_service(request, board_type_override=board_type)
+    if learn_mode:
+        service.set_learn_mode(True)
     service.start_listening()
     return {
         "status": "listening",
         "board_type": service.board_type,
-        "message": "Input detection started.",
+        "learn_mode": service._learn_mode,
+        "message": f"Input detection started{' in learn mode' if learn_mode else ''}.",
     }
 
 

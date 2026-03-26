@@ -242,12 +242,20 @@ class InputDetectionService:
         """
         lookup_name = self._canonical_name_from_display(keycode)
         pin = self._keycode_to_pin.get(lookup_name)
-        if pin is None:
-            raise KeyError(f"Keycode '{lookup_name}' not mapped for board {self.board_type}")
 
-        # Use identity binding if available, otherwise fall back to pin-based inference
-        player = resolve_player_with_identity(pin, self.board_type, identity_bindings)
-        _, control_key, control_type = _infer_control_from_pin(pin)
+        if pin is None:
+            if not self._learn_mode:
+                raise KeyError(f"Keycode '{lookup_name}' not mapped for board {self.board_type}")
+
+            # Learn mode: allow unmapped keys with synthesized metadata
+            pin = 0
+            player = 0
+            control_key = "unmapped"
+            control_type = "unknown"
+        else:
+            # Use identity binding if available, otherwise fall back to pin-based inference
+            player = resolve_player_with_identity(pin, self.board_type, identity_bindings)
+            _, control_key, control_type = _infer_control_from_pin(pin)
         
         event = InputEvent(
             timestamp=time.time(),
@@ -257,6 +265,7 @@ class InputDetectionService:
             player=player,
             control_type=control_type,
             source_id=self.board_type,
+            input_mode=detect_input_mode(keycode)
         )
         self._emit_event(event)
         return event
@@ -397,19 +406,14 @@ class InputDetectionService:
                     handler(display_code)
                 except Exception:
                     logger.exception("Raw handler raised an exception")
-            return  # Don't process through normal mapping in learn mode
-
-        # Normal mode: look up gamepad input in mapping and emit event
-        lookup_name = self._canonical_name_from_display(display_code)
-        pin = self._keycode_to_pin.get(lookup_name)
-        if pin is None:
-            logger.debug("Gamepad input %s (lookup=%s) not mapped; ignoring.", display_code, lookup_name)
-            return
 
         try:
             self.on_input_detected(display_code)
         except Exception:
-            logger.exception("Failed to process gamepad event %s", display_code)
+            if not self._learn_mode:
+                logger.debug("Gamepad input %s not mapped; ignoring.", display_code)
+            else:
+                logger.exception("Failed to process gamepad event %s", display_code)
 
     def _emit_event(self, event: InputEvent) -> None:
         for handler in list(self._handlers):
@@ -446,17 +450,14 @@ class InputDetectionService:
                     handler(display_code)
                 except Exception:
                     logger.exception("Raw handler %r raised an exception", handler)
-            return  # Don't process through normal mapping in learn mode
-
-        pin = self._keycode_to_pin.get(lookup_name)
-        if pin is None:
-            logger.debug("Key %s (lookup=%s) not mapped; ignoring.", display_code, lookup_name)
-            return
 
         try:
             self.on_input_detected(display_code)
         except Exception:
-            logger.exception("Failed to process key event %s", display_code)
+            if not self._learn_mode:
+                logger.debug("Key %s (lookup=%s) not mapped; ignoring.", display_code, lookup_name)
+            else:
+                logger.exception("Failed to process key event %s", display_code)
 
     def _load_mapping(self) -> Dict[str, int]:
         mapping_path = _MAPPING_DIR / f"{self.board_type}.json"
