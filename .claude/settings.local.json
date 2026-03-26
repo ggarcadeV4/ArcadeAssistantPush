@@ -38,7 +38,9 @@
       "Bash(npx vite build)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(claude remote-control --name \"Arcade Assistant\")",
+      "Bash(claude remote-control)"
     ],
     "deny": [],
     "ask": []

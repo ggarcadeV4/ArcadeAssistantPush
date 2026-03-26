@@ -15,7 +15,6 @@ import re
 from typing import Any, Deque, DefaultDict, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.services.dewey.service import (
@@ -56,84 +55,6 @@ class SimpleRateLimiter:
 
 CREATE_LIMITER = SimpleRateLimiter(times=5, seconds=60)
 UPDATE_LIMITER = SimpleRateLimiter(times=10, seconds=60)
-_MAX_HISTORY_MESSAGES = 12
-_DEFAULT_USER_PREFERENCES = "No saved preferences yet - ask quick follow-ups to learn their tastes."
-_NEWS_KEYWORDS = [
-    "news", "headlines", "announcement", "latest", "recent",
-    "gaming news", "whats new", "what's new", "happening in gaming",
-]
-
-
-def _project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _prompt_candidates(filename: str, drive_root: Optional[Path]) -> List[Path]:
-    candidates: List[Path] = []
-    if drive_root:
-        candidates.extend([
-            drive_root / "prompts" / filename,
-            drive_root / ".aa" / "prompts" / filename,
-        ])
-    env_root = Path(os.getenv("AA_DRIVE_ROOT", str(_project_root())))
-    candidates.extend([
-        _project_root() / "prompts" / filename,
-        env_root / "prompts" / filename,
-        env_root / ".aa" / "prompts" / filename,
-    ])
-
-    deduped: List[Path] = []
-    seen = set()
-    for candidate in candidates:
-        key = str(candidate.resolve()) if candidate.exists() else str(candidate)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(candidate)
-    return deduped
-
-
-def _read_prompt_text(filename: str, drive_root: Optional[Path]) -> str:
-    for candidate in _prompt_candidates(filename, drive_root):
-        if candidate.exists():
-            return candidate.read_text(encoding="utf-8").strip()
-    raise FileNotFoundError(f"Prompt file not found: {filename}")
-
-
-def _format_user_preferences(user_preferences: Any) -> str:
-    if isinstance(user_preferences, str):
-        text = user_preferences.strip()
-        return text or _DEFAULT_USER_PREFERENCES
-
-    prefs = user_preferences if isinstance(user_preferences, dict) else {}
-    preference_lines: List[str] = []
-
-    genres = prefs.get("genres") or []
-    if genres:
-        preference_lines.append(f"Favorite genres: {', '.join(str(item) for item in genres)}.")
-
-    franchises = prefs.get("franchises") or []
-    if franchises:
-        preference_lines.append(f"Favorite franchises: {', '.join(str(item) for item in franchises)}.")
-
-    keywords = prefs.get("keywords") or []
-    if keywords:
-        preference_lines.append(f"Key interests: {', '.join(str(item) for item in keywords)}.")
-
-    return " ".join(preference_lines) if preference_lines else _DEFAULT_USER_PREFERENCES
-
-
-def _html_to_plain_text(value: str = "") -> str:
-    if not value:
-        return ""
-    return (
-        value.replace("<br>", "\n")
-        .replace("<br/>", "\n")
-        .replace("<br />", "\n")
-        .replace("&nbsp;", " ")
-        .replace("\r", "")
-        .strip()
-    )
 
 
 def _extract_gemini_text(result: Dict[str, Any]) -> str:
@@ -199,96 +120,6 @@ def _call_gemini(
     return reply
 
 
-def _is_news_query(message: str) -> bool:
-    lower = (message or "").lower()
-    return any(keyword in lower for keyword in _NEWS_KEYWORDS)
-
-
-async def _build_news_context(message: str) -> str:
-    if not _is_news_query(message):
-        return ""
-
-    try:
-        from backend.routers.gaming_news import fetch_all_headlines
-
-        headlines = await fetch_all_headlines()
-        if not headlines:
-            return ""
-
-        headlines_summary = "\n".join(
-            f"{index + 1}. {headline.get('source', 'Unknown')}: "
-            f"\"{headline.get('title', '')}\" "
-            f"({headline.get('published_relative', 'Unknown')})"
-            for index, headline in enumerate(headlines[:10])
-        )
-
-        return (
-            "\n\n=== CURRENT GAMING HEADLINES (Real-time RSS) ===\n"
-            f"{headlines_summary}\n"
-            "=== END HEADLINES ===\n\n"
-            "Reference these actual headlines when discussing gaming news. "
-            "Be specific about sources and recency."
-        )
-    except Exception as exc:  # pragma: no cover - news enrichment should fail open
-        logger.warning("Failed to load Dewey news context: %s", exc)
-        return ""
-
-
-def _build_system_prompt(
-    *,
-    drive_root: Optional[Path],
-    user_name: str,
-    user_preferences: Any,
-    knowledge_text: str,
-    news_context: str,
-) -> str:
-    base_prompt = _read_prompt_text("dewey.prompt", drive_root)
-    system_prompt = (
-        base_prompt
-        .replace("{user_name}", user_name or "Guest")
-        .replace("{user_preferences}", _format_user_preferences(user_preferences))
-    )
-
-    if knowledge_text:
-        system_prompt += "\n\n--- KNOWLEDGE BASE ---\n" + knowledge_text.strip()
-
-    if news_context:
-        system_prompt += news_context
-
-    return system_prompt
-
-
-def _build_anthropic_messages(
-    *,
-    history: List[Dict[str, str]],
-    system_prompt: str,
-    user_text: str,
-) -> List[Dict[str, str]]:
-    trimmed_user = _html_to_plain_text(user_text)
-    chat_history = [
-        {
-            "role": "user" if turn.get("role") == "user" else "assistant",
-            "content": _html_to_plain_text(turn.get("content", "")),
-        }
-        for turn in (history or [])
-        if turn.get("role") in {"user", "dewey", "assistant"}
-    ]
-
-    chat_history = [turn for turn in chat_history if turn["content"]]
-    chat_history = chat_history[-_MAX_HISTORY_MESSAGES:]
-
-    payload = [{"role": "system", "content": system_prompt}, *chat_history]
-    if not chat_history or chat_history[-1].get("content") != trimmed_user:
-        payload.append({"role": "user", "content": trimmed_user})
-    return payload
-
-
-async def _stream_text_chunks(text: str, chunk_size: int = 160):
-    for start in range(0, len(text), chunk_size):
-        yield text[start:start + chunk_size]
-        await asyncio.sleep(0)
-
-
 @router.get("/profiles/{user_id}", response_model=ProfileData)
 async def get_profile(user_id: str, service: DeweyService = Depends(get_dewey_service)):
     profile = await asyncio.to_thread(service.get_profile, user_id)
@@ -316,69 +147,6 @@ async def update_profile(
 # ============================================================================
 # CHAT ENDPOINT
 # ============================================================================
-
-class DeweyChatTurn(BaseModel):
-    role: str
-    content: Optional[str] = None
-    text: Optional[str] = None
-
-
-class DeweyChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=4000)
-    user_name: Optional[str] = "Guest"
-    user_preferences: Any = None
-    conversation_history: List[DeweyChatTurn] = Field(default_factory=list)
-
-
-@router.post("/chat")
-async def dewey_chat(request: Request, payload: DeweyChatRequest):
-    require_scope(request, "state")
-
-    drive_root = getattr(request.app.state, "drive_root", None)
-    drive_root = Path(drive_root) if drive_root else None
-    user_name = (payload.user_name or "Guest").strip() or "Guest"
-    user_message = payload.message.strip()
-
-    try:
-        knowledge_text = _read_prompt_text("dewey_knowledge.md", drive_root)
-        news_context = await _build_news_context(user_message)
-        system_prompt = _build_system_prompt(
-            drive_root=drive_root,
-            user_name=user_name,
-            user_preferences=payload.user_preferences,
-            knowledge_text=knowledge_text,
-            news_context=news_context,
-        )
-        conversation_history = [
-            {
-                "role": turn.role,
-                "content": turn.content if turn.content is not None else (turn.text or ""),
-            }
-            for turn in payload.conversation_history
-        ]
-        anthropic_messages = _build_anthropic_messages(
-            history=conversation_history,
-            system_prompt=system_prompt,
-            user_text=user_message,
-        )
-        reply = await asyncio.to_thread(_call_gemini, anthropic_messages)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Dewey chat failed")
-        raise HTTPException(status_code=500, detail=f"Dewey chat failed: {exc}") from exc
-
-    return StreamingResponse(
-        _stream_text_chunks(reply),
-        media_type="text/plain; charset=utf-8",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
 
 # ============================================================================
 # TRIVIA ENDPOINTS
@@ -716,56 +484,6 @@ async def get_collection_questions(limit: int = 10):
         "questions": [],
         "count": 0,
         "note": "LaunchBox integration coming soon - will generate questions from your game collection"
-    }
-
-
-@router.post("/trivia/collection")
-async def generate_collection_trivia(request: Request):
-    """
-    Generate collection-specific trivia from the real LaunchBox cache.
-    """
-    require_scope(request, "state")
-
-    sample_games = get_collection_sample(20)
-    if not sample_games:
-        raise HTTPException(
-            status_code=503,
-            detail="Your Collection requires an active LaunchBox library. Start LaunchBox and try again.",
-        )
-
-    prompt = _build_collection_trivia_prompt(sample_games)
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are an exacting trivia generator for an arcade cabinet. "
-                "Return JSON only, with no prose, markdown, or explanation."
-            ),
-        },
-        {"role": "user", "content": prompt},
-    ]
-
-    try:
-        raw_reply = await asyncio.to_thread(
-            _call_gemini,
-            messages,
-            model="gemini-2.0-flash",
-            max_tokens=2200,
-            temperature=0.2,
-            panel="dewey",
-        )
-        parsed = _extract_json_block(raw_reply)
-        questions = _normalize_collection_questions(parsed)
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail=f"Collection trivia generation failed: {exc}") from exc
-    except Exception as exc:
-        logger.exception("Collection trivia generation failed")
-        raise HTTPException(status_code=500, detail=f"Collection trivia generation failed: {exc}") from exc
-
-    return {
-        "questions": questions,
-        "count": len(questions),
-        "source_sample_size": len(sample_games),
     }
 
 

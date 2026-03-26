@@ -13,14 +13,23 @@ import os
 import re
 import subprocess
 import shutil
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
 
 from backend.models.marquee_config import MarqueeConfig as SharedMarqueeConfig
+
+try:
+    from scripts import marquee_display
+    _MARQUEE_DISPLAY_IMPORT_ERROR: Optional[Exception] = None
+except Exception as exc:
+    marquee_display = None  # type: ignore[assignment]
+    _MARQUEE_DISPLAY_IMPORT_ERROR = exc
 # Import path utilities from existing modules
 try:
     from backend.constants.a_drive_paths import AA_DRIVE_ROOT, STATE_DIR
@@ -867,6 +876,99 @@ def _iter_marquee_candidates(platform_filter: Optional[str] = None):
         return
 
 
+def _default_marquee_sample_image(drive_root: Path) -> Optional[Path]:
+    """Resolve a fallback image for marquee simulation from AA_DRIVE_ROOT."""
+    explicit_candidates = [
+        drive_root / ".aa" / "assets" / "marquee_test.png",
+        drive_root / ".aa" / "assets" / "marquee_test.jpg",
+        drive_root / ".aa" / "assets" / "marquee_idle.png",
+        drive_root / ".aa" / "assets" / "marquee_idle.jpg",
+        drive_root / "LaunchBox" / "Images" / "Arcade" / "Clear Logo" / "Pac-Man.png",
+    ]
+    for candidate in explicit_candidates:
+        if candidate.exists():
+            return candidate
+
+    launchbox_images = drive_root / "LaunchBox" / "Images"
+    if launchbox_images.exists():
+        for pattern in ("*.png", "*.jpg", "*.jpeg"):
+            try:
+                return next(launchbox_images.rglob(pattern))
+            except StopIteration:
+                continue
+            except Exception:
+                break
+    return None
+
+
+def _invoke_marquee_display(
+    request: Request,
+    action_name: str,
+    display_action: Callable[[Any], None],
+    hold_seconds: float = 6.0,
+) -> None:
+    """
+    Run a short-lived marquee diagnostic session using scripts.marquee_display.
+
+    The worker initializes the display, invokes the requested render action,
+    keeps the window alive briefly for hardware validation, and then closes it.
+    """
+    if marquee_display is None:
+        raise RuntimeError(
+            f"marquee_display import failed: {_MARQUEE_DISPLAY_IMPORT_ERROR}"
+        )
+
+    config_path = _marquee_config_path(request)
+    startup_result: Dict[str, Any] = {"ok": False, "error": None}
+    started = threading.Event()
+
+    def _worker() -> None:
+        display = None
+        try:
+            config = marquee_display.load_config(config_path if config_path.exists() else None)
+            display = marquee_display.MarqueeDisplay(config)
+            if not display.initialize():
+                raise RuntimeError("Marquee display failed to initialize")
+
+            display_action(display)
+            if getattr(display, "root", None):
+                display.root.update_idletasks()
+                display.root.update()
+
+            startup_result["ok"] = True
+            started.set()
+
+            deadline = time.time() + max(1.0, hold_seconds)
+            while time.time() < deadline:
+                if not getattr(display, "root", None):
+                    break
+                display.root.update_idletasks()
+                display.root.update()
+                time.sleep(0.01)
+        except Exception as exc:
+            startup_result["error"] = str(exc)
+            logger.warning("[ContentManager] marquee %s failed: %s", action_name, exc)
+            started.set()
+        finally:
+            if display is not None:
+                try:
+                    display.stop()
+                except Exception:
+                    pass
+
+    thread = threading.Thread(
+        target=_worker,
+        name=f"marquee-{action_name}",
+        daemon=True,
+    )
+    thread.start()
+
+    if not started.wait(timeout=2.0):
+        raise RuntimeError("Marquee display did not initialize in time")
+    if startup_result.get("error"):
+        raise RuntimeError(str(startup_result["error"]))
+
+
 @router.post("/marquee/test/image")
 async def test_marquee_image(request: Request, payload: Optional[MarqueeTestRequest] = None):
     """Display test image on marquee monitor."""
@@ -908,6 +1010,11 @@ async def test_marquee_image(request: Request, payload: Optional[MarqueeTestRequ
             "event_type": "GAME",
             "source": "content_manager_test_image",
         })
+        _invoke_marquee_display(
+            request,
+            "test-image",
+            lambda display: display.show_image(Path(resolved["game_image_file"]), preview=False),
+        )
         return {
             "status": "ok",
             "image_path": str(resolved["game_image_file"]),
@@ -959,6 +1066,16 @@ async def test_marquee_video(request: Request, payload: Optional[MarqueeTestRequ
             "event_type": "GAME",
             "source": "content_manager_test_video",
         })
+        _invoke_marquee_display(
+            request,
+            "test-video",
+            lambda display: display.play_video(
+                Path(resolved["game_video_file"]),
+                loop=bool(getattr(display.config, "video_loop", True)),
+                preview=False,
+            ),
+            hold_seconds=8.0,
+        )
         return {
             "status": "ok",
             "video_path": str(resolved["game_video_file"]),
@@ -1009,10 +1126,33 @@ async def test_marquee_browse(request: Request, payload: Optional[MarqueeBrowseR
             },
             mode="image",
         )
+        drive_root = _get_drive_root(request)
+        sample_image = _default_marquee_sample_image(drive_root)
+        simulation_title = "Arcade Assistant"
+        simulation_platform = "System"
+        _invoke_marquee_display(
+            request,
+            "test-browse",
+            lambda display: (
+                display.show_image(sample_image, preview=True)
+                if sample_image
+                else display.show_preview(
+                    marquee_display.GameState(
+                        title=simulation_title,
+                        platform=simulation_platform,
+                        mode="image",
+                        event_type="GAME",
+                    )
+                )
+            ),
+        )
         return {
             "status": "ok",
             "preview_count": len(previews),
             "first_preview": first_preview.get("title"),
+            "simulation_title": simulation_title,
+            "simulation_platform": simulation_platform,
+            "simulation_image": str(sample_image) if sample_image else None,
         }
     except Exception as e:
         logger.warning("[ContentManager] test marquee browse failed: %s", e)

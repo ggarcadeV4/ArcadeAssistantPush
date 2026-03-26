@@ -9,6 +9,7 @@ import './console-wizard.css';
 import { speak as ttsSpeak, stopSpeaking as stopTTS } from '../../services/ttsClient';
 import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
 import '../_kit/EngineeringBaySidebar.css';
+import { ExecutionCard } from '../controller/ExecutionCard';
 import { assembleWizContext } from './wizContextAssembler';
 import { WIZ_CHIPS } from './wizChips';
 import WizNavSidebar from './WizNavSidebar';
@@ -271,6 +272,27 @@ const previewCounts = (preview) => {
   return { emulatorCount, fileCount };
 };
 
+const summarizeUnifiedDiff = (diffText) => {
+  if (!diffText) {
+    return { additions: 0, removals: 0 };
+  }
+
+  return diffText.split(/\r?\n/).reduce(
+    (stats, line) => {
+      if (line.startsWith('+++') || line.startsWith('---')) {
+        return stats;
+      }
+      if (line.startsWith('+')) {
+        stats.additions += 1;
+      } else if (line.startsWith('-')) {
+        stats.removals += 1;
+      }
+      return stats;
+    },
+    { additions: 0, removals: 0 },
+  );
+};
+
 const formatSystems = (systems) =>
   systems?.length ? systems.join(', ') : 'â€”';
 
@@ -311,6 +333,7 @@ export default function ConsoleWizardPanel() {
   const previewRequestRef = useRef(/** @type {Record<string, unknown> | null} */(null));
   const previewContextRef = useRef('configs');
   const [applyInFlight, setApplyInFlight] = useState(false);
+  const [pendingExecution, setPendingExecution] = useState(null);
   const [quirkResults, setQuirkResults] =
     useState(/** @type {QuirkResult[]} */([]));
   const [requiresRestart, setRequiresRestart] = useState(false);
@@ -656,6 +679,7 @@ export default function ConsoleWizardPanel() {
     async (request = {}, context = 'configs') => {
       console.log('[ConsoleWizard] handlePreview called', { request, context });
       setPanelError(null);
+      setPendingExecution(null);
       setPreviewModalOpen(true);
       console.log('[ConsoleWizard] setPreviewModalOpen(true) called');
       setPreviewLoading(true);
@@ -705,18 +729,28 @@ export default function ConsoleWizardPanel() {
         const backendResults = response?.results ?? [];
         const transformedEmulators = backendResults
           .filter((result) => result.has_changes)
-          .map((result) => ({
-            id: result.emulator,
-            displayName: result.emulator,
-            files: [
-              {
-                relativePath: result.target_file || `${result.emulator}.json`,
-                changeType: result.status === 'written' ? 'modified' : 'modified',
-                before: '', // Backend provides unified diff, not separate before/after
-                after: result.diff || '',
-              },
-            ],
-          }));
+          .map((result) => {
+            const relativePath = result.target_file || `${result.emulator}.json`;
+            const diffText = result.diff || '';
+            const diffStats = summarizeUnifiedDiff(diffText);
+            return {
+              id: result.emulator,
+              displayName: result.emulator,
+              files: [
+                {
+                  relativePath,
+                  path: relativePath,
+                  changeType: 'modified',
+                  before: '', // Backend provides unified diff, not separate before/after
+                  after: diffText,
+                  diff: diffText,
+                  unifiedDiff: diffText,
+                  additions: diffStats.additions,
+                  removals: diffStats.removals,
+                },
+              ],
+            };
+          });
 
         const preview = {
           dryRun: response?.dry_run ?? true,
@@ -764,100 +798,137 @@ export default function ConsoleWizardPanel() {
     setPreviewError(null);
   }, []);
 
-  const handleApplyPreview = useCallback(async () => {
+  const handleApplyPreview = useCallback(() => {
     if (!previewRequestRef.current) {
       const err = new Error('Run a preview before applying changes.');
       setPanelError(err.message);
       showErrorToast('Apply aborted', err);
       return;
     }
+    if (!previewResult?.emulators?.length) {
+      const err = new Error('No config changes are queued for apply.');
+      setPanelError(err.message);
+      showErrorToast('Apply aborted', err);
+      return;
+    }
+
+    const emulatorCount = previewResult.emulators.length;
+    const fileCount = previewResult.emulators.reduce(
+      (total, entry) => total + (entry.files?.length ?? 0),
+      0,
+    );
+    const names = previewResult.emulators.map((entry) => entry.displayName || entry.id);
+    const summaryPrefix =
+      previewContextRef.current === 'chuck'
+        ? 'Sync Controller Chuck mappings into Wiz emulator configs'
+        : 'Apply Wiz config changes to emulator config files';
+    const display = `${summaryPrefix} for ${emulatorCount} emulator${emulatorCount === 1 ? '' : 's'} and ${fileCount} file${fileCount === 1 ? '' : 's'}: ${names.join(', ')}.`;
+
+    setPendingExecution({
+      display,
+      payload: {
+        context: previewContextRef.current,
+        emulator_ids:
+          previewRequestRef.current.emulatorIds && previewRequestRef.current.emulatorIds.length > 0
+            ? previewRequestRef.current.emulatorIds
+            : previewResult.emulators.map((entry) => entry.id),
+        preview_summary: previewResult.summary || display,
+      },
+    });
+    setToast({
+      type: 'info',
+      text: 'Config changes staged. Press EXECUTE to write them to disk.',
+    });
+    logEvent('ExecutionCard queued', {
+      context: previewContextRef.current,
+      emulatorCount,
+      fileCount,
+    });
+    handleClosePreviewModal();
+  }, [
+    previewResult,
+    handleClosePreviewModal,
+    logEvent,
+    showErrorToast,
+  ]);
+
+  const handleExecutePreviewApply = useCallback(async (payload) => {
     setApplyInFlight(true);
     setPanelError(null);
 
     try {
-      const context = previewContextRef.current;
-      logEvent('Apply started', { context });
-
-      let endpoint, payload;
-
-      if (context === 'configs') {
-        endpoint = ENDPOINTS.generateConfigs;
-        payload = {
-          dry_run: false,
-        };
-        // Only include emulators if we have specific IDs to target
-        if (previewRequestRef.current.emulatorIds && previewRequestRef.current.emulatorIds.length > 0) {
-          payload.emulators = previewRequestRef.current.emulatorIds;
-        }
-      } else if (context === 'chuck') {
-        endpoint = ENDPOINTS.syncFromChuck;
-        payload = {
-          force: true,
-          dry_run: false,
-        };
-        // Only include emulators if we have specific IDs to target
-        if (previewRequestRef.current.emulatorIds && previewRequestRef.current.emulatorIds.length > 0) {
-          payload.emulators = previewRequestRef.current.emulatorIds;
-        }
-      }
-
-      const response = await fetchJSON(endpoint, {
+      const response = await fetchJSON('/api/local/console/apply-config', {
         method: 'POST',
         scope: MUTATION_SCOPE,
         body: payload,
       });
 
-      // Transform backend response to match processOperationResult expectations
-      const backendResults = response?.results ?? [];
-      const affectedEmulatorIds = backendResults
-        .filter((r) => r.status === 'written')
-        .map((r) => r.emulator);
+      if (response?.status !== 'applied') {
+        throw new Error(response?.message || 'Apply failed.');
+      }
 
-      const transformedResult = {
-        success: true,
-        preview: null, // Already shown in preview modal
-        quirks: [], // Backend doesn't return quirks yet
-        requiresRestart: false, // Backend doesn't return this yet
-        backupPath: null, // Backend doesn't expose consolidated backup path
-      };
+      const affectedEmulatorIds =
+        response?.emulators?.length
+          ? response.emulators
+          : (previewResult?.emulators?.map((entry) => entry.id) ?? []);
 
       processOperationResult(
-        transformedResult,
-        context === 'chuck'
+        {
+          success: true,
+          preview: null,
+          quirks: [],
+          requiresRestart: false,
+          backupPath: null,
+        },
+        payload.context === 'chuck'
           ? 'Console emulators synced from Controller Chuck.'
           : 'Config changes applied.',
         affectedEmulatorIds,
       );
-      logEvent('Apply finished', { context, success: true });
-      handleClosePreviewModal();
+
+      setToast({
+        type: 'success',
+        text:
+          response?.files?.length > 0
+            ? `Applied ${response.files.length} config file${response.files.length === 1 ? '' : 's'} successfully.`
+            : (response?.message || 'Config changes applied.'),
+      });
+      setPendingExecution(null);
+      logEvent('Apply finished', {
+        context: payload.context,
+        success: true,
+        written: response?.files?.length ?? 0,
+      });
     } catch (err) {
-      let detail = err.message ?? 'Apply failed.';
-
-      // Check for incomplete_mapping error
-      if (err.body && typeof err.body === 'object') {
-        const errorData = err.body.detail || err.body;
-        if (errorData.error === 'incomplete_mapping') {
-          const missingKeys = errorData.missing_keys || [];
-          detail = `Controller Chuck's mapping is incomplete. Please open Controller Chuck and configure the missing buttons: ${missingKeys.join(', ')}`;
-        }
-      }
-
+      const detail = err.message ?? 'Apply failed.';
       setPanelError(detail);
       showErrorToast('Apply failed', err);
       logEvent('Apply failed', {
-        context: previewContextRef.current,
+        context: payload?.context ?? previewContextRef.current,
         error: detail,
       });
+      throw err;
     } finally {
       setApplyInFlight(false);
     }
   }, [
     fetchJSON,
+    previewResult,
     processOperationResult,
-    handleClosePreviewModal,
     logEvent,
     showErrorToast,
   ]);
+
+  const handleCancelPreviewApply = useCallback(() => {
+    setPendingExecution(null);
+    setToast({
+      type: 'info',
+      text: 'Config apply was cancelled before execution.',
+    });
+    logEvent('ExecutionCard cancelled', {
+      context: previewContextRef.current,
+    });
+  }, [logEvent]);
 
   const handleRestoreEmulator = useCallback(
     async (emulatorId) => {
@@ -1885,6 +1956,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
             previewLoading={previewLoading}
             emulatorMap={emulatorMap}
             handlePreviewAll={handlePreviewAll}
+            onApply={handleApplyPreview}
             applyInFlight={applyInFlight}
           />
         )
@@ -1937,6 +2009,15 @@ Current context: ${JSON.stringify(contextInfo)}`;
               <span>{backendDisconnectMessage || 'Start the backend service and retry.'}</span>
             </div>
           </div>
+        )}
+
+        {pendingExecution && (
+          <ExecutionCard
+            proposal={pendingExecution}
+            onExecute={handleExecutePreviewApply}
+            onCancel={handleCancelPreviewApply}
+            loading={applyInFlight}
+          />
         )}
 
         {/* -- Tab Content ----------------------- */}

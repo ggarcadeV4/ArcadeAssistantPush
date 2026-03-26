@@ -518,6 +518,358 @@ When the green pill is toggled ON, Wiz gains config-writing powers:
 
 ## 16. BACKEND API REFERENCE
 
+## 17. HOW ARCADE ENCODERS APPEAR TO EMULATORS
+
+This section is Wiz's emulator-facing view of arcade encoders. Chuck owns the physical truth
+(pins, grounds, harnesses, board sanity). Wiz owns how those boards appear to MAME, RetroArch,
+and the rest of the emulator stack.
+
+### I-PAC 2 / I-PAC 4 (Ultimarc)
+- **Default presentation**: USB keyboard device.
+- **Alternate presentation**: Standard HID joystick/gamepad if switched in WinIPAC firmware mode.
+- **MAME behavior in keyboard mode**:
+  - MAME sees the I-PAC as keyboard scancodes, not a joystick.
+  - This is why MAME's traditional defaults line up so well with I-PAC boards.
+  - Example baseline:
+    - `Left Control` = P1 Button 1
+    - `Left Alt` = P1 Button 2
+    - `Space` = P1 Button 3
+    - arrow keys / WASD-style equivalents drive stick directions depending on the programmed layout
+- **RetroArch behavior in keyboard mode**:
+  - RetroArch autoconfig does NOT catch keyboard-mode I-PAC boards.
+  - Wiz must treat keyboard mode as manual keyboard binding territory inside `retroarch.cfg` or a core override.
+  - Cabinet baseline assumes `dinput` on Windows for gamepad-class devices, but keyboard-mode I-PAC still needs explicit keyboard bindings.
+- **RetroArch behavior in gamepad mode**:
+  - Once firmware-switched to joystick mode, the I-PAC can present as a HID gamepad.
+  - At that point RetroArch autoconfig may detect it and generate a usable profile.
+- **Cabinet truth**:
+  - The Controller Cascade on this cabinet uses keyboard-mode I-PAC semantics as the baseline truth.
+  - If an operator silently flips an I-PAC into joystick mode, Wiz should treat resulting emulator drift as mode drift, not random corruption.
+
+### Xin-Mo XM-10
+- **Presentation**: two separate HID joystick devices, typically one for Player 1 and one for Player 2.
+- **MAME behavior**:
+  - MAME sees two independent joystick devices.
+  - Player bindings must explicitly point to Joy 1 vs Joy 2. If only one side works, one half of the Xin-Mo pair is unmapped.
+- **RetroArch behavior**:
+  - Each Xin-Mo half needs its own autoconfig entry or explicit player assignment.
+  - If Player 1 works and Player 2 does not, the second HID entry likely failed autoconfig or was assigned to the wrong player index.
+- **Known firmware quirk**:
+  - Some Xin-Mo revisions invert the Y axis in RetroArch.
+  - Fix via explicit axis direction such as `input_player1_up_axis = -1` and the matching down axis.
+- **4-player warning**:
+  - Dual Xin-Mo builds rely on multiple identical devices.
+  - Windows can reshuffle device indices at boot, so index-based configs are fragile.
+  - Wiz should prefer stable GUID-based or name-based matching wherever the emulator supports it.
+
+### Zero Delay USB
+- **Presentation**: generic DirectInput HID joystick, often named `USB Gamepad` or similar.
+- **MAME behavior**:
+  - MAME sees it as a normal joystick device with sequential button numbering.
+  - Button 1 maps to Button 1, Button 2 to Button 2, and so on.
+- **RetroArch behavior**:
+  - RetroArch usually catches it with a generic autoconfig profile.
+  - Verify the generated profile actually matches the physical button count and order - cheap boards often over-promise on labels.
+- **Known clone problem**:
+  - DragonRise and other OEM clones frequently share VID/PID values even when their actual behavior differs.
+  - Two "identical" Zero Delay boards can therefore map differently.
+- **Operational warning**:
+  - Do not trust Zero Delay for serious 4-player cabinet work.
+  - Shared-ground behavior and clone inconsistency can create phantom inputs under load.
+
+### Brook Universal Fighting Board (UFB)
+- **XInput mode**:
+  - Presents to Windows as `Xbox 360 Controller` or equivalent XInput device.
+  - RetroArch will usually load the stock Xbox 360 autoconfig automatically.
+  - Modern SDL/XInput-friendly emulators are happiest in this mode.
+- **DirectInput mode**:
+  - Presents as a standard HID joystick.
+  - MAME usually behaves more predictably here because the button map is visible directly instead of hidden behind XInput translation.
+- **Cabinet recommendation**:
+  - Prefer DirectInput mode for MAME.
+  - Prefer XInput mode for RetroArch and modern console emulators when pad-style mapping is desired.
+- **Autoconfig note**:
+  - If the dedicated Brook UFB autoconfig is missing, the Xbox 360 autoconfig is an acceptable stand-in for XInput mode.
+
+### GP-Wiz 49 / GP-Wiz 40
+- **Presentation**: standard HID joystick/gamepad device.
+- **MAME behavior**:
+  - MAME sees sequential HID button numbers (`JOYCODE_1_BUTTON1` through `JOYCODE_1_BUTTONN`).
+  - There is nothing keyboard-like about GP-Wiz from the emulator's point of view.
+- **RetroArch behavior**:
+  - RetroArch treats it like any other HID joystick.
+  - Dedicated autoconfig may not exist; if it does not, manual `.cfg` creation is required using the actual joystick name and button numbers.
+- **Variant note**:
+  - GP-Wiz 49 exposes more buttons than GP-Wiz 40, but the emulator-facing logic is the same: HID button order, joystick semantics, no keyboard scancodes.
+
+## 18. THE TWELVE MONITORED EMULATOR PROFILES
+
+These are the 12 emulator families Wiz should be able to reason about as first-class profiles on this cabinet.
+For each one, Wiz tracks:
+- **Native runtime config**: the actual emulator's live config file(s)
+- **Wiz mirror**: `configs/console_wizard/current/<emulator>/mapping.json`
+- **Golden defaults**: `configs/console_wizard/defaults/<emulator>/mapping.json`
+
+Healthy vs drifted truth in the current backend:
+- `healthy` = current Wiz mirror matches the saved default snapshot
+- `modified` = current Wiz mirror differs from defaults ("drifted" in user-facing language)
+- `missing` = current or default snapshot missing
+- `pending_defaults` = config exists but no default snapshot has been captured yet
+- `corrupted` = file read failure or malformed state blocked comparison
+
+### RetroArch
+- **Native runtime config**:
+  - `config/retroarch.cfg`
+  - plus RetroArch's own `autoconfig/` and per-core override files when present
+- **Wiz mirror**:
+  - `configs/console_wizard/current/retroarch/mapping.json`
+- **Config format**: `cfg` at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - RetroArch uses named input keys such as `input_player1_b_btn`, `input_player1_start_btn`, and `input_player1_up_btn`.
+  - For arcade layouts, Wiz translates Sacred Button Law into RetroPad semantics:
+    - Button 1 -> `b_btn`
+    - Button 2 -> `a_btn`
+    - Button 3 -> `y_btn`
+    - Button 4 -> `x_btn`
+    - Button 5 -> `l_btn`
+    - Button 6 -> `r_btn`
+    - Button 7 -> `l2_btn`
+    - Button 8 -> `r2_btn`
+- **Common issues**:
+  - Autoconfig profile loads the wrong generic gamepad mapping.
+  - Keyboard-mode I-PAC is treated like a joystick when it is actually a keyboard.
+  - Device indices shift after reboot.
+- **Healthy state**:
+  - RetroArch mappings in Wiz's mirror match defaults and reflect the current Chuck truth.
+  - Player indices and button positions align with the cabinet layout.
+- **Drifted state**:
+  - RetroArch autoconfig or manual edits changed button order, player index, or axis direction away from the Golden mapping.
+
+### MAME
+- **Native runtime config**:
+  - `mame.ini`
+  - `cfg/default.cfg`
+  - optional per-ROM `cfg/<rom>.cfg`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/mame/mapping.json`
+- **Config format**: INI + XML at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - MAME binds to port names like `P1_JOYSTICK_UP`, `P1_BUTTON1`, `P1_START`, and `COIN1`.
+  - Keyboard-mode I-PAC is a natural fit because MAME's legacy defaults assume keyboard scancodes.
+  - HID joystick encoders show up as `JOYCODE_*` entries instead.
+- **Common issues**:
+  - Game-specific `.cfg` overrides the global `default.cfg`.
+  - Brook UFB is left in XInput mode and button numbering becomes inconsistent with prior DInput assumptions.
+  - Xin-Mo dual-device player assignments swap after reboot.
+- **Healthy state**:
+  - `cfg/default.cfg` and relevant control files reflect the current encoder mode and player assignment.
+- **Drifted state**:
+  - Per-game XML or manual TAB-menu edits now conflict with the Golden baseline or Chuck's current mapping.
+
+### Dolphin
+- **Native runtime config**:
+  - `Config/Dolphin.ini`
+  - `Config/GCPadNew.ini`
+  - `Config/WiimoteNew.ini`
+  - `Config/Hotkeys.ini`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/dolphin/mapping.json`
+- **Config format**: INI at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - Dolphin stores explicit per-device bindings such as `Device = DInput/0/Device Name`.
+  - GameCube pad bindings live under sections like `GCPad1`.
+  - Arcade cabinets generally use D-pad + face/triggers, while analog stick and C-stick mappings may be synthetic or omitted depending on the game.
+- **Common issues**:
+  - USB re-enumeration changes the device index in `Device = DInput/0/...`.
+  - Wrong API family selected (`XInput` vs `DInput` vs `SDL`).
+  - Profile exists but is not actually loaded by the active pad slot.
+- **Healthy state**:
+  - `GCPadNew.ini` points at the correct live device string and the sacred layout is translated correctly.
+- **Drifted state**:
+  - Device index, API type, or button bindings no longer match the cabinet's current controller truth.
+
+### PCSX2
+- **Native runtime config**:
+  - `inis/PCSX2.ini`
+  - `inis/PCSX2_ui.ini`
+  - `inis/PCSX2_vm.ini`
+  - `inis/PAD.ini`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/pcsx2/mapping.json`
+- **Config format**: INI at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - Modern PCSX2 prefers SDL-backed pad detection.
+  - Wiz maps arcade buttons into PS2 semantics:
+    - Button 1 -> Cross
+    - Button 2 -> Circle
+    - Button 3 -> Square
+    - Button 4 -> Triangle
+    - Buttons 5-8 -> L1/R1/L2/R2
+- **Common issues**:
+  - Legacy LilyPad/OnePAD assumptions linger after upgrading PCSX2.
+  - Analog sticks are missing or inverted.
+  - Player profile is correct in UI but stale in config files.
+- **Healthy state**:
+  - PCSX2 sees the correct SDL/XInput device and the generated pad profile matches defaults.
+- **Drifted state**:
+  - Device GUID/API changed, or manual rebinding scrambled PS2 face-button order.
+
+### DuckStation
+- **Native runtime config**:
+  - `settings.ini`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/duckstation/mapping.json`
+- **Config format**: INI at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - DuckStation uses PlayStation button naming similar to PCSX2: Cross/Circle/Square/Triangle, L1/R1/L2/R2, Start/Select, D-pad.
+  - It is generally friendlier to modern XInput/SDL pads than raw arcade encoders unless the mapping is explicit.
+- **Common issues**:
+  - Wrong device backend selected after a reconnect.
+  - Cross/Circle or Square/Triangle swapped during manual rebinding.
+  - Shared profile reused for two different device modes.
+- **Healthy state**:
+  - `settings.ini` reflects the correct controller API and the expected sacred-to-PlayStation translation.
+- **Drifted state**:
+  - Face-button order, player assignment, or backend mode changed from the saved baseline.
+
+### PPSSPP
+- **Native runtime config**:
+  - `memstick/PSP/SYSTEM/controls.ini`
+  - `ppsspp.ini`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/ppsspp/mapping.json`
+- **Config format**: INI at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - PPSSPP expects PSP-style inputs: Cross, Circle, Square, Triangle, L, R, D-pad, Start, Select.
+  - For arcade layouts, Wiz typically ignores true analog requirements unless the game genuinely needs them.
+- **Common issues**:
+  - Keyboard-mode encoders never got translated into PPSSPP's explicit bindings.
+  - Only one player profile exists because PPSSPP is usually single-player on cabinet deployments.
+  - Start/Select swapped.
+- **Healthy state**:
+  - `controls.ini` cleanly maps the arcade panel into PSP semantics with no missing primary inputs.
+- **Drifted state**:
+  - Manual edits or backend changes altered face-button order or left the controls file incomplete.
+
+### RPCS3
+- **Native runtime config**:
+  - `config.yml`
+  - `input_configs/Default/Default.yml`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/rpcs3/mapping.json`
+- **Config format**: YAML at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - RPCS3 uses per-pad configuration files and PS3 semantics.
+  - It is most stable with XInput or SDL-friendly consumer pads, but can be driven from arcade encoders if the translation layer is explicit.
+- **Common issues**:
+  - YAML profile exists but the emulator is still pointed at a different active pad config.
+  - Trigger or stick fields are left unmapped.
+  - Raw keyboard/arcade input is attempted without a proper translated profile.
+- **Healthy state**:
+  - The active pad config YAML matches the Wiz mirror and the selected backend/device exists.
+- **Drifted state**:
+  - RPCS3 is referencing an outdated pad profile or a backend/device string that no longer exists.
+
+### Cemu
+- **Native runtime config**:
+  - `controllerProfiles/controller0.xml`
+  - `settings.xml`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/cemu/mapping.json`
+- **Config format**: XML at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - Cemu uses controller profiles for Wii U GamePad / Pro Controller style bindings.
+  - Button names are Wii U-flavored: `ButtonA`, `ButtonB`, `ButtonX`, `ButtonY`, `ButtonL`, `ButtonR`, `ButtonZL`, `ButtonZR`.
+- **Common issues**:
+  - Wrong profile selected after device reconnect.
+  - Minus/Plus swapped with Select/Start semantics.
+  - Touch/motion-heavy games are launched with a plain arcade panel profile that cannot satisfy them.
+- **Healthy state**:
+  - The active controller profile exists, parses, and matches the Golden snapshot plus current Chuck truth.
+- **Drifted state**:
+  - XML profile changed or no longer matches the bound device/backend.
+
+### Redream
+- **Native runtime config**:
+  - `redream.cfg`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/redream/mapping.json`
+- **Config format**: CFG at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - Redream uses SDL controller semantics and a single global config.
+  - Dreamcast mapping is six-button oriented:
+    - `btna`, `btnb`, `btnx`, `btny`, `ltrig`, `rtrig`
+  - Left stick directions use analog-style `joyx` / `joyy` bindings.
+- **Common issues**:
+  - Analog triggers are mapped as digital buttons.
+  - `redream.cfg` becomes malformed or stale after abrupt exit.
+  - Device profile changed because the controller mode changed between boots.
+- **Healthy state**:
+  - `redream.cfg` parses cleanly, the SDL device/profile is valid, and trigger/stick mappings match defaults.
+- **Drifted state**:
+  - The global config was manually altered or a new controller mode invalidated the saved profile.
+
+### Sega Model 2
+- **Native runtime config**:
+  - `EMULATOR.INI`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/model2/mapping.json`
+- **Config format**: INI at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - Model 2 uses direct joystick-style names such as `JoyUp`, `JoyButton1`, `JoyStart`, and `JoyCoin`.
+  - It is fundamentally arcade-oriented and happiest with DirectInput-style controller presentation.
+- **Common issues**:
+  - Too many controller-class devices are enumerated at once.
+  - XInput duplication causes unstable input routing.
+  - Per-title operator settings are mistaken for universal input config.
+- **Healthy state**:
+  - `EMULATOR.INI` points at the intended joystick inputs and the cabinet's active encoder mode matches the expected driver path.
+- **Drifted state**:
+  - Device order or driver mode changed, leaving the Model 2 input bindings stale.
+
+### Supermodel (Model 3)
+- **Native runtime config**:
+  - `Config/Supermodel.ini`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/supermodel/mapping.json`
+- **Config format**: INI at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - Supermodel uses explicit names like `InputJoy1Up`, `InputJoy1Button1`, `InputStart1`, and `InputCoin1`.
+  - It is close to MAME/Model 2 in spirit: arcade-first, joystick-button centric.
+- **Common issues**:
+  - Wrong player index in multi-device setups.
+  - Extra analog/control fields remain unmapped for specialized games.
+  - Manual edits in `Supermodel.ini` drift away from the Golden baseline.
+- **Healthy state**:
+  - Core player movement, buttons, start, and coin mappings are present and aligned with the current cabinet layout.
+- **Drifted state**:
+  - Button order, player assignment, or API selection differs from the saved default profile.
+
+### TeknoParrot
+- **Native runtime config**:
+  - `UserProfiles/*.xml`
+- **Wiz mirror**:
+  - `configs/console_wizard/current/teknoparrot/mapping.json`
+- **Config format**: XML at runtime, JSON in the Wiz mirror
+- **How mapping works**:
+  - TeknoParrot is per-game, not global.
+  - It supports multiple APIs per title: XInput, DirectInput, RawInput.
+  - Standard panel controls use fields like `Button1` through `Button8`, `Start`, `Coin`, `Test`, `Service`.
+  - Racing and gun games add separate axis and special-control fields.
+- **Common issues**:
+  - A game profile XML exists but references the wrong API family.
+  - New title installed without a controller profile.
+  - RetroBat or another external tool overwrote the user XML.
+- **Healthy state**:
+  - The required user profile XML exists, parses, and matches the intended control API and cabinet layout for that title.
+- **Drifted state**:
+  - The per-game XML no longer matches defaults, or the wrong input API was selected for the attached device family.
+
+### Additional note on the 12-emulator set
+- The backend profile inventory currently supports a larger long-tail list as well (`project64`, `xenia`, `vita3k`, `yuzu`, etc.).
+- The 12 profiles above are the cabinet's primary Wiz service lane for health, drift review, preview/apply, and sync-from-Chuck reasoning.
+- If a user asks about an emulator outside these 12, Wiz should answer from the known profile if one exists, but the cabinet's strongest automation path is the 12-emulator baseline above.
+
 | Endpoint | Method | Purpose | Scope |
 |----------|--------|---------|-------|
 | `/api/local/console_wizard/emulators` | GET | List discovered emulators | state |

@@ -86,6 +86,15 @@ How Dewey receives profile data:
 - `DeweyPanel.jsx` derives `currentUser` from `sharedProfile`.
 - When the user changes Dewey's identity picker, Dewey updates `ProfileContext` locally and persists the primary identity through `PUT /api/local/profile/primary`.
 
+Vicky opt-in flow:
+
+- Vicky is the identity source of truth for cross-panel personalization.
+- First use starts in an explicit consent gate: `Accept & Continue` or `Play as Guest`.
+- `Play as Guest` keeps the active identity anonymous and avoids profile writes.
+- `Accept & Continue` unlocks the profile registration form, but the actual consent record is written only when Vicky saves and broadcasts the profile.
+- On successful `Save & Broadcast`, Vicky writes `consent: true` and updates `.aa/state/profile/primary_user.json`.
+- Dewey consumes that broadcast through `ProfileContext`, so the active user name and preferences change reactively without Dewey owning consent state directly.
+
 Relevant primary profile fields:
 
 - `user_id`
@@ -129,6 +138,8 @@ Implementation details:
 
 - The base question pool is loaded from `frontend/src/panels/dewey/trivia/triviaDatabase.json`.
 - Generated news-based trivia also exists and is managed by the same Dewey router and `backend/services/dewey/trivia_generator.py`.
+- Background scheduling and freshness management are handled by `backend/services/dewey/trivia_scheduler.py`.
+- Supporting generation helpers live in `backend/services/dewey/service.py` and `backend/services/dewey/trivia_generator.py`.
 - Trivia preferences and lifetime stats are persisted into each profile's `tendencies.json`.
 
 ## 5. F9 Overlay

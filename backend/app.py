@@ -15,6 +15,13 @@ import threading
 from glob import glob as _glob
 from typing import Any, Dict, Optional
 
+# ── Secrets vault (DPAPI — must load before any router reads env) ──────────
+try:
+    from secrets_loader import load_secrets as _load_vault_secrets
+    _VAULT_AVAILABLE = True
+except ImportError:
+    _VAULT_AVAILABLE = False
+
 # CRITICAL: Load .env BEFORE any imports that depend on AA_DRIVE_ROOT
 # The a_drive_paths module evaluates AA_DRIVE_ROOT at import time!
 def load_env_file():
@@ -28,6 +35,24 @@ def load_env_file():
                     os.environ.setdefault(key.strip(), value.strip())
 
 load_env_file()
+
+# ── Load Tier 1 secrets from DPAPI vault ───────────────────────────────────
+if _VAULT_AVAILABLE:
+    _vault_loaded = _load_vault_secrets()
+    if not _vault_loaded:
+        import logging as _logging
+        _logging.getLogger("aa.startup").warning(
+            "DPAPI vault not loaded — Supabase/fleet operations will use "
+            ".env values only. Run 'python encrypt_secrets.py' to initialize "
+            "the vault on this machine."
+        )
+else:
+    import logging as _logging
+    _logging.getLogger("aa.startup").warning(
+        "secrets_loader not found — running without DPAPI vault. "
+        "Expected at: A:\\Arcade Assistant Local\\secrets_loader.py"
+    )
+
 print("DEBUG: .env file loaded")
 
 # NOW safe to import modules that depend on AA_DRIVE_ROOT
@@ -93,7 +118,7 @@ from backend.policies.manifest_validator import validate_on_startup
 print("DEBUG: Importing shutdown_manager...")
 from backend.shutdown_manager import cleanup_resources
 print("DEBUG: Importing routers...")
-from backend.routers import health, config_ops, session_log, emulator_mame, emulator_retroarch, screen_capture, claude_api, launchbox, frontend_log, scorekeeper, led_blinky, led, drive_map, routing_policy, controller, system, hardware, console, dewey, gaming_news, sessions
+from backend.routers import health, config_ops, session_log, emulator_mame, emulator_retroarch, screen_capture, claude_api, launchbox, frontend_log, scorekeeper, led_blinky, led, drive_map, routing_policy, controller, system, hardware, console, dewey, dewey_chat, gaming_news, sessions
 from backend.routers import chuck_hardware
 from backend.routers import wizard_mapping
 from backend.routers import emulator_status as emulator_status_router
@@ -171,7 +196,6 @@ from backend.routers import wizard_router
 print("DEBUG: Importing game_lifecycle router...")
 from backend.routers import game_lifecycle
 print("DEBUG: Importing doc_diagnostics router...")
-from backend.routers import doc_diagnostics
 print("DEBUG: Importing engineering_bay router...")
 from backend.routers import engineering_bay
 print("DEBUG: Importing tts router...")
@@ -451,6 +475,7 @@ async def lifespan(app: FastAPI):
                 logs_dir = drive_root / ".aa" / "logs"
                 logs_dir.mkdir(parents=True, exist_ok=True)
                 log_path = logs_dir / "startup-times.jsonl"
+                dur_init_blinky = 0.0
                 record = {
                     "ts": datetime.now().isoformat(),
                     "durations_s": {
@@ -599,6 +624,7 @@ app.include_router(console.router, prefix="/api/local/console", tags=["console"]
 app.include_router(controller_ai.router, prefix="/api/ai/controller", tags=["controller-ai"])
 app.include_router(controller_ai.router, prefix="/api/controller/ai", tags=["controller-ai"])
 app.include_router(dewey.router)
+app.include_router(dewey_chat.router)
 app.include_router(gaming_news.router, prefix="/api/local/news", tags=["gaming-news"])
 app.include_router(compat_router.router)
 app.include_router(supabase_health.router, tags=["supabase"])

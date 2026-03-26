@@ -49,7 +49,7 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "message": f"MISSING-ROM: {p}"}
 
     romname = p.stem
-    args = [f"-rom={romname}"]
+    args = [romname]
     return {
         "exe": str(exe),
         "args": args,

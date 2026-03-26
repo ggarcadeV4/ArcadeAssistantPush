@@ -774,9 +774,9 @@ export default function ControllerChuckPanel() {
                 <button
                   className={`chuck-strip-btn ${mappingOverlayOpen ? 'active' : ''}`}
                   onClick={handleOpenMappingOverlay}
-                  title="Launch the guided mapping overlay"
+                  title="Start Guided Wizard"
                 >
-                  MAP
+                  GUIDED WIZARD
                 </button>
                 <button
                   className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
@@ -878,6 +878,7 @@ export default function ControllerChuckPanel() {
           {mappingOverlayOpen && (
             <MappingOverlay
               latestInput={latestInput}
+              playerMode={playerMode}
               onClose={handleOverlayClose}
               onSaved={handleOverlaySaved}
             />

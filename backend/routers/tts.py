@@ -31,7 +31,7 @@ def _get_voice_profiles() -> dict:
         "blinky":  os.getenv("BLINKY_VOICE_ID",  "DTKMou8ccj1ZaWGBiotd"),
         "chuck":   os.getenv("CHUCK_VOICE_ID",   "5Q0t7uMcjvnagumLfvZi"),
         "wiz":     os.getenv("WIZ_VOICE_ID",     "CwhRBWXzGAHq8TQ4Fs17"),
-        "vicky":   os.getenv("VICKY_VOICE_ID",   "ThT5KcBeYPX3keUQqHPh"),
+        "vicky":   os.getenv("VICKY_VOICE_ID",   "21m00Tcm4TlvDq8ikWAM"),
         "gunner":  os.getenv("GUNNER_VOICE_ID",  "5Q0t7uMcjvnagumLfvZi"),
         "doc":     os.getenv("DOC_VOICE_ID",     "pNInz6obpgDQGcFmaJgB"),  # Adam — calm engineer
         "sam":     os.getenv("SAM_VOICE_ID",     "bIHbv24MWmeRgasZH58o"),  # Scorekeeper announcer

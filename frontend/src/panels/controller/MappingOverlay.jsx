@@ -1,28 +1,25 @@
-/**
- * MappingOverlay.jsx — Guided Controller Mapping Interface
- * ═══════════════════════════════════════════════════════════
- *
- * Visual overlay for step-by-step button mapping.
- * Calls the existing Learn Wizard backend API:
- *   /learn-wizard/start → /learn-wizard/confirm → /learn-wizard/save
- *
- * Inspired by the Stitch 8-BitDo Controller Mapping & Calibration Overlay.
- */
-
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ExecutionCard } from '../controller/ExecutionCard';
 import './mapping-overlay.css';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const API_BASE = '/api/local/controller';
-const STATE_HEADERS = { 'x-scope': 'state' };
-const CONFIG_HEADERS = { 'Content-Type': 'application/json', 'x-scope': 'config', 'x-panel': 'mapping-overlay' };
 
-/**
- * Player layouts matching the cabinet:
- * P1/P2 = 8 buttons + 4 dirs + start + coin = 14 each
- * P3/P4 = 4 buttons + 4 dirs + start + coin = 10 each
- */
+function resolveDeviceId() {
+  if (typeof window !== 'undefined' && window.AA_DEVICE_ID) {
+    return window.AA_DEVICE_ID;
+  }
+  return 'controller_chuck';
+}
+
+function buildHeaders(scope = 'state') {
+  return {
+    'Content-Type': 'application/json',
+    'x-scope': scope,
+    'x-panel': 'mapping-overlay',
+    'x-device-id': resolveDeviceId(),
+  };
+}
+
 const PLAYER_DEFS = [
   { id: 'p1', label: 'PLAYER 1', buttons: 8, row: 'front' },
   { id: 'p2', label: 'PLAYER 2', buttons: 8, row: 'front' },
@@ -31,9 +28,8 @@ const PLAYER_DEFS = [
 ];
 
 const DIRECTIONS = ['up', 'down', 'left', 'right'];
-const DIR_SYMBOLS = { up: '↑', down: '↓', left: '←', right: '→' };
+const DIR_SYMBOLS = { up: '^', down: 'v', left: '<', right: '>' };
 
-/** Parse a control key like "p1.button3" → { player: 'p1', type: 'button', num: 3 } */
 function parseControlKey(key) {
   if (!key || !key.includes('.')) return null;
   const [player, control] = key.split('.');
@@ -42,66 +38,54 @@ function parseControlKey(key) {
   }
   if (control === 'start') return { player, type: 'util', label: 'START' };
   if (control === 'coin') return { player, type: 'util', label: 'COIN' };
-  const btnMatch = control.match(/^button(\d+)$/);
-  if (btnMatch) return { player, type: 'button', num: parseInt(btnMatch[1], 10) };
+  const buttonMatch = control.match(/^button(\d+)$/);
+  if (buttonMatch) return { player, type: 'button', num: Number(buttonMatch[1]) };
   return { player, type: 'unknown', raw: control };
 }
 
-/** Get a friendly display name for a control key */
 function displayName(key) {
   const parsed = parseControlKey(key);
-  if (!parsed) return key;
-  const pLabel = parsed.player.toUpperCase().replace('P', 'Player ');
-  if (parsed.type === 'direction') return `${pLabel} — ${parsed.dir.toUpperCase()} ${DIR_SYMBOLS[parsed.dir]}`;
-  if (parsed.type === 'button') return `${pLabel} — Button ${parsed.num}`;
-  if (parsed.type === 'util') return `${pLabel} — ${parsed.label}`;
-  return `${pLabel} — ${parsed.raw}`;
+  if (!parsed) return key || 'Unknown control';
+  const playerLabel = parsed.player.toUpperCase().replace('P', 'Player ');
+  if (parsed.type === 'direction') {
+    return `${playerLabel} ${parsed.dir.toUpperCase()} ${DIR_SYMBOLS[parsed.dir]}`;
+  }
+  if (parsed.type === 'button') {
+    return `${playerLabel} Button ${parsed.num}`;
+  }
+  if (parsed.type === 'util') {
+    return `${playerLabel} ${parsed.label}`;
+  }
+  return `${playerLabel} ${parsed.raw}`;
 }
 
+const DirArrow = memo(function DirArrow({ dir, state }) {
+  return <div className={`mapping-dir-arrow ${dir} ${state}`}>{DIR_SYMBOLS[dir]}</div>;
+});
 
-// ── Sub-components ──────────────────────────────────────────────────────────
+const MappingButton = memo(function MappingButton({ num, state }) {
+  return <div className={`mapping-btn ${state}`}>{num}</div>;
+});
 
-/** Direction arrow indicator on the joystick graphic */
-const DirArrow = memo(({ dir, state }) => (
-  <div className={`mapping-dir-arrow ${dir} ${state}`}>
-    {DIR_SYMBOLS[dir]}
-  </div>
-));
-DirArrow.displayName = 'DirArrow';
+const MappingUtilBtn = memo(function MappingUtilBtn({ label, state }) {
+  return <div className={`mapping-util-btn ${state}`}>{label}</div>;
+});
 
+const PlayerSection = memo(function PlayerSection({
+  player,
+  currentControl,
+  captures,
+  flashedControl,
+}) {
+  const isActive = currentControl?.startsWith(`${player.id}.`);
 
-/** Single arcade button circle */
-const MappingButton = memo(({ num, state }) => (
-  <div className={`mapping-btn ${state}`}>
-    {num}
-  </div>
-));
-MappingButton.displayName = 'MappingButton';
-
-
-/** Utility button (START / COIN) */
-const MappingUtilBtn = memo(({ label, state }) => (
-  <div className={`mapping-util-btn ${state}`}>
-    {label}
-  </div>
-));
-MappingUtilBtn.displayName = 'MappingUtilBtn';
-
-
-/** One player's control section */
-const PlayerSection = memo(({ player, currentControl, captures }) => {
-  const isActive = currentControl?.startsWith(player.id + '.');
-  const parsed = parseControlKey(currentControl);
-
-  /** Get state class for a specific control */
   const getState = (controlKey) => {
-    if (currentControl === controlKey) return 'waiting';
+    if (controlKey === currentControl) return 'waiting';
+    if (controlKey === flashedControl) return 'just-confirmed';
     if (captures[controlKey]) return 'confirmed';
     return '';
   };
 
-  // Button layout: P1/P2 = top row {1,2,3,7}, bottom row {4,5,6,8}
-  //                P3/P4 = top row {1,2}, bottom row {3,4}
   const topRow = player.buttons === 8 ? [1, 2, 3, 7] : [1, 2];
   const bottomRow = player.buttons === 8 ? [4, 5, 6, 8] : [3, 4];
 
@@ -110,7 +94,6 @@ const PlayerSection = memo(({ player, currentControl, captures }) => {
       <div className="mapping-player-label">{player.label}</div>
 
       <div className="mapping-joystick-area">
-        {/* Joystick graphic with directional arrows */}
         <div className="mapping-joystick">
           {DIRECTIONS.map((dir) => (
             <DirArrow
@@ -121,238 +104,322 @@ const PlayerSection = memo(({ player, currentControl, captures }) => {
           ))}
         </div>
 
-        {/* Button grid */}
         <div className="mapping-buttons-grid">
           <div className="mapping-buttons-row">
-            {topRow.map((n) => (
+            {topRow.map((num) => (
               <MappingButton
-                key={n}
-                num={n}
-                state={getState(`${player.id}.button${n}`)}
+                key={num}
+                num={num}
+                state={getState(`${player.id}.button${num}`)}
               />
             ))}
           </div>
           <div className="mapping-buttons-row">
-            {bottomRow.map((n) => (
+            {bottomRow.map((num) => (
               <MappingButton
-                key={n}
-                num={n}
-                state={getState(`${player.id}.button${n}`)}
+                key={num}
+                num={num}
+                state={getState(`${player.id}.button${num}`)}
               />
             ))}
           </div>
         </div>
       </div>
 
-      {/* START / COIN utility buttons */}
       <div className="mapping-util-row">
         <MappingUtilBtn label="START" state={getState(`${player.id}.start`)} />
-        <MappingUtilBtn label="COIN"  state={getState(`${player.id}.coin`)} />
+        <MappingUtilBtn label="COIN" state={getState(`${player.id}.coin`)} />
       </div>
     </div>
   );
 });
-PlayerSection.displayName = 'PlayerSection';
 
-
-// ── Main Overlay Component ──────────────────────────────────────────────────
-
-export default function MappingOverlay({ onClose, onSaved, latestInput }) {
-  // Wizard state
-  const [phase, setPhase]           = useState('idle'); // idle | mapping | complete | saving | saved | error
+export default function MappingOverlay({
+  onClose,
+  onSaved,
+  latestInput,
+  playerMode = '4p',
+}) {
+  const [phase, setPhase] = useState('idle');
+  const [sessionId, setSessionId] = useState(null);
+  const [buttonOrder, setButtonOrder] = useState([]);
   const [currentControl, setCurrentControl] = useState(null);
-  const [currentIndex, setCurrentIndex]     = useState(0);
-  const [totalControls, setTotalControls]   = useState(0);
-  const [captures, setCaptures]     = useState({});
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [totalControls, setTotalControls] = useState(0);
+  const [captures, setCaptures] = useState({});
+  const [flashedControl, setFlashedControl] = useState(null);
   const [chuckPrompt, setChuckPrompt] = useState('');
   const [encoderInfo, setEncoderInfo] = useState(null);
   const [modeWarning, setModeWarning] = useState(null);
-  const [saveResult, setSaveResult]   = useState(null);
-  const [errorMsg, setErrorMsg]       = useState(null);
+  const [commitResult, setCommitResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [executeLoading, setExecuteLoading] = useState(false);
 
-  // Track latestInput changes to auto-confirm
-  const lastProcessedInput = useRef(null);
+  const lastProcessedInputRef = useRef(null);
+  const sessionIdRef = useRef(null);
 
-  // ── Start the wizard ──────────────────────────────────────────────────────
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  const cancelWizard = useCallback(async (activeSessionId = null) => {
+    const target = activeSessionId || sessionIdRef.current;
+    if (!target) return;
+    try {
+      await fetch(`${API_BASE}/wizard/cancel`, {
+        method: 'POST',
+        headers: buildHeaders('state'),
+        body: JSON.stringify({ session_id: target }),
+      });
+    } catch {
+      // Best effort cleanup only.
+    }
+  }, []);
 
   const startWizard = useCallback(async () => {
     setPhase('mapping');
     setErrorMsg(null);
+    setCommitResult(null);
+    setCaptures({});
+    setFlashedControl(null);
+    lastProcessedInputRef.current = null;
+
     try {
-      const res = await fetch(`${API_BASE}/learn-wizard/start?players=4&buttons=8&auto_advance=true`, {
+      const res = await fetch(`${API_BASE}/wizard/start`, {
         method: 'POST',
-        headers: STATE_HEADERS,
+        headers: buildHeaders('state'),
+        body: JSON.stringify({ player_mode: playerMode }),
       });
       if (!res.ok) throw new Error(`Start failed (${res.status})`);
       const data = await res.json();
 
-      setCurrentControl(data.current_control);
-      setCurrentIndex(data.current_index || 0);
-      setTotalControls(data.total_controls || 0);
-      setChuckPrompt(data.chuck_prompt || '');
+      setSessionId(data.session_id || null);
+      setButtonOrder(Array.isArray(data.buttons) ? data.buttons : []);
+      setCurrentControl(data.next_button || data.next || null);
+      setCurrentIndex(data.progress || 0);
+      setTotalControls(data.total || data.buttons?.length || 0);
+      setChuckPrompt(data.chuck_prompt || 'Press the highlighted control on your panel.');
       if (data.detected_board) {
         setEncoderInfo({ board: data.detected_board, mode: data.detected_mode });
+      } else {
+        setEncoderInfo(null);
       }
-      if (data.mode_warning) setModeWarning(data.mode_warning);
+      setModeWarning(data.mode_warning || null);
     } catch (err) {
       setPhase('error');
-      setErrorMsg(err.message);
+      setErrorMsg(err.message || 'Failed to start mapping wizard.');
     }
-  }, []);
+  }, [playerMode]);
 
-  // Auto-start on mount
   useEffect(() => {
     startWizard();
-    // Cleanup: stop wizard if overlay closes
     return () => {
-      fetch(`${API_BASE}/learn-wizard/stop`, { method: 'POST', headers: STATE_HEADERS }).catch(() => {});
+      cancelWizard();
     };
-  }, [startWizard]);
+  }, [cancelWizard, startWizard]);
 
-  // ── Auto-confirm when a new input arrives ─────────────────────────────────
+  const captureControl = useCallback(async (inputEvent) => {
+    if (phase !== 'mapping' || !sessionId || !currentControl || !inputEvent) return;
 
-  useEffect(() => {
-    if (phase !== 'mapping' || !latestInput) return;
-
-    // Deduplicate
-    const inputKey = latestInput.timestamp || latestInput.pin || JSON.stringify(latestInput);
-    if (lastProcessedInput.current === inputKey) return;
-    lastProcessedInput.current = inputKey;
-
-    // Auto-confirm
-    confirmCapture();
-  }, [latestInput, phase]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Wizard actions ────────────────────────────────────────────────────────
-
-  const confirmCapture = useCallback(async () => {
-    if (phase !== 'mapping') return;
     try {
-      const res = await fetch(`${API_BASE}/learn-wizard/confirm`, {
+      const res = await fetch(`${API_BASE}/wizard/capture`, {
         method: 'POST',
-        headers: STATE_HEADERS,
+        headers: buildHeaders('state'),
+        body: JSON.stringify({
+          session_id: sessionId,
+          button_name: currentControl,
+          input_event: inputEvent,
+        }),
       });
-      if (!res.ok) throw new Error(`Confirm failed (${res.status})`);
+      if (!res.ok) throw new Error(`Capture failed (${res.status})`);
       const data = await res.json();
+
+      setCaptures((prev) => ({
+        ...prev,
+        [currentControl]: {
+          pin: inputEvent.pin,
+          keycode: inputEvent.keycode,
+          source_id: inputEvent.source_id,
+          confirmed: true,
+        },
+      }));
+      setFlashedControl(currentControl);
+      window.setTimeout(() => {
+        setFlashedControl((prev) => (prev === currentControl ? null : prev));
+      }, 600);
 
       if (data.status === 'complete') {
         setPhase('complete');
-        setCaptures(data.captures || {});
-        setChuckPrompt(data.chuck_prompt || 'All controls mapped!');
         setCurrentControl(null);
-      } else if (data.status === 'next') {
-        // Update captures with the one just confirmed
-        setCaptures((prev) => ({
-          ...prev,
-          [data.captured]: { confirmed: true },
-        }));
-        setCurrentControl(data.next_control);
-        setCurrentIndex(data.current_index);
-        setChuckPrompt(data.chuck_prompt || '');
-      } else if (data.status === 'no_capture') {
-        setChuckPrompt(data.chuck_prompt || 'Press the button again.');
+        setCurrentIndex(data.progress || totalControls);
+        setChuckPrompt('All controls mapped. Review the proposal and press EXECUTE to commit.');
+        return;
+      }
+
+      if (data.status === 'captured') {
+        setCurrentControl(data.next_button || data.next || null);
+        setCurrentIndex(data.progress || 0);
+        setChuckPrompt(
+          `Captured ${displayName(data.button_name)}. Press ${displayName(data.next_button)} next.`,
+        );
       }
     } catch (err) {
-      setErrorMsg(err.message);
+      setErrorMsg(err.message || 'Capture failed.');
+      setPhase('error');
     }
-  }, [phase]);
+  }, [currentControl, phase, sessionId, totalControls]);
 
-  const skipControl = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/learn-wizard/skip`, {
-        method: 'POST',
-        headers: STATE_HEADERS,
-      });
-      if (!res.ok) return;
-      const data = await res.json();
+  useEffect(() => {
+    if (phase !== 'mapping' || !latestInput || !sessionId || !currentControl) return;
 
-      if (data.status === 'complete') {
-        setPhase('complete');
-        setCurrentControl(null);
-        setChuckPrompt(data.chuck_prompt || '');
-      } else {
-        setCurrentControl(data.next_control);
-        setChuckPrompt(data.chuck_prompt || '');
+    const inputKey = latestInput.timestamp || latestInput.pin || JSON.stringify(latestInput);
+    if (lastProcessedInputRef.current === inputKey) return;
+    lastProcessedInputRef.current = inputKey;
+
+    captureControl(latestInput);
+  }, [captureControl, currentControl, latestInput, phase, sessionId]);
+
+  const skipControl = useCallback(() => {
+    if (!sessionId || !currentControl) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/wizard/capture`, {
+          method: 'POST',
+          headers: buildHeaders('state'),
+          body: JSON.stringify({
+            session_id: sessionId,
+            button_name: currentControl,
+            skip: true,
+          }),
+        });
+        if (!res.ok) throw new Error(`Skip failed (${res.status})`);
+        const data = await res.json();
+
+        setCaptures((prev) => ({
+          ...prev,
+          [currentControl]: { skipped: true },
+        }));
+
+        if (data.status === 'complete') {
+          setPhase('complete');
+          setCurrentControl(null);
+          setCurrentIndex(data.progress || totalControls);
+          setChuckPrompt('All controls processed. Review the proposal and press EXECUTE to commit.');
+          return;
+        }
+
+        setCurrentControl(data.next_button || data.next || null);
+        setCurrentIndex(data.progress || currentIndex + 1);
+        setChuckPrompt(`Skipped ${displayName(currentControl)}. Move to ${displayName(data.next_button)}.`);
+      } catch (err) {
+        setErrorMsg(err.message || 'Skip failed.');
+        setPhase('error');
       }
-    } catch (_) { /* swallow */ }
-  }, []);
+    })();
+  }, [currentControl, currentIndex, sessionId, totalControls]);
 
   const undoCapture = useCallback(async () => {
+    if (!sessionId) return;
+
     try {
-      const res = await fetch(`${API_BASE}/learn-wizard/undo`, {
+      const res = await fetch(`${API_BASE}/wizard/capture`, {
         method: 'POST',
-        headers: STATE_HEADERS,
+        headers: buildHeaders('state'),
+        body: JSON.stringify({ session_id: sessionId, rollback: true }),
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`Undo failed (${res.status})`);
       const data = await res.json();
 
-      if (data.status === 'undone') {
-        setCurrentControl(data.current_control);
-        setCurrentIndex(data.current_index);
-        setChuckPrompt(data.chuck_prompt || '');
-        // Remove the undone capture
+      if (data.status === 'rolled_back') {
+        setPhase('mapping');
+        setCurrentControl(data.next_button || data.button_name || null);
+        setCurrentIndex(data.progress || 0);
+        setChuckPrompt(`Rolled back ${displayName(data.button_name)}. Press it again.`);
         setCaptures((prev) => {
           const next = { ...prev };
-          delete next[data.current_control];
+          delete next[data.button_name];
           return next;
         });
       } else {
-        setChuckPrompt(data.chuck_prompt || '');
+        setChuckPrompt('Nothing to undo.');
       }
-    } catch (_) { /* swallow */ }
-  }, []);
+    } catch (err) {
+      setErrorMsg(err.message || 'Undo failed.');
+      setPhase('error');
+    }
+  }, [sessionId]);
 
-  const saveAllMappings = useCallback(async () => {
-    setPhase('saving');
+  const commitWizard = useCallback(async () => {
+    if (!sessionId) return;
+
+    setExecuteLoading(true);
+    setPhase('committing');
+
     try {
-      const res = await fetch(`${API_BASE}/learn-wizard/save`, {
+      const res = await fetch(`${API_BASE}/wizard/commit`, {
         method: 'POST',
-        headers: CONFIG_HEADERS,
+        headers: buildHeaders('config'),
+        body: JSON.stringify({ session_id: sessionId }),
       });
-      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      if (!res.ok) throw new Error(`Commit failed (${res.status})`);
       const data = await res.json();
-      setSaveResult(data);
-      setPhase('saved');
-      setChuckPrompt(data.chuck_prompt || `Saved ${data.controls_mapped} controls!`);
+      if (data.status !== 'committed') {
+        throw new Error(data.message || 'Commit failed.');
+      }
+
+      setCommitResult(data);
+      setPhase('committed');
+      setChuckPrompt(`Saved ${data.controls_mapped} controls and prepared the cascade.`);
+      setSessionId(null);
       onSaved?.(data);
     } catch (err) {
+      setErrorMsg(err.message || 'Commit failed.');
       setPhase('error');
-      setErrorMsg(err.message);
+      throw err;
+    } finally {
+      setExecuteLoading(false);
     }
-  }, [onSaved]);
+  }, [onSaved, sessionId]);
 
   const handleClose = useCallback(() => {
-    fetch(`${API_BASE}/learn-wizard/stop`, { method: 'POST', headers: STATE_HEADERS }).catch(() => {});
+    if (phase !== 'committed') {
+      cancelWizard();
+    }
     onClose?.();
-  }, [onClose]);
-
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  }, [cancelWizard, onClose, phase]);
 
   const progressPct = totalControls > 0 ? (currentIndex / totalControls) * 100 : 0;
   const capturedCount = Object.keys(captures).length;
+  const visiblePlayers = useMemo(
+    () => PLAYER_DEFS.filter((player) => playerMode === '4p' || player.row === 'front'),
+    [playerMode],
+  );
+  const executionProposal = useMemo(() => ({
+    display: Object.entries(captures)
+      .map(([controlKey, capture]) => `${displayName(controlKey)} = GPIO ${capture?.pin ?? 'skip'}`)
+      .join('; '),
+    payload: { session_id: sessionId },
+  }), [captures, sessionId]);
 
   return (
     <div className="mapping-overlay">
-
-      {/* Header */}
       <div className="mapping-header">
-        <h2>Map Controls</h2>
+        <h2>Guided Control Wizard</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
           {encoderInfo && (
             <span className={`mapping-encoder-badge ${modeWarning ? 'warning' : ''}`}>
               {encoderInfo.board} ({encoderInfo.mode})
             </span>
           )}
-          <button className="mapping-close-btn" onClick={handleClose}>✕ Close</button>
+          <button className="mapping-close-btn" onClick={handleClose}>Close</button>
         </div>
       </div>
 
-      {/* Error state */}
       {phase === 'error' && (
         <div className="mapping-instruction" style={{ borderColor: 'rgba(255,80,80,0.4)' }}>
           <div className="mapping-instruction-text" style={{ color: '#ff6b6b' }}>
-            ⚠️ {errorMsg || 'Something went wrong'}
+            {errorMsg || 'Something went wrong.'}
           </div>
           <button className="mapping-action-btn" onClick={startWizard} style={{ marginTop: '0.8rem' }}>
             Retry
@@ -360,100 +427,97 @@ export default function MappingOverlay({ onClose, onSaved, latestInput }) {
         </div>
       )}
 
-      {/* Idle / loading */}
       {phase === 'idle' && (
         <div className="mapping-instruction">
-          <div className="mapping-instruction-text">Starting wizard…</div>
+          <div className="mapping-instruction-text">Starting wizard...</div>
         </div>
       )}
 
-      {/* Mapping phase */}
       {phase === 'mapping' && (
         <>
-          {/* Instruction banner */}
           <div className="mapping-instruction">
             <div className="mapping-instruction-text">
               Press <span className="control-name">{displayName(currentControl)}</span> on your panel
             </div>
             {modeWarning && (
-              <div style={{ fontSize: '0.75rem', color: '#ffb347', marginTop: '0.4rem' }}>
-                ⚠ {modeWarning}
+              <div style={{ fontSize: '0.75rem', color: '#FFA500', marginTop: '0.4rem' }}>
+                Warning: {modeWarning}
               </div>
             )}
           </div>
 
-          {/* Progress bar */}
           <div className="mapping-progress-wrap">
             <div className="mapping-progress-bar">
               <div className="mapping-progress-fill" style={{ width: `${progressPct}%` }} />
             </div>
             <div className="mapping-progress-label">
-              <span>{capturedCount} captured</span>
-              <span>{currentIndex + 1} / {totalControls}</span>
+              <span>{capturedCount}/{totalControls} mapped</span>
+              <span>{Math.min(currentIndex + 1, totalControls)} / {totalControls}</span>
             </div>
           </div>
         </>
       )}
 
-      {/* Complete phase */}
-      {(phase === 'complete' || phase === 'saving' || phase === 'saved') && (
+      {(phase === 'complete' || phase === 'committing' || phase === 'committed') && (
         <div className="mapping-complete-banner">
-          {phase === 'saving' ? (
+          {phase === 'committing' ? (
             <>
-              <h3><span className="mapping-saving-spinner" /> Saving…</h3>
-              <p>Writing to controls.json and cascading to emulators…</p>
+              <h3><span className="mapping-saving-spinner" /> Saving...</h3>
+              <p>Writing to controls.json and cascading to emulators...</p>
             </>
-          ) : phase === 'saved' ? (
+          ) : phase === 'committed' ? (
             <>
-              <h3>✅ Controls Saved!</h3>
+              <h3>Controls Saved</h3>
               <p>{chuckPrompt}</p>
-              {saveResult?.mame_config?.status === 'success' && (
-                <p style={{ color: '#4cff8e', fontSize: '0.8rem', marginTop: '0.3rem' }}>
-                  ✓ MAME config updated
-                </p>
-              )}
-              {saveResult?.teknoparrot_config?.profiles_updated > 0 && (
-                <p style={{ color: '#4cff8e', fontSize: '0.8rem' }}>
-                  ✓ TeknoParrot: {saveResult.teknoparrot_config.profiles_updated} profiles updated
+              {commitResult?.cascade_result?.triggered && (
+                <p style={{ color: '#00FF00', fontSize: '0.8rem', marginTop: '0.3rem' }}>
+                  Cascade queued: {commitResult.cascade_result.job_id}
                 </p>
               )}
             </>
           ) : (
             <>
-              <h3>🎉 All Controls Mapped!</h3>
-              <p>{capturedCount} controls captured. Click "Save All" to write changes.</p>
+              <h3>All Controls Mapped</h3>
+              <p>Review the summary below and press EXECUTE to commit.</p>
             </>
           )}
         </div>
       )}
 
-      {/* Control panel visualization */}
-      {(phase === 'mapping' || phase === 'complete') && (
+      {(phase === 'mapping' || phase === 'complete' || phase === 'committing' || phase === 'committed') && (
         <div className="mapping-panel">
           <div className="mapping-players-grid">
-            {/* Back row: P3, P4 */}
-            {PLAYER_DEFS.filter((p) => p.row === 'back').map((player) => (
+            {visiblePlayers.filter((player) => player.row === 'back').map((player) => (
               <PlayerSection
                 key={player.id}
                 player={player}
                 currentControl={currentControl}
                 captures={captures}
+                flashedControl={flashedControl}
               />
             ))}
-            {/* Front row: P1, P2 */}
-            {PLAYER_DEFS.filter((p) => p.row === 'front').map((player) => (
+            {visiblePlayers.filter((player) => player.row === 'front').map((player) => (
               <PlayerSection
                 key={player.id}
                 player={player}
                 currentControl={currentControl}
                 captures={captures}
+                flashedControl={flashedControl}
               />
             ))}
           </div>
         </div>
       )}
 
-      {/* Action buttons */}
+      {phase === 'complete' && executionProposal.display && (
+        <ExecutionCard
+          proposal={executionProposal}
+          onExecute={commitWizard}
+          onCancel={handleClose}
+          loading={executeLoading}
+        />
+      )}
+
       <div className="mapping-actions">
         {phase === 'mapping' && (
           <>
@@ -464,15 +528,13 @@ export default function MappingOverlay({ onClose, onSaved, latestInput }) {
         )}
         {phase === 'complete' && (
           <>
-            <button className="mapping-action-btn" onClick={undoCapture}>← Back</button>
-            <button className="mapping-action-btn primary" onClick={saveAllMappings}>
-              Save All ({capturedCount} controls)
-            </button>
+            <button className="mapping-action-btn" onClick={undoCapture}>Back</button>
+            <button className="mapping-action-btn" onClick={handleClose}>Cancel</button>
           </>
         )}
-        {phase === 'saved' && (
+        {phase === 'committed' && (
           <button className="mapping-action-btn primary" onClick={handleClose}>
-            Done — Close
+            Done - Close
           </button>
         )}
       </div>

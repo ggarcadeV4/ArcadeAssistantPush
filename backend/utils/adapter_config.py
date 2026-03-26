@@ -36,6 +36,7 @@ ADAPTER_CONFIG_KEYS = {
     'rpcs3': 'allow_direct_rpcs3',
     'cemu': 'allow_direct_cemu',
     'model2': 'allow_direct_model2',
+    'supermodel': 'allow_direct_supermodel',
 }
 
 

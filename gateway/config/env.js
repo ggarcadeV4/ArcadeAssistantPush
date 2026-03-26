@@ -8,7 +8,7 @@ export const env = {
     return process.env.OPENAI_API_KEY || '';
   },
   get AI_DEFAULT_PROVIDER() {
-    return process.env.AI_DEFAULT_PROVIDER || 'claude';
+    return process.env.AI_DEFAULT_PROVIDER || 'gemini';
   },
   get AI_TIMEOUT_MS() {
     return Math.max(3000, Math.min(60000, parseInt(process.env.AI_TIMEOUT_MS || '20000', 10)));

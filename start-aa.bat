@@ -26,6 +26,7 @@ rem on secondary monitor during dev. RE-ENABLE before drive duplication for
 rem live cabinet hardware. See README "Marquee System" section.
 rem Original: if not defined AA_MARQUEE_ENABLED ( set "AA_MARQUEE_ENABLED=1" )
 set "AA_MARQUEE_ENABLED=0"
+set AA_UPDATES_ENABLED=0
 
 echo ============================================================
 echo  Arcade Assistant - Starting...
@@ -111,7 +112,7 @@ echo [INFO] Waiting for backend to be ready (port 8000)...
 set BACKEND_READY=0
 for /L %%i in (1,1,30) do (
     if !BACKEND_READY! EQU 0 (
-        powershell -Command "if ((Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -WarningAction SilentlyContinue).TcpTestSucceeded) { exit 0 } else { exit 1 }" >nul 2>&1
+        netstat -ano 2>nul | findstr ":8000.*LISTENING" >nul 2>&1
         if !ERRORLEVEL! EQU 0 (
             set BACKEND_READY=1
             echo.
@@ -128,7 +129,7 @@ if !BACKEND_READY! EQU 0 (
     echo         Check log: %LOGDIR%\backend.log
     echo.
     echo --- Last 20 lines of backend.log ---
-    powershell -Command "Get-Content '%LOGDIR%\backend.log' -Tail 20 -ErrorAction SilentlyContinue"
+    powershell -NoProfile -Command "Get-Content '%LOGDIR%\backend.log' -Tail 20 -ErrorAction SilentlyContinue"
     exit /b 1
 )
 
@@ -139,7 +140,7 @@ echo [INFO] Waiting for gateway to be ready (port 8787)...
 set GATEWAY_READY=0
 for /L %%i in (1,1,30) do (
     if !GATEWAY_READY! EQU 0 (
-        powershell -Command "if ((Test-NetConnection -ComputerName 127.0.0.1 -Port 8787 -WarningAction SilentlyContinue).TcpTestSucceeded) { exit 0 } else { exit 1 }" >nul 2>&1
+        netstat -ano 2>nul | findstr ":8787.*LISTENING" >nul 2>&1
         if !ERRORLEVEL! EQU 0 (
             set GATEWAY_READY=1
             echo.
@@ -156,7 +157,7 @@ if !GATEWAY_READY! EQU 0 (
     echo         Check log: %LOGDIR%\gateway.log
     echo.
     echo --- Last 20 lines of gateway.log ---
-    powershell -Command "Get-Content '%LOGDIR%\gateway.log' -Tail 20 -ErrorAction SilentlyContinue"
+    powershell -NoProfile -Command "Get-Content '%LOGDIR%\gateway.log' -Tail 20 -ErrorAction SilentlyContinue"
     exit /b 1
 )
 

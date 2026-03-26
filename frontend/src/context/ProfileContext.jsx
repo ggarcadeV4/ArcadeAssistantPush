@@ -4,6 +4,7 @@ import { getGatewayHost } from '../services/gateway'
 
 const ProfileContext = createContext({
   profile: null,
+  currentUser: 'Guest',
   loading: true,
   error: null,
   refreshProfile: async () => { },
@@ -33,6 +34,11 @@ export function ProfileProvider({ children }) {
           if (!merged.displayName && primaryData.display_name) merged.displayName = primaryData.display_name
           if (!merged.initials && primaryData.initials) merged.initials = primaryData.initials
           if (!merged.userId && primaryData.user_id) merged.userId = primaryData.user_id
+          if (typeof merged.consent !== 'boolean' && typeof primaryData.consent === 'boolean') merged.consent = primaryData.consent
+          if (!merged.preferences) merged.preferences = {}
+          if (!merged.preferences.playerPosition && primaryData.player_position) {
+            merged.preferences.playerPosition = primaryData.player_position
+          }
         }
         setProfile(merged)
       } else if (primaryData && Object.keys(primaryData).length > 0) {
@@ -40,12 +46,14 @@ export function ProfileProvider({ children }) {
           displayName: primaryData.display_name || 'Guest',
           initials: primaryData.initials || '',
           userId: primaryData.user_id || 'guest',
+          consent: typeof primaryData.consent === 'boolean' ? primaryData.consent : !!primaryData.consent_active,
           avatar: '',
           favoriteColor: null,
           preferences: {
             voiceAssignments: primaryData.voice_prefs || {},
             vocabulary: Array.isArray(primaryData.vocabulary) ? primaryData.vocabulary.join('\n') : '',
-            players: []
+            players: [],
+            playerPosition: primaryData.player_position || null
           },
           lastUpdated: primaryData.last_updated || null
         })
@@ -127,13 +135,16 @@ export function ProfileProvider({ children }) {
     }
   }, [refreshProfile])
 
+  const currentUser = useMemo(() => (profile?.displayName || 'Guest'), [profile])
+
   const value = useMemo(() => ({
     profile,
+    currentUser,
     loading,
     error,
     refreshProfile,
     setProfileSnapshot: setProfile
-  }), [profile, loading, error, refreshProfile])
+  }), [profile, currentUser, loading, error, refreshProfile])
 
   return (
     <ProfileContext.Provider value={value}>

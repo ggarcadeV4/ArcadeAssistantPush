@@ -1,7 +1,7 @@
 """Gunner hardware service for light gun device detection and calibration.
 
 Provides hardware abstraction for light gun devices with support for:
-- USB HID device detection (Sinden, AimTrak, Gun4IR)
+- USB HID device detection (Retro Shooter, Sinden, AimTrak, Gun4IR)
 - 9-point calibration wizard with LED feedback
 - Mock device support for development/testing
 - Hotplug monitoring and device state management
@@ -33,13 +33,45 @@ except ImportError:
 
 # ============================================================================
 # Known Light Gun Device Signatures
+# PRIMARY GUN: Retro Shooter (0x0483 / 0x5750-5753)
+# Sinden and AimTrak are secondary/unsupported on this build
 # ============================================================================
 
 KNOWN_DEVICES = {
+    # --- Primary: 3AGAME Retro Shooter (STMicroelectronics VID 0x0483) ---
+    'retro_shooter_p1': {
+        'name': '3AGAME Retro Shooter Player 1',
+        'vid': 0x0483,
+        'pid': 0x5750,
+        'type': 'retro_shooter',
+        'player': 1,
+    },
+    'retro_shooter_p2': {
+        'name': '3AGAME Retro Shooter Player 2',
+        'vid': 0x0483,
+        'pid': 0x5751,
+        'type': 'retro_shooter',
+        'player': 2,
+    },
+    'retro_shooter_p3': {
+        'name': '3AGAME Retro Shooter Player 3',
+        'vid': 0x0483,
+        'pid': 0x5752,
+        'type': 'retro_shooter',
+        'player': 3,
+    },
+    'retro_shooter_p4': {
+        'name': '3AGAME Retro Shooter Player 4',
+        'vid': 0x0483,
+        'pid': 0x5753,
+        'type': 'retro_shooter',
+        'player': 4,
+    },
+    # --- Secondary: Other gun types (not primary on this cabinet) ---
     'sinden': {
         'name': 'Sinden Light Gun',
-        'vid': 0x16C0,  # Vendor ID
-        'pid': 0x0F38,  # Product ID
+        'vid': 0x16C0,
+        'pid': 0x0F38,
     },
     'aimtrak': {
         'name': 'AimTrak Light Gun',
@@ -179,7 +211,7 @@ class USBDetector(HardwareDetector):
                         break
 
             if not devices:
-                logger.warning("No light gun devices detected on USB bus")
+                logger.debug("No light gun devices detected on USB bus")
 
             # Update cache
             self._device_cache = devices
@@ -188,7 +220,7 @@ class USBDetector(HardwareDetector):
             return devices
 
         except Exception as e:
-            logger.error(f"USB device enumeration failed: {e}", exc_info=True)
+            logger.debug(f"USB device enumeration failed: {e}", exc_info=True)
             # Return cached devices if available, otherwise empty list
             return self._device_cache if self._device_cache is not None else []
 

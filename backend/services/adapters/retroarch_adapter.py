@@ -91,6 +91,13 @@ def _normalize_platform_name(name: str) -> str:
     return SAFE_PLATFORM_SYNONYMS.get(name, name)
 
 
+def _platform_name_for_game(game: Any) -> str:
+    override = (_get(game, "retroarch_platform_override") or "").strip()
+    if override:
+        return override
+    return ((_get(game, "platform") or "").strip())
+
+
 def _get_ra_config(manifest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not manifest:
         return None
@@ -165,7 +172,7 @@ def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
     emu = _get_ra_config(manifest)
     if not emu:
         return False
-    plat = _normalize_platform_name((_get(game, "platform") or "").strip())
+    plat = _normalize_platform_name(_platform_name_for_game(game))
     core_key = (emu.get("platform_map") or {}).get(plat)
     return bool(core_key)
 
@@ -199,8 +206,8 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
     if not emu:
         return None
 
-    plat = _normalize_platform_name((_get(game, "platform") or "").strip())
-    core_key = (emu.get("platform_map") or {}).get(plat)
+    plat = _normalize_platform_name(_platform_name_for_game(game))
+    core_key = ((_get(game, "retroarch_core_override") or "").strip() or (emu.get("platform_map") or {}).get(plat))
     if not core_key:
         return None
 
@@ -209,7 +216,8 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
     if not core_rel:
         return None
 
-    exe = _norm_path(str(emu.get("exe", "")))
+    exe_override = (_get(game, "retroarch_exe_override") or "").strip()
+    exe = _norm_path(exe_override or str(emu.get("exe", "")))
     # Fallback discovery: if exe missing, try common LaunchBox locations
     if not str(exe) or not exe.exists():
         try:

@@ -23,6 +23,35 @@ def _is_wsl() -> bool:
         return False
 
 
+def _get_vault_status() -> dict:
+    """Report DPAPI vault state without exposing secret values."""
+    import os
+    from pathlib import Path
+
+    drive_root = os.environ.get("AA_DRIVE_ROOT", "A:\\Arcade Assistant Local")
+    vault_path = Path(drive_root) / ".aa" / "credentials.dat"
+
+    if not vault_path.exists():
+        return {"status": "missing", "path": str(vault_path)}
+
+    tier1_keys = [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "AA_PROVISIONING_TOKEN",
+        "AA_SERVICE_TOKEN",
+    ]
+    loaded_keys = [
+        k for k in tier1_keys
+        if os.environ.get(k) not in (None, "", "VAULT_MANAGED")
+    ]
+
+    return {
+        "status": "loaded" if loaded_keys else "present_not_loaded",
+        "secrets_active": len(loaded_keys),
+        "path": str(vault_path),
+    }
+
+
 def _require_mutation_headers(request: Request) -> None:
     scope = request.headers.get("x-scope")
     if not scope or scope.lower() != "state":
@@ -57,6 +86,7 @@ def _build_summary_payload(request: Request, hardware_status: Dict[str, Any], ti
         "wsl": _is_wsl(),
         "usb_backend": hardware_status.get("usb_backend"),
         "hardware_status": hardware_status,
+        "vault_status": _get_vault_status(),
         "stt_configured": bool(
             os.getenv("DEEPGRAM_API_KEY")
             or os.getenv("WHISPER_LOCAL")

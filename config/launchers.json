@@ -10,7 +10,8 @@
                                "skip_nags":  true,
                                "cheats_enabled":  false
                            },
-                   "allow_direct_rpcs3":  true
+                   "allow_direct_rpcs3":  true,
+                   "allow_direct_supermodel":  true
                },
     "emulators":  {
                       "retroarch":  {

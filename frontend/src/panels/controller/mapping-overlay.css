@@ -204,13 +204,19 @@
 .mapping-dir-arrow.right { right: 2px; top: 50%; transform: translateY(-50%); }
 
 .mapping-dir-arrow.waiting {
-  color: #ffb347;
+  color: #FFA500;
   animation: waitingPulse 1.2s ease-in-out infinite;
 }
 
 .mapping-dir-arrow.confirmed {
-  color: #4cff8e;
-  text-shadow: 0 0 6px rgba(76, 255, 142, 0.5);
+  color: #00FF00;
+  text-shadow: 0 0 6px rgba(0, 255, 0, 0.45);
+}
+
+.mapping-dir-arrow.just-confirmed {
+  color: #00FF00;
+  text-shadow: 0 0 12px rgba(0, 255, 0, 0.8);
+  animation: confirmFlash 0.6s ease-out;
 }
 
 /* Buttons grid */
@@ -243,31 +249,31 @@
 }
 
 .mapping-btn.waiting {
-  border-color: #ffb347;
-  color: #ffb347;
-  box-shadow: 0 0 12px rgba(255, 179, 71, 0.3);
+  border-color: #FFA500;
+  color: #FFA500;
+  box-shadow: 0 0 12px rgba(255, 165, 0, 0.3);
   animation: waitingPulse 1.2s ease-in-out infinite;
 }
 
 .mapping-btn.confirmed {
-  border-color: #4cff8e;
-  color: #4cff8e;
+  border-color: #00FF00;
+  color: #00FF00;
   background: radial-gradient(circle at 35% 35%, #1a3a2a, #162a1e);
-  box-shadow: 0 0 8px rgba(76, 255, 142, 0.25);
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.25);
 }
 
 .mapping-btn.just-confirmed {
-  animation: confirmFlash 0.5s ease-out;
+  animation: confirmFlash 0.6s ease-out;
 }
 
 @keyframes waitingPulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(255, 179, 71, 0.2); }
-  50%      { box-shadow: 0 0 20px rgba(255, 179, 71, 0.5); }
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 165, 0, 0.2); }
+  50%      { box-shadow: 0 0 20px rgba(255, 165, 0, 0.5); }
 }
 
 @keyframes confirmFlash {
-  0%   { transform: scale(1.3); box-shadow: 0 0 25px rgba(76, 255, 142, 0.7); }
-  100% { transform: scale(1);   box-shadow: 0 0 8px rgba(76, 255, 142, 0.25); }
+  0%   { transform: scale(1.15); box-shadow: 0 0 24px rgba(0, 255, 0, 0.8); }
+  100% { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 0, 0.25); }
 }
 
 /* Utility buttons (START/COIN) */
@@ -292,14 +298,20 @@
 }
 
 .mapping-util-btn.waiting {
-  border-color: #ffb347;
-  color: #ffb347;
+  border-color: #FFA500;
+  color: #FFA500;
   animation: waitingPulse 1.2s ease-in-out infinite;
 }
 
 .mapping-util-btn.confirmed {
-  border-color: #4cff8e;
-  color: #4cff8e;
+  border-color: #00FF00;
+  color: #00FF00;
+}
+
+.mapping-util-btn.just-confirmed {
+  border-color: #00FF00;
+  color: #00FF00;
+  animation: confirmFlash 0.6s ease-out;
 }
 
 /* ── Action buttons ─────────────────────────────────────────── */

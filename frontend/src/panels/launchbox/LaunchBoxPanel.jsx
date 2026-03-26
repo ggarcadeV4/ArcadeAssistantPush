@@ -413,7 +413,16 @@ function LaunchBoxPanelContent() {
     const normalized = platform.trim().toLowerCase()
     if (!normalized) return false
 
-    const unsupportedKeywords = ['pinball fx', 'flash']
+    const unsupportedKeywords = ['flash']
+    // Exact platform names excluded from LoRa (cannot launch stably via direct path)
+    const excludedPlatforms = [
+      'saturn gun games',
+      'model 3 gun games',
+      'ps2 gun games',
+      'pcsx2 gun games',
+      'flash games',
+    ]
+    if (excludedPlatforms.includes(normalized)) return false
     return !unsupportedKeywords.some(keyword => normalized.includes(keyword))
   }, [])
 

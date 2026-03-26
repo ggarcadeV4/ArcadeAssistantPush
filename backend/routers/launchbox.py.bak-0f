@@ -1,4 +1,4 @@
-﻿"""
+"""
 LaunchBox Integration Router - UPDATED 2025-10-06
 Handles game library management, launching, and metadata queries.
 
@@ -3176,7 +3176,7 @@ async def launch_game(
             # Best-effort PID tracking for non-plugin launches (enables vision capture on exit)
             try:
                 exe_path, emulator_name, _ = _parse_command_info(getattr(result, 'command', None))
-                pid = getattr(result, "pid", None) or _best_effort_find_pid(exe_path)  # Phase0F: prefer direct PID
+                pid = _best_effort_find_pid(exe_path)
                 if pid:
                     from backend.services.game_lifecycle import track_game_launch
 
@@ -3190,8 +3190,8 @@ async def launch_game(
                         source="launchbox_router",
                         launch_method="policy_primary",
                     )
-            except Exception as e:
-                logger.error(f"[Phase0F] PID tracking FAILED in policy_primary path: {e}", exc_info=True)
+            except Exception:
+                pass
             return result
     except Exception:
         # Ignore policy errors and continue with normal flow
@@ -3208,11 +3208,9 @@ async def launch_game(
                     pass
 
                 # Best-effort PID tracking (enables vision capture on exit for non-MAME)
-                print(f"[Phase0F-diag] Entering PID tracking: result.success={getattr(direct_result, 'success', None)}, result.pid={getattr(direct_result, 'pid', 'NONE')}, type={type(direct_result).__name__}")
                 try:
-                    logger.info(f"[Phase0F] PID tracking ENTRY: direct_result.pid={getattr(direct_result, 'pid', 'MISSING')}, type={type(direct_result).__name__}")
                     exe_path, emulator_name, _ = _parse_command_info(getattr(direct_result, 'command', None))
-                    pid = getattr(direct_result, "pid", None) or _best_effort_find_pid(exe_path)  # Phase0F: prefer direct PID
+                    pid = _best_effort_find_pid(exe_path)
                     if pid:
                         from backend.services.game_lifecycle import track_game_launch
 
@@ -3226,8 +3224,8 @@ async def launch_game(
                             source="launchbox_router",
                             launch_method="direct_only",
                         )
-                except Exception as e:
-                    logger.error(f"[Phase0F] PID tracking FAILED in direct_only path: {e}", exc_info=True)
+                except Exception:
+                    pass
                 return direct_result
             else:
                 # PEGASUS: Never fall back to LaunchBox - return explicit failure
@@ -3427,26 +3425,6 @@ async def launch_game(
                     "elapsed_seconds": None,
                 }, drive_root)
         except Exception:
-            pass
-
-        # Phase 0F: PID tracking for plugin_first fallback path
-        try:
-            if getattr(result, "success", False):
-                exe_path, emulator_name, _ = _parse_command_info(getattr(result, "command", None))
-                pid = getattr(result, "pid", None) or _best_effort_find_pid(exe_path)
-                if pid:
-                    from backend.services.game_lifecycle import track_game_launch
-                    track_game_launch(
-                        game_id=game.id,
-                        game_title=game.title,
-                        platform=game.platform,
-                        pid=pid,
-                        emulator=emulator_name,
-                        rom_name=Path(game.rom_path).stem if getattr(game, "rom_path", None) else None,
-                        source="launchbox_router",
-                        launch_method="plugin_first_fallback",
-                    )
-        except Exception as e:
             pass
         return result
 

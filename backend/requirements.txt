@@ -6,7 +6,6 @@ python-dotenv>=1.0.0
 python-multipart>=0.0.6
 PyYAML>=6.0
 pyusb>=1.2.1
-supabase>=2.0.0
 anthropic>=0.75.0
 hid>=1.0.5
 pydub>=0.25.1
@@ -29,3 +28,4 @@ rapidfuzz>=3.0.0
 
 # Pinned to avoid ClientOptions.storage regression
 supabase==2.23.2
+pywin32>=306           # Windows DPAPI support for secrets_loader.py
