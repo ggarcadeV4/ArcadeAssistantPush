@@ -1117,6 +1117,21 @@ async def start_wiring_wizard(
     existing_identity = player_identity.load_bindings(drive_root)
     session_id = str(uuid4())
     sequence = build_visual_wizard_sequence(payload.player_mode)
+    controls_path = drive_root / "config" / "mappings" / "controls.json"
+    board_name = "Unknown Board"
+    detected_mode = "software"
+    mode_warning = "No encoder board detected — mapping in software mode."
+
+    try:
+        controls_data = json.load(open(controls_path, "r", encoding="utf-8")) if controls_path.exists() else {}
+    except Exception:
+        controls_data = {}
+
+    board_info = controls_data.get("board") or {}
+    board_name = board_info.get("name") or "Unknown Board"
+    board_detected = bool(board_info.get("detected"))
+    detected_mode = "hardware" if board_detected else "software"
+    mode_warning = None if board_detected else "No encoder board detected — mapping in software mode."
 
     service = get_input_detection_service(request)
     service.set_learn_mode(True)
@@ -1142,6 +1157,10 @@ async def start_wiring_wizard(
         "identity_status": existing_identity.get("status", "unbound"),
         "progress": 0,
         "total": len(sequence),
+        "detected_board": board_name,
+        "detected_mode": detected_mode,
+        "mode_warning": mode_warning,
+        "chuck_prompt": "Let's map your controls. Press the physical button that corresponds to each highlighted control.",
     }
 
 
@@ -1358,6 +1377,11 @@ async def wizard_cancel(request: Request, payload: WizardCommitRequest = WizardC
     require_scope(request, "state")
     session_id = _resolve_wizard_session_id(request, payload.session_id)
     _wizard_states.pop(session_id, None)
+    service = get_input_detection_service(request)
+    if service is not None:
+        service.set_learn_mode(False)
+        service._raw_handlers.clear()
+        service.stop_listening()
     return {
         "status": "cancelled",
         "session_id": session_id,

@@ -40,7 +40,7 @@ export function useInputDetection(enabled = false) {
         .catch(() => {});
     };
 
-    fetch('/api/local/controller/input/start', { method: 'GET', headers: STATE_HEADERS })
+    fetch('/api/local/controller/input/start?learn_mode=true', { method: 'GET', headers: STATE_HEADERS })
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to start detection (${response.status})`);
