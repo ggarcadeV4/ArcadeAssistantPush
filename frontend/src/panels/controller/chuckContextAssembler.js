@@ -40,7 +40,7 @@ export async function chuckContextAssembler() {
     // ── Tier 1: Always included (every message while diagMode is active) ────────
     // Parallel fetch — hardware + mapping baseline
     const [hardware, baseline] = await Promise.all([
-        safeFetch(`${HARDWARE_API}/devices`),
+        safeFetch(`${HARDWARE_API}/usb/devices`),
         safeFetch(`${CONTROLLER_API}/baseline`),
     ]);
 

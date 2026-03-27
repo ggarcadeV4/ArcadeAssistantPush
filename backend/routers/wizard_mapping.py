@@ -21,6 +21,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..services.backup import create_backup
+from .chuck_hardware import get_input_detection_service, get_latest_event
 from ..services.chuck.input_detector import InputDetectionService, InputEvent, detect_input_mode
 from ..services.chuck.encoder_state import get_encoder_state_manager
 from ..services.console_wizard_manager import ConsoleWizardManager
@@ -63,9 +64,6 @@ router = APIRouter()
 # Module-level state
 # ---------------------------------------------------------------------------
 
-_input_detection_service: Optional[InputDetectionService] = None
-_input_detection_lock = Lock()
-_latest_input_event: Optional[InputEvent] = None
 _learn_mode_latest_key: Optional[str] = None
 _learn_wizard_state: Dict[str, Any] = {}
 _wizard_states: Dict[str, Dict[str, Any]] = {}
@@ -427,41 +425,6 @@ def _sync_gamepad_preferences_to_cascade_state(
         logger.warning("[WizardMapping] Gamepad preference sync failed: %s", exc)
         return None
 
-# ---------------------------------------------------------------------------
-# Input detection service helper (local to this module)
-# ---------------------------------------------------------------------------
-
-def _get_input_detection_service(
-    request: Request,
-    *,
-    board_type_override: Optional[str] = None,
-) -> InputDetectionService:
-    """Get or create the module-local InputDetectionService."""
-    from ..services.chuck.pactotech import PactoTechBoard
-
-    drive_root: Path = request.app.state.drive_root
-
-    # Resolve board type
-    board_type = "generic"
-    if board_type_override:
-        board_type = board_type_override.lower()
-    else:
-        config = getattr(request.app.state, "config", {}) or {}
-        configured = config.get("controller_board_type")
-        if configured:
-            board_type = str(configured).lower()
-
-    global _input_detection_service
-    with _input_detection_lock:
-        service = _input_detection_service
-        if service is None or service.board_type != board_type:
-            if service:
-                service.stop_listening()
-            service = InputDetectionService(board_type, drive_root)
-            _input_detection_service = service
-        return service
-
-
 # ============================================================================
 # Learn Mode Endpoints
 # ============================================================================
@@ -472,7 +435,7 @@ async def start_learn_mode(request: Request):
     require_scope(request, "state")
     global _learn_mode_latest_key
     _learn_mode_latest_key = None
-    service = _get_input_detection_service(request)
+    service = get_input_detection_service(request)
     service.set_learn_mode(True)
 
     def capture_raw_key(keycode: str) -> None:
@@ -489,7 +452,7 @@ async def start_learn_mode(request: Request):
 @router.post("/input/learn/stop")
 async def stop_learn_mode(request: Request):
     require_scope(request, "state")
-    service = _input_detection_service
+    service = get_input_detection_service(request)
     if service is not None:
         service.set_learn_mode(False)
         service._raw_handlers.clear()
@@ -626,7 +589,7 @@ async def start_learn_wizard(
     except Exception as e:
         logger.warning(f"[LearnWizard] Could not auto-detect encoder board: {e}")
 
-    service = _get_input_detection_service(request)
+    service = get_input_detection_service(request)
     service.set_learn_mode(True)
 
     def capture_wizard_input(keycode: str) -> None:
@@ -811,11 +774,12 @@ async def undo_learn_wizard_capture(request: Request):
 @router.post("/learn-wizard/stop")
 async def stop_learn_wizard(request: Request):
     require_scope(request, "state")
-    global _learn_wizard_state, _input_detection_service
-    if _input_detection_service is not None:
-        _input_detection_service.set_learn_mode(False)
-        _input_detection_service._raw_handlers.clear()
-        _input_detection_service.stop_listening()
+    global _learn_wizard_state
+    service = get_input_detection_service(request)
+    if service is not None:
+        service.set_learn_mode(False)
+        service._raw_handlers.clear()
+        service.stop_listening()
     _learn_wizard_state = {}
     return {"status": "stopped", "chuck_prompt": "Wizard cancelled. No changes saved."}
 
@@ -865,11 +829,11 @@ async def save_learn_wizard(request: Request, background_tasks: BackgroundTasks)
     await log_controller_change(request, drive_root, "learn_wizard_save",
         {"controls_mapped": controls_mapped, "count": len(controls_mapped)}, backup_path)
 
-    global _input_detection_service
-    if _input_detection_service is not None:
-        _input_detection_service.set_learn_mode(False)
-        _input_detection_service._raw_handlers.clear()
-        _input_detection_service.stop_listening()
+    service = get_input_detection_service(request)
+    if service is not None:
+        service.set_learn_mode(False)
+        service._raw_handlers.clear()
+        service.stop_listening()
 
     # MAME config write
     mame_config_result = _write_mame_config(drive_root, manifest, data, controls_mapped)
@@ -1129,14 +1093,16 @@ def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
 
 def _wizard_capture_entry(button_name: str, input_event: Dict[str, Any], control_type: Optional[str] = None) -> Dict[str, Any]:
     pin = input_event.get("pin")
-    if pin is None:
-        raise HTTPException(status_code=400, detail="input_event.pin is required")
+    # In learn mode, pin might be 0 for unmapped keys. We should still allow it if keycode is present.
+    keycode = input_event.get("keycode")
+    if pin is None and keycode is None:
+        raise HTTPException(status_code=400, detail="input_event.pin or keycode is required")
 
     mapping_type = control_type or default_control_type(button_name)
     return {
-        "pin": int(pin),
+        "pin": int(pin) if pin is not None else 0,
         "type": mapping_type,
-        "keycode": input_event.get("keycode"),
+        "keycode": keycode,
         "source_id": input_event.get("source_id"),
         "captured_at": datetime.utcnow().isoformat(),
     }
@@ -1151,6 +1117,25 @@ async def start_wiring_wizard(
     existing_identity = player_identity.load_bindings(drive_root)
     session_id = str(uuid4())
     sequence = build_visual_wizard_sequence(payload.player_mode)
+    controls_path = drive_root / "config" / "mappings" / "controls.json"
+    board_name = "Unknown Board"
+    detected_mode = "software"
+    mode_warning = "No encoder board detected — mapping in software mode."
+
+    try:
+        controls_data = json.load(open(controls_path, "r", encoding="utf-8")) if controls_path.exists() else {}
+    except Exception:
+        controls_data = {}
+
+    board_info = controls_data.get("board") or {}
+    board_name = board_info.get("name") or "Unknown Board"
+    board_detected = bool(board_info.get("detected"))
+    detected_mode = "hardware" if board_detected else "software"
+    mode_warning = None if board_detected else "No encoder board detected — mapping in software mode."
+
+    service = get_input_detection_service(request)
+    service.set_learn_mode(True)
+    service.start_listening()
 
     _wizard_states[session_id] = {
         "session_id": session_id,
@@ -1172,6 +1157,10 @@ async def start_wiring_wizard(
         "identity_status": existing_identity.get("status", "unbound"),
         "progress": 0,
         "total": len(sequence),
+        "detected_board": board_name,
+        "detected_mode": detected_mode,
+        "mode_warning": mode_warning,
+        "chuck_prompt": "Let's map your controls. Press the physical button that corresponds to each highlighted control.",
     }
 
 
@@ -1388,6 +1377,11 @@ async def wizard_cancel(request: Request, payload: WizardCommitRequest = WizardC
     require_scope(request, "state")
     session_id = _resolve_wizard_session_id(request, payload.session_id)
     _wizard_states.pop(session_id, None)
+    service = get_input_detection_service(request)
+    if service is not None:
+        service.set_learn_mode(False)
+        service._raw_handlers.clear()
+        service.stop_listening()
     return {
         "status": "cancelled",
         "session_id": session_id,
@@ -1423,7 +1417,7 @@ async def bind_player_identity(request: Request, player: int):
                  "identity_pending": None}
         _wizard_states[session_key] = state
     state["identity_pending"] = player
-    _get_input_detection_service(request).start_listening()
+    get_input_detection_service(request).start_listening()
     return {"status": "awaiting_input", "message": f"Press any button at Player {player} station", "player": player}
 
 
@@ -1436,9 +1430,11 @@ async def capture_player_identity(request: Request):
     pending_player = state.get("identity_pending")
     if pending_player is None:
         raise HTTPException(status_code=400, detail="No identity bind pending.")
-    if _latest_input_event is None:
+
+    latest_event = get_latest_event()
+    if latest_event is None:
         raise HTTPException(status_code=400, detail="No input detected.")
-    source_id = _latest_input_event.source_id or "unknown"
+    source_id = latest_event.source_id or "unknown"
     state.setdefault("identity", {})[source_id] = pending_player
     state["identity_pending"] = None
     state["identity_status"] = "pending_apply"
@@ -1498,20 +1494,17 @@ async def clear_captured_input(request: Request):
 
 @router.post("/input-detect/start")
 async def start_click_to_map_detection(request: Request):
-    global _input_detection_service, _click_to_map_latest_input
-    drive_root: Path = request.app.state.drive_root
+    global _click_to_map_latest_input
 
     def capture_handler(keycode: str):
         global _click_to_map_latest_input
         with _click_to_map_lock:
             _click_to_map_latest_input = {"captured_key": keycode, "source": detect_input_mode(keycode), "timestamp": time.time()}
 
-    with _input_detection_lock:
-        if not _input_detection_service:
-            _input_detection_service = InputDetectionService(board_type="generic", drive_root=drive_root)
-        _input_detection_service.set_learn_mode(True)
-        _input_detection_service.register_raw_handler(capture_handler)
-        _input_detection_service.start_listening()
+    service = get_input_detection_service(request)
+    service.set_learn_mode(True)
+    service.register_raw_handler(capture_handler)
+    service.start_listening()
 
     with _click_to_map_lock:
         _click_to_map_latest_input = None
@@ -1521,9 +1514,9 @@ async def start_click_to_map_detection(request: Request):
 @router.post("/input-detect/stop")
 async def stop_click_to_map_detection(request: Request):
     global _click_to_map_latest_input
-    with _input_detection_lock:
-        if _input_detection_service:
-            _input_detection_service.set_learn_mode(False)
+    service = get_input_detection_service(request)
+    if service:
+        service.set_learn_mode(False)
     with _click_to_map_lock:
         _click_to_map_latest_input = None
     return {"status": "stopped", "message": "Input detection stopped"}

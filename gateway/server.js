@@ -187,7 +187,11 @@ async function createServer() {
     app.use('/api/cabinet', cabinetRoutes);
     app.use('/api/dewey/search', deweySearchRoutes);
 
-    const launchboxImages = 'A:/LaunchBox/Images';
+    const launchboxImages = path.join(
+      process.env.AA_DRIVE_ROOT || 'A:\\',
+      'LaunchBox',
+      'Images'
+    );
     if (fs.existsSync(launchboxImages)) {
       console.log('[INFO] Serving LaunchBox images at /api/launchbox/image from:', launchboxImages);
       app.use('/api/launchbox/image', express.static(launchboxImages, {

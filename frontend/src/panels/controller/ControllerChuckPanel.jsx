@@ -198,10 +198,25 @@ ArcadeButton.displayName = 'ArcadeButton';
 
 
 /** START / SELECT utility button */
-const UtilButton = memo(({ label, pinLabel }) => (
-  <div className="chuck-util-btn">
-    <div className="chuck-util-btn-face">{label}</div>
+const UtilButton = memo(({ label, pinLabel, pressed, waiting, confirmed, onClick }) => (
+  <div
+    className="chuck-util-btn"
+    style={{ position: 'relative' }}
+    onClick={onClick}
+    role="button"
+    tabIndex={0}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick?.(e);
+      }
+    }}
+  >
+    <div className={`chuck-util-btn-face chuck-btn-circle-face${pressed ? ' pressed' : ''}${waiting ? ' waiting' : ''}${confirmed ? ' confirmed' : ''}`}>{label}</div>
     <span className="chuck-util-label">{pinLabel || '—'}</span>
+    {confirmed && (
+      <div className="chuck-mapped-badge">✓ GPIO {confirmed.pin}</div>
+    )}
   </div>
 ));
 UtilButton.displayName = 'UtilButton';
@@ -223,28 +238,33 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
         : '';
 
   const getPin = useCallback((controlKey) => {
-    const entry = mapping?.[`${id}.${controlKey}`];
+    const entry = mapping?.[`${id}.${controlKey}`]
+      || (controlKey === 'select' ? mapping?.[`${id}.coin`] : null);
     return entry?.pin != null ? String(entry.pin) : null;
   }, [id, mapping]);
 
   const isPressed = useCallback((controlKey) => {
-    return pressedKeys?.has(`${id}.${controlKey}`) ?? false;
+    return (pressedKeys?.has(`${id}.${controlKey}`)
+      || (controlKey === 'select' && pressedKeys?.has(`${id}.coin`))) ?? false;
   }, [id, pressedKeys]);
 
   // Directional mapping state — null means idle
   const [mappingDir, setMappingDir] = useState(null);
   // Button mapping state — which button number is waiting for cabinet input
   const [mappingButton, setMappingButton] = useState(null);
+  // Utility mapping state — which utility control is waiting for cabinet input
+  const [mappingUtility, setMappingUtility] = useState(null);
 
   // Confirmation state — set briefly after a physical press is received
   const [confirmedButton, setConfirmedButton] = useState(null); // { num, pin }
   const [confirmedDir, setConfirmedDir] = useState(null); // { dir, pin }
+  const [confirmedUtility, setConfirmedUtility] = useState(null); // { key, pin }
 
   // ── Listen for incoming hardware signal ──────────────────────────
   // When this card is in a waiting state and latestInput arrives,
   // fire the confirmation animation and clear the waiting state.
   useEffect(() => {
-    if (!latestInput || (!mappingButton && !mappingDir)) return;
+    if (!latestInput || (mappingButton === null && mappingDir === null && mappingUtility === null)) return;
 
     const pin = latestInput.pin ?? latestInput.key ?? '?';
 
@@ -262,12 +282,21 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
       const t = setTimeout(() => setConfirmedDir(null), 1800);
       return () => clearTimeout(t);
     }
-  }, [id, latestInput, mappingButton, mappingDir, onMapped]);
+    if (mappingUtility !== null) {
+      setConfirmedUtility({ key: mappingUtility, pin });
+      onMapped?.(`${id}.${mappingUtility}`, pin);
+      setMappingUtility(null);
+      const t = setTimeout(() => setConfirmedUtility(null), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [id, latestInput, mappingButton, mappingDir, mappingUtility, onMapped]);
 
   const handleDirClick = useCallback((dir) => {
     setMappingDir((prev) => (prev === dir ? null : dir));
     setMappingButton(null);
+    setMappingUtility(null);
     setConfirmedButton(null);
+    setConfirmedUtility(null);
     onFocus?.(id, cardRef.current?.getBoundingClientRect());
   }, [id, onFocus]);
 
@@ -275,7 +304,20 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
     e.stopPropagation();
     setMappingButton((prev) => (prev === num ? null : num));
     setMappingDir(null);
+    setMappingUtility(null);
     setConfirmedDir(null);
+    setConfirmedUtility(null);
+    onFocus?.(id, cardRef.current?.getBoundingClientRect());
+  }, [id, onFocus]);
+
+  const handleMapUtility = useCallback((controlKey, e) => {
+    e.stopPropagation();
+    setMappingUtility((prev) => (prev === controlKey ? null : controlKey));
+    setMappingButton(null);
+    setMappingDir(null);
+    setConfirmedButton(null);
+    setConfirmedDir(null);
+    setConfirmedUtility(null);
     onFocus?.(id, cardRef.current?.getBoundingClientRect());
   }, [id, onFocus]);
 
@@ -295,9 +337,10 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
         if (e.animationName === 'return-to-grid') onReturnEnd?.();
       }}
       onClick={() => {
-        if (mappingDir || mappingButton) {
+        if (mappingDir || mappingButton || mappingUtility) {
           setMappingDir(null);
           setMappingButton(null);
+          setMappingUtility(null);
           return;
         }
         onFocus?.(isFocused ? null : id, isFocused ? null : cardRef.current?.getBoundingClientRect());
@@ -347,8 +390,22 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
 
           {/* START / SELECT */}
           <div className="chuck-utility-row">
-            <UtilButton label="SEL" pinLabel={getPin('coin')} />
-            <UtilButton label="START" pinLabel={getPin('start')} />
+            <UtilButton
+              label="SEL"
+              pinLabel={getPin('select')}
+              pressed={isPressed('select')}
+              waiting={mappingUtility === 'select'}
+              confirmed={confirmedUtility?.key === 'select' ? confirmedUtility : null}
+              onClick={(e) => handleMapUtility('select', e)}
+            />
+            <UtilButton
+              label="START"
+              pinLabel={getPin('start')}
+              pressed={isPressed('start')}
+              waiting={mappingUtility === 'start'}
+              confirmed={confirmedUtility?.key === 'start' ? confirmedUtility : null}
+              onClick={(e) => handleMapUtility('start', e)}
+            />
           </div>
         </div>
       </div>
