@@ -9,11 +9,13 @@ Mounted at: /api/local/controller  (same prefix ÃƒÆ’Ã†â€™Ãƒâ€�
 
 import json
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -147,9 +149,51 @@ class InputDetectionRequest(BaseModel):
 
 
 class WizardCapture(BaseModel):
-    control_key: str = Field(..., description="Mapping key, e.g., p1.button1")
-    pin: int = Field(..., ge=0)
+    session_id: Optional[str] = Field(default=None, description="Wizard session identifier")
+    button_name: Optional[str] = Field(default=None, description="Target control key, e.g. p1.button1")
+    input_event: Optional[Dict[str, Any]] = Field(default=None, description="Serialized physical input event")
+    rollback: bool = Field(default=False, description="Undo the most recent wizard capture")
+    skip: bool = Field(default=False, description="Mark the current control as intentionally skipped")
+    control_key: Optional[str] = Field(default=None, description="Legacy mapping key, e.g., p1.button1")
+    pin: Optional[int] = Field(default=None, ge=0)
     control_type: Optional[str] = Field(default=None)
+
+
+class WizardStartRequest(BaseModel):
+    player_mode: str = Field(default="4p", description="Visual layout mode: 2p or 4p")
+
+
+class WizardCommitRequest(BaseModel):
+    session_id: Optional[str] = Field(default=None, description="Wizard session identifier")
+
+
+def build_visual_wizard_sequence(player_mode: str = "4p") -> List[str]:
+    """Match the visual overlay layout: P1/P2 are 8-button, P3/P4 are 4-button."""
+    normalized = (player_mode or "4p").strip().lower()
+    sequence: List[str] = []
+
+    def _extend_player(player_num: int, button_count: int) -> None:
+        prefix = f"p{player_num}"
+        sequence.extend([
+            f"{prefix}.up",
+            f"{prefix}.down",
+            f"{prefix}.left",
+            f"{prefix}.right",
+        ])
+        for button_num in range(1, button_count + 1):
+            sequence.append(f"{prefix}.button{button_num}")
+        sequence.extend([f"{prefix}.start", f"{prefix}.coin"])
+
+    if normalized == "2p":
+        _extend_player(1, 8)
+        _extend_player(2, 8)
+        return sequence
+
+    _extend_player(3, 4)
+    _extend_player(4, 4)
+    _extend_player(1, 8)
+    _extend_player(2, 8)
+    return sequence
 
 
 class MappingUpdate(BaseModel):
@@ -1063,51 +1107,171 @@ async def reset_encoder_state(request: Request):
 # Wiring Wizard
 # ============================================================================
 
+def _resolve_wizard_session_id(request: Request, session_id: Optional[str] = None) -> str:
+    return (session_id or wizard_session_key(request)).strip()
+
+
+def _get_wizard_state(request: Request, session_id: Optional[str] = None) -> Dict[str, Any]:
+    resolved = _resolve_wizard_session_id(request, session_id)
+    state = _wizard_states.get(resolved)
+    if not state:
+        raise HTTPException(status_code=404, detail="Wizard not started")
+    return state
+
+
+def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    os.replace(temp_path, path)
+
+
+def _wizard_capture_entry(button_name: str, input_event: Dict[str, Any], control_type: Optional[str] = None) -> Dict[str, Any]:
+    pin = input_event.get("pin")
+    if pin is None:
+        raise HTTPException(status_code=400, detail="input_event.pin is required")
+
+    mapping_type = control_type or default_control_type(button_name)
+    return {
+        "pin": int(pin),
+        "type": mapping_type,
+        "keycode": input_event.get("keycode"),
+        "source_id": input_event.get("source_id"),
+        "captured_at": datetime.utcnow().isoformat(),
+    }
+
 @router.post("/wizard/start")
-async def start_wiring_wizard(request: Request):
+async def start_wiring_wizard(
+    request: Request,
+    payload: WizardStartRequest = WizardStartRequest(),
+):
     require_scope(request, "state")
-    session_key = wizard_session_key(request)
     drive_root: Path = request.app.state.drive_root
     existing_identity = player_identity.load_bindings(drive_root)
-    _wizard_states[session_key] = {
-        "captures": {}, "sequence": list(DEFAULT_WIZARD_SEQUENCE),
+    session_id = str(uuid4())
+    sequence = build_visual_wizard_sequence(payload.player_mode)
+
+    _wizard_states[session_id] = {
+        "session_id": session_id,
+        "player_mode": payload.player_mode,
+        "captures": {},
+        "capture_order": [],
+        "sequence": sequence,
         "started_at": datetime.utcnow().isoformat(),
         "identity": existing_identity.get("bindings", {}),
         "identity_status": existing_identity.get("status", "unbound"),
         "identity_pending": None,
     }
-    return {"status": "started", "next": DEFAULT_WIZARD_SEQUENCE[0],
-            "identity_status": existing_identity.get("status", "unbound")}
+    return {
+        "status": "started",
+        "session_id": session_id,
+        "buttons": sequence,
+        "next_button": sequence[0] if sequence else None,
+        "next": sequence[0] if sequence else None,
+        "identity_status": existing_identity.get("status", "unbound"),
+        "progress": 0,
+        "total": len(sequence),
+    }
 
 
 @router.post("/wizard/next-step")
-async def wizard_next_step(request: Request):
+async def wizard_next_step(request: Request, payload: WizardCommitRequest = WizardCommitRequest()):
     require_scope(request, "state")
-    state = _wizard_states.get(wizard_session_key(request))
-    if not state:
-        raise HTTPException(status_code=404, detail="Wizard not started")
-    return {"next": get_next_step(state)}
+    state = _get_wizard_state(request, payload.session_id)
+    next_button = get_next_step(state)
+    return {
+        "session_id": state.get("session_id") or _resolve_wizard_session_id(request, payload.session_id),
+        "next": next_button,
+        "next_button": next_button,
+        "progress": len(state.get("captures", {})),
+        "total": len(state.get("sequence", [])),
+    }
 
 
 @router.post("/wizard/capture")
 async def wizard_capture(request: Request, capture: WizardCapture):
     require_scope(request, "state")
-    session_key = wizard_session_key(request)
-    state = _wizard_states.setdefault(session_key,
-        {"captures": {}, "sequence": list(DEFAULT_WIZARD_SEQUENCE), "started_at": datetime.utcnow().isoformat()})
-    if capture.control_key not in state["sequence"]:
+    session_id = _resolve_wizard_session_id(request, capture.session_id)
+    state = _get_wizard_state(request, session_id)
+
+    if capture.rollback:
+        history = state.get("capture_order", [])
+        if not history:
+            return {
+                "status": "idle",
+                "session_id": session_id,
+                "next_button": get_next_step(state),
+                "progress": len(state.get("captures", {})),
+                "total": len(state.get("sequence", [])),
+            }
+        rolled_back = history.pop()
+        state.get("captures", {}).pop(rolled_back, None)
+        return {
+            "status": "rolled_back",
+            "session_id": session_id,
+            "button_name": rolled_back,
+            "next_button": rolled_back,
+            "progress": len(state.get("captures", {})),
+            "total": len(state.get("sequence", [])),
+        }
+
+    button_name = (capture.button_name or capture.control_key or "").strip()
+    if not button_name:
+        raise HTTPException(status_code=400, detail="button_name is required")
+    if button_name not in state["sequence"]:
         raise HTTPException(status_code=400, detail="Control not part of wizard sequence")
-    state["captures"][capture.control_key] = {
-        "pin": capture.pin, "type": capture.control_type or default_control_type(capture.control_key)}
-    return {"status": "recorded", "control": capture.control_key, "next": get_next_step(state)}
+
+    if capture.skip:
+        entry = {
+            "skipped": True,
+            "captured_at": datetime.utcnow().isoformat(),
+        }
+    elif capture.input_event:
+        entry = _wizard_capture_entry(button_name, capture.input_event, capture.control_type)
+    else:
+        if capture.pin is None:
+            raise HTTPException(status_code=400, detail="input_event or pin is required")
+        entry = {
+            "pin": int(capture.pin),
+            "type": capture.control_type or default_control_type(button_name),
+            "captured_at": datetime.utcnow().isoformat(),
+        }
+
+    state["captures"][button_name] = entry
+    history = state.setdefault("capture_order", [])
+    if button_name in history:
+        history.remove(button_name)
+    history.append(button_name)
+
+    next_button = get_next_step(state)
+    if next_button is None:
+        return {
+            "status": "complete",
+            "session_id": session_id,
+            "button_name": button_name,
+            "captures": state.get("captures", {}),
+            "progress": len(state.get("captures", {})),
+            "total": len(state.get("sequence", [])),
+        }
+
+    return {
+        "status": "captured",
+        "session_id": session_id,
+        "button_name": button_name,
+        "next_button": next_button,
+        "next": next_button,
+        "progress": len(state.get("captures", {})),
+        "total": len(state.get("sequence", [])),
+    }
 
 
 @router.post("/wizard/preview")
-async def wizard_preview(request: Request):
+async def wizard_preview(request: Request, payload: WizardCommitRequest = WizardCommitRequest()):
     """Preview wiring wizard captures before applying."""
     require_scope(request, "state")
-    state = _wizard_states.get(wizard_session_key(request))
-    if not state or not state["captures"]:
+    state = _get_wizard_state(request, payload.session_id)
+    if not state["captures"]:
         return {"status": "empty"}
 
     drive_root: Path = request.app.state.drive_root
@@ -1129,17 +1293,27 @@ async def wizard_preview(request: Request):
             "old": old if old else None,
             "action": "update" if old else "add",
         })
-    return {"status": "preview", "changes": changes, "total": len(changes)}
+    return {
+        "status": "preview",
+        "session_id": state.get("session_id") or _resolve_wizard_session_id(request, payload.session_id),
+        "changes": changes,
+        "total": len(changes),
+    }
 
 
+@router.post("/wizard/commit")
 @router.post("/wizard/apply")
-async def wizard_apply(request: Request, background_tasks: BackgroundTasks):
+async def wizard_apply(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    payload: WizardCommitRequest = WizardCommitRequest(),
+):
     """Apply wiring wizard captures to controls.json."""
     require_scope(request, "config")
     ensure_writes_allowed(request)
-    session_key = wizard_session_key(request)
-    state = _wizard_states.get(session_key)
-    if not state or not state["captures"]:
+    session_id = _resolve_wizard_session_id(request, payload.session_id)
+    state = _get_wizard_state(request, session_id)
+    if not state["captures"]:
         raise HTTPException(status_code=400, detail="No captures to apply")
 
     drive_root: Path = request.app.state.drive_root
@@ -1157,15 +1331,15 @@ async def wizard_apply(request: Request, background_tasks: BackgroundTasks):
         data["mappings"] = {}
 
     for key, capture in state["captures"].items():
+        if capture.get("skipped"):
+            continue
         data["mappings"][key] = capture
 
     data["last_modified"] = datetime.now().isoformat()
     data["modified_by"] = request.headers.get("x-device-id", "wiring_wizard")
 
     try:
-        mapping_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(mapping_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        _write_json_atomic(mapping_file, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save: {exc}")
 
@@ -1180,6 +1354,10 @@ async def wizard_apply(request: Request, background_tasks: BackgroundTasks):
 
     # Trigger cascade if auto
     cascade_preference = get_cascade_preference(drive_root)
+    cascade_result: Dict[str, Any] = {
+        "preference": cascade_preference,
+        "triggered": False,
+    }
     if cascade_preference == "auto":
         requested_by = request.headers.get("x-device-id", "wiring_wizard")
         backup_on_write = getattr(request.app.state, "backup_on_write", False)
@@ -1187,15 +1365,34 @@ async def wizard_apply(request: Request, background_tasks: BackgroundTasks):
             metadata={"source": "wiring_wizard"}, backup=backup_on_write)
         background_tasks.add_task(run_cascade_job, drive_root,
             request.app.state.manifest, cascade_job["job_id"], backup=backup_on_write)
+        cascade_result = {
+            "preference": cascade_preference,
+            "triggered": True,
+            "job_id": cascade_job.get("job_id"),
+        }
 
     applied_count = len(state.get("captures", {}))
-    state["captures"] = {}
-    response = {"status": "applied", "controls_mapped": applied_count,
+    _wizard_states.pop(session_id, None)
+    response = {"status": "committed", "controls_mapped": applied_count,
             "backup_path": str(backup_path) if backup_path else None,
-            "cascade_preference": cascade_preference}
+            "cascade_preference": cascade_preference,
+            "cascade_result": cascade_result,
+            "file": str(mapping_file)}
     if gamepad_sync_result:
         response["gamepad_preferences_sync"] = gamepad_sync_result
     return response
+
+
+@router.post("/wizard/cancel")
+async def wizard_cancel(request: Request, payload: WizardCommitRequest = WizardCommitRequest()):
+    require_scope(request, "state")
+    session_id = _resolve_wizard_session_id(request, payload.session_id)
+    _wizard_states.pop(session_id, None)
+    return {
+        "status": "cancelled",
+        "session_id": session_id,
+        "message": "Wizard cancelled. No changes were written.",
+    }
 
 
 # ============================================================================

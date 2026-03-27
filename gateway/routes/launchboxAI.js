@@ -963,36 +963,9 @@ async function callClaudeAPI(systemPrompt, messages) {
   }
 
   if (supabaseConfigured) {
-    // Try Anthropic proxy first
-    try {
-      const proxyUrl = `${process.env.SUPABASE_URL}/functions/v1/anthropic-proxy`;
-      const response = await fetchWithRetry(proxyUrl, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-        },
-        body: JSON.stringify({
-          model: modelToUse,
-          max_tokens: 512,
-          system: systemPrompt,
-          tools: launchboxToolDefinitions,
-          messages: messages
-        })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`[LaunchBox AI] Anthropic proxy failed (${response.status}), trying Gemini fallback...`);
-        // Fall through to Gemini
-        return await callGeminiAPI(systemPrompt, messages);
-      }
-      const data = await response.json();
-      // Add telemetry metadata
-      return { ...data, provider: 'anthropic', model: modelToUse };
-    } catch (anthropicError) {
-      console.warn('[LaunchBox AI] Anthropic proxy error, trying Gemini fallback:', anthropicError.message);
-      return await callGeminiAPI(systemPrompt, messages);
-    }
+    // Anthropic proxy has been retired — use Gemini proxy as the sole fallback
+    console.log('[LaunchBox AI] Claude fallback: routing through Gemini proxy (anthropic-proxy retired)');
+    return await callGeminiAPI(systemPrompt, messages);
   }
 
   // Neither direct key nor Supabase proxy configured

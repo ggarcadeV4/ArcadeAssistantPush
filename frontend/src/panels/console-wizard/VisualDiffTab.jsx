@@ -10,6 +10,7 @@ export default function VisualDiffTab({
     previewLoading,
     emulatorMap,
     handlePreviewAll,
+    onApply,
     applyInFlight,
 }) {
     const [expandedId, setExpandedId] = useState(null)
@@ -159,7 +160,7 @@ export default function VisualDiffTab({
                 {totalStats.additions + totalStats.removals > 0 && (
                     <button
                         className="wiz-btn wiz-btn--primary"
-                        onClick={handlePreviewAll}
+                        onClick={onApply}
                         disabled={applyInFlight}
                     >
                         <span className="material-symbols-outlined">bolt</span>

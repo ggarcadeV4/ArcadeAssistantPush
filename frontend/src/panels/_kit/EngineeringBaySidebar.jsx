@@ -11,6 +11,7 @@ import { useDiagnosisMode } from '../../hooks/useDiagnosisMode';
 import { DiagnosisToggle } from '../controller/DiagnosisToggle';
 import { ContextChips } from '../controller/ContextChips';
 import { ExecutionCard } from '../controller/ExecutionCard';
+import { useProfileContext } from '../../context/ProfileContext';
 
 const MAX_VISIBLE_DIAG_CHIPS = 3;
 
@@ -85,6 +86,7 @@ const MessageBubble = memo(({ msg, persona }) => {
 MessageBubble.displayName = 'EBMessageBubble';
 
 export function EngineeringBaySidebar({ persona, contextAssembler, className = '', isOpen, onClose, onToggle }) {
+    const { profile } = useProfileContext();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -145,6 +147,10 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, [messages, loading, isSpeaking]);
 
+    const activeProfileName = (profile?.displayName || '').trim() || 'Guest';
+    const activeProfileId = (profile?.userId || '').trim() || 'guest';
+    const activePlayerPosition = profile?.preferences?.playerPosition || null;
+
     const sendMessage = useCallback(async (text) => {
         const trimmed = (text ?? '').trim();
         if (!trimmed || loading || executeLoading) return;
@@ -173,6 +179,21 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                     extraContext = null;
                 }
             }
+
+            const profileContext = {
+                activeProfile: {
+                    displayName: activeProfileName,
+                    userId: activeProfileId,
+                    initials: profile?.initials || '',
+                    consent: !!profile?.consent,
+                    playerPosition: activePlayerPosition,
+                    preferences: profile?.preferences || {},
+                }
+            };
+
+            extraContext = extraContext
+                ? { ...extraContext, ...profileContext }
+                : profileContext;
 
             const { reply } = await engineeringBayChat({
                 persona: persona.id,
@@ -214,7 +235,18 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
             setIsSpeaking(false);
             addMessage(`Error: ${err.message ?? `${persona.name} is unreachable.`}`, 'system');
         }
-    }, [loading, executeLoading, diag, addMessage, persona, contextAssembler]);
+    }, [
+        loading,
+        executeLoading,
+        diag,
+        addMessage,
+        persona,
+        contextAssembler,
+        activeProfileName,
+        activeProfileId,
+        activePlayerPosition,
+        profile
+    ]);
 
     useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
@@ -428,6 +460,11 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                         title="Close chat"
                     >X</button>
                 )}
+            </div>
+
+            <div className="eb-mode-row">
+                <span className="eb-mode-row__pill">Profile: {activeProfileName}</span>
+                <span className="eb-mode-row__status">{activePlayerPosition || activeProfileId}</span>
             </div>
 
             <div className="eb-mode-row">

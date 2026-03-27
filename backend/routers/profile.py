@@ -27,6 +27,7 @@ class ProfilePreferences(BaseModel):
     voiceAssignments: Dict[str, str] = Field(default_factory=dict)
     vocabulary: Optional[str] = Field(default=None, max_length=5000)
     players: List[SessionPlayer] = Field(default_factory=list)
+    playerPosition: Optional[str] = Field(default=None, max_length=4)
 
 
 class UserProfile(BaseModel):
@@ -35,6 +36,7 @@ class UserProfile(BaseModel):
     avatar: Optional[str] = Field(None, max_length=256)
     favoriteColor: Optional[str] = Field(None, max_length=32)
     userId: Optional[str] = Field(None, max_length=64)
+    consent: Optional[bool] = None
     preferences: ProfilePreferences = Field(default_factory=ProfilePreferences)
 
 
@@ -57,6 +59,7 @@ class PrimaryProfilePayload(BaseModel):
     player_position: Optional[str] = None
     controller_assignment: Optional[str] = None
     custom_vocabulary: Optional[List[str]] = None
+    consent: Optional[bool] = None
     consent_active: Optional[bool] = None
 
 
@@ -300,6 +303,7 @@ async def update_primary_profile(request: Request, payload: PrimaryProfilePayloa
             "player_position": payload.player_position,
             "controller_assignment": payload.controller_assignment,
             "custom_vocabulary": payload.custom_vocabulary,
+            "consent": payload.consent,
             "consent_active": payload.consent_active,
             "last_updated": datetime.now().isoformat(),
         }
@@ -337,6 +341,7 @@ async def update_primary_profile(request: Request, payload: PrimaryProfilePayloa
                     "user_id": payload.user_id,
                     "display_name": payload.display_name,
                     "initials": payload.initials,
+                    "profile": profile_obj,
                     "source": "profile_router"
                 },
                 timeout=2.0

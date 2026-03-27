@@ -27,7 +27,7 @@ from backend.services.supabase_client import send_telemetry as sb_send_telemetry
 import platform
 
 from backend.models.game import Game, LaunchResponse
-from backend.constants.a_drive_paths import LaunchBoxPaths, EmulatorPaths
+from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.services.launchbox_plugin_client import get_plugin_client, LaunchBoxPluginError
 import threading
 from backend.services.launcher_registry import REGISTERED as ADAPTERS
@@ -42,7 +42,7 @@ import socket
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Launcher Agent client â€” sends launch commands to arcade_launcher_agent.py
+# Launcher Agent client — sends launch commands to arcade_launcher_agent.py
 # which runs in a clean interactive session (not under run-backend.bat's
 # redirected stdout chain).  Required for OpenGL emulators like Supermodel.
 # ---------------------------------------------------------------------------
@@ -604,7 +604,6 @@ class GameLauncher:
                     method_used=method_name,
                     command=result.get("command", ""),
                     message=f"Launched {game.title} via {method_name}",
-                    pid=result.get("pid"),  # Phase 0F: propagate PID for lifecycle tracking
                 )
             logger.warning(
                 "%s returned non-success for %s: %s",
@@ -621,103 +620,6 @@ class GameLauncher:
                 pass
 
         return None
-
-    @staticmethod
-    def _aa_drive_root() -> Path:
-        """Resolve the cabinet drive root with AA_DRIVE_ROOT override support."""
-        return Path(os.getenv("AA_DRIVE_ROOT") or str(LaunchBoxPaths.AA_DRIVE_ROOT))
-
-    @staticmethod
-    def _canonical_platform_name(platform: str) -> str:
-        """Map known LaunchBox aliases onto the platform names the launcher expects."""
-        platform_key = normalize_key(platform or "")
-        aliases = {
-            "sony playstation": "Sony Playstation",
-            "playstation 1": "Sony Playstation",
-            "ps1": "Sony Playstation",
-            "psx": "Sony Playstation",
-            "nintendo ds": "Nintendo DS",
-            "singe2": "SINGE2",
-        }
-        return aliases.get(platform_key, platform)
-
-    @staticmethod
-    def _clone_game_with_platform(game: Game, platform_name: str) -> Game:
-        """Create a shallow game copy with a canonicalized platform name."""
-        if platform_name == getattr(game, "platform", None):
-            return game
-        try:
-            return game.model_copy(update={"platform": platform_name})
-        except Exception:
-            payload = game.dict() if hasattr(game, "dict") else dict(game)
-            payload["platform"] = platform_name
-            return Game(**payload)
-
-    @staticmethod
-    def _resolve_launchbox_path(path_value: str) -> Path:
-        """Resolve LaunchBox-relative paths against the current cabinet root."""
-        path_str = str(path_value or "").replace("\\", "/")
-        path_obj = Path(path_str)
-        if path_str.startswith(".."):
-            return (LaunchBoxPaths.LAUNCHBOX_ROOT / path_str).resolve()
-        if not path_obj.is_absolute():
-            return (LaunchBoxPaths.LAUNCHBOX_ROOT / path_str).resolve()
-        return path_obj
-
-    @staticmethod
-    def _extract_ahk_command_field(line: str) -> Optional[str]:
-        """Extract the AHK Run/RunWait command field without splitting quoted commas."""
-        match = re.match(r"^(?:Run|RunWait)\s*,\s*", line, re.IGNORECASE)
-        if not match:
-            return None
-
-        remainder = line[match.end():]
-        in_quotes = False
-        for idx, char in enumerate(remainder):
-            if char == '"':
-                in_quotes = not in_quotes
-            elif char == "," and not in_quotes:
-                return remainder[:idx].strip()
-        return remainder.strip()
-
-    @classmethod
-    def _extract_singe2_command(cls, ahk_path: Path) -> Tuple[Path, List[str], Path]:
-        """Parse the first non-Sinden Run line from a SINGE2 AHK wrapper."""
-        content = ahk_path.read_text(encoding="utf-8-sig")
-        for raw_line in content.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-            lower = line.lower()
-            if not (lower.startswith("run,") or lower.startswith("runwait,")):
-                continue
-            if "lightgun.exe" in lower:
-                continue
-
-            command_text = cls._extract_ahk_command_field(line)
-            if not command_text:
-                continue
-
-            try:
-                tokens = shlex.split(command_text, posix=False)
-            except Exception:
-                tokens = command_text.split()
-            if not tokens:
-                continue
-
-            run_target = tokens[0].strip().strip('"')
-            args = [token.strip() for token in tokens[1:]]
-            exe_path = Path(run_target.replace("\\", "/"))
-            if not exe_path.is_absolute():
-                exe_path = (ahk_path.parent / exe_path).resolve()
-            if not exe_path.exists() and not exe_path.suffix:
-                exe_candidate = exe_path.with_suffix(".exe")
-                if exe_candidate.exists():
-                    exe_path = exe_candidate
-            if exe_path.exists():
-                return exe_path, args, ahk_path.parent
-
-        raise ValueError(f"No executable Run command found in SINGE2 script: {ahk_path}")
 
     def _launch_via_plugin(self, game: Game) -> Dict[str, Any]:
         """
@@ -776,20 +678,10 @@ class GameLauncher:
             raise ValueError("No emulator config loaded")
 
         # Get emulator and mapping for this game's platform
-        launch_game = self._clone_game_with_platform(
-            game, self._canonical_platform_name(getattr(game, "platform", "") or "")
-        )
-        if launch_game.platform != game.platform:
-            logger.info(
-                "[DetectedEmu] Platform alias resolved: '%s' -> '%s'",
-                game.platform,
-                launch_game.platform,
-            )
-
-        result = self.emulator_config.get_emulator_for_platform(launch_game.platform)
+        result = self.emulator_config.get_emulator_for_platform(game.platform)
 
         if not result:
-            raise ValueError(f"No emulator configured for platform: {launch_game.platform}")
+            raise ValueError(f"No emulator configured for platform: {game.platform}")
 
         emulator, mapping = result
 
@@ -803,7 +695,7 @@ class GameLauncher:
 
         if is_pcsx2:
             # Resolve and extract if needed then run with cleanup
-            rom_str = self._get_rom_path(launch_game)
+            rom_str = self._get_rom_path(game)
             src = Path(rom_str)
             actual, how = resolve_rom_path(src)
             if not actual:
@@ -856,7 +748,7 @@ class GameLauncher:
             return {"success": True, "command": " ".join([str(emulator_exe), *args])}
 
         # Default path for other emulators
-        command = self._build_emulator_command(launch_game, emulator, mapping)
+        command = self._build_emulator_command(game, emulator, mapping)
         self._execute_emulator(command, emulator)
         return {"success": True, "command": " ".join(command)}
 
@@ -965,13 +857,13 @@ class GameLauncher:
         # Launch with proper error handling
         try:
             # OpenGL/DirectX emulators (e.g. Supermodel) need full process
-            # detachment via cmd.exe /c start â€” direct subprocess.Popen
+            # detachment via cmd.exe /c start — direct subprocess.Popen
             # prevents SDL/OpenGL from hooking into the Windows DWM + GPU.
             emu_title = getattr(emulator, 'title', '') or ''
             needs_detach = 'supermodel' in emu_title.lower() or 'supermodel' in str(command[0]).lower()
 
             if needs_detach:
-                # Route through the Launcher Agent â€” a separate process running
+                # Route through the Launcher Agent — a separate process running
                 # in a clean interactive session without poisoned console handles.
                 # Required because run-backend.bat redirects stdout/stderr to a
                 # log file, which taints the entire process tree and prevents
@@ -1085,7 +977,7 @@ class GameLauncher:
             "command": " ".join(command),
         }
 
-    # â”€â”€ Stderr Trap: 1.5s Watchdog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Stderr Trap: 1.5s Watchdog ──────────────────────────────────────
 
     @staticmethod
     def _launch_with_stderr_trap(
@@ -1097,13 +989,13 @@ class GameLauncher:
 
         Wraps ``subprocess.Popen`` with ``stdout=PIPE, stderr=PIPE``.
         After 1.5 seconds:
-        - If the process is still running â†’ launch is healthy, release pipes.
-        - If the process exited with code 0 â†’ clean exit.
-        - If the process exited with non-zero code â†’ capture up to 4 KB stderr.
+        - If the process is still running → launch is healthy, release pipes.
+        - If the process exited with code 0 → clean exit.
+        - If the process exited with non-zero code → capture up to 4 KB stderr.
 
         Returns a ``StderrTrapResult`` dict:
             success (bool), command (str), return_code (int|None),
-            stderr (str, â‰¤4 KB), timestamp (str ISO 8601).
+            stderr (str, ≤4 KB), timestamp (str ISO 8601).
         """
         from datetime import datetime, timezone
 
@@ -1137,9 +1029,9 @@ class GameLauncher:
         try:
             proc.wait(timeout=WATCHDOG_SECONDS)
         except subprocess.TimeoutExpired:
-            # Process still running after watchdog window â†’ healthy launch
+            # Process still running after watchdog window → healthy launch
             logger.info(
-                "[StderrTrap] Process PID %d still running after %.1fs â€” launch OK",
+                "[StderrTrap] Process PID %d still running after %.1fs — launch OK",
                 proc.pid, WATCHDOG_SECONDS,
             )
             # Release pipes in a background thread so they don't block
@@ -1171,7 +1063,7 @@ class GameLauncher:
                 "timestamp": ts,
             }
 
-        # Non-zero exit â€” capture stderr (bounded at 4 KB)
+        # Non-zero exit — capture stderr (bounded at 4 KB)
         stderr_output = ""
         try:
             raw = proc.stderr.read(MAX_STDERR_BYTES) if proc.stderr else b""
@@ -1259,57 +1151,13 @@ class GameLauncher:
                 logger.debug(f"[GENRE] Genre profile lookup skipped: {e}")
             # -------------------------------------------------------------
             
-            # Gun Build routing: detect raw gun platform names before normalize_key() strips "gun games"
-            raw_platform = (getattr(game, "platform", "") or "").strip().lower()
-            is_gun_platform = "gun" in raw_platform and "games" in raw_platform
-            drive_root = self._aa_drive_root()
-            launch_game = self._clone_game_with_platform(
-                game, self._canonical_platform_name(getattr(game, "platform", "") or "")
-            )
-            if launch_game.platform != game.platform:
-                logger.info(
-                    "[DIRECT] Platform alias resolved: '%s' -> '%s'",
-                    game.platform,
-                    launch_game.platform,
-                )
-            gun_exe_override: Optional[Path] = None
-            gun_core_override: Optional[str] = None
-            GUN_PLATFORM_MAP = {
-                'nes gun games':            {'emulator': 'retroarch_gun',  'core': 'mesen'},
-                'master system gun games':  {'emulator': 'retroarch_gun',  'core': 'genesis_plus_gx'},
-                'super nintendo gun games': {'emulator': 'snes9x_gun',     'core': None},
-                'snes gun games':            {'emulator': 'snes9x_gun',     'core': None},
-                'wii gun games':            {'emulator': 'dolphin_gun',    'core': None},
-                'playstation 2 gun games':  {'emulator': 'pcsx2_gun',      'core': None},
-                'ps2 gun games':            {'emulator': 'pcsx2_gun',      'core': None},
-                'teknoparrot gun games':    {'emulator': 'teknoparrot_gun','core': None},
-                'pc gun games':             {'emulator': 'retroarch_gun',  'core': None},
-                'naomi gun games':          {'emulator': 'retroarch_gun',  'core': None},
-                'atomiswave gun games':     {'emulator': 'retroarch_gun',  'core': None},
-                'dreamcast gun games':      {'emulator': 'retroarch_gun',  'core': None},
-                'ps3 gun games':            {'emulator': 'rpcs3_gun',      'core': None},
-                'saturn gun games':         {'emulator': 'retroarch_gun',  'core': None},
-                'model 2 gun games':        {'emulator': 'model2_gun',     'core': None},
-                'model 3 gun games':        {'emulator': 'supermodel_gun', 'core': None},
-                'pcsx2 gun games':          {'emulator': 'pcsx2_gun',      'core': None},
-            }
-            if is_gun_platform:
-                gun_cfg = GUN_PLATFORM_MAP.get(raw_platform)
-                if gun_cfg:
-                    gun_exe_override = getattr(EmulatorPaths, str(gun_cfg["emulator"]))()
-                    gun_core_override = gun_cfg.get("core")
-                    logger.info("[Launcher] Gun platform detected: %s -> %s", raw_platform, gun_exe_override)
-                else:
-                    gun_exe_override = EmulatorPaths.retroarch_gun()
-                    logger.warning("[Launcher] Gun platform fallback: %s -> %s", raw_platform, gun_exe_override)
-
             # MAME path for Arcade (including gun games) plus legacy Daphne titles that still point to MAME ROM zips
             app_path_str = str(getattr(game, "application_path", "") or "").lower()
             daphne_uses_mame = (
-                launch_game.platform == "Daphne"
+                game.platform == "Daphne"
                 and app_path_str.endswith((".zip", ".7z"))
             )
-            platform_key = normalize_key(getattr(launch_game, "platform", "") or "")
+            platform_key = normalize_key(getattr(game, "platform", "") or "")
             if platform_key in {"arcade", "arcade mame", "mame"} or daphne_uses_mame:
                 rom_path = self._resolve_rom_path(game)
                 command = self._build_mame_command(rom_path)
@@ -1325,11 +1173,7 @@ class GameLauncher:
                 trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
                 if trap_result["success"]:
                     logger.info(f"[DIRECT] MAME launch SUCCESS: {' '.join(win_command)}")
-                    result = {"success": True, "command": " ".join(win_command)}
-                    if trap_result.get("pid"):
-                        result["pid"] = trap_result["pid"]
-                        logger.info(f"[DIRECT] MAME PID={trap_result['pid']} available for lifecycle tracking")
-                    return result
+                    return {"success": True, "command": " ".join(win_command)}
                 else:
                     logger.warning(f"[DIRECT] MAME launch FAILED (code {trap_result['return_code']})")
                     return {
@@ -1338,118 +1182,41 @@ class GameLauncher:
                         "stderr_trap": trap_result,
                     }
 
-            if platform_key == "nintendo ds":
-                rom_path = self._resolve_launchbox_path(self._get_rom_path(launch_game))
-                if not rom_path.exists():
-                    raise FileNotFoundError(f"Nintendo DS ROM not found: {rom_path}")
-
-                ds_candidates = [
-                    (drive_root / "Emulators" / "melonDS" / "melonDS.exe", [str(rom_path)]),
-                    (drive_root / "Emulators" / "DeSmuME" / "DeSmuME.exe", [str(rom_path)]),
-                    (
-                        drive_root / "Emulators" / "RetroArch Gamepad" / "retroarch.exe",
-                        [
-                            "-L",
-                            str(drive_root / "Emulators" / "RetroArch Gamepad" / "cores" / "desmume_libretro.dll"),
-                            "-f",
-                            str(rom_path),
-                        ],
-                    ),
-                    (
-                        drive_root / "Emulators" / "RetroArch" / "retroarch.exe",
-                        [
-                            "-L",
-                            str(drive_root / "Emulators" / "RetroArch" / "cores" / "desmume_libretro.dll"),
-                            "-f",
-                            str(rom_path),
-                        ],
-                    ),
-                ]
-                for ds_exe, ds_args in ds_candidates:
-                    if not ds_exe.exists():
-                        continue
-                    if "retroarch" in ds_exe.name.lower() and not Path(ds_args[1]).exists():
-                        continue
-                    if "retroarch" in ds_exe.name.lower():
-                        logger.warning(
-                            "[DIRECT] Nintendo DS standalone emulator not installed; using RetroArch DeSmuME core fallback: %s",
-                            ds_exe,
-                        )
-                    command = [str(ds_exe), *ds_args]
-                    logger.info(
-                        "[DIRECT] Nintendo DS launch: exe=%s, rom=%s, cwd=%s",
-                        ds_exe,
-                        rom_path,
-                        ds_exe.parent,
-                    )
-                    win_command = _convert_wsl_paths_for_windows(command)
-                    wsl_cwd = str(ds_exe.parent)
-                    if dry_run_enabled():
-                        logger.info(f"[DIRECT] Nintendo DS DRY-RUN: {' '.join(win_command)}")
-                        return {"success": True, "command": " ".join(win_command), "message": "dry-run"}
-                    trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
-                    if trap_result["success"]:
-                        result = {"success": True, "command": " ".join(win_command)}
-                        if trap_result.get("pid"):
-                            result["pid"] = trap_result["pid"]
-                        return result
-                    return {
-                        "success": False,
-                        "command": " ".join(win_command),
-                        "stderr_trap": trap_result,
-                    }
-                raise FileNotFoundError(
-                    "Nintendo DS emulator not found in AA_DRIVE_ROOT Emulators tree "
-                    "(checked melonDS, DeSmuME, and RetroArch DeSmuME core fallbacks)"
-                )
-
             # Daphne/Hypseus laserdisc direct launch
             if platform_key == "daphne" and not daphne_uses_mame:
-                exe = drive_root / "Emulators" / "Hypseus" / "Hypseus Singe" / "hypseus.exe"
-                homedir = drive_root / "Roms" / "DAPHNE"
+                exe = r"A:\Emulators\Hypseus\Hypseus Singe\hypseus.exe"
+                homedir = r"A:\Roms\DAPHNE"
 
                 daphne_game_map = {
-                    "astron belt": ("astron", drive_root / "Roms" / "DAPHNE" / "framefile" / "astron.txt"),
-                    "badlands": ("badlands", drive_root / "Roms" / "DAPHNE" / "framefile" / "badlands.txt"),
-                    "bega's battle": ("bega", drive_root / "Roms" / "DAPHNE" / "framefile" / "bega.txt"),
-                    "cobra command": ("cobraab", drive_root / "Roms" / "DAPHNE" / "framefile" / "cobraab.txt"),
-                    "dragons lair": ("lair", drive_root / "Roms" / "DAPHNE" / "vldp" / "lair" / "lair.txt"),
-                    "dragon's lair hd": ("lair", drive_root / "Roms" / "DAPHNE" / "vldp" / "lair" / "lair.txt"),
-                    "dragon's lair ii hd": ("lair2", drive_root / "Roms" / "DAPHNE" / "vldp" / "lair2" / "dl2-framefile.txt"),
-                    "galaxy ranger": ("galaxy", drive_root / "Roms" / "DAPHNE" / "framefile" / "galaxy.txt"),
-                    "gp world": ("gpworld", drive_root / "Roms" / "DAPHNE" / "framefile" / "gpworld.txt"),
-                    "inter stellar": ("interstellar", drive_root / "Roms" / "DAPHNE" / "framefile" / "interstellar.txt"),
-                    "mach 3": ("mach3", drive_root / "Roms" / "DAPHNE" / "framefile" / "mach3.txt"),
-                    "road blaster": ("roadblaster", drive_root / "Roms" / "DAPHNE" / "framefile" / "roadblaster.txt"),
-                    "space ace hd": ("ace", drive_root / "Roms" / "DAPHNE" / "vldp" / "ace" / "ace.txt"),
-                    "super don quix-ote": ("sdq", drive_root / "Roms" / "DAPHNE" / "framefile" / "sdq.txt"),
-                    "thayer's quest": ("tq", drive_root / "Roms" / "DAPHNE" / "framefile" / "tq.txt"),
-                    "us vs them": ("uvt", drive_root / "Roms" / "DAPHNE" / "framefile" / "uvt.txt"),
+                    "astron belt": ("astron", r"A:\Roms\DAPHNE\framefile\astron.txt"),
+                    "badlands": ("badlands", r"A:\Roms\DAPHNE\framefile\badlands.txt"),
+                    "bega's battle": ("bega", r"A:\Roms\DAPHNE\framefile\bega.txt"),
+                    "cobra command": ("cobraab", r"A:\Roms\DAPHNE\framefile\cobraab.txt"),
+                    "dragons lair": ("lair", r"A:\Roms\DAPHNE\vldp\lair\lair.txt"),
+                    "dragon's lair hd": ("lair", r"A:\Roms\DAPHNE\vldp\lair\lair.txt"),
+                    "dragon's lair ii hd": ("lair2", r"A:\Roms\DAPHNE\vldp\lair2\dl2-framefile.txt"),
+                    "galaxy ranger": ("galaxy", r"A:\Roms\DAPHNE\framefile\galaxy.txt"),
+                    "gp world": ("gpworld", r"A:\Roms\DAPHNE\framefile\gpworld.txt"),
+                    "inter stellar": ("interstellar", r"A:\Roms\DAPHNE\framefile\interstellar.txt"),
+                    "mach 3": ("mach3", r"A:\Roms\DAPHNE\framefile\mach3.txt"),
+                    "road blaster": ("roadblaster", r"A:\Roms\DAPHNE\framefile\roadblaster.txt"),
+                    "space ace hd": ("ace", r"A:\Roms\DAPHNE\vldp\ace\ace.txt"),
+                    "super don quix-ote": ("sdq", r"A:\Roms\DAPHNE\framefile\sdq.txt"),
+                    "thayer's quest": ("tq", r"A:\Roms\DAPHNE\framefile\tq.txt"),
+                    "us vs them": ("uvt", r"A:\Roms\DAPHNE\framefile\uvt.txt"),
                 }
 
                 ahk_stem = Path(str(getattr(game, "application_path", "") or "")).stem.lower()
                 if ahk_stem not in daphne_game_map:
-                    framefile = drive_root / ".aa" / "roms" / "DAPHNE" / "framefile" / f"{ahk_stem}.txt"
-                    logger.warning(
-                        "WARNING: Daphne game '%s' not in DAPHNE_GAME_MAP - attempting best-effort launch",
-                        ahk_stem,
-                    )
-                    if not framefile.exists():
-                        logger.warning(
-                            "WARNING: Daphne best-effort framefile missing: %s",
-                            framefile,
-                        )
-                        return self._launch_via_launchbox(game)
-                    game_name = ahk_stem
-                else:
-                    game_name, framefile = daphne_game_map[ahk_stem]
+                    raise ValueError(f"No Hypseus mapping for Daphne game: {ahk_stem}")
 
+                game_name, framefile = daphne_game_map[ahk_stem]
                 command = [
-                    str(exe),
+                    exe,
                     game_name,
                     "vldp",
-                    "-homedir", str(homedir),
-                    "-framefile", str(framefile),
+                    "-homedir", homedir,
+                    "-framefile", framefile,
                     "-fullscreen",
                     "-x", "1920",
                     "-y", "1080",
@@ -1468,51 +1235,8 @@ class GameLauncher:
                 trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd, env=hypseus_env)
                 if trap_result["success"]:
                     logger.info(f"[DIRECT] Hypseus launch SUCCESS: {' '.join(win_command)}")
-                    result = {"success": True, "command": " ".join(win_command)}
-                    if trap_result.get("pid"):
-                        result["pid"] = trap_result["pid"]
-                        logger.info(f"[DIRECT] Hypseus PID={trap_result['pid']} available for lifecycle tracking")
-                    return result
+                    return {"success": True, "command": " ".join(win_command)}
                 logger.warning(f"[DIRECT] Hypseus launch FAILED (code {trap_result['return_code']})")
-                return {
-                    "success": False,
-                    "command": " ".join(win_command),
-                    "stderr_trap": trap_result,
-                }
-
-            # SINGE2 direct launch support for builds that expose a dedicated SINGE2 platform.
-            # Working-pattern titles confirmed by wrapper review:
-            # - Cabinet-side titles: Altered Carbon, Asterix, Cliffhanger
-            # - Gun Build titles: 38 Ambush Alley, Blue Thunder, Crime Patrol, Drug Wars,
-            #   Hydrosub 2021, Mad Dog McCree, Mad Dog McCree 2 The Lost Gold, Platoon,
-            #   Pops Ghostly, Sonic Fury, Space Pirates, The Last Bounty Hunter, Who Shot Johnny Rock
-            # Untested in this session: remaining SINGE2 titles and the Marbella Vice WinUAE variant.
-            if platform_key == "singe2":
-                app_path = str(getattr(launch_game, "application_path", "") or "").strip()
-                if not app_path:
-                    raise ValueError(f"No ApplicationPath configured for SINGE2 game: {launch_game.title}")
-                ahk_path = self._resolve_launchbox_path(app_path)
-                if not ahk_path.exists():
-                    raise FileNotFoundError(f"SINGE2 launcher script not found: {ahk_path}")
-                singe_exe, singe_args, singe_cwd = self._extract_singe2_command(ahk_path)
-                command = [str(singe_exe), *singe_args]
-                logger.info(
-                    "[DIRECT] SINGE2 launch: exe=%s, script=%s, cwd=%s",
-                    singe_exe,
-                    ahk_path,
-                    singe_cwd,
-                )
-                win_command = _convert_wsl_paths_for_windows(command)
-                wsl_cwd = str(singe_cwd)
-                if dry_run_enabled():
-                    logger.info(f"[DIRECT] SINGE2 DRY-RUN: {' '.join(win_command)}")
-                    return {"success": True, "command": " ".join(win_command), "message": "dry-run"}
-                trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
-                if trap_result["success"]:
-                    result = {"success": True, "command": " ".join(win_command)}
-                    if trap_result.get("pid"):
-                        result["pid"] = trap_result["pid"]
-                    return result
                 return {
                     "success": False,
                     "command": " ".join(win_command),
@@ -1527,7 +1251,7 @@ class GameLauncher:
                 adapter_name = getattr(adapter, "__name__", str(adapter)).split('.')[-1]
                 # Check if adapter can handle this game's platform FIRST
                 try:
-                    can_handle = adapter.can_handle(launch_game, manifest)
+                    can_handle = adapter.can_handle(game, manifest)
                     if not can_handle:
                         continue
                     adapters_tried.append(adapter_name)
@@ -1536,9 +1260,9 @@ class GameLauncher:
                     continue
 
                 # Adapter claims it can handle this platform - try to resolve config
-                logger.info(f"[DIRECT] Trying adapter: {adapter_name} for platform={launch_game.platform}")
+                logger.info(f"[DIRECT] Trying adapter: {adapter_name} for platform={game.platform}")
                 try:
-                    cfg = adapter.resolve(launch_game, manifest)
+                    cfg = adapter.resolve(game, manifest)
                 except Exception as e:
                     logger.warning(f"[DIRECT] Adapter {adapter_name} resolve() failed: {e}")
                     cfg = {"success": False, "message": str(e)}
@@ -1554,42 +1278,6 @@ class GameLauncher:
                     core = (cfg or {}).get("core", "N/A")
                     romfile = (cfg or {}).get("romfile", args[-1] if args else "N/A")
                     logger.info(f"[DIRECT] Adapter {adapter_name} resolved: exe={exe}, core={core}, rom={romfile}, cwd={cwd}")
-                
-                if exe and gun_exe_override:
-                    # AHK wrapper detection: if application_path is .ahk, use AutoHotkey
-                    _app_path = str(getattr(game, 'application_path', '') or '')
-                    if _app_path.startswith('..'):
-                        _app_path = str((Path(r"A:\LaunchBox") / _app_path).resolve())
-                    if _app_path.lower().endswith('.ahk') and is_gun_platform:
-                        _ahk_exe = Path(r"A:\Gun Build\Tools\Teknoparrot Auto Xinput\AutoHotkeyU32.exe")
-                        if _ahk_exe.exists():
-                            exe = str(_ahk_exe)
-                            args = [_app_path]
-                            cwd = str(_ahk_exe.parent)
-                            logger.info("[Launcher] AHK override applied for %s: %s", raw_platform, _app_path)
-                        else:
-                            logger.error("[Launcher] AutoHotkey not found for gun AHK game: %s", _app_path)
-                            exe = str(gun_exe_override)
-                            cwd = str(gun_exe_override.parent)
-                    else:
-                        exe = str(gun_exe_override)
-                        cwd = str(gun_exe_override.parent)
-                    if gun_core_override and "retroarch" in adapter_name:
-                        cores = ((manifest.get("retroarch") or {}).get("cores") or {}) if isinstance(manifest, dict) else {}
-                        core_rel = cores.get(gun_core_override)
-                        if core_rel:
-                            core_path = Path(core_rel)
-                            if not core_path.is_absolute():
-                                candidate = gun_exe_override.parent / core_rel
-                                if not candidate.exists():
-                                    candidate = gun_exe_override.parent / "cores" / core_rel
-                                core_path = candidate
-                            if len(args) >= 2 and args[0] == "-L":
-                                args[1] = str(core_path)
-                            else:
-                                args = ["-L", str(core_path), *args]
-                        else:
-                            logger.warning("[Launcher] Gun core mapping missing: %s for %s", gun_core_override, raw_platform)
 
                 # PCSX2 auto-extraction: if ROM is .zip/.7z, extract to temp and swap path
                 # NOTE: PCSX2-qt supports .gz (gzip) natively, so skip extraction for .gz files
@@ -1719,87 +1407,6 @@ class GameLauncher:
                     logger.info(f"[DIRECT] Adapter {adapter_name} launch SUCCESS: {' '.join([exe, *[str(a) for a in args]])}")
                     return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
 
-            # ----- Gun platform direct-launch fallback -----
-            # If gun_exe_override was set but no adapter resolved an exe,
-            # build the command directly from the gun emulator + ROM path.
-            # Also handles .ahk wrapper scripts via AutoHotkey.
-            if gun_exe_override:
-                app_path = str(getattr(game, 'application_path', '') or '')
-                # Resolve relative paths against LaunchBox root
-                if app_path.startswith('..'):
-                    app_path = str((Path(r"A:\LaunchBox") / app_path).resolve())
-
-                # --- AHK wrapper detection (SNES Gun Games, etc.) ---
-                if app_path.lower().endswith('.ahk') and is_gun_platform:
-                    ahk_exe = Path(r"A:\Gun Build\Tools\Teknoparrot Auto Xinput\AutoHotkeyU32.exe")
-                    if ahk_exe.exists():
-                        gun_exe = str(ahk_exe)
-                        gun_args = [app_path]
-                        gun_cwd = str(ahk_exe.parent)
-                        logger.info("[Launcher] Gun AHK wrapper: %s -> %s %s",
-                                    raw_platform, gun_exe, app_path)
-                    else:
-                        logger.error("[Launcher] AutoHotkey not found for gun AHK game: %s", app_path)
-                        raise FileNotFoundError(f"AutoHotkey not found for gun AHK: {app_path}")
-                else:
-                    # --- Standard gun emulator launch ---
-                    rom_path = self._resolve_rom_path(game)
-                    gun_exe = str(gun_exe_override)
-                    gun_cwd = str(gun_exe_override.parent)
-                    gun_args: list = []
-
-                    # NES Gun Games: hard-wire nestopia core (mesen_libretro.dll not on disk)
-                    if raw_platform == 'nes gun games' and "retroarch" in gun_exe.lower():
-                        nes_core = gun_exe_override.parent / "cores" / "nestopia_libretro.dll"
-                        if nes_core.exists():
-                            gun_args = ["-L", str(nes_core), str(rom_path)]
-                            logger.info("[Launcher] NES Gun: using nestopia core at %s", nes_core)
-                        else:
-                            # Try fceumm as secondary NES core
-                            fceumm = gun_exe_override.parent / "cores" / "fceumm_libretro.dll"
-                            if fceumm.exists():
-                                gun_args = ["-L", str(fceumm), str(rom_path)]
-                                logger.info("[Launcher] NES Gun: using fceumm core at %s", fceumm)
-                            else:
-                                logger.error("[Launcher] No NES core found for Gun Build RetroArch")
-                                gun_args = [str(rom_path)]
-                    # Other RetroArch-based guns: resolve core from cores/ directory
-                    elif "retroarch" in gun_exe.lower():
-                        if gun_core_override:
-                            cores_dir = gun_exe_override.parent / "cores"
-                            for suffix in ["_libretro.dll", ".dll"]:
-                                candidate = cores_dir / f"{gun_core_override}{suffix}"
-                                if candidate.exists():
-                                    gun_args = ["-L", str(candidate), str(rom_path)]
-                                    break
-                            if not gun_args:
-                                gun_args = ["-L", gun_core_override, str(rom_path)]
-                        else:
-                            gun_args = [str(rom_path)]
-                    else:
-                        # Non-RetroArch gun emulators (PCSX2, Dolphin, etc.)
-                        gun_args = [str(rom_path)]
-
-                logger.info("[DIRECT] Gun platform direct-launch: exe=%s, args=%s, cwd=%s", gun_exe, gun_args, gun_cwd)
-                full_cmd = [gun_exe, *[str(a) for a in gun_args]]
-                win_cmd = _convert_wsl_paths_for_windows(full_cmd)
-                if dry_run_enabled():
-                    return {"success": True, "command": " ".join(win_cmd), "message": "dry-run (gun)"}
-                trap_result = self._launch_with_stderr_trap(win_cmd, cwd=gun_cwd)
-                if trap_result["success"]:
-                    logger.info("[DIRECT] Gun platform launch SUCCESS: %s", " ".join(win_cmd))
-                    result = {"success": True, "command": " ".join(win_cmd)}
-                    if trap_result.get("pid"):
-                        result["pid"] = trap_result["pid"]
-                    return result
-                else:
-                    logger.warning("[DIRECT] Gun platform launch FAILED (code %s)", trap_result.get('return_code'))
-                    return {
-                        "success": False,
-                        "command": " ".join(win_cmd),
-                        "stderr_trap": trap_result,
-                    }
-
             # No adapter handled this platform
             logger.warning(f"[DIRECT] No adapter found for platform={game.platform}, adapters_tried={adapters_tried}")
             if last_msg:
@@ -1915,7 +1522,7 @@ class GameLauncher:
                     # Store trap result for remediation (caller can inspect)
                     GameLauncher._last_trap_result = trap_result
                 if on_exit:
-                    # Schedule cleanup â€” process already exited or is running
+                    # Schedule cleanup — process already exited or is running
                     if trap_result.get("pid"):
                         # Process still running, wait for it
                         def _await_then_cleanup(pid):
@@ -2022,7 +1629,7 @@ class GameLauncher:
                 cheat_path = cheat.get("path")
                 if isinstance(cheat_path, str) and cheat_path:
                     # Include path only if it exists on this system
-                    # Handle WSL path translation for A:/ â†’ /mnt/a/
+                    # Handle WSL path translation for A:/ → /mnt/a/
                     cpath = cheat_path
                     try:
                         if platform.system() == 'Linux' and 'microsoft' in platform.release().lower():

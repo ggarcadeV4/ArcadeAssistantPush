@@ -1,4 +1,4 @@
-﻿"""
+"""
 Game Lifecycle Service
 Tracks running game processes and triggers score capture on exit.
 
@@ -243,7 +243,7 @@ class GameLifecycleService:
 
             arbiter.set_fire_callback(fire_animation)
             self._led_callback_registered = True
-            logger.info("[LEDArbiter] Fire callback registered Ã¢â‚¬â€ LED commands will now execute")
+            logger.info("[LEDArbiter] Fire callback registered — LED commands will now execute")
         except Exception as exc:
             logger.warning(f"Failed to register LED arbiter callback: {exc}")
 

@@ -16,8 +16,10 @@ const SCREENS = {
 }
 
 const COLLECTION_LIBRARY_ERROR = 'Your Collection requires an active LaunchBox library. Start LaunchBox and try again.'
+const DEFAULT_LOADING_MESSAGE = 'Loading trivia questions...'
+const COLLECTION_LOADING_MESSAGE = 'Generating questions from your library...'
 
-async function fetchCollectionTriviaQuestions() {
+async function fetchCollectionTriviaQuestions(limit = 10) {
   const response = await fetch('/api/local/dewey/trivia/collection', {
     method: 'POST',
     headers: {
@@ -26,7 +28,7 @@ async function fetchCollectionTriviaQuestions() {
       'x-scope': 'state',
       'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001'
     },
-    body: JSON.stringify({})
+    body: JSON.stringify({ count: limit })
   })
 
   if (!response.ok) {
@@ -46,6 +48,7 @@ export default function TriviaExperience({ currentUser, onExit }) {
   const [lifetimeStats, setLifetimeStats] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState(DEFAULT_LOADING_MESSAGE)
 
   const profileId = currentUser?.id || 'guest'
 
@@ -77,7 +80,7 @@ export default function TriviaExperience({ currentUser, onExit }) {
 
   const loadTriviaQuestions = useCallback(async (category, difficulty) => {
     if (category === 'collection') {
-      return fetchCollectionTriviaQuestions()
+      return fetchCollectionTriviaQuestions(10)
     }
     return getQuestions(category, difficulty, 10)
   }, [])
@@ -86,6 +89,7 @@ export default function TriviaExperience({ currentUser, onExit }) {
     setSelectedDifficulty(difficulty)
     setError(null)
     setLoading(true)
+    setLoadingMessage(selectedCategory === 'collection' ? COLLECTION_LOADING_MESSAGE : DEFAULT_LOADING_MESSAGE)
     setCurrentScreen(SCREENS.LOADING)
 
     try {
@@ -129,6 +133,7 @@ export default function TriviaExperience({ currentUser, onExit }) {
     // Same category/difficulty - just load new questions
     setError(null)
     setLoading(true)
+    setLoadingMessage(selectedCategory === 'collection' ? COLLECTION_LOADING_MESSAGE : DEFAULT_LOADING_MESSAGE)
     setCurrentScreen(SCREENS.LOADING)
 
     loadTriviaQuestions(selectedCategory, selectedDifficulty)
@@ -186,7 +191,7 @@ export default function TriviaExperience({ currentUser, onExit }) {
       {currentScreen === SCREENS.LOADING && (
         <div className="trivia-loading">
           <div className="loading-spinner"></div>
-          <p>Loading trivia questions...</p>
+          <p>{loadingMessage}</p>
         </div>
       )}
 

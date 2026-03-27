@@ -8,9 +8,14 @@ import json
 import logging
 import os
 import hashlib
+import random
+import re
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from backend.services.drive_a_ai_client import SecureAIClient
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +27,8 @@ TRIVIA_EXPIRY_DAYS = 30
 
 # Maximum questions to keep in the pool
 MAX_GENERATED_QUESTIONS = 100
+_COLLECTION_CATEGORY = "Your Collection"
+_COLLECTION_DIFFICULTIES = ("easy", "medium", "hard")
 
 
 def _load_generated_trivia() -> Dict[str, Any]:
@@ -58,6 +65,253 @@ def _save_generated_trivia(data: Dict[str, Any]) -> None:
 def _generate_question_id(headline: str) -> str:
     """Generate a unique ID for a question based on headline."""
     return f"news_{hashlib.md5(headline.encode()).hexdigest()[:12]}"
+
+
+def _extract_anthropic_text(result: Dict[str, Any]) -> str:
+    content = result.get("content")
+    if isinstance(content, list):
+        text_parts = [
+            str(block.get("text", "")).strip()
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        return "\n".join(part for part in text_parts if part).strip()
+
+    if isinstance(content, str):
+        return content.strip()
+
+    message = result.get("message")
+    if isinstance(message, dict):
+        nested = message.get("content")
+        if isinstance(nested, str):
+            return nested.strip()
+        if isinstance(nested, list):
+            text_parts = [
+                str(block.get("text", "")).strip()
+                for block in nested
+                if isinstance(block, dict) and block.get("type") == "text"
+            ]
+            return "\n".join(part for part in text_parts if part).strip()
+
+    response_text = result.get("response")
+    if isinstance(response_text, str):
+        return response_text.strip()
+
+    return ""
+
+
+def _extract_json_payload(text: str) -> Dict[str, Any]:
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Empty AI response while generating collection trivia")
+
+    fenced_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, re.IGNORECASE)
+    if fenced_match:
+        raw = fenced_match.group(1).strip()
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise ValueError("Collection trivia generator returned invalid JSON")
+        payload = json.loads(raw[start:end + 1])
+
+    if not isinstance(payload, dict):
+        raise ValueError("Collection trivia generator must return a JSON object")
+    return payload
+
+
+def _normalize_release_year(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    match = re.search(r"(19|20)\d{2}", text)
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
+def _normalize_collection_game(game: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not isinstance(game, dict):
+        return None
+
+    title = str(game.get("title") or "").strip()
+    if not title:
+        return None
+
+    platform = str(game.get("platform") or "Unknown platform").strip()
+    developer = str(game.get("developer") or "Unknown developer").strip()
+    publisher = str(game.get("publisher") or "Unknown publisher").strip()
+    genre = str(game.get("genre") or "Unknown genre").strip()
+    release_year = _normalize_release_year(
+        game.get("release_year") or game.get("year") or game.get("releaseYear")
+    )
+
+    return {
+        "title": title,
+        "platform": platform,
+        "developer": developer,
+        "publisher": publisher,
+        "genre": genre,
+        "release_year": release_year,
+    }
+
+
+def _weighted_collection_sample(games: List[Dict[str, Any]], count: int) -> List[Dict[str, Any]]:
+    normalized_games = [item for item in (_normalize_collection_game(game) for game in games) if item]
+    if not normalized_games or count <= 0:
+        return []
+
+    platform_counts = Counter(game["platform"] for game in normalized_games)
+    developer_counts = Counter(game["developer"] for game in normalized_games)
+    publisher_counts = Counter(game["publisher"] for game in normalized_games)
+    genre_counts = Counter(game["genre"] for game in normalized_games)
+
+    weighted_pool = []
+    for game in normalized_games:
+        weight = 1.0
+        weight += 2.0 / platform_counts[game["platform"]]
+        weight += 2.0 / developer_counts[game["developer"]]
+        weight += 1.5 / publisher_counts[game["publisher"]]
+        weight += 1.5 / genre_counts[game["genre"]]
+        weighted_pool.append({"game": game, "weight": max(weight, 0.1)})
+
+    selected: List[Dict[str, Any]] = []
+    target = min(count, len(weighted_pool))
+    while weighted_pool and len(selected) < target:
+        weights = [item["weight"] for item in weighted_pool]
+        index = random.choices(range(len(weighted_pool)), weights=weights, k=1)[0]
+        selected.append(weighted_pool.pop(index)["game"])
+
+    return selected
+
+
+def _build_collection_question_prompt(game: Dict[str, Any]) -> str:
+    release_year = game.get("release_year")
+    release_text = str(release_year) if release_year else "Unknown"
+    game_blob = json.dumps(
+        {
+            "title": game.get("title"),
+            "platform": game.get("platform"),
+            "developer": game.get("developer"),
+            "publisher": game.get("publisher"),
+            "release_year": release_text,
+            "genre": game.get("genre"),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    return (
+        "Generate exactly one multiple-choice trivia question for Dewey's 'Your Collection' category.\n"
+        "Use only the game metadata below. Do not invent sequels, platforms, studios, or dates.\n"
+        "The question may focus on the title, release year, developer, publisher, genre, platform, or a safe gameplay-style fact that is broadly associated with the game.\n"
+        "Return JSON only in this exact format:\n"
+        "{\n"
+        '  "question": "string",\n'
+        '  "options": ["A", "B", "C", "D"],\n'
+        '  "correct_answer": "must exactly match one option",\n'
+        '  "difficulty": "easy|medium|hard",\n'
+        '  "category": "Your Collection",\n'
+        '  "game_title": "exact title"\n'
+        "}\n\n"
+        "Game metadata:\n"
+        f"{game_blob}\n"
+    )
+
+
+def _normalize_collection_question(item: Dict[str, Any], fallback_game: Dict[str, Any]) -> Dict[str, Any]:
+    question = str(item.get("question") or "").strip()
+    options = item.get("options")
+    correct_answer = str(item.get("correct_answer") or "").strip()
+    difficulty = str(item.get("difficulty") or "medium").strip().lower()
+    game_title = str(item.get("game_title") or fallback_game.get("title") or "").strip()
+
+    if not question:
+        raise ValueError("Collection trivia response omitted question text")
+    if not isinstance(options, list) or len(options) != 4:
+        raise ValueError("Collection trivia response must include four options")
+
+    normalized_options = [str(option).strip() for option in options]
+    if not correct_answer or correct_answer not in normalized_options:
+        raise ValueError("Collection trivia response returned an invalid correct_answer")
+    if difficulty not in _COLLECTION_DIFFICULTIES:
+        difficulty = "medium"
+
+    return {
+        "question": question,
+        "options": normalized_options,
+        "correct_answer": correct_answer,
+        "difficulty": difficulty,
+        "category": _COLLECTION_CATEGORY,
+        "game_title": game_title or fallback_game.get("title", ""),
+    }
+
+
+def _generate_single_collection_question(client: SecureAIClient, game: Dict[str, Any]) -> Dict[str, Any]:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an exacting arcade trivia writer. "
+                "Return valid JSON only, with no markdown or commentary."
+            ),
+        },
+        {
+            "role": "user",
+            "content": _build_collection_question_prompt(game),
+        },
+    ]
+    result = client.call_anthropic(
+        messages=messages,
+        model=os.getenv("DEWEY_ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022"),
+        max_tokens=400,
+        temperature=0.4,
+        panel="dewey",
+    )
+    reply = _extract_anthropic_text(result)
+    payload = _extract_json_payload(reply)
+    return _normalize_collection_question(payload, game)
+
+
+def generate_collection_trivia(game_list: list[dict], count: int = 10) -> list[dict]:
+    """
+    Generate collection-specific trivia using one Anthropic call per question.
+
+    Args:
+        game_list: LaunchBox game dicts with title/platform/developer/publisher/release_year/genre data.
+        count: Number of questions to generate.
+
+    Returns:
+        A list of collection trivia question dicts.
+    """
+    if not game_list or count <= 0:
+        return []
+
+    candidates = _weighted_collection_sample(game_list, max(count * 2, count))
+    if not candidates:
+        return []
+
+    client = SecureAIClient()
+    generated: List[Dict[str, Any]] = []
+
+    for game in candidates:
+        if len(generated) >= count:
+            break
+        try:
+            generated.append(_generate_single_collection_question(client, game))
+        except Exception as exc:
+            logger.warning("Collection trivia generation failed for '%s': %s", game.get("title"), exc)
+
+    return generated
 
 
 def _prune_expired_questions(questions: List[Dict]) -> List[Dict]:

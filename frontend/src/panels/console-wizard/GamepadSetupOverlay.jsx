@@ -61,6 +61,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
   const [wizardStep, setWizardStep] = useState(0);
   const [mappings, setMappings]     = useState({});  // { key: buttonIndex }
   const [pressedButtons, setPressedButtons] = useState(new Set());
+  const [confirmedButton, setConfirmedButton] = useState(null);
 
   // Calibration state
   const [stickPositions, setStickPositions] = useState({ lx: 0, ly: 0, rx: 0, ry: 0 });
@@ -75,6 +76,8 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
   // Refs
   const rafRef    = useRef(null);
   const prevBtns  = useRef([]);
+  const advanceTimerRef = useRef(null);
+  const confirmTimerRef = useRef(null);
 
   // ── Load profiles from backend ────────────────────────
   useEffect(() => {
@@ -92,6 +95,11 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
     };
     load();
   }, [fetchJSON]);
+
+  useEffect(() => () => {
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+  }, []);
 
   // ── Load saved preferences on mount ───────────────────
   useEffect(() => {
@@ -223,26 +231,34 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
     }
 
     // ─ Wizard: capture button press ─
-    if (phase === 'wizard' && newPresses.length > 0) {
+    if (phase === 'wizard' && newPresses.length > 0 && !advanceTimerRef.current) {
       const step = WIZARD_SEQUENCE[wizardStep];
       if (step) {
         const capturedIdx = newPresses[0];
-        setMappings(prev => ({ ...prev, [step.key]: capturedIdx }));
-        // Auto-advance
-        if (wizardStep < WIZARD_SEQUENCE.length - 1) {
-          setWizardStep(s => s + 1);
-        } else {
-          // All buttons mapped → go to calibration
-          setPhase('calibrate');
-          // Auto-save preferences with the final mapping set
-          const finalMap = { ...mappings, [step.key]: capturedIdx };
-          savePreferences(finalMap, deadzone);
-        }
+        const nextMappings = { ...mappings, [step.key]: capturedIdx };
+        setMappings(nextMappings);
+        setConfirmedButton(step.key);
+
+        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = setTimeout(() => {
+          setConfirmedButton((current) => (current === step.key ? null : current));
+          confirmTimerRef.current = null;
+        }, 600);
+
+        advanceTimerRef.current = setTimeout(() => {
+          advanceTimerRef.current = null;
+          if (wizardStep < WIZARD_SEQUENCE.length - 1) {
+            setWizardStep((s) => s + 1);
+          } else {
+            setPhase('calibrate');
+            savePreferences(nextMappings, deadzone);
+          }
+        }, 650);
       }
     }
 
     rafRef.current = requestAnimationFrame(pollGamepad);
-  }, [gamepadIndex, connected, phase, wizardStep, mappings]);
+  }, [gamepadIndex, connected, phase, wizardStep, mappings, savePreferences, deadzone]);
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(pollGamepad);
@@ -281,12 +297,24 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
 
   // ── Handlers ──────────────────────────────────────────
   const handleStartWizard = useCallback(() => {
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
     setMappings({});
     setWizardStep(0);
+    setConfirmedButton(null);
     setPhase('wizard');
   }, []);
 
   const handleSkip = useCallback(() => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    setConfirmedButton(null);
     if (wizardStep < WIZARD_SEQUENCE.length - 1) {
       setWizardStep(s => s + 1);
     } else {
@@ -295,6 +323,15 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
   }, [wizardStep]);
 
   const handleUndo = useCallback(() => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    setConfirmedButton(null);
     if (wizardStep > 0) {
       const prevStep = WIZARD_SEQUENCE[wizardStep - 1];
       setMappings(prev => {
@@ -308,6 +345,19 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
 
   const handleProfileSelect = useCallback((profileId) => {
     setSelectedProfile(profileId);
+  }, []);
+
+  const handleCancelWizard = useCallback(() => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    setConfirmedButton(null);
+    setPhase('detect');
   }, []);
 
   const handlePreviewConfig = useCallback(async () => {
@@ -433,6 +483,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
             <div className="gp-twin__svg-wrap" style={{ maxWidth: '420px' }}>
               <ControllerSVG
                 activeButton={null}
+                confirmedButton={confirmedButton}
                 pressedButtons={pressedButtons}
                 mappedButtons={mappedSet}
                 profileId={selectedProfile}
@@ -472,7 +523,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
             <div className="gp-header__subtitle">{gamepadName}</div>
           </div>
           <div className="gp-header__actions">
-            <button className="gp-btn" onClick={() => setPhase('detect')}>Cancel</button>
+            <button className="gp-btn" onClick={handleCancelWizard}>Cancel</button>
           </div>
         </div>
 
@@ -482,6 +533,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
             <div className="gp-twin__svg-wrap">
               <ControllerSVG
                 activeButton={currentWizStep?.key}
+                confirmedButton={confirmedButton}
                 pressedButtons={pressedButtons}
                 mappedButtons={mappedSet}
                 profileId={selectedProfile}
@@ -523,7 +575,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
               return (
                 <div
                   key={step.key}
-                  className={`gp-mapping-row ${isCurrent ? 'gp-mapping-row--active' : ''} ${isDone ? 'gp-mapping-row--done' : ''}`}
+                  className={`gp-mapping-row ${isCurrent ? 'gp-mapping-row--active' : ''} ${isDone ? 'gp-mapping-row--done' : ''} ${confirmedButton === step.key ? 'gp-mapping-row--confirmed' : ''}`}
                 >
                   <span className="gp-mapping-row__label">{step.label}</span>
                   {isDone ? (
@@ -571,6 +623,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
             <div className="gp-twin__svg-wrap" style={{ maxWidth: '400px' }}>
               <ControllerSVG
                 activeButton={null}
+                confirmedButton={confirmedButton}
                 pressedButtons={pressedButtons}
                 mappedButtons={mappedSet}
                 profileId={selectedProfile}

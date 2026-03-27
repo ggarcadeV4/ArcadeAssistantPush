@@ -7,7 +7,7 @@ import useGemSpeech from '../../hooks/useGemSpeech'
 import TriviaExperience from './trivia/TriviaExperience'
 import GamingNews from './news/GamingNews'
 import { searchArcadeLore } from '../../services/deweySearchClient'
-import { getGatewayHost } from '../../services/gateway'
+import { getGatewayHost, getGatewayUrl } from '../../services/gateway'
 
 
 const MAX_HISTORY_MESSAGES = 12
@@ -287,14 +287,27 @@ const buildConversationHistory = (history = []) => (
     }))
 )
 
-const streamDeweyChat = async ({ message, userName, userPreferences, conversationHistory }) => {
+const buildPreferenceSummary = (preferences = {}) => {
+  const parts = []
+  const genres = Array.isArray(preferences?.genres) ? preferences.genres.filter(Boolean) : []
+  const franchises = Array.isArray(preferences?.franchises) ? preferences.franchises.filter(Boolean) : []
+  const keywords = Array.isArray(preferences?.keywords) ? preferences.keywords.filter(Boolean) : []
+
+  if (genres.length) parts.push(`Favorite genres: ${genres.join(', ')}`)
+  if (franchises.length) parts.push(`Favorite franchises: ${franchises.join(', ')}`)
+  if (keywords.length) parts.push(`Keywords: ${keywords.join(', ')}`)
+
+  return parts.join('. ') || 'No saved preferences yet - ask quick follow-ups to learn their tastes.'
+}
+
+const streamDeweyChat = async ({ message, userName, preferenceSummary, conversationHistory }) => {
   const deviceId = window.AA_DEVICE_ID || (() => {
     console.warn('[Dewey] window.AA_DEVICE_ID not available, ' +
       'falling back to cabinet-001. Cabinet identity may not be unique.')
     return 'cabinet-001'
   })()
 
-  const response = await fetch('/api/local/dewey/chat', {
+  const response = await fetch(`${getGatewayUrl()}/api/local/dewey/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -305,7 +318,7 @@ const streamDeweyChat = async ({ message, userName, userPreferences, conversatio
     body: JSON.stringify({
       message,
       user_name: userName,
-      user_preferences: userPreferences,
+      preference_summary: preferenceSummary,
       conversation_history: conversationHistory
     })
   })
@@ -331,14 +344,48 @@ const streamDeweyChat = async ({ message, userName, userPreferences, conversatio
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let reply = ''
+  let buffer = ''
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    reply += decoder.decode(value, { stream: true })
+    buffer += decoder.decode(value, { stream: true })
+
+    const events = buffer.split('\n\n')
+    buffer = events.pop() || ''
+
+    for (const event of events) {
+      const lines = event.split('\n').filter(line => line.startsWith('data: '))
+      for (const line of lines) {
+        const payload = line.slice(6)
+        try {
+          const parsed = JSON.parse(payload)
+          if (parsed?.delta) {
+            reply += String(parsed.delta)
+          }
+        } catch {
+          reply += payload
+        }
+      }
+    }
   }
 
-  reply += decoder.decode()
+  buffer += decoder.decode()
+  if (buffer.trim()) {
+    const lines = buffer.split('\n').filter(line => line.startsWith('data: '))
+    for (const line of lines) {
+      const payload = line.slice(6)
+      try {
+        const parsed = JSON.parse(payload)
+        if (parsed?.delta) {
+          reply += String(parsed.delta)
+        }
+      } catch {
+        reply += payload
+      }
+    }
+  }
+
   return reply
 }
 
@@ -643,7 +690,7 @@ export default function DeweyPanel() {
       const rawReply = await streamDeweyChat({
         message: trimmed,
         userName: currentUser.name,
-        userPreferences: currentUser.preferences,
+        preferenceSummary: buildPreferenceSummary(currentUser.preferences),
         conversationHistory
       })
 

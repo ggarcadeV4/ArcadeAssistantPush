@@ -26,6 +26,7 @@ rem on secondary monitor during dev. RE-ENABLE before drive duplication for
 rem live cabinet hardware. See README "Marquee System" section.
 rem Original: if not defined AA_MARQUEE_ENABLED ( set "AA_MARQUEE_ENABLED=1" )
 set "AA_MARQUEE_ENABLED=0"
+set AA_UPDATES_ENABLED=0
 
 echo ============================================================
 echo  Arcade Assistant - Starting...

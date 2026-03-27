@@ -1,5 +1,5 @@
 # Arcade Assistant Ã¢â‚¬â€ Project README
-**Last Updated:** 2026-03-16 | **Build:** V1 persona hardening sprint (Dewey/Vicky/Chuck/Gunner/LoRa/Sam/Blinky duplication cleanup) | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+**Last Updated:** 2026-03-20 | **Build:** Multi-panel profile/consent fixes + Dewey backend migration + Wiz/Chuck wizard wiring + launcher/marquee polish | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -46,6 +46,128 @@ cd frontend && npm run dev
 | Supabase | Cloud | Ã¢â‚¬â€ | Ref: `zlkhsxacfyxsctqpvbsh` (**Arcade Assistant only**) |
 
 > Ã¢Å¡Â Ã¯Â¸Â **NEVER** use Supabase ref `hjxzbicsjzyzalwilmlj` Ã¢â‚¬â€ that is the G&G Website project.
+
+---
+
+## 2026-03-20 — Security Hardening + Pre-Duplication Validation
+
+### Security (Pillar 2 — Local Physical Security)
+- DPAPI vault implemented: `secrets_loader.py` + `encrypt_secrets.py` deployed at repo root
+- Tier 1 secrets (SUPABASE_URL, SUPABASE_ANON_KEY, AA_PROVISIONING_TOKEN, AA_SERVICE_TOKEN) moved to DPAPI-encrypted `.aa/credentials.dat`
+- `app.py` patched to load vault before router init
+- `health.py` updated to report vault status
+- `clean_for_clone.bat` extended with Step 9 security scrub — removes all AI agent docs, dev tooling, and loose test files from golden image
+- `pywin32>=306` added to requirements.txt
+
+### Pre-Existing Bug Fixes
+- `backend/requirements.txt` — duplicate supabase dependency removed (kept `supabase==2.23.2`)
+- `backend/app.py` — duplicate doc_diagnostics import removed
+- `backend/app.py` — `dur_init_blinky` unassigned reference fixed with safe `0.0` default
+
+### Startup + Gateway Fixes
+- `start-aa.bat` — `AA_UPDATES_ENABLED=0` added
+- `gateway/config/env.js` — default AI provider corrected from 'claude' to 'gemini'
+- `clean_for_clone.bat` — `:RemoveTree` quoting fixed (paths with spaces now handled correctly)
+
+### AHK Script Remediation
+- 21 files corrected: `D:\` → `A:\`
+- Sinden Lightgun launch blocks removed from all affected scripts
+- `SINGE2.backup-$(date +%Y%m%d-%H%M%S)\` deleted (broken Linux-named backup directory)
+- `Marbella Vice - Sinden.ahk` renamed to `Marbella Vice.ahk` (script was already clean — filename only was misleading)
+- `Lethal Enforcers RC2021-04-07.ahk` Sinden bezel references removed
+- Final state: 0 `D:\` refs, 0 Sinden refs across all 302 AHK files
+
+### Identity Reconciliation
+- `.aa` state reconciled across both drive roots
+- All four identity values now match: UUID `e9478fe3-bbba-48b2-9d2f-22d446b5a8bc`
+- `cabinet_manifest.json` created in repo-local `.aa`
+
+### Supabase Validation
+- Project `zlkhsxacfyxsctqpvbsh` confirmed healthy
+- All 5 Edge Functions deployed and secrets confirmed
+- MAC allowlist: cabinet approved
+- RLS status: fully hardened — anon writes blocked
+- Pillar 1 (JWT auth) scheduled for next session after basement validation
+
+### Known Open Items (Post-Duplication)
+- Pillar 1: Per-cabinet JWT authentication
+- Pillar 3: OTA bundle signing
+- Heartbeat/telemetry blocked until JWT implemented
+- DPAPI vault initialization (operator manual step)
+- `BASEMENT_BRIEFING.md` added to repo root
+
+### Drive Status
+- Golden image: READY TO DUPLICATE
+- Basement validation: PENDING
+
+---
+
+## Session Update (2026-03-18)
+
+This session focused on two live-cabinet reliability areas on the A: drive: bezel / artwork display across RetroArch and MAME, and the current Daphne / Hypseus direct-launch path for Dragon's Lair. The work mixed deep read-only audits with a few targeted corrections where the runtime state was already clearly wrong.
+
+### A-Drive Bezel / Overlay Audit
+- Audited all three RetroArch installs on `A:\` and verified global overlay state, per-core overrides, and overlay asset locations.
+- Confirmed bezel assets already exist locally, including large `ArcadeBezels` and `GameBezels` packs under `A:\Emulators\RetroArch\overlays\`.
+- Verified that `A:\Emulators\RetroArch\overlays\ArcadeBezels\` is populated with per-game CFG/PNG pairs rather than being empty.
+- Audited LaunchBox image, ThirdScreen, and overlay-related folders to separate actual bezel sources from unrelated artwork caches.
+- Confirmed the main LaunchBox emulator XML does not contain direct bezel / overlay / third-screen wiring for the paths reviewed.
+
+### RetroArch / MAME Runtime Corrections
+- Added `scripts/wire_mame_bezels.py` to map RetroArch per-game MAME configs to matching `ArcadeBezels` CFGs, with dry-run mode, sibling `.bezel_backup` creation, and a report written to `logs/bezel_wiring_report.txt`.
+- Ran the script in dry-run only and measured the current match rate before any bulk write: `4595` MAME CFGs scanned, `3015` matches, `1580` unmatched.
+- Corrected the wrong core-level overlay pointers for Sega 32X and Master System in RetroArch and verified the TurboGrafx-16 core-level pointer already targeted the correct overlay CFG.
+- Normalized global RetroArch overlay visibility settings on the primary, gamepad, and gun-build installs so overlay enablement, opacity, and scale are explicitly set for bezel display.
+- Switched the primary RetroArch instance from exclusive fullscreen to borderless windowed fullscreen to preserve Windows overlay rendering.
+- Enabled native MAME artwork toggles in both `A:\Emulators\MAME\mame.ini` and `A:\Emulators\MAME Gamepad\mame.ini` by setting `use_backdrops`, `use_overlays`, `use_bezels`, `use_cpanels`, and `use_marquees` to `1`.
+
+### Daphne / Hypseus Diagnostics
+- Audited `backend/services/launcher.py` and confirmed the only launcher-side Daphne / Hypseus direct branch lives inside `_launch_direct()`, before the generic adapter loop.
+- Traced Dragon's Lair end to end from LaunchBox XML and confirmed the main `Daphne` platform record points to `..\Roms\SINGE-HYPSEUS\Dragons Lair.ahk`.
+- Verified the self-healing remediation chain is already wired through `game_lifecycle.py`, but also confirmed the local `.env` currently has no `GEMINI_API_KEY` or `GOOGLE_API_KEY`, which blocks live Gemini-based remediation.
+- Confirmed `game_lifecycle.py` is already passing the `tracked.emulator` value into `attempt_remediation()`, so emulator context is not the missing link there.
+
+### Targeted Launcher Fix
+- Identified the exact Dragon's Lair direct-launch failure: the hardcoded Daphne map in `backend/services/launcher.py` handled `"dragon's lair hd"` but not the AHK stem `"dragons lair"`.
+- Added the missing Daphne map key `"dragons lair": ("lair", r"A:\Roms\DAPHNE\vldp\lair\lair.txt")` so the hardcoded Hypseus path can resolve that title instead of raising and falling through.
+- Added explicit warning logging when a launch method returns a non-success result, so future fallback to later methods is visible in logs instead of appearing silent.
+- Created a backup of `backend/services/launcher.py` before the patch as `backend/services/launcher.py.daphne_backup`.
+
+### Audit Scope Notes
+- Most of the bezel and artwork work today was performed directly against live A: drive emulator/config state rather than inside this repository.
+- The only repo-local code changes from this slice were the new MAME bezel wiring script, the `launcher.py` Dragon's Lair mapping / logging patch, and this README update.
+
+---
+
+## Session Update (2026-03-17)
+
+This session focused on cabinet launch reliability from the LaunchBox LoRa panel. The main outcome was hardening the shared backend launch spine so platform-specific launch behavior no longer falls through to generic LaunchBox fallback when a direct path is actually required.
+
+### Daphne / Laserdisc Launch Spine
+- Added a dedicated `SINGE2` direct-launch path in `backend/services/launcher.py`.
+- Corrected `SINGE2` dispatch so it keys off `ApplicationPath` containing `\SINGE2\` instead of a nonexistent `platform_key == "singe2"` value.
+- Injected `SDL_VIDEODRIVER=windows` into the `SINGE2` subprocess environment to avoid the known render-driver failure on backend-launched Singe titles.
+- Added a dedicated `SINGE-HYPSEUS` block so Daphne entries routed through `\SINGE-HYPSEUS\` no longer fall through to `LaunchBox.exe`.
+- Added dedicated American Laser Games handling so Gun Build `.ahk` launchers resolve correctly through AutoHotkey and `.cue` outliers fail gracefully with a clear backend message.
+- Added `sdq` and `tq` alias keys to the Daphne Hypseus map so `Super Don Quix-ote` and `Thayer's Quest` work even when LaunchBox points directly at framefiles instead of `.ahk` stems.
+
+### Gun Platform Routing
+- Fixed gun-platform detection to happen before `normalize_key()` strips `Gun Games` from platform names.
+- Added Gun Build RetroArch override support so RetroArch-backed gun platforms route to `A:\Gun Build\Emulators\RetroArch\retroarch.exe` instead of the default gamepad RetroArch instance.
+- Added graceful backend failure for currently unsupported direct gun platforms instead of silent LaunchBox fallback.
+- Added a Gun Build-safe NES core path by wiring `NES Gun Games` to `fceumm` and adding the missing core mapping in `config/launchers.json`.
+- Verified `Duck Hunt` and `Baby Boomer` launching through the Gun Build RetroArch path from LoRa after the core-routing fix.
+
+### Sega Model 2 / Model 3
+- Fixed Sega Model 2 command construction so the emulator receives the ROM driver name instead of a full ZIP path.
+- Validated Sega Model 3 / Supermodel launch behavior against the local Supermodel runtime and README.
+- Aligned both detected-emulator and direct Supermodel paths around the working contract: launch from the emulator directory and pass the absolute ROM ZIP path on the command line.
+- Re-verified live backend command output for `Dirt Devils`, `Virtua Fighter 3`, and `Sega Rally 2` after the Model 3 corrections.
+
+### Verification
+- Repeated targeted `py_compile` checks passed for the launcher and adapter files touched during the session.
+- Repeated live backend launch probes were run through `http://127.0.0.1:8000/api/launchbox/launch/...` to confirm command construction after each fix.
+- Confirmed working live launch paths from LoRa for representative titles across the repaired slices, including `Asterix - Mansion of the Gods`, `Dragon Trainer`, `Duck Hunt`, and `Baby Boomer`.
 
 ---
 
@@ -1000,6 +1122,204 @@ Open follow-ups for next session:
   - Chat drawer/layout restructure remains post-duplication work.
   - Hardware placeholder replacement remains post-duplication work.
   - GPU temperature integration remains post-duplication work and will require a vendor/hardware monitor path beyond `psutil`.
+
+---
+
+### Session Catalog — 2026-03-19 (Antigravity Session — Gun Platform Routing, AHK Bulk Fix, LoRa Hardening)
+
+Scope completed in this session focused on making every gun platform launchable from LoRa, fixing all AHK scripts for the A:\ drive, and hardening the LoRa GUI.
+
+Key outcomes:
+
+- **Pinball FX2/FX3 Unblocked**:
+  - `'pinball fx'` was incorrectly in the `unsupportedKeywords` array in `LaunchBoxPanel.jsx`. Removed. Both platforms now launch from LoRa.
+
+- **Gun Platform Routing System Built (16 platforms)**:
+  - Added `GUN_PLATFORM_MAP` to `launcher.py` at L1160. Detects raw platform name BEFORE `normalize_key()` strips "gun games".
+  - Maps 16 gun platforms to their Gun Build emulator paths via `EmulatorPaths` in `a_drive_paths.py`.
+  - Two AHK intercept points: L1329 (adapter-resolved path) and L1498 (fallback path). Any game with `.ahk` ApplicationPath routes to `AutoHotkeyU32.exe` regardless of emulator map entry.
+  - NES core hard-wired to `nestopia_libretro.dll` with fceumm fallback (mesen not on disk).
+  - Unknown gun platforms fall back to `retroarch_gun()`.
+
+- **Bulk AHK Script Fix (213 files)**:
+  - All `.ahk` scripts in `A:\Gun Build\Roms\` had two systemic issues: wrong drive letter (`D:\` → `A:\`) and Sinden Lightgun.exe startup/cleanup blocks.
+  - Python line-by-line parser fixed both issues across 213 files in ~3 seconds.
+  - SINGE2 scripts (13) intentionally untouched — they need Sinden.
+  - AHK backup created at `A:\Gun Build\AHK_BACKUP_20260319\`.
+  - Original PowerShell regex approach hit catastrophic backtracking; switched to Python.
+
+- **Sinden Error Suppression + Retro Shooter VID/PIDs**:
+  - `gunner_hardware.py`: generic "No light gun devices detected" warning and USB enumeration error downgraded to `logger.debug`.
+  - 4 Retro Shooter VID/PIDs added to `KNOWN_DEVICES` as PRIMARY gun type. Sinden/AimTrak/Gun4IR marked secondary.
+
+- **LoRa GUI Platform Exclusions**:
+  - Added `excludedPlatforms` exact-match array to `isSupportedPlatform()` alongside existing `unsupportedKeywords`.
+  - Removed from LoRa display: Saturn Gun Games, Model 3 Gun Games, PS2 Gun Games, PCSX2 Gun Games, Flash Games.
+
+- **PS3 AHK Routing Fix**:
+  - Root cause: when an adapter resolved AND `gun_exe_override` fired, the code at L1325 overrode `exe` to the gun emulator but never checked for `.ahk` wrappers. The AHK detection at L1498 was unreachable.
+  - Fix: inserted AHK detection at L1329 — when `ApplicationPath` ends in `.ahk`, overrides to AutoHotkey regardless of gun map entry.
+  - Before: `rpcs3.exe Child of Eden.ahk` → After: `AutoHotkeyU32.exe Child of Eden.ahk`.
+
+- **Display Driver Forensics**:
+  - Full forensic sweep of Windows Event Logs and hardware state confirmed display driver failure was NOT caused by AA or any emulator. Driver reinstall resolved it.
+
+Verified launches:
+
+| Platform | Game | Result |
+|----------|------|--------|
+| NES Gun Games | Duck Hunt | ✅ nestopia core via RetroArch |
+| SNES Gun Games | Battle Clash | ✅ Snes9x via AHK |
+| TeknoParrot Gun Games | Action Deka | ✅ AHK |
+| PC Gun Games | Air Twister | ⚠️ AHK launched, game exe crashed 2.2s |
+| PS3 Gun Games | Child of Eden | ✅ AHK (fixed from rpcs3.exe) |
+
+Files modified:
+
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx` — Pinball FX unblock + `excludedPlatforms` array
+- `backend/services/launcher.py` — `GUN_PLATFORM_MAP`, gun_exe_override, dual-path AHK detection, NES core hard-wire
+- `backend/services/gunner_hardware.py` — Sinden suppression, 4 Retro Shooter VID/PIDs
+- `A:\Gun Build\Roms\**\*.ahk` (213 files) — Drive letter fix, Sinden block removal
+
+Open follow-ups:
+
+- SINGE2 AHK scripts (13 files) still reference Sinden — separate pass needed if Retro Shooter fully replaces Sinden.
+- Air Twister (PC Gun Games) crashed in 2.2s — likely game content issue, not routing.
+- Live hardware validation (H1–H9) — carried forward.
+
+---
+
+### Session Catalog â€” 2026-03-20 (Codex Session â€” Consent/Profile Flow, Dewey Backendization, Wizard Wiring, Launcher/Marquee Cleanup)
+
+Scope completed in this session focused on restoring missing user/profile flows, moving Dewey AI responsibilities to the backend, closing launcher/content gaps, and finishing the guarded write/mapping paths for Wiz and Chuck.
+
+Key outcomes:
+
+- **Vicky Consent Flow Restored + Profile Broadcast Hardened**:
+  - Replaced the bypassed consent state in the active Vicky panel with a first-use opt-in gate.
+  - Added explicit guest mode behavior so anonymous sessions do not write profile data.
+  - Ensured accepted profiles persist `consent: true` before Save & Broadcast.
+  - Verified the shared profile propagation path across all nine panels and restored missing context wiring where needed.
+  - Added success/failure broadcast toast behavior and corrected the garbled Unicode sidebar header text.
+  - Restored Vicky's fallback ElevenLabs voice ID to `21m00Tcm4TlvDq8ikWAM`.
+
+- **Dewey Chat Path Moved Frontend -> Backend**:
+  - Extracted Dewey's browser-side system prompt into `prompts/dewey.prompt`.
+  - Added `prompts/dewey_knowledge.md` for routing, handoff, profile, trivia, overlay, and news architecture context.
+  - Created backend chat routing so Dewey now answers through `POST /api/local/dewey/chat` instead of direct browser-side Gemini calls.
+  - Registered the new Dewey chat router in the FastAPI app and updated the frontend to consume SSE safely with graceful error handling.
+
+- **Dewey "Your Collection" Trivia Now Uses LaunchBox Library Data**:
+  - Added per-question AI generation in `backend/services/dewey/trivia_generator.py` based on sampled entries from `launchbox_games.json`.
+  - Added `POST /api/local/dewey/trivia/collection` to generate collection-specific questions from cached LaunchBox metadata using `AA_DRIVE_ROOT`.
+  - Updated Dewey trivia frontend flow to show a generation loading state and feed the generated question set into the existing session pipeline.
+  - Added graceful fallback behavior when the LaunchBox cache is empty or unavailable.
+
+- **Knowledge Base Expansion Completed**:
+  - Appended four new encoder families to `prompts/chuck_knowledge.md`:
+    - GP-Wiz 49 / GP-Wiz 40
+    - Brook Universal Fighting Board (UFB)
+    - Ultimarc ServoStik
+    - Ultimarc U-Trak / SpinTrak
+  - Built out `prompts/wiz_knowledge.md` with:
+    - emulator-facing encoder behavior for arcade encoders
+    - the 12-emulator controller/config knowledge set Wiz actively monitors
+
+- **Launcher + Gun Platform Loose Ends Closed**:
+  - Fixed Nintendo DS launch failure by correcting the platform routing path and adding a working direct fallback.
+  - Added `playstation 1` as an alias for the existing `ps1` direct-launch handling so both LaunchBox platform names resolve identically.
+  - Improved Daphne/Hypseus fallback behavior so unknown titles attempt a best-effort framefile launch before falling through to LaunchBox.
+  - Reviewed SINGE2 AHK launchers, removed obsolete Sinden bootstrap/teardown patterns from active scripts, and added the missing direct-launch support path in `launcher.py`.
+
+- **Marquee Content Path Completed**:
+  - Replaced the marquee test/simulation TODO stubs in `content_manager.py` with real calls into `scripts/marquee_display.py`.
+  - Added graceful error handling so a missing second monitor or display failure reports cleanly instead of crashing the content manager.
+  - Left `AA_MARQUEE_ENABLED=0` unchanged pending live hardware validation.
+
+- **Wiz Config Apply Path Fully Gated Through ExecutionCard**:
+  - Audited the Visual Diff pipeline and confirmed preview generation existed, but the final write path was bypassing the shared execution gate.
+  - Added backend `POST /api/local/console/apply-config`.
+  - Routed Visual Diff apply actions through the Engineering Bay `ExecutionCard` pattern so actual config writes only occur after explicit operator confirmation.
+  - Preserved atomic write behavior and returned structured applied/error results to the frontend toast layer.
+
+- **Chuck Visual Wizard Overlay Wired End-to-End**:
+  - Finished the guided mapping lifecycle around `wizard_mapping.py`: start session, capture per-control mapping, commit mapping, and cancel session.
+  - Rewired the Chuck frontend overlay to use the new `/wizard/*` flow instead of the older learn-wizard path.
+  - Confirmed commit still triggers the existing Controller Cascade path after mapping save.
+  - Added the amber waiting / green confirmed visual language and real-time progress state to the active overlay.
+
+- **Wiz Guided Mapping Overlay Calibration Pass Applied**:
+  - Audited the controller renderer and confirmed it already used per-profile percentage hotspot maps for all five supported controller profiles.
+  - Tightened the hotspot calibration by converting rectangular regions to centered percentage geometry and retuning the five profile coordinate sets:
+    - 8BitDo Pro 2
+    - 8BitDo SN30 Pro
+    - Xbox 360
+    - Nintendo Switch Pro
+    - PS4 DualShock 4
+  - Synced Wiz's active/captured/mapped visual states with Chuck's amber pulse and green flash behavior.
+  - Added a graceful text-only fallback plus warning if the controller art pack is missing from `frontend/public/assets/controllers/`.
+
+Validation completed during this session:
+
+- `npm.cmd run build:frontend` passed after the frontend tasks.
+- Targeted Python compile checks passed for the launcher, content manager, console router, profile/tts routes, Dewey chat/trivia modules, and related backend edits when invoked.
+- Scoped git status/diff reviews were used after each targeted change to keep edits isolated.
+
+Environment notes / handoff risks:
+
+- NotebookLM CLI remained unavailable in this environment (`Failed to canonicalize script path`), so notebook write-back and source uploads were not completed from this session.
+- The current checkout appears to be missing the expected controller PNG asset pack under `frontend/public/assets/controllers/`; Wiz now degrades safely, but live visual validation should restore/verify those assets.
+- Several tasks were compile/build verified but not live runtime-smoke-tested against active local backend/gateway services in this session.
+
+Open follow-ups for next session:
+
+- Run live validation for:
+  - Vicky consent accept/guest paths
+  - profile Save & Broadcast propagation across all nine panels
+  - Dewey backend chat SSE path
+  - Dewey collection trivia generation against live LaunchBox cache
+  - Wiz guided controller art alignment once the PNG asset pack is confirmed present
+  - Chuck wizard commit through Controller Cascade on live cabinet hardware
+- Re-enable and hardware-validate marquee content flow before flipping `AA_MARQUEE_ENABLED` back to `1`.
+- Restore NotebookLM CLI/tooling so session summaries and architectural deltas can be written back to the second-brain notebooks again.
+
+---
+
+## Self-Healing Launch System (Phase 4)
+
+Arcade Assistant includes an AI-powered self-healing system for game launches. When a game crashes (exits in under 10 seconds), the system automatically:
+
+1. **Detects the crash** — `GameLifecycleService` monitors tracked PIDs every 2 seconds
+2. **Queries Gemini** — sends crash context to the `gemini-proxy` Supabase edge function
+3. **Applies a JIT fix** — injects CLI flags or writes ephemeral config tweaks
+4. **Retries the launch** — up to 2 attempts before declaring unrecoverable
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/services/game_lifecycle.py` | PID monitoring, crash detection, triggers remediation |
+| `backend/services/launch_remediation.py` | Gemini query, fix parsing, JIT application, JSONL logging |
+| `backend/services/remediation.py` | Legacy remediation service (Phase 3) |
+
+### Reading Remediation Logs
+
+Every remediation attempt is logged to:
+```
+A:\.aa\logs\remediation.jsonl
+```
+Each line is a JSON object with: `timestamp`, `game_title`, `platform`, `emulator`, `attempt_number`, `gemini_suggestion`, `fix_applied`, `fix_type`, `fix_detail`, `success`, `error`.
+
+### Disabling Remediation
+
+Set in `.env`:
+```
+DISABLE_REMEDIATION=1
+```
+
+### Gemini Proxy Architecture
+
+Gemini API calls route through a Supabase edge function (`gemini-proxy`) so the raw `GEMINI_API_KEY` never touches the local machine. The backend authenticates to the proxy using `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 *Arcade Assistant - Built for G&G Arcade, one commit at a time.*

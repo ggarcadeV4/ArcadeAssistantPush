@@ -38,7 +38,9 @@
       "Bash(npx vite build)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(find 'W:/Arcade Assistant Master Build/Arcade Assistant Local' -type d -name *agent*)",
+      "Bash(find 'W:/Arcade Assistant Master Build/Arcade Assistant Local' -maxdepth 2 -name *.bat -o -name *.ps1)"
     ],
     "deny": [],
     "ask": []

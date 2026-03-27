@@ -1,5 +1,5 @@
 """
-Launch Remediation Service â€” LoRa's Agentic Repair Loop.
+Launch Remediation Service — LoRa's Agentic Repair Loop.
 
 When an emulator crashes (exit within <10s), LoRa:
 1. Captures the error context (process info, game metadata)
@@ -26,10 +26,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 # Configuration
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Route through Supabase Edge Function (gemini-proxy) â€” keeps raw API key
+# ─────────────────────────────────────────────────────────
+# Route through Supabase Edge Function (gemini-proxy) — keeps raw API key
 # in Supabase secrets rather than local .env.
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_KEY = (
@@ -40,43 +40,6 @@ GEMINI_PROXY_URL = f"{SUPABASE_URL}/functions/v1/gemini-proxy" if SUPABASE_URL e
 
 MAX_REMEDIATION_ATTEMPTS = 2
 CRASH_THRESHOLD_SECONDS = 10.0  # Exit faster than this = probable crash
-
-REMEDIATION_LOG_PATH = Path(os.getenv("AA_DRIVE_ROOT", "A:\\")) / ".aa" / "logs" / "remediation.jsonl"
-
-
-def _log_remediation_result(
-    game_title: str,
-    platform: str,
-    emulator: Optional[str],
-    attempt_number: int,
-    gemini_suggestion: Optional[Dict[str, Any]],
-    fix_applied: bool,
-    fix_type: Optional[str],
-    fix_detail: Optional[str],
-    success: bool,
-    error: Optional[str] = None,
-) -> None:
-    """Append a remediation attempt record to the persistent JSONL log."""
-    try:
-        entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "game_title": game_title,
-            "platform": platform,
-            "emulator": emulator,
-            "attempt_number": attempt_number,
-            "gemini_suggestion": gemini_suggestion,
-            "fix_applied": fix_applied,
-            "fix_type": fix_type,
-            "fix_detail": fix_detail,
-            "success": success,
-            "error": error,
-        }
-        REMEDIATION_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(REMEDIATION_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, default=str) + "\n")
-        print(f"[GEMINI] Logged to {REMEDIATION_LOG_PATH}", flush=True)
-    except Exception as log_exc:
-        print(f"[GEMINI] WARNING: Failed to write remediation log: {log_exc}", flush=True)
 
 
 class RemediationResult:
@@ -108,9 +71,9 @@ class RemediationResult:
         }
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Gemini Query â€” Ask the "Gem Brain" for a fix
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# Gemini Query — Ask the "Gem Brain" for a fix
+# ─────────────────────────────────────────────────────────
 
 async def _query_gemini_for_fix(
     game_title: str,
@@ -126,10 +89,9 @@ async def _query_gemini_for_fix(
         Dict with fix_type and fix_value, or None if no suggestion.
     """
     if not GEMINI_PROXY_URL or not SUPABASE_SERVICE_KEY:
-        print("[GEMINI] Proxy NOT CONFIGURED (SUPABASE_URL or SERVICE_KEY missing) -- skipped", flush=True)
         logger.warning(
             "Gemini proxy not configured (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing) "
-            "-- remediation query skipped"
+            "— remediation query skipped"
         )
         return None
 
@@ -187,26 +149,22 @@ async def _query_gemini_for_fix(
 
         fix = json.loads(text)
         logger.info(f"Gemini remediation suggestion: {fix}")
-        print(f"[GEMINI] Suggestion: {json.dumps(fix, indent=2)}", flush=True)
         return fix
 
     except httpx.HTTPStatusError as exc:
         logger.error(f"Gemini API error: {exc.response.status_code}")
-        print(f"[GEMINI] HTTP error: {exc.response.status_code}", flush=True)
         return None
     except (json.JSONDecodeError, KeyError, IndexError) as exc:
         logger.error(f"Failed to parse Gemini remediation response: {exc}")
-        print(f"[GEMINI] Parse error: {exc}", flush=True)
         return None
     except Exception as exc:
         logger.error(f"Gemini query failed: {exc}")
-        print(f"[GEMINI] Query failed: {exc}", flush=True)
         return None
 
 
-# ——————————————————————————————————————————————————————————————————————————
+# ─────────────────────────────────────────────────────────
 # JIT Fix Application
-# ——————————————————————————————————————————————————————————————————————————
+# ─────────────────────────────────────────────────────────
 
 def apply_jit_fix(
     fix_spec: Dict[str, Any],
@@ -258,9 +216,9 @@ def apply_jit_fix(
         return {"applied": False, "fix_type": "skip", "explanation": explanation}
 
 
-# ——————————————————————————————————————————————————————————————————————————
+# ─────────────────────────────────────────────────────────
 # Main Remediation Loop
-# ——————————————————————————————————————————————————————————————————————————
+# ─────────────────────────────────────────────────────────
 
 async def attempt_remediation(
     game_title: str,
@@ -279,13 +237,11 @@ async def attempt_remediation(
         RemediationResult with fix details or failure reason.
     """
     logger.info(
-        f"[FIX] LoRa remediation started: {game_title} ({platform}/{emulator})"
+        f"🔧 LoRa remediation started: {game_title} ({platform}/{emulator})"
     )
-    print(f"[GEMINI] LoRa remediation started: {game_title} ({platform}/{emulator})", flush=True)
 
     for attempt in range(1, MAX_REMEDIATION_ATTEMPTS + 1):
         logger.info(f"Remediation attempt {attempt}/{MAX_REMEDIATION_ATTEMPTS}")
-        print(f"[GEMINI] Attempt {attempt}/{MAX_REMEDIATION_ATTEMPTS}", flush=True)
 
         # 1. Query Gemini for a fix
         fix = await _query_gemini_for_fix(
@@ -297,14 +253,7 @@ async def attempt_remediation(
         )
 
         if not fix or fix.get("fix_type") == "skip":
-            logger.info("Gemini has no actionable fix -- skipping")
-            print("[GEMINI] No actionable fix returned", flush=True)
-            _log_remediation_result(
-                game_title=game_title, platform=platform, emulator=emulator,
-                attempt_number=attempt, gemini_suggestion=fix,
-                fix_applied=False, fix_type="skip", fix_detail="No actionable fix found",
-                success=False,
-            )
+            logger.info("Gemini has no actionable fix — skipping")
             return RemediationResult(
                 success=False,
                 fix_type="skip",
@@ -315,27 +264,13 @@ async def attempt_remediation(
         # 2. Check confidence threshold
         confidence = fix.get("confidence", 0.0)
         if confidence < 0.3:
-            logger.warning(f"Low confidence fix ({confidence}) -- skipping")
-            print(f"[GEMINI] Low confidence ({confidence}) -- skipping fix", flush=True)
-            _log_remediation_result(
-                game_title=game_title, platform=platform, emulator=emulator,
-                attempt_number=attempt, gemini_suggestion=fix,
-                fix_applied=False, fix_type=fix.get("fix_type"), fix_detail=fix.get("fix_value"),
-                success=False, error=f"Low confidence: {confidence}",
-            )
+            logger.warning(f"Low confidence fix ({confidence}) — skipping")
             continue
 
         # 3. Apply the fix
         result = apply_jit_fix(fix, drive_root)
-        print(f"[GEMINI] Fix applied: {json.dumps(result, indent=2, default=str)}", flush=True)
 
         if result.get("applied"):
-            _log_remediation_result(
-                game_title=game_title, platform=platform, emulator=emulator,
-                attempt_number=attempt, gemini_suggestion=fix,
-                fix_applied=True, fix_type=fix.get("fix_type"), fix_detail=fix.get("fix_value"),
-                success=True,
-            )
             return RemediationResult(
                 success=True,
                 fix_type=fix.get("fix_type"),
@@ -343,22 +278,9 @@ async def attempt_remediation(
                 attempts=attempt,
             )
 
-        # Fix didn't apply â€” next attempt with updated context
-        _log_remediation_result(
-            game_title=game_title, platform=platform, emulator=emulator,
-            attempt_number=attempt, gemini_suggestion=fix,
-            fix_applied=False, fix_type=fix.get("fix_type"), fix_detail=fix.get("fix_value"),
-            success=False, error="Fix not applied",
-        )
+        # Fix didn't apply — next attempt with updated context
         error_context += f"\nPrevious fix attempt ({fix.get('fix_type')}) failed."
 
-    print("[GEMINI] Max attempts exhausted -- giving up", flush=True)
-    _log_remediation_result(
-        game_title=game_title, platform=platform, emulator=emulator,
-        attempt_number=MAX_REMEDIATION_ATTEMPTS, gemini_suggestion=None,
-        fix_applied=False, fix_type=None, fix_detail=None,
-        success=False, error="Max remediation attempts exhausted",
-    )
     return RemediationResult(
         success=False,
         fix_type=None,

@@ -80,6 +80,13 @@ class RetroArchRestoreRequest(BaseModel):
     dry_run: Optional[bool] = None
 
 
+class ConsoleApplyConfigRequest(BaseModel):
+    """ExecutionCard-gated apply request for Console Wizard previews."""
+    context: str = "configs"
+    emulator_ids: Optional[List[str]] = None
+    preview_summary: Optional[str] = None
+
+
 # Utility functions
 def log_console_wizard_change(
     request: Request,
@@ -121,6 +128,31 @@ def infer_target_from_backup(drive_root: Path, backup_file: Path) -> Optional[Pa
         relative = Path("config") / "retroarch" / remainder[len(prefix):]
         return (drive_root / relative).resolve()
     return None
+
+
+def _console_wizard_manager(request: Request):
+    """Create a ConsoleWizardManager with the same sanctioned path defaults as the Wiz router."""
+    from ..services.console_wizard_manager import ConsoleWizardManager
+
+    drive_root = getattr(request.app.state, "drive_root", None)
+    manifest = getattr(request.app.state, "manifest", {}) or {}
+    if drive_root is None:
+        raise RuntimeError("drive_root missing from app state")
+
+    if "sanctioned_paths" not in manifest:
+        manifest["sanctioned_paths"] = [
+            "config/mappings",
+            "config/mame",
+            "config/retroarch",
+            "config/controllers",
+            "configs",
+            "state",
+            "backups",
+            "logs",
+            "emulators",
+        ]
+
+    return ConsoleWizardManager(drive_root, manifest)
 
 
 @router.get("/controllers", response_model=ControllerDetectionResponse)
@@ -439,6 +471,73 @@ async def console_health_check():
         status_info["error"] = str(e)
 
     return status_info
+
+
+@router.post("/apply-config")
+async def apply_console_wizard_config(request: Request, payload: ConsoleApplyConfigRequest):
+    """ExecutionCard-gated apply endpoint for Wiz config previews."""
+    require_scope(request, "config")
+
+    try:
+        manager = _console_wizard_manager(request)
+        device_id = request.headers.get("x-device-id", "console-wizard")
+        emulator_filter = payload.emulator_ids or None
+        context = (payload.context or "configs").strip().lower()
+
+        if context == "configs":
+            results = manager.generate_configs(
+                emulator_filter,
+                dry_run=False,
+                log_action="execution_card_apply",
+                device_id=device_id,
+            )
+        elif context == "chuck":
+            sync_result = manager.sync_from_chuck(
+                emulator_filter,
+                force=True,
+                dry_run=False,
+                device_id=device_id,
+            )
+            results = sync_result.get("results", [])
+        else:
+            return {
+                "status": "error",
+                "message": f"Unsupported apply context: {payload.context}",
+            }
+
+        written = [entry for entry in results if entry.get("status") == "written"]
+        files = [entry.get("target_file") for entry in written if entry.get("target_file")]
+        emulators = [entry.get("emulator") for entry in written if entry.get("emulator")]
+
+        summary = payload.preview_summary or (
+            "Console Wizard config write completed."
+            if written
+            else "No config changes were written."
+        )
+
+        return {
+            "status": "applied",
+            "file": files[0] if files else "",
+            "files": files,
+            "emulators": emulators,
+            "results": results,
+            "message": summary,
+        }
+    except HTTPException as exc:
+        detail = exc.detail
+        if isinstance(detail, (dict, list)):
+            detail = json.dumps(detail)
+        logger.warning("Console Wizard apply-config rejected: %s", detail)
+        return {
+            "status": "error",
+            "message": str(detail),
+        }
+    except Exception as exc:
+        logger.exception("Console Wizard apply-config failed: %s", exc)
+        return {
+            "status": "error",
+            "message": f"Failed to apply config: {exc}",
+        }
 
 
 # ========== RetroArch Config Generation Endpoints ==========

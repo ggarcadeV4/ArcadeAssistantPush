@@ -35,7 +35,7 @@ const ELEVENLABS_CONFIG = {
   maxTextLength: 2500,
   timeoutMs: 30000,
   voiceProfiles: {
-    vicky: process.env.VICKY_VOICE_ID || 'ThT5KcBeYPX3keUQqHPh',
+    vicky: process.env.VICKY_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
     lora: process.env.LORA_VOICE_ID || 'pFZP5JQG7iQjIQuC4Bku',
     sam: process.env.SAM_VOICE_ID || 'bIHbv24MWmeRgasZH58o', // Scorekeeper Sam - enthusiastic referee voice
     doc: process.env.DOC_VOICE_ID || 'pNInz6obpgDQGcFmaJgB', // Doc health assistant voice (defaults to Adam)

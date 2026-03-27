@@ -1,4 +1,4 @@
-﻿"""
+"""
 LaunchBox game models matching platform XML structure.
 """
 from pydantic import BaseModel, Field
@@ -77,7 +77,6 @@ class LaunchResponse(BaseModel):
     message: str
     game_title: Optional[str] = None  # Include game title for confirmation
     command: Optional[str] = None  # Command is optional (not used in plugin method)
-    pid: Optional[int] = None  # Phase 0F: process PID for lifecycle tracking
 
 
 class GameCacheStats(BaseModel):

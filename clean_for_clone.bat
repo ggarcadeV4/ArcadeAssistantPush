@@ -120,6 +120,171 @@ if /I "%CLEAN_OLD%"=="Y" (
   echo Skipping backups/preflight cleanup.
 )
 
+@echo off
+REM ============================================================================
+REM  SECURITY SCRUB - Step 9 Addition for clean_for_clone.bat
+REM  Golden Drive Security Master Plan - Pillar 2, Layer 2
+REM  Add this entire block to clean_for_clone.bat, after the existing Step 8.
+REM
+REM  PURPOSE:
+REM    Aggressively remove all AI agent configuration files, dev workflow
+REM    documents, architect metadata, and dev tooling directories that expose
+REM    internal system design and should never ship on a production cabinet.
+REM
+REM    This is separate from Step 7 (dev cache cleanup) because these are
+REM    CONTENT files - they describe how the system was built, who built it,
+REM    and what rules the AI agents operate under. That's threat surface.
+REM
+REM  NOTE ON AGENT MD FILES:
+REM    AGENTS.md, CLAUDE.md, GEMINI.md, GROK.md, OPENAI.md are intentionally
+REM    preserved DURING development for agent guardrails. They are removed
+REM    here, at clone time, because a production cabinet has no dev agents.
+REM    The validation pass (basement hardware check) must be COMPLETE before
+REM    this script is run - these files are your last line of defense during
+REM    active development.
+REM ============================================================================
+
+echo.
+echo =========================================================================
+echo  STEP 9: Security Scrub - AI Agent Docs and Dev Tooling
+echo =========================================================================
+
+REM -- Agent Instruction Files (Architecture Exposure Risk) --------------------
+echo   [9.1] Removing AI agent instruction files...
+
+if exist "%~dp0AGENTS.md"          del /f /q "%~dp0AGENTS.md"          && echo         Removed: AGENTS.md
+if exist "%~dp0CLAUDE.md"          del /f /q "%~dp0CLAUDE.md"          && echo         Removed: CLAUDE.md
+if exist "%~dp0GEMINI.md"          del /f /q "%~dp0GEMINI.md"          && echo         Removed: GEMINI.md
+if exist "%~dp0GROK.md"            del /f /q "%~dp0GROK.md"            && echo         Removed: GROK.md
+if exist "%~dp0OPENAI.md"          del /f /q "%~dp0OPENAI.md"          && echo         Removed: OPENAI.md
+
+REM -- Dev Session / Workflow Files -------------------------------------------
+echo   [9.2] Removing dev session and workflow files...
+
+if exist "%~dp0ROLLING_LOG.md"          del /f /q "%~dp0ROLLING_LOG.md"
+if exist "%~dp0SESSION_HANDOFF.md"      del /f /q "%~dp0SESSION_HANDOFF.md"
+if exist "%~dp0JULES_TASKS.md"          del /f /q "%~dp0JULES_TASKS.md"
+if exist "%~dp0Untitled-1.ps1"          del /f /q "%~dp0Untitled-1.ps1"
+if exist "%~dp0.tmp_readme_head.txt"    del /f /q "%~dp0.tmp_readme_head.txt"
+if exist "%~dp0.tmp_readme_head_raw.md" del /f /q "%~dp0.tmp_readme_head_raw.md"
+echo         Session/workflow files cleaned.
+
+REM -- AI Agent Configuration Directories -------------------------------------
+echo   [9.3] Removing AI agent configuration directories...
+
+call :RemoveTree "%~dp0.agent"
+call :RemoveTree "%~dp0.claude"
+call :RemoveTree "%~dp0.kiro"
+call :RemoveTree "%~dp0codex-tasks"
+call :RemoveTree "%~dp0claude"
+echo         Agent config directories cleaned.
+
+REM -- IDE and Dev Tooling Directories ----------------------------------------
+echo   [9.4] Removing IDE and dev tooling directories...
+
+call :RemoveTree "%~dp0.vscode"
+call :RemoveTree "%~dp0__screenshots"
+call :RemoveTree "%~dp0projects"
+call :RemoveTree "%~dp0AA_DRIVE_ROOT_NOT_SET"
+echo         IDE/tooling directories cleaned.
+
+REM -- Loose Test Files at Root ------------------------------------------------
+echo   [9.5] Removing loose test and diagnostic scripts from root...
+
+REM Test scripts
+for %%F in (
+    "test_fresh_config.py"
+    "test_gamepad.py"
+    "test_heartbeat.py"
+    "test_joystick_detection.py"
+    "test_launchbox_chat.js"
+    "test_mame_p2_debug.py"
+    "test_mvp_endpoints.sh"
+    "test_p2_input.py"
+    "test_pcsx2_manual.ps1"
+    "test_phase_a5.py"
+    "test_port_collision.py"
+    "test_search.html"
+    "test_teknoparrot_launches.ps1"
+    "test_teknoparrot_launches.sh"
+    "test-launch.json"
+    "test-platforms.ps1"
+    "test_hotkey.html"
+) do (
+    if exist "%~dp0%%~F" del /f /q "%~dp0%%~F"
+)
+
+REM Diagnostic scripts
+for %%F in (
+    "backend_diag.py"
+    "cabinet_smoke_test.py"
+    "check_db.py"
+    "debug_test.ps1"
+    "dump_joy_events.py"
+    "fix_chars.py"
+    "ledwiz_test.py"
+    "led_enhancement_demo.py"
+    "minimal_backend.py"
+    "parse_pylint.py"
+    "register_cabinet.py"
+    "schema_audit.py"
+    "led_color_picker_demo.html"
+) do (
+    if exist "%~dp0%%~F" del /f /q "%~dp0%%~F"
+)
+echo         Loose test and diagnostic files cleaned.
+
+REM -- MAME Config Preview Artifacts ------------------------------------------
+echo   [9.6] Removing MAME config preview artifacts...
+
+if exist "%~dp0mame_config_preview.cfg"   del /f /q "%~dp0mame_config_preview.cfg"
+if exist "%~dp0mame_config_preview2.cfg"  del /f /q "%~dp0mame_config_preview2.cfg"
+echo         MAME preview artifacts cleaned.
+
+REM -- Vault Sanity Check ------------------------------------------------------
+echo   [9.7] Checking DPAPI vault status...
+
+if exist "%~dp0.aa\credentials.dat" (
+    echo         OK: credentials.dat found in .aa vault.
+) else (
+    echo.
+    echo         WARNING: .aa\credentials.dat NOT FOUND.
+    echo         Tier 1 secrets are not encrypted. The cabinet will run
+    echo         on plaintext .env values only.
+    echo         Run 'python encrypt_secrets.py' before deploying.
+    echo.
+)
+
+REM -- Verify .env is scrubbed -------------------------------------------------
+echo   [9.8] Checking .env for live Tier 1 secrets...
+
+REM Search for known Tier 1 keys with real values (not VAULT_MANAGED placeholder)
+findstr /i /c:"SUPABASE_ANON_KEY=ey" "%~dp0.env" >nul 2>&1
+if %errorlevel% == 0 (
+    echo.
+    echo         WARNING: .env still contains a live SUPABASE_ANON_KEY.
+    echo         This key should be replaced with VAULT_MANAGED after
+    echo         running encrypt_secrets.py.
+    echo         A live key on a removable drive is a security risk.
+    echo.
+) else (
+    echo         OK: SUPABASE_ANON_KEY not found as plaintext in .env.
+)
+
+findstr /i /c:"AA_PROVISIONING_TOKEN=ey" "%~dp0.env" >nul 2>&1
+if %errorlevel% == 0 (
+    echo.
+    echo         WARNING: .env still contains a live AA_PROVISIONING_TOKEN.
+    echo         Run encrypt_secrets.py to move this into the vault.
+    echo.
+) else (
+    echo         OK: AA_PROVISIONING_TOKEN not found as plaintext in .env.
+)
+
+echo.
+echo   Step 9 complete - Security scrub finished.
+echo =========================================================================
+
 echo.
 echo [OK] Drive cleaned for cloning. frontend\dist and gateway\node_modules were preserved.
 exit /b 0
@@ -154,7 +319,7 @@ goto :eof
 
 :RemoveTree
 if exist %~1 (
-  rd /s /q %~1
+  rd /s /q "%~1"
   echo Removed %~1
 ) else (
   echo %~1 not found, skipping.

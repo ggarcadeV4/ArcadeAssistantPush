@@ -220,6 +220,7 @@ if ($Port -and $Port -gt 0) {
 
 # Start backend
 Write-Host ""
+$env:PYTHONUNBUFFERED = '1'  # Phase0F: ensure logs flush immediately
 Write-Host "Starting uvicorn on ${BindHost}:$EffectivePort..." -ForegroundColor Cyan
 
 $args = @(

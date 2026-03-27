@@ -474,7 +474,6 @@ function speakWithBrowserVoice(text, { voice_profile, maxDurationMs } = {}) {
  * @param {string} text - Text to speak
  */
 export function speakAsVicky(text) {
-  // TODO: Restore original Vicky ElevenLabs voice ID (Rachel / 21m00Tcm4TlvDq8ikWAM); frontend resolves via named profile only.
   return speak(text, { voice_profile: 'vicky' })
 }
 
@@ -504,7 +503,7 @@ export function speakAsDewey(text) {
     // match original assigned voice. Backend profile uses
     // DEWEY_VOICE_ID (pNInz6obpgDQGcFmaJgB fallback) but frontend
     // overrides it here. Restore original assigned ID before V1 release.
-    voice_id: 'bVMeCyTHy58xNoL34h3p',
+    voice_id: 't0A4EWIngExKpUqW6AWI',
     trimFiller: true
   })
 }

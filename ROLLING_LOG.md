@@ -1,5 +1,98 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-03-19 (Antigravity Session — Gun Platform Routing, AHK Bulk Fix, LoRa Hardening)
+
+**Net Progress**: Fixed Pinball FX2/FX3 launch block. Built and verified the entire Gun Platform Routing system (16 platforms → Gun Build emulators). Bulk-fixed 213 AHK scripts (D:\→A:\, Sinden removal). Suppressed Sinden hardware warnings. Wired 4 Retro Shooter VID/PIDs. Removed 5 unstable platforms from LoRa GUI. Fixed PS3 AHK routing bypass bug.
+
+**Key Wins:**
+- **Pinball FX2/FX3 Unblocked**: `'pinball fx'` was incorrectly in `unsupportedKeywords` array in `LaunchBoxPanel.jsx` L416. Removed. Both platforms launch from LoRa.
+- **GUN_PLATFORM_MAP (16 platforms)**: Added to `launcher.py` at L1160. Maps raw platform names (before `normalize_key()` strips "gun games") to Gun Build emulator paths via `EmulatorPaths` in `a_drive_paths.py`. Covers NES, SNES, Master System, Wii, PS2, PS3, PC, TeknoParrot, Naomi, Atomiswave, Dreamcast, Saturn, Model 2, Model 3, PCSX2.
+- **AHK Wrapper Detection (dual-path)**: Two AHK intercept points in `launcher.py`:
+  1. L1329 — when adapter resolves AND `gun_exe_override` fires, checks if `ApplicationPath` ends in `.ahk` → overrides to AutoHotkey
+  2. L1498 — fallback block when no adapter resolves, same `.ahk` detection
+  This fixed PS3 Gun Games routing `rpcs3.exe .ahk` → `AutoHotkeyU32.exe .ahk`.
+- **NES Gun Core Hard-Wire**: NES Gun Games → nestopia_libretro.dll (with fceumm fallback). Mesen core not on disk.
+- **Bulk AHK Fix (213 files)**: Python line-by-line parser replaced all `D:\Gun Build\` → `A:\Gun Build\` and removed Sinden Lightgun.exe startup/cleanup blocks from 210 scripts. SINGE2 scripts (13) intentionally untouched — they need Sinden. PowerShell regex approach hit catastrophic backtracking; switched to Python.
+- **Sinden Suppression**: `gunner_hardware.py` — generic "No light gun devices detected" warning and USB enumeration error downgraded from `logger.warning`/`logger.error` to `logger.debug`. Sinden detection still runs, just fails silently.
+- **Retro Shooter VID/PIDs**: 4 Retro Shooter entries added to `KNOWN_DEVICES` in `gunner_hardware.py` (L42-68) as PRIMARY gun type. Sinden/AimTrak/Gun4IR marked secondary.
+- **LoRa GUI Exclusions**: Added `excludedPlatforms` exact-match array to `isSupportedPlatform()` in `LaunchBoxPanel.jsx`. Removed: Saturn Gun Games, Model 3 Gun Games, PS2 Gun Games, PCSX2 Gun Games, Flash Games.
+- **Display Driver Forensics**: Full forensic sweep confirmed display driver failure was NOT caused by AA or emulators. Windows Event Logs and hardware state analyzed. Driver reinstall resolved the issue.
+
+**Files Modified:**
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx` — Pinball FX unblock + excludedPlatforms array
+- `backend/services/launcher.py` — GUN_PLATFORM_MAP (L1160), gun_exe_override (L1325-1340), AHK detection (L1329+L1498), NES core hard-wire
+- `backend/services/gunner_hardware.py` — Sinden suppression (L214/L223), 4 Retro Shooter VID/PIDs (L42-68)
+- `A:\Gun Build\Roms\**\*.ahk` (213 files) — D:\→A:\ drive letter fix, Sinden block removal
+
+**Verified Launches:**
+| Platform | Game | Result |
+|----------|------|--------|
+| NES Gun Games | Duck Hunt | ✅ nestopia core |
+| SNES Gun Games | Battle Clash | ✅ Snes9x via AHK |
+| TeknoParrot Gun Games | Action Deka | ✅ AHK |
+| PS3 Gun Games | Child of Eden | ✅ AHK (fixed from rpcs3.exe) |
+| Master System Gun Games | — | ✅ routed |
+| Atomiswave / Dreamcast / Naomi / Wii / Model 2 | — | ✅ routed |
+
+**⚠️ GOTCHAS FOR NEXT AGENT:**
+- SINGE2 scripts (13 files in `A:\Gun Build\Roms\SINGE2\`) still reference Sinden `Lightgun.exe` on A:\. If Retro Shooter replaces Sinden entirely, these need a separate pass.
+- Air Twister (PC Gun Games) crashed in 2.2s — likely a game content issue, not routing.
+- Gun platform routing requires `is_gun_platform` flag, which checks for "gun" AND "games" in raw platform name.
+
+**State of Union — What's Next:**
+1. ⚡ **SINGE2 AHK scripts** — 13 files still need Sinden cleanup if Retro Shooter replaces it
+2. ⚡ **Air Twister debug** — PC Gun Games crash (2.2s exit)
+3. 🔶 **Live hardware validation (H1–H9)** — Carried forward
+4. 🌱 **Golden drive sanitization** — Carried forward
+
+---
+
+## 2026-03-18 (Antigravity Session — Self-Healing System Activation, Phases 0D–0H)
+
+**Net Progress**: Fully activated the dormant AI-powered self-healing launch system (Phase 4). Five sub-phases completed: Gemini proxy creation, proxy rewiring, live verification, PID tracking fix, crash detection fix, and remediation visibility. The system now autonomously detects game crashes (<10s exit), queries Gemini for a fix, applies JIT CLI flags, and logs everything to `remediation.jsonl`.
+
+**Key Wins:**
+- **Phase 0D — Gemini Proxy Edge Function**: Created `gemini-proxy` Supabase edge function mirroring the `elevenlabs-proxy`/`anthropic-proxy` pattern. Rewired `launch_remediation.py` to call the proxy instead of hitting the Gemini API directly. `GEMINI_API_KEY` now lives only in Supabase secrets.
+- **Phase 0E — Live Verification (failed → diagnosed)**: Attempted live test with Daphne game. Discovered the system was structurally sound but PID tracking silently failed.
+- **Phase 0F — PID Tracking Fix (5-break chain)**: Found 5 sequential breaks in PID propagation:
+  1. `launcher.py:_launch_direct()` discarded PID from `trap_result`
+  2. `game.py:LaunchResponse` had no `pid` field
+  3. `launcher.py:_try_launch_method()` didn't pass PID to response
+  4. `launchbox.py` relied only on unreliable `_best_effort_find_pid()`
+  5. `launchbox.py` `plugin_first` fallback path had **zero PID tracking** code
+  All 5 fixed. Also added `PYTHONUNBUFFERED=1` to `start_backend.ps1` — solved hidden output buffering issue.
+- **Phase 0G — Crash Detection Chain**: PID tracking confirmed working but `attempt_remediation()` never fired. Root cause: wrench emoji `🔧` in `logger.info()` threw `'charmap' codec can't encode character '\U0001f527'` on Windows. The exception was silently caught. Fixed by replacing emoji with ASCII `[FIX]`.
+- **Phase 0H — Remediation Visibility**: Added 13 `[GEMINI]` print statements across all code paths in `launch_remediation.py`. Created `_log_remediation_result()` function writing persistent JSONL records to `A:\.aa\logs\remediation.jsonl`. Added confidence threshold print. All JSONL writes wrapped in try/except for safety.
+- **Final Smoke Test — FULL SUCCESS**: Pac-Man launched, killed at 5s. Gemini responded with `{"fix_type": "cli_flag", "fix_value": "-verbose", "confidence": 0.6}`. Fix applied. `remediation.jsonl` created with full record.
+- **Phase 0 Cleanup**: Removed all 11 `[0G]` temporary diagnostic prints from `game_lifecycle.py`. Added "Self-Healing Launch System (Phase 4)" section to `README.md`. All 5 Python files pass `py_compile`.
+
+**Files Created:**
+- `supabase/functions/gemini-proxy/index.ts` — NEW (Supabase edge function)
+
+**Files Modified:**
+- `backend/services/launch_remediation.py` — Proxy rewire, emoji fix, [GEMINI] prints, JSONL logging
+- `backend/services/game_lifecycle.py` — Diagnostics added then removed (net: unchanged)
+- `backend/services/launcher.py` — PID propagation in MAME + Hypseus paths
+- `backend/models/game.py` — `pid: Optional[int]` field on `LaunchResponse`
+- `backend/routers/launchbox.py` — PID tracking in all 3 launch code paths
+- `start_backend.ps1` — `PYTHONUNBUFFERED=1`
+- `README.md` — Self-Healing Launch System documentation
+
+**⚠️ GOTCHAS FOR NEXT AGENT:**
+- `logger.info()` in `launch_remediation.py` and `game_lifecycle.py` is **INVISIBLE** in `backend.log`. Only `print()` with `flush=True` works. This is a Windows charmap encoding + log handler issue.
+- `remediation.jsonl` is written by the NEW `launch_remediation.py`, NOT the old `remediation.py`.
+- The `plugin_first` fallback path in `launchbox.py` (~L3430) is the ACTUAL path used for MAME games via LoRa — not `direct_only` or `forced_method`.
+- Emoji characters in `print()`/`logger` calls will crash on Windows (charmap codec). Use ASCII only.
+
+**State of Union — What's Next:**
+1. ⚡ **Test with genuinely broken game** — Daphne/Supermodel to see real remediation in action
+2. ⚡ **`DISABLE_REMEDIATION=1` env var** — Wire this kill switch into `game_lifecycle.py`
+3. 🔶 **Fix logger visibility** — Configure file handler with UTF-8 encoding for `launch_remediation` logger
+4. 🔶 **Remediation relaunch** — After JIT fix is applied, the system should auto-relaunch the game
+5. 🌱 **Fleet-wide remediation dashboard** — Surface `remediation.jsonl` data in the Doc panel
+
+---
+
 ## 2026-03-16 LATE (Antigravity Session — Dewey Chat & News Voice Fix)
 
 **Net Progress**: Fixed Dewey's main chat (400/500 errors from calling anthropic-proxy directly) by migrating to Gemini. Fixed Gaming News chat echo (ref-based guard replaces slow state guard). Added TTS voice output to News Chat via `/api/voice/tts` with Dewey's voice ID. Changed News Chat mic from auto-send to push-to-talk (user reviews transcript before sending).
