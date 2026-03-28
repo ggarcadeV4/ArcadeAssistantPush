@@ -16,6 +16,20 @@ const DEFAULT_DEVICES = [
   { name: 'Generic USB Gamepad', safety: 'safe' }
 ]
 
+const ENCODER_BOARD_KEYWORDS = [
+  'pacdrive', 'pactotech', 'pac-drive',
+  'pacdrive 2000', 'pacdrive 4000',
+  '2000t', '4000t',
+  'ultimarc', 'ipac', 'd209',
+  'encoder', 'arcade board'
+]
+
+function isEncoderBoard(gamepad) {
+  if (!gamepad || !gamepad.id) return false
+  const id = gamepad.id.toLowerCase()
+  return ENCODER_BOARD_KEYWORDS.some(keyword => id.includes(keyword))
+}
+
 const EMULATOR_PRESETS = [
   { value: 'retroarch', label: 'RetroArch' },
   { value: 'mame', label: 'MAME' },
@@ -310,6 +324,7 @@ export default function ConsoleWizard() {
       for (let i = 0; i < gamepads.length; i++) {
         const gamepad = gamepads[i]
         if (!gamepad) continue
+        if (isEncoderBoard(gamepad)) continue
         
         // Check buttons
         for (let j = 0; j < gamepad.buttons.length; j++) {
@@ -353,6 +368,7 @@ export default function ConsoleWizard() {
     
     // Gamepad connected/disconnected event listeners
     const handleGamepadConnected = (e) => {
+      if (isEncoderBoard(e.gamepad)) return
       console.log('Gamepad connected:', e.gamepad.id)
     }
     

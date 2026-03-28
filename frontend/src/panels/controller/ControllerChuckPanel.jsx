@@ -18,7 +18,6 @@ import React, {
 import { useInputDetection } from '../../hooks/useInputDetection';
 import { useProfileContext } from '../../context/ProfileContext';
 import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
-import MappingOverlay from './MappingOverlay';
 import { chuckContextAssembler } from './chuckContextAssembler';
 import { chuckChips } from './chuckChips';
 import './controller-chuck.css';
@@ -439,7 +438,6 @@ export default function ControllerChuckPanel() {
 
   // Chat drawer
   const [chatOpen, setChatOpen] = useState(false);
-  const [mappingOverlayOpen, setMappingOverlayOpen] = useState(false);
 
 
   // Focus mode: which player card is active for mapping (null = all equal)
@@ -626,26 +624,6 @@ export default function ControllerChuckPanel() {
     setHasPending(true);
   }, [mapping]);
 
-  const handleOpenMappingOverlay = useCallback(() => {
-    setMappingOverlayOpen(true);
-    setDetectionMode(true);
-  }, []);
-
-  const handleOverlaySaved = useCallback(async (saveResult) => {
-    if (saveResult?.cascade_preference === 'auto') {
-      console.log('[Chuck] Mapping saved, cascade queued');
-    }
-    setMappingOverlayOpen(false);
-    setDetectionMode(false);
-    await loadMapping({ showFlash: false });
-    flash('Mappings saved from overlay.', 'success');
-  }, [flash, loadMapping]);
-
-  const handleOverlayClose = useCallback(() => {
-    setMappingOverlayOpen(false);
-    setDetectionMode(false);
-  }, []);
-
   const handlePreview = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/mapping/preview`, {
@@ -829,13 +807,6 @@ export default function ControllerChuckPanel() {
                 </button>
 
                 <button
-                  className={`chuck-strip-btn ${mappingOverlayOpen ? 'active' : ''}`}
-                  onClick={handleOpenMappingOverlay}
-                  title="Start Guided Wizard"
-                >
-                  GUIDED WIZARD
-                </button>
-                <button
                   className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
                   onClick={() => setChatOpen(v => !v)}
                   title="Chat with Chuck"
@@ -932,14 +903,6 @@ export default function ControllerChuckPanel() {
             </div>
           </main>
 
-          {mappingOverlayOpen && (
-            <MappingOverlay
-              latestInput={latestInput}
-              playerMode={playerMode}
-              onClose={handleOverlayClose}
-              onSaved={handleOverlaySaved}
-            />
-          )}
 
           {/* ── Chuck AI Sidebar (Slide-out Drawer) ── */}
           <div
