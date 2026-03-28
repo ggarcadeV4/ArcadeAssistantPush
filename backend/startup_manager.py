@@ -126,6 +126,39 @@ def _bootstrap_manifest(drive_root: Path, drive_root_raw: str) -> dict:
     return manifest_template
 
 
+def _sync_manifest_drive_root(manifest_path: Path, manifest: dict, drive_root_raw: str) -> dict:
+    """Backfill or refresh manifest drive_root to match the active runtime."""
+    desired_drive_root = (drive_root_raw or "").strip()
+    current_drive_root = (manifest.get("drive_root") or "").strip()
+
+    if not desired_drive_root:
+        return manifest
+
+    needs_update = (
+        not current_drive_root
+        or current_drive_root.upper() == "<SET AA_DRIVE_ROOT>"
+        or str(Path(current_drive_root)).replace("\\", "/").lower()
+        != str(Path(desired_drive_root)).replace("\\", "/").lower()
+    )
+
+    if not needs_update:
+        return manifest
+
+    manifest["drive_root"] = desired_drive_root
+    if "manifest_version" not in manifest and "version" in manifest:
+        manifest["manifest_version"] = str(manifest["version"])
+
+    try:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(manifest_path, "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, indent=2)
+        print(f"INFO: Updated manifest drive_root to {desired_drive_root}")
+    except Exception as exc:
+        print(f"WARNING: Failed to update manifest drive_root at {manifest_path}: {exc}")
+
+    return manifest
+
+
 async def initialize_app_state(app: FastAPI):
     """Initialize application state and create required directories"""
     drive_root_raw = os.getenv("AA_DRIVE_ROOT", "").strip()
@@ -174,6 +207,7 @@ async def initialize_app_state(app: FastAPI):
             try:
                 with open(manifest_path, encoding="utf-8") as f:
                     manifest = json.load(f)
+                manifest = _sync_manifest_drive_root(manifest_path, manifest, drive_root_raw)
                 app.state.manifest_missing = False
             except Exception as e:
                 print(f"ERROR: Failed to load manifest.json: {e}")

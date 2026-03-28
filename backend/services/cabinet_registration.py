@@ -37,6 +37,11 @@ def load_device_identity() -> Dict[str, str]:
     }
 
 
+def load_device_id() -> str:
+    """Backward-compatible helper used by heartbeat startup."""
+    return load_device_identity().get("device_id", "")
+
+
 def auto_register_cabinet() -> Dict[str, Any]:
     result = {
         'success': False,

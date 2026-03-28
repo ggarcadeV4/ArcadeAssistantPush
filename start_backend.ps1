@@ -46,7 +46,9 @@ if (Test-Path $EnvFile) {
             $parts = $line.Split("=", 2)
             $key = $parts[0].Trim()
             $value = $parts[1].Trim()
-            [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key, "Process"))) {
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
         }
     }
 } else {

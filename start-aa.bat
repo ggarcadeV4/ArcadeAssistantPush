@@ -12,6 +12,7 @@ set "DRIVE=%~d0"
 set "LOGDIR=%DRIVE%\.aa\logs"
 set "REPOROOT=%~dp0"
 set "DIST_INDEX=%REPOROOT%frontend\dist\index.html"
+set "AA_DRIVE_ROOT=%DRIVE%\"
 
 set PYTHON_EXE=python
 if exist "%~dp0.venv\Scripts\python.exe" (
@@ -43,6 +44,7 @@ echo ------------------------------------------------------------
 echo.
 echo  Drive: %DRIVE%
 echo  Repo:  %REPOROOT%
+echo  AA_DRIVE_ROOT: %AA_DRIVE_ROOT%
 echo ============================================================
 echo.
 
@@ -96,6 +98,7 @@ if exist "%DRIVE%\.aa\device_id.txt" (
     exit /b 1
 )
 
+
 echo [INFO] Verifying shipped frontend dist...
 if not exist "%DIST_INDEX%" (
     echo [ERROR] frontend\dist\index.html is missing.
@@ -105,61 +108,34 @@ if not exist "%DIST_INDEX%" (
 echo [OK] Found frontend dist at %DIST_INDEX%
 echo.
 
-echo [INFO] Starting FastAPI backend on 127.0.0.1:8000...
-start "AA-Backend" /min cmd /c ""%REPOROOT%scripts\run-backend.bat" > "%LOGDIR%\backend.log" 2>&1"
+rem --- Controller Asset Provisioning ---
+rem Sync controller images from public/ into dist/ so the serve-only
+rem gateway can serve them at /assets/controllers/*
+set "CTRL_SRC=%REPOROOT%frontend\public\assets\controllers"
+set "CTRL_DST=%REPOROOT%frontend\dist\assets\controllers"
+if exist "%CTRL_SRC%\*.png" (
+    if not exist "%CTRL_DST%" mkdir "%CTRL_DST%"
+    echo [INFO] Provisioning controller assets into dist...
+    xcopy "%CTRL_SRC%\*.png" "%CTRL_DST%\" /Y /Q >nul 2>&1
+    echo [OK] Controller images synced to dist.
+) else (
+    echo [WARN] No controller PNGs found in %CTRL_SRC% - Console Wizard will use text-only fallback.
+)
+echo.
 
-echo [INFO] Waiting for backend to be ready (port 8000)...
-set BACKEND_READY=0
-for /L %%i in (1,1,30) do (
-    if !BACKEND_READY! EQU 0 (
-        netstat -ano 2>nul | findstr ":8000.*LISTENING" >nul 2>&1
-        if !ERRORLEVEL! EQU 0 (
-            set BACKEND_READY=1
-            echo.
-            echo [OK] Backend is listening on port 8000
-        ) else (
-            <nul set /p "=."
-            timeout /t 1 >nul
-        )
-    )
-)
-if !BACKEND_READY! EQU 0 (
-    echo.
-    echo [ERROR] Backend failed to start within 30 seconds!
-    echo         Check log: %LOGDIR%\backend.log
-    echo.
-    echo --- Last 20 lines of backend.log ---
-    powershell -NoProfile -Command "Get-Content '%LOGDIR%\backend.log' -Tail 20 -ErrorAction SilentlyContinue"
-    exit /b 1
-)
+echo [INFO] Starting FastAPI backend on 127.0.0.1:8000...
+start "AA-Backend" /min %ComSpec% /c call "%REPOROOT%scripts\run-backend.bat"
+
+echo [INFO] Waiting 8 seconds for backend initialization...
+timeout /t 8 >nul
+echo [INFO] Backend startup window elapsed. Continuing to gateway startup.
 
 echo [INFO] Starting Gateway server on 127.0.0.1:8787...
-start "AA-Gateway" /min cmd /c ""%REPOROOT%scripts\run-gateway.bat" > "%LOGDIR%\gateway.log" 2>&1"
+start "AA-Gateway" /min %ComSpec% /c call "%REPOROOT%scripts\run-gateway.bat"
 
-echo [INFO] Waiting for gateway to be ready (port 8787)...
-set GATEWAY_READY=0
-for /L %%i in (1,1,30) do (
-    if !GATEWAY_READY! EQU 0 (
-        netstat -ano 2>nul | findstr ":8787.*LISTENING" >nul 2>&1
-        if !ERRORLEVEL! EQU 0 (
-            set GATEWAY_READY=1
-            echo.
-            echo [OK] Gateway is listening on port 8787
-        ) else (
-            <nul set /p "=."
-            timeout /t 1 >nul
-        )
-    )
-)
-if !GATEWAY_READY! EQU 0 (
-    echo.
-    echo [ERROR] Gateway failed to start within 30 seconds!
-    echo         Check log: %LOGDIR%\gateway.log
-    echo.
-    echo --- Last 20 lines of gateway.log ---
-    powershell -NoProfile -Command "Get-Content '%LOGDIR%\gateway.log' -Tail 20 -ErrorAction SilentlyContinue"
-    exit /b 1
-)
+echo [INFO] Waiting 6 seconds for gateway initialization...
+timeout /t 6 >nul
+echo [INFO] Gateway startup window elapsed. Opening UI.
 
 if /I "%AA_MARQUEE_ENABLED%"=="0" (
     echo [INFO] AA_MARQUEE_ENABLED=0 - skipping marquee display launch.

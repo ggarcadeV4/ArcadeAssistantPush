@@ -192,4 +192,17 @@ AA_DRIVE_ROOT_NOT_SET/
 !frontend/public/*.png
 !frontend/public/*.jpg
 !frontend/public/*.jpeg
+!frontend/public/assets/controllers/*.png
+
+# ---------------------------
+# Exception: Production dist/ must travel with the golden drive (serve-only)
+# ---------------------------
+!frontend/dist/
+!frontend/dist/**
+!frontend/dist/assets/
+!frontend/dist/assets/**
+!frontend/dist/assets/controllers/*.png
+!frontend/dist/assets/*.js
+!frontend/dist/assets/*.css
+!frontend/dist/index.html
 A/

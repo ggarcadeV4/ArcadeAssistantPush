@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = 60.0
 
-CONSOLE_EMULATOR_TYPES = {
+# Base emulator types for health monitoring.
+# Variant types (e.g. "mame_gamepad", "retroarch_4x3") are auto-included
+# because the filter uses prefix matching against these base names.
+_MONITORED_BASE_TYPES = {
+    # Console emulators
     "retroarch",
     "dolphin",
     "pcsx2",
@@ -31,7 +35,32 @@ CONSOLE_EMULATOR_TYPES = {
     "snes9x",
     "epsxe",
     "redream",
+    # Arcade & specialty emulators (included for full health monitoring)
+    "mame",
+    "teknoparrot",
+    "model2",
+    "supermodel",
+    "flycast",
+    "demul",
+    "hypseus",
 }
+
+
+def _is_monitored_type(emulator_type: str) -> bool:
+    """Check if an emulator type (including variants) should be monitored.
+
+    Matches both base types ('mame') and derived variant types ('mame_gamepad')
+    using prefix matching against _MONITORED_BASE_TYPES.
+    """
+    emu_lower = emulator_type.lower()
+    for base in _MONITORED_BASE_TYPES:
+        if emu_lower == base or emu_lower.startswith(base + "_"):
+            return True
+    return False
+
+
+# Backwards-compat alias used by tests
+CONSOLE_EMULATOR_TYPES = _MONITORED_BASE_TYPES
 
 
 @dataclass
@@ -72,19 +101,20 @@ class EmulatorDiscoveryService:
             )
             cached_results = list(self._cache)
             if console_only:
-                cached_results = [info for info in cached_results if info.type.lower() in CONSOLE_EMULATOR_TYPES]
+                cached_results = [info for info in cached_results if _is_monitored_type(info.type)]
             return cached_results
 
-        # Search multiple emulator directories
-        # Emulators are at drive letter root (A:\Emulators), not project folder
-        drive_letter_root = Path(self.drive_root.drive + "\\") if self.drive_root.drive else self.drive_root
+        # Search multiple emulator directories.
+        # All paths are derived from self.drive_root (set via AA_DRIVE_ROOT env)
+        # so the same code runs on any drive letter without modification.
+        project_parent = self.drive_root.parent
         emulator_roots = [
-            drive_letter_root / "Emulators",
-            drive_letter_root / "LaunchBox" / "Emulators",
-            drive_letter_root / "Gun Build" / "Emulators",
-            # Additional common locations
-            drive_letter_root / "LaunchBox" / "Emulators" / "dolphin-emu",
-            drive_letter_root / "LaunchBox" / "Emulators" / "dolphin-2412-x64",
+            # Paths relative to drive_root (AA_DRIVE_ROOT — the project folder)
+            self.drive_root / "emulators",
+            # Paths relative to project parent (sibling directories)
+            project_parent / "Emulators",
+            project_parent / "Gun Build" / "Emulators",
+            project_parent / "LaunchBox" / "Emulators",
         ]
         
         # Also check user Documents for PCSX2-qt configs
@@ -95,6 +125,8 @@ class EmulatorDiscoveryService:
             self._register_user_profile_emulator("pcsx2", user_docs / "PCSX2")
 
         discovered: List[EmulatorInfo] = []
+        # Track seen (type, path) to avoid re-adding exact same install
+        seen_paths: set = set()
 
         for emulator_root in emulator_roots:
             if not emulator_root.exists():
@@ -111,6 +143,12 @@ class EmulatorDiscoveryService:
                 continue
 
             for emulator_dir in candidates:
+                # Skip if we already processed this exact path
+                resolved = emulator_dir.resolve()
+                if resolved in seen_paths:
+                    continue
+                seen_paths.add(resolved)
+
                 emulator_type = self.identify_emulator_type(emulator_dir)
                 if not emulator_type:
                     continue
@@ -120,9 +158,15 @@ class EmulatorDiscoveryService:
                     logger.debug("No registry pattern found for emulator type '%s'", emulator_type)
                     continue
 
+                # Detect variant suffix from folder name (e.g. "Gamepad", "G-Con45")
+                # so that "MAME" and "MAME Gamepad" are distinct entries.
+                variant_type, variant_name = self._detect_variant(
+                    emulator_dir.name, emulator_type, pattern.display_name
+                )
+
                 info = EmulatorInfo(
-                    name=pattern.display_name,
-                    type=pattern.type,
+                    name=variant_name,
+                    type=variant_type,
                     path=emulator_dir,
                     executable=self._match_executable(emulator_dir, pattern),
                     config_path=self._resolve_config_path(emulator_dir, pattern),
@@ -131,7 +175,7 @@ class EmulatorDiscoveryService:
                     priority=pattern.priority,
                 )
                 discovered.append(info)
-                logger.info("Discovered emulator %s at %s", pattern.display_name, emulator_dir)
+                logger.info("Discovered emulator %s (%s) at %s", variant_name, variant_type, emulator_dir)
 
         merged = self.merge_with_manifest(discovered)
         merged.sort(key=lambda info: (info.priority, info.name.lower()))
@@ -141,7 +185,7 @@ class EmulatorDiscoveryService:
         logger.debug("Emulator discovery found %d total entries", len(merged))
 
         if console_only:
-            merged = [info for info in merged if info.type.lower() in CONSOLE_EMULATOR_TYPES]
+            merged = [info for info in merged if _is_monitored_type(info.type)]
             logger.debug("Filtered to %d console-only emulators", len(merged))
 
         return list(merged)
@@ -268,6 +312,43 @@ class EmulatorDiscoveryService:
         self._cache = None
         self._cache_ts = 0.0
         logger.debug("Emulator discovery cache invalidated")
+
+    # ── Variant detection ──────────────────────────────────────────────
+    # Known folder-name suffixes that indicate a distinct emulator variant.
+    # Each variant gets its own type ID so it isn't merged with the base install.
+    _VARIANT_SUFFIXES = [
+        ("Gamepad",   "gamepad",  "(Gamepad)"),
+        ("G-Con45",   "gcon45",   "(G-Con45)"),
+        ("TC",        "tc",       "(Time Crisis)"),
+        ("4x3",       "4x3",      "(4:3)"),
+        ("Win64",     "win64",    "(Win64)"),
+        (".945",      "945",      "(v0.945)"),
+        ("LE3",       "le3",      "(LE3)"),
+        ("Latest",    "latest",   "(Latest)"),
+        ("Eden",      "eden",     "(Eden)"),
+        ("5.0",       "50",       "(5.0)"),
+        ("BraveFF",   "braveff",  "(BraveFF)"),
+        ("Silent Scope", "silentscope", "(Silent Scope)"),
+        ("VC3",       "vc3",      "(VC3)"),
+    ]
+
+    @staticmethod
+    def _detect_variant(
+        folder_name: str,
+        base_type: str,
+        base_display_name: str,
+    ) -> tuple:
+        """Detect if a folder represents a variant (e.g. 'MAME Gamepad').
+
+        Returns (variant_type, variant_display_name).  If no variant suffix
+        is found, returns the originals unchanged.
+        """
+        for suffix, type_tag, label in EmulatorDiscoveryService._VARIANT_SUFFIXES:
+            if suffix.lower() in folder_name.lower() and suffix.lower() not in base_type.lower():
+                variant_type = f"{base_type}_{type_tag}"
+                variant_name = f"{base_display_name} {label}"
+                return variant_type, variant_name
+        return base_type, base_display_name
 
     def _register_user_profile_emulator(self, emulator_type: str, config_dir: Path) -> None:
         """Register an emulator that stores configs in user profile (e.g., Documents folder).
