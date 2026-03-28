@@ -51,16 +51,33 @@ async def engineering_bay_chat(request: Request, payload: EBChatRequest):
         )
 
     try:
-        from backend.services.engineering_bay.ai import engineering_bay_chat as _chat
+        if payload.persona == "chuck":
+            from backend.services.chuck.ai import get_controller_ai_service
 
-        history = [{"role": t.role, "content": t.content} for t in payload.history]
-        reply = await _chat(
-            persona=payload.persona,
-            message=payload.message,
-            history=history,
-            is_diagnosis_mode=payload.isDiagnosisMode,
-            extra_context=payload.extraContext,
-        )
+            service = get_controller_ai_service()
+            result = service.chat(
+                message=payload.message,
+                drive_root=request.app.state.drive_root,
+                device_id=request.headers.get("x-device-id", "unknown"),
+                panel=request.headers.get("x-panel", "engineering-bay"),
+                extra_context={
+                    **(payload.extraContext or {}),
+                    "persona": "controller-chuck",
+                    "isDiagnosisMode": payload.isDiagnosisMode,
+                },
+            )
+            reply = result["reply"]
+        else:
+            from backend.services.engineering_bay.ai import engineering_bay_chat as _chat
+
+            history = [{"role": t.role, "content": t.content} for t in payload.history]
+            reply = await _chat(
+                persona=payload.persona,
+                message=payload.message,
+                history=history,
+                is_diagnosis_mode=payload.isDiagnosisMode,
+                extra_context=payload.extraContext,
+            )
         return EBChatResponse(
             reply=reply,
             persona=payload.persona,

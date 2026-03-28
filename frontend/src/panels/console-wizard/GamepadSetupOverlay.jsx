@@ -15,6 +15,20 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import ControllerSVG from './ControllerSVG';
 import './gamepad-setup.css';
 
+const ENCODER_BOARD_KEYWORDS = [
+  'pacdrive', 'pactotech', 'pac-drive',
+  'pacdrive 2000', 'pacdrive 4000',
+  '2000t', '4000t',
+  'ultimarc', 'ipac', 'd209',
+  'encoder', 'arcade board'
+];
+
+function isEncoderBoard(gamepad) {
+  if (!gamepad || !gamepad.id) return false;
+  const id = gamepad.id.toLowerCase();
+  return ENCODER_BOARD_KEYWORDS.some(keyword => id.includes(keyword));
+}
+
 /* ── Wizard sequence: the order in which we ask the user to press buttons ── */
 const WIZARD_SEQUENCE = [
   { key: 'up',     label: 'D-Pad UP ↑',      group: 'dpad' },
@@ -171,6 +185,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
       gp = gamepads[gamepadIndex];
     } else {
       for (let i = 0; i < gamepads.length; i++) {
+        if (isEncoderBoard(gamepads[i])) continue;
         if (gamepads[i]?.connected) {
           gp = gamepads[i];
           setGamepadIndex(i);
@@ -198,11 +213,17 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
     // Also check axes for D-pad (some controllers use axes for dpad)
     // Axis 6/7 or 9 are sometimes used for dpad on some controllers
     const axes = gp.axes;
+    const currentStep = phase === 'wizard' ? WIZARD_SEQUENCE[wizardStep] : null;
+    const isDpadStep = currentStep?.group === 'dpad';
     if (axes.length >= 2) {
-      if (axes[0] < -0.5) nowPressed.add('axis-0-neg');
-      if (axes[0] > 0.5) nowPressed.add('axis-0-pos');
-      if (axes[1] < -0.5) nowPressed.add('axis-1-neg');
-      if (axes[1] > 0.5) nowPressed.add('axis-1-pos');
+      const hasDpadAxisInput = axes.length >= 8
+        && (Math.abs(axes[6] || 0) > 0.5 || Math.abs(axes[7] || 0) > 0.5);
+      const primaryX = isDpadStep && hasDpadAxisInput ? axes[6] : axes[0];
+      const primaryY = isDpadStep && hasDpadAxisInput ? axes[7] : axes[1];
+      if (primaryX < -0.5) nowPressed.add('axis-0-neg');
+      if (primaryX > 0.5) nowPressed.add('axis-0-pos');
+      if (primaryY < -0.5) nowPressed.add('axis-1-neg');
+      if (primaryY > 0.5) nowPressed.add('axis-1-pos');
     }
 
     // Detect newly pressed button (rising edge)
@@ -270,6 +291,7 @@ export default function GamepadSetupOverlay({ onClose, fetchJSON }) {
   // ── Gamepad connect/disconnect events ─────────────────
   useEffect(() => {
     const handleConnect = (e) => {
+      if (isEncoderBoard(e.gamepad)) return;
       console.log('[GamepadSetup] Gamepad connected:', e.gamepad.id);
       setGamepadIndex(e.gamepad.index);
       setGamepadName(e.gamepad.id);
