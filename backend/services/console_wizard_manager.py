@@ -13,6 +13,7 @@ consistent with the existing PreviewApply flows.
 from __future__ import annotations
 
 import hashlib
+import httpx
 import json
 import logging
 import shutil
@@ -837,3 +838,219 @@ class ConsoleWizardManager:
         signature_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"hash": signature, "updated_at": datetime.now(timezone.utc).isoformat()}
         signature_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _load_chuck_mapping(controls_json_path: Path) -> dict:
+    """
+    Loads Controller Chuck's canonical cabinet mapping from controls.json.
+    Returns an empty dict if the file does not exist or is malformed.
+    Chuck's mapping is the physical truth - Wizard maps strictly to this.
+    """
+    if not controls_json_path.exists():
+        logger.warning(
+            f"Wizard: controls.json not found at {controls_json_path}. "
+            f"Run Controller Chuck first."
+        )
+        return {}
+
+    try:
+        return json.loads(controls_json_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error(f"Wizard: Failed to read controls.json - {e}")
+        return {}
+
+
+def generate_handheld_profile(
+    gamepad_id: str,
+    gamepad_label: str,
+    controls_json_path: Path,
+) -> dict:
+    """
+    Generates a handheld gamepad mapping profile anchored strictly to
+    Chuck's cabinet definition in controls.json.
+
+    The profile maps each handheld button to the logical cabinet address
+    Chuck has defined - never to arbitrary defaults.
+
+    Args:
+        gamepad_id: The browser Gamepad API ID string for the handheld
+        gamepad_label: Human-readable label (e.g. '8BitDo Pro 2')
+        controls_json_path: Absolute path to Chuck's controls.json
+
+    Returns:
+        A profile dict ready for RetroArch or Dolphin config generation.
+        Returns an empty dict if Chuck mapping is missing.
+    """
+    chuck_mapping = _load_chuck_mapping(controls_json_path)
+
+    if not chuck_mapping:
+        logger.warning(
+            "Wizard: Cannot generate handheld profile - "
+            "Chuck mapping is empty. Run Controller Chuck first."
+        )
+        return {}
+
+    profile = {
+        "gamepad_id": gamepad_id,
+        "gamepad_label": gamepad_label,
+        "source": "chuck_anchor",
+        "mapping": {},
+    }
+
+    for player_key, player_data in chuck_mapping.items():
+        if not isinstance(player_data, dict):
+            continue
+
+        buttons = player_data.get("buttons", {})
+        directions = player_data.get("directions", {})
+
+        player_profile = {}
+
+        for button_name, cabinet_address in buttons.items():
+            player_profile[button_name] = {
+                "cabinet_address": cabinet_address,
+                "handheld_input": None,
+            }
+
+        for dir_name, cabinet_address in directions.items():
+            player_profile[dir_name] = {
+                "cabinet_address": cabinet_address,
+                "handheld_input": None,
+            }
+
+        profile["mapping"][player_key] = player_profile
+
+    logger.info(
+        f"Wizard: Generated handheld profile for '{gamepad_label}' "
+        f"anchored to {len(profile['mapping'])} player(s) from Chuck."
+    )
+
+    return profile
+
+
+MULTIPLAYER_EMULATOR_TARGETS = [
+    "retroarch",
+    "dolphin",
+]
+
+
+async def apply_profile_to_all_emulators(
+    profile: dict,
+    emulator_configs: dict,
+    safety_pipeline_url: str = "http://127.0.0.1:8000/api/local/hardware/apply-config",
+) -> dict:
+    """
+    Copy-to-All deployment: applies a mapped handheld profile to all
+    supported multi-player emulators via the Safety Pipeline.
+
+    Every write goes through POST /api/local/hardware/apply-config
+    to ensure Backup -> Write -> Log is enforced for every config file.
+
+    Args:
+        profile: The handheld profile dict from generate_handheld_profile()
+        emulator_configs: Dict mapping emulator type to their config file paths
+                          e.g. {"retroarch": "W:\\...\\retroarch.cfg",
+                                "dolphin": "W:\\...\\GCPadNew.ini"}
+        safety_pipeline_url: URL of the Safety Pipeline endpoint
+
+    Returns:
+        A results dict reporting success/failure per emulator.
+    """
+    if not profile or not profile.get("mapping"):
+        logger.warning(
+            "Wizard: apply_profile_to_all_emulators called with empty profile. "
+            "Aborting."
+        )
+        return {"success": False, "reason": "Empty profile - run Chuck first."}
+
+    results = {}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for emulator_type in MULTIPLAYER_EMULATOR_TARGETS:
+            config_path = emulator_configs.get(emulator_type)
+
+            if not config_path:
+                logger.warning(
+                    f"Wizard: No config path provided for {emulator_type} - skipping."
+                )
+                results[emulator_type] = {
+                    "success": False,
+                    "reason": "No config path provided.",
+                }
+                continue
+
+            config_content = _build_emulator_config(emulator_type, profile)
+
+            if not config_content:
+                logger.warning(
+                    f"Wizard: Could not generate config content for {emulator_type} - skipping."
+                )
+                results[emulator_type] = {
+                    "success": False,
+                    "reason": "Config generation failed.",
+                }
+                continue
+
+            try:
+                response = await client.post(
+                    safety_pipeline_url,
+                    json={
+                        "target_path": config_path,
+                        "content": config_content,
+                    },
+                )
+                response.raise_for_status()
+                results[emulator_type] = {
+                    "success": True,
+                    "detail": response.json(),
+                }
+                logger.info(
+                    f"Wizard: {emulator_type} config applied via Safety Pipeline."
+                )
+
+            except httpx.HTTPError as e:
+                logger.error(
+                    f"Wizard: Safety Pipeline rejected {emulator_type} config - {e}"
+                )
+                results[emulator_type] = {
+                    "success": False,
+                    "reason": str(e),
+                }
+
+    return {"success": True, "results": results}
+
+
+def _build_emulator_config(emulator_type: str, profile: dict) -> str:
+    """
+    Generates the config file content string for a given emulator type
+    from the handheld profile. Returns empty string if unsupported.
+    """
+    mapping = profile.get("mapping", {})
+    gamepad_label = profile.get("gamepad_label", "Unknown Controller")
+
+    if emulator_type == "retroarch":
+        lines = [f"# Generated by Console Wizard - {gamepad_label}"]
+        for player_key, controls in mapping.items():
+            player_num = player_key.replace("p", "")
+            for control_name, control_data in controls.items():
+                handheld_input = control_data.get("handheld_input")
+                if handheld_input is not None:
+                    lines.append(
+                        f'input_player{player_num}_{control_name} = "{handheld_input}"'
+                    )
+        return "\n".join(lines)
+
+    if emulator_type == "dolphin":
+        lines = [f"# Generated by Console Wizard - {gamepad_label}"]
+        lines.append("[GCPad]")
+        for player_key, controls in mapping.items():
+            player_num = player_key.replace("p", "")
+            for control_name, control_data in controls.items():
+                handheld_input = control_data.get("handheld_input")
+                if handheld_input is not None:
+                    lines.append(
+                        f"GCPad{player_num}/{control_name} = `{handheld_input}`"
+                    )
+        return "\n".join(lines)
+
+    return ""
