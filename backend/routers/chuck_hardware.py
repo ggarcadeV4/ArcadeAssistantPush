@@ -9,6 +9,7 @@ Mounted at: /api/local/controller  (same prefix — no frontend URL changes)
 
 import json
 import logging
+import shutil
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from ..services.board_repair import BoardRepairService
 from ..services.board_sanity import BoardSanityScanner, SanityReport
@@ -679,7 +681,7 @@ async def get_controller_devices(request: Request) -> Dict[str, Any]:
         if arcade_boards:
             status = "ok"
             for board in arcade_boards:
-                hints.append(f"✓ {board['name']} ({board['vid']}:{board['pid']})")
+                hints.append(f"\u2713 {board['name']} ({board['vid']}:{board['pid']})")
         else:
             status = "partial"
             hints.append("No encoder classified yet. Use 'Classify' to mark your encoder board.")
@@ -873,3 +875,73 @@ async def get_controller_health(request: Request):
     except Exception as e:
         logger.error(f"Controller health check failed: {e}")
         raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+
+
+@router.post("/api/local/hardware/apply-config")
+async def apply_config(request: Request):
+    """
+    Safety Pipeline: Backup -> Write -> Log.
+    Never overwrites a config file silently.
+    Accepts a JSON body with:
+      - target_path: absolute path to the config file to write
+      - content: the new file content as a string
+    """
+    try:
+        body = await request.json()
+        target_path = body.get("target_path")
+        content = body.get("content")
+
+        if not target_path or content is None:
+            raise HTTPException(
+                status_code=400,
+                detail="target_path and content are required."
+            )
+
+        target = Path(target_path)
+
+        if not await run_in_threadpool(target.parent.exists):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Target directory does not exist: {target.parent}"
+            )
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = target.parent / "backups" / timestamp
+        await run_in_threadpool(backup_dir.mkdir, parents=True, exist_ok=True)
+
+        target_exists = await run_in_threadpool(target.exists)
+        backup_path = backup_dir / target.name
+
+        if target_exists:
+            await run_in_threadpool(shutil.copy2, str(target), str(backup_path))
+
+        await run_in_threadpool(target.write_text, content, encoding="utf-8")
+
+        log_path = target.parent / "tool_executor.log"
+        log_entry = (
+            f"[{timestamp}] APPLY-CONFIG | "
+            f"file={target.name} | "
+            f"backup={backup_path if target_exists else 'none'} | "
+            f"chars={len(content)}\n"
+        )
+
+        def _append_log() -> None:
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(log_entry)
+
+        await run_in_threadpool(_append_log)
+
+        return {
+            "success": True,
+            "target": str(target),
+            "backup": str(backup_path) if target_exists else None,
+            "timestamp": timestamp,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Safety pipeline failed: {str(e)}"
+        )
