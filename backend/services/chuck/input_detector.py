@@ -459,6 +459,55 @@ class InputDetectionService:
             else:
                 logger.exception("Failed to process key event %s", display_code)
 
+    def detect_pacto_topology(self) -> list:
+        """
+        Scans Windows WMI for spoofed Xbox 360 XInput nodes and groups them
+        by their parent USB Hub to determine physical Pacto board types.
+        Uses WMI exclusively — never pyusb — to avoid replacing native XInput drivers.
+        """
+        import wmi
+        c = wmi.WMI()
+        target_hwid = "VID_045E&PID_028E"  # The spoofed Xbox 360 ID
+
+        devices = c.Win32_PnPEntity(ConfigManagerErrorCode=0)
+        xinput_nodes = [
+            dev for dev in devices
+            if dev.PNPDeviceID and target_hwid in dev.PNPDeviceID
+        ]
+
+        hubs = {}
+        for node in xinput_nodes:
+            parent_hub = getattr(node, 'Parent', None)
+            if not parent_hub:
+                parent_hub = node.PNPDeviceID.rsplit('\\', 1)[0]
+            if parent_hub not in hubs:
+                hubs[parent_hub] = []
+            hubs[parent_hub].append(node.PNPDeviceID)
+
+        detected_boards = []
+        for hub, nodes in hubs.items():
+            node_count = len(nodes)
+            if node_count == 2:
+                detected_boards.append({
+                    "board_type": "Pacto_2000T",
+                    "parent_hub": hub,
+                    "xinput_nodes": node_count
+                })
+            elif node_count == 4:
+                detected_boards.append({
+                    "board_type": "Pacto_4000T",
+                    "parent_hub": hub,
+                    "xinput_nodes": node_count
+                })
+            else:
+                detected_boards.append({
+                    "board_type": "Standalone_XInput",
+                    "parent_hub": hub,
+                    "xinput_nodes": node_count
+                })
+
+        return detected_boards
+
     def _load_mapping(self) -> Dict[str, int]:
         mapping_path = _MAPPING_DIR / f"{self.board_type}.json"
         if not mapping_path.exists():
@@ -576,4 +625,3 @@ def _infer_control_from_pin(pin: int) -> Tuple[int, str, str]:
         return player, f"p{player}.start", "start"
 
     return player, "unknown", "unknown"
-
