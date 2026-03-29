@@ -53,9 +53,32 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'router': ['react-router-dom']
+        manualChunks(id) {
+          if (id.includes('react-router-dom')) {
+            return 'router'
+          }
+          if (
+            id.includes('/react/') ||
+            id.includes('\\react\\') ||
+            id.includes('/react-dom/') ||
+            id.includes('\\react-dom\\')
+          ) {
+            return 'react-vendor'
+          }
+          if (
+            id.includes('node_modules/three') ||
+            id.includes('node_modules/pixi.js')
+          ) {
+            return 'graphics-vendor'
+          }
+          if (
+            id.includes('ArcadeVisualizer') ||
+            id.includes('arcade-visualizer') ||
+            id.includes('ArcadeButtonGrid') ||
+            id.includes('ButtonGrid')
+          ) {
+            return 'arcade-visualizer'
+          }
         }
       }
     }
