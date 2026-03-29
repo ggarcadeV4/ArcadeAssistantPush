@@ -15,6 +15,7 @@
 import React, {
   useState, useEffect, useCallback, useMemo, useRef, memo
 } from 'react';
+import debounce from 'lodash/debounce';
 import { useInputDetection } from '../../hooks/useInputDetection';
 import { useProfileContext } from '../../context/ProfileContext';
 import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
@@ -271,6 +272,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
       setConfirmedButton({ num: mappingButton, pin });
       onMapped?.(`${id}.button${mappingButton}`, pin);
       setMappingButton(null);
+      setDetectionMode(false);
       const t = setTimeout(() => setConfirmedButton(null), 1800);
       return () => clearTimeout(t);
     }
@@ -278,6 +280,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
       setConfirmedDir({ dir: mappingDir, pin });
       onMapped?.(`${id}.${mappingDir}`, pin);
       setMappingDir(null);
+      setDetectionMode(false);
       const t = setTimeout(() => setConfirmedDir(null), 1800);
       return () => clearTimeout(t);
     }
@@ -285,13 +288,18 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
       setConfirmedUtility({ key: mappingUtility, pin });
       onMapped?.(`${id}.${mappingUtility}`, pin);
       setMappingUtility(null);
+      setDetectionMode(false);
       const t = setTimeout(() => setConfirmedUtility(null), 1800);
       return () => clearTimeout(t);
     }
   }, [id, latestInput, mappingButton, mappingDir, mappingUtility, onMapped]);
 
   const handleDirClick = useCallback((dir) => {
-    setMappingDir((prev) => (prev === dir ? null : dir));
+    setMappingDir((prev) => {
+      const next = prev === dir ? null : dir;
+      setDetectionMode(next !== null);
+      return next;
+    });
     setMappingButton(null);
     setMappingUtility(null);
     setConfirmedButton(null);
@@ -301,7 +309,11 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
 
   const handleMapBtn = useCallback((num, e) => {
     e.stopPropagation();
-    setMappingButton((prev) => (prev === num ? null : num));
+    setMappingButton((prev) => {
+      const next = prev === num ? null : num;
+      setDetectionMode(next !== null);
+      return next;
+    });
     setMappingDir(null);
     setMappingUtility(null);
     setConfirmedDir(null);
@@ -311,7 +323,11 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
 
   const handleMapUtility = useCallback((controlKey, e) => {
     e.stopPropagation();
-    setMappingUtility((prev) => (prev === controlKey ? null : controlKey));
+    setMappingUtility((prev) => {
+      const next = prev === controlKey ? null : controlKey;
+      setDetectionMode(next !== null);
+      return next;
+    });
     setMappingButton(null);
     setMappingDir(null);
     setConfirmedButton(null);
@@ -483,6 +499,8 @@ export default function ControllerChuckPanel() {
 
   // Pending changes flash
   const [flashMsg, setFlashMsg] = useState(null);
+  const [hardwareState, setHardwareState] = useState(null);
+  const [hardwareReconnecting, setHardwareReconnecting] = useState(false);
 
 
   // Scroll to top on mount — prevents stale scroll offset from previous panel
@@ -589,6 +607,41 @@ export default function ControllerChuckPanel() {
     }, 600);
     return () => clearTimeout(t);
   }, [latestInput]);
+
+  useEffect(() => {
+    const ws = new WebSocket(
+      'ws://127.0.0.1:8000/api/local/hardware/ws/encoder-events'
+    );
+
+    const debouncedSetHardware = debounce((data) => {
+      setHardwareState(data);
+      setHardwareReconnecting(false);
+    }, 800);
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.event === 'HARDWARE_STATE_UPDATE') {
+          setHardwareReconnecting(true);
+          debouncedSetHardware(payload.data);
+        }
+        if (payload.event === 'HARDWARE_ERROR') {
+          console.warn('Chuck hardware error:', payload.message);
+          setHardwareReconnecting(false);
+        }
+      } catch (e) {
+        console.error('Chuck WS parse error:', e);
+      }
+    };
+
+    ws.onclose = () => setHardwareReconnecting(true);
+    ws.onerror = () => setHardwareReconnecting(true);
+
+    return () => {
+      debouncedSetHardware.cancel();
+      ws.close();
+    };
+  }, []);
 
   // ── Flash message ───────────────────────────────────────────────────────────
   const flash = useCallback((msg, type = 'info') => {
