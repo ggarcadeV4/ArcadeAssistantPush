@@ -53,6 +53,8 @@ else:
         "Expected at: A:\\Arcade Assistant Local\\secrets_loader.py"
     )
 
+logger = _logging.getLogger("aa.startup")
+
 print("DEBUG: .env file loaded")
 
 # NOW safe to import modules that depend on AA_DRIVE_ROOT
@@ -203,6 +205,8 @@ from backend.routers import tts as tts_router
 from backend.routers import blinky as blinky_patterns
 print("DEBUG: Importing launchbox_plugin_client...")
 from backend.services.launchbox_plugin_client import get_plugin_client
+from backend.services.led_hardware import write_port as led_write_port
+from backend.services.led_priority_arbiter import led_priority_arbiter
 print("DEBUG: All imports complete!")
 
 def _is_wsl() -> bool:
@@ -376,6 +380,8 @@ async def lifespan(app: FastAPI):
             async def _init_blinky_resolver():
                 try:
                     await PatternResolver.initialize()
+                    led_priority_arbiter.set_fire_callback(led_write_port)
+                    logger.info("Blinky: fire callback registered → led_hardware.write_port")
                     print("LED Blinky resolver ready (background)")
                 except Exception as e:
                     print(f"WARNING: LED Blinky resolver background init failed: {e}")
@@ -648,7 +654,7 @@ app.include_router(pegasus_router.router)  # Pegasus frontend status and metadat
 app.include_router(theme_assets_router.router, prefix="/api/local/theme-assets", tags=["theme-assets"])  # Theme asset management
 app.include_router(runtime_state.router)
 app.include_router(runtime_state.state_router)
-# DISABLED: blinky_patterns router — see import block at top of file.
+# blinky_patterns router — active (aliased from backend.routers.blinky)
 # Endpoints under /api/blinky/* are unavailable until blinky.__init__
 # is converted to lazy exports.
 app.include_router(blinky_patterns.router, tags=["led-blinky-patterns"])
