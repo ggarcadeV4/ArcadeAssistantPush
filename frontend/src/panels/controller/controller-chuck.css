@@ -727,6 +727,14 @@
   stroke-width: 1.5;
 }
 
+.chuck-dir-arrow.pressed {
+  fill: rgba(0, 255, 65, 0.95);
+  stroke: #8bffae;
+  stroke-width: 1.6;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 65, 0.55));
+  transform: scale(1.08);
+}
+
 /* Waiting state base — cyan, larger */
 .chuck-dir-arrow.waiting {
   fill: rgba(0, 229, 255, 0.75);

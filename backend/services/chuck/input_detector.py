@@ -137,6 +137,7 @@ class InputDetectionService:
         self._gamepad_ready_event: Optional[threading.Event] = None  # Signals when gamepad init done
         self._listener_lock = threading.Lock()
         self._keycode_to_pin = self._load_mapping()
+        self._pin_to_control = self._load_pin_to_control_map()
         self._learn_mode = False  # When True, capture ALL keys
         self._encoder_state_manager: Optional["EncoderStateManager"] = None
     
@@ -255,7 +256,11 @@ class InputDetectionService:
         else:
             # Use identity binding if available, otherwise fall back to pin-based inference
             player = resolve_player_with_identity(pin, self.board_type, identity_bindings)
-            _, control_key, control_type = _infer_control_from_pin(pin)
+            mapped = self._pin_to_control.get(pin)
+            if mapped:
+                control_key, control_type = mapped
+            else:
+                _, control_key, control_type = _infer_control_from_pin(pin)
         
         event = InputEvent(
             timestamp=time.time(),
@@ -537,6 +542,37 @@ class InputDetectionService:
             mapping_path,
         )
         return normalized
+
+    def _load_pin_to_control_map(self) -> Dict[int, Tuple[str, str]]:
+        """Load reverse pin lookup from the active controls.json mapping file."""
+        mapping_path = self.drive_root / "config" / "mappings" / "controls.json"
+        if not mapping_path.exists():
+            logger.warning("controls.json not found at %s; using fallback pin inference.", mapping_path)
+            return {}
+
+        try:
+            with open(mapping_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle) or {}
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to load controls.json from %s: %s", mapping_path, exc)
+            return {}
+
+        mappings = payload.get("mappings") or {}
+        pin_map: Dict[int, Tuple[str, str]] = {}
+        for control_key, data in mappings.items():
+            if not isinstance(data, dict):
+                continue
+            try:
+                pin = int(data.get("pin"))
+            except (TypeError, ValueError):
+                continue
+            control_type = str(data.get("type") or ("joystick" if "." in str(control_key) and any(
+                str(control_key).endswith(suffix) for suffix in (".up", ".down", ".left", ".right")
+            ) else "button"))
+            pin_map[pin] = (str(control_key), control_type)
+
+        logger.info("Loaded %d reverse pin mappings from %s", len(pin_map), mapping_path)
+        return pin_map
 
     def _normalize_key_event(
         self,

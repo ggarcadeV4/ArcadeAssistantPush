@@ -134,7 +134,7 @@ const DIR_PATHS = {
   right: 'M31,18 L19,11 V25 Z',
 };
 
-const JoystickGraphic = memo(({ onDirClick, mappingDir, confirmedDir }) => (
+const JoystickGraphic = memo(({ onDirClick, mappingDir, confirmedDir, pressedDir }) => (
   <div className="chuck-joystick-wrap">
     <div className="chuck-joystick">
       <div className="chuck-joystick-diag" />
@@ -154,6 +154,7 @@ const JoystickGraphic = memo(({ onDirClick, mappingDir, confirmedDir }) => (
             data-dir={dir}
             className={
               `chuck-dir-arrow`
+              + (pressedDir === dir ? ' pressed' : '')
               + (mappingDir === dir ? ' waiting' : '')
               + (confirmedDir?.dir === dir ? ' confirmed' : '')
             }
@@ -222,7 +223,7 @@ const UtilButton = memo(({ label, pinLabel, pressed, waiting, confirmed, onClick
 UtilButton.displayName = 'UtilButton';
 
 /** One player card (joystick + button grid + utilities) */
-const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus, latestInput, onMapped }) => {
+const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlayer, focusOrigin, isReturning, onReturnEnd, onFocus, latestInput, onMapped, setDetectionMode }) => {
   const { id, label, cls, layout } = player;
   const cardRef = useRef(null);
 
@@ -371,6 +372,7 @@ const PlayerCard = memo(({ player, mapping, pressedKeys, playerMode, activePlaye
           onDirClick={handleDirClick}
           mappingDir={mappingDir}
           confirmedDir={confirmedDir}
+          pressedDir={DIRS.find((dir) => isPressed(dir)) ?? null}
         />
 
         <div className="chuck-button-area">
@@ -909,6 +911,7 @@ export default function ControllerChuckPanel() {
                     onFocus={handleFocus}
                     latestInput={latestInput}
                     onMapped={handleMappedControl}
+                    setDetectionMode={setDetectionMode}
                   />
                 ))}
               </div>
@@ -951,6 +954,7 @@ export default function ControllerChuckPanel() {
                     onFocus={handleFocus}
                     latestInput={latestInput}
                     onMapped={handleMappedControl}
+                    setDetectionMode={setDetectionMode}
                   />
                 ))}
             </div>
