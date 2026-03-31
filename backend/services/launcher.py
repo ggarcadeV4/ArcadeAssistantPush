@@ -1441,7 +1441,7 @@ class GameLauncher:
                     singe_exe, singe_args, singe_cwd = self._extract_singe2_command(ahk_path)
                     command = [str(singe_exe), *singe_args]
                     logger.info(
-                        "[DIRECT] Daphne→SINGE2 intercept: exe=%s, script=%s, cwd=%s",
+                        "[DIRECT] Daphne->SINGE2 intercept: exe=%s, script=%s, cwd=%s",
                         singe_exe, ahk_path, singe_cwd,
                     )
                     win_command = _convert_wsl_paths_for_windows(command)
