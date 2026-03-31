@@ -280,6 +280,28 @@ class GameLauncher:
             other_methods = [(n, f) for (n, f) in methods if n != 'direct']
             if direct_methods:
                 methods = direct_methods + other_methods
+                # Direct-native platforms: _launch_direct has an explicit handler for each of these.
+                # Always run 'direct' FIRST and bypass the health check gate for these platforms -
+                # the health check guards unknown platforms only. Known platforms go direct unconditionally.
+                DIRECT_NATIVE_PLATFORMS = {
+                                'arcade', 'arcade mame', 'mame',
+                                'nintendo ds',
+                                'daphne',
+                                'singe2',
+                                'sega model 3',
+                }
+                platform_key_for_routing = normalize_key(getattr(game, 'platform', '') or '')
+                if platform_key_for_routing in DIRECT_NATIVE_PLATFORMS:
+                                # If health check stripped 'direct', add it back - known platforms always go direct
+                                if not any(n == 'direct' for n, _ in methods):
+                                                    methods = [('direct', self._launch_direct)] + [
+                                                                            (n, f) for (n, f) in methods if n != 'direct'
+                                                    ]
+                                else:
+                                                    direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
+                                                    other_methods = [(n, f) for (n, f) in methods if n != 'direct']
+                                                    methods = direct_methods + other_methods
+                                    
         # Try each method in sequence (optimized: early return on success)
         for method_name, method_func in methods:
             result = self._try_launch_method(game, method_name, method_func, profile_hint)
