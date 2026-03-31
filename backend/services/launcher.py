@@ -419,10 +419,10 @@ class GameLauncher:
             return False
 
         # Check if MAME emulator exists (for direct MAME launch)
+        # Use EmulatorPaths which derives from AA_DRIVE_ROOT — not a static frozen path
         mame_exists = False
         try:
-            mame_exe = LaunchBoxPaths.MAME_EMULATOR
-            mame_exists = mame_exe.exists()
+            mame_exists = EmulatorPaths.mame().exists()
         except Exception:
             mame_exists = False
 
@@ -1591,9 +1591,9 @@ class GameLauncher:
                     # AHK wrapper detection: if application_path is .ahk, use AutoHotkey
                     _app_path = str(getattr(game, 'application_path', '') or '')
                     if _app_path.startswith('..'):
-                        _app_path = str((Path(r"A:\LaunchBox") / _app_path).resolve())
+                        _app_path = str((self._aa_drive_root() / "LaunchBox" / _app_path).resolve())
                     if _app_path.lower().endswith('.ahk') and is_gun_platform:
-                        _ahk_exe = Path(r"A:\Gun Build\Tools\Teknoparrot Auto Xinput\AutoHotkeyU32.exe")
+                        _ahk_exe = self._aa_drive_root() / "Gun Build" / "Tools" / "Teknoparrot Auto Xinput" / "AutoHotkeyU32.exe"
                         if _ahk_exe.exists():
                             exe = str(_ahk_exe)
                             args = [_app_path]
@@ -1759,11 +1759,11 @@ class GameLauncher:
                 app_path = str(getattr(game, 'application_path', '') or '')
                 # Resolve relative paths against LaunchBox root
                 if app_path.startswith('..'):
-                    app_path = str((Path(r"A:\LaunchBox") / app_path).resolve())
+                    app_path = str((self._aa_drive_root() / "LaunchBox" / app_path).resolve())
 
                 # --- AHK wrapper detection (SNES Gun Games, etc.) ---
                 if app_path.lower().endswith('.ahk') and is_gun_platform:
-                    ahk_exe = Path(r"A:\Gun Build\Tools\Teknoparrot Auto Xinput\AutoHotkeyU32.exe")
+                    ahk_exe = self._aa_drive_root() / "Gun Build" / "Tools" / "Teknoparrot Auto Xinput" / "AutoHotkeyU32.exe"
                     if ahk_exe.exists():
                         gun_exe = str(ahk_exe)
                         gun_args = [app_path]
@@ -2025,22 +2025,8 @@ class GameLauncher:
         Raises:
             FileNotFoundError: If MAME executable not found
         """
-        # Resolve MAME exe: prefer launchers.json mame.exe, normalize to current AA_DRIVE_ROOT
-        mame_exe = LaunchBoxPaths.MAME_EMULATOR  # default fallback
-        try:
-            _cfg = GameLauncher._load_launchers_config()
-            _mame_cfg = (_cfg or {}).get("mame", {})
-            _raw_exe = _mame_cfg.get("exe", "")
-            if _raw_exe:
-                _drive_root = os.getenv("AA_DRIVE_ROOT", "")
-                if len(_drive_root) >= 2 and _drive_root[1] == ':':
-                    _current_drive = _drive_root[0].upper()
-                    # Replace drive letter in config path regardless of what it says
-                    if len(_raw_exe) >= 3 and _raw_exe[1] == ':':
-                        _raw_exe = _current_drive + ":" + _raw_exe[2:]
-                mame_exe = Path(_raw_exe.replace("/", "\\"))
-        except Exception as _e:
-            logger.debug(f"launchers.json mame exe read failed, using static path: {_e}")
+        # Resolve MAME exe via EmulatorPaths — derives from AA_DRIVE_ROOT, always correct
+        mame_exe = EmulatorPaths.mame()
 
         if not mame_exe.exists():
             raise FileNotFoundError(f"MAME emulator not found: {mame_exe}")
