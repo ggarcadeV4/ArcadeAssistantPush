@@ -1428,6 +1428,38 @@ class GameLauncher:
                 }
 
                 ahk_stem = Path(str(getattr(game, "application_path", "") or "")).stem.lower()
+                # Intercept: SINGE2 and SINGE-HYPSEUS games are stored under platform "Daphne"
+                # in LaunchBox XML but must be routed to the SINGE2 launcher, not Hypseus VLDP.
+                _app_path_lower = app_path_str.lower()
+                if "singe2" in _app_path_lower or "singe-hypseus" in _app_path_lower:
+                    app_path = str(getattr(launch_game, "application_path", "") or "").strip()
+                    if not app_path:
+                        raise ValueError(f"No ApplicationPath configured for SINGE2 game: {launch_game.title}")
+                    ahk_path = self._resolve_launchbox_path(app_path)
+                    if not ahk_path.exists():
+                        raise FileNotFoundError(f"SINGE2 launcher script not found: {ahk_path}")
+                    singe_exe, singe_args, singe_cwd = self._extract_singe2_command(ahk_path)
+                    command = [str(singe_exe), *singe_args]
+                    logger.info(
+                        "[DIRECT] Daphne→SINGE2 intercept: exe=%s, script=%s, cwd=%s",
+                        singe_exe, ahk_path, singe_cwd,
+                    )
+                    win_command = _convert_wsl_paths_for_windows(command)
+                    wsl_cwd = str(singe_cwd)
+                    if dry_run_enabled():
+                        logger.info(f"[DIRECT] SINGE2 DRY-RUN: {' '.join(win_command)}")
+                        return {"success": True, "command": " ".join(win_command), "message": "dry-run"}
+                    trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
+                    if trap_result["success"]:
+                        result = {"success": True, "command": " ".join(win_command)}
+                        if trap_result.get("pid"):
+                            result["pid"] = trap_result["pid"]
+                        return result
+                    return {
+                        "success": False,
+                        "command": " ".join(win_command),
+                        "stderr_trap": trap_result,
+                    }
                 if ahk_stem not in daphne_game_map:
                     framefile = drive_root / ".aa" / "roms" / "DAPHNE" / "framefile" / f"{ahk_stem}.txt"
                     logger.warning(
@@ -1993,7 +2025,22 @@ class GameLauncher:
         Raises:
             FileNotFoundError: If MAME executable not found
         """
-        mame_exe = LaunchBoxPaths.MAME_EMULATOR
+        # Resolve MAME exe: prefer launchers.json mame.exe, normalize to current AA_DRIVE_ROOT
+        mame_exe = LaunchBoxPaths.MAME_EMULATOR  # default fallback
+        try:
+            _cfg = GameLauncher._load_launchers_config()
+            _mame_cfg = (_cfg or {}).get("mame", {})
+            _raw_exe = _mame_cfg.get("exe", "")
+            if _raw_exe:
+                _drive_root = os.getenv("AA_DRIVE_ROOT", "")
+                if len(_drive_root) >= 2 and _drive_root[1] == ':':
+                    _current_drive = _drive_root[0].upper()
+                    # Replace drive letter in config path regardless of what it says
+                    if len(_raw_exe) >= 3 and _raw_exe[1] == ':':
+                        _raw_exe = _current_drive + ":" + _raw_exe[2:]
+                mame_exe = Path(_raw_exe.replace("/", "\\"))
+        except Exception as _e:
+            logger.debug(f"launchers.json mame exe read failed, using static path: {_e}")
 
         if not mame_exe.exists():
             raise FileNotFoundError(f"MAME emulator not found: {mame_exe}")
