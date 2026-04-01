@@ -271,53 +271,41 @@ class GameLauncher:
                 methods = [(n, f) for (n, f) in methods if n != 'direct']
 
 
-        # Direct-preferred platforms: reorder so 'direct' runs FIRST.
-        # These platforms have dedicated adapters (e.g., Supermodel) and must
-        # bypass the plugin bridge which would delegate to LaunchBox's UI.
-        direct_preferred = {'sega model 3'}
-        if normalize_key(getattr(game, 'platform', '') or '') in direct_preferred:
-            direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
-            other_methods = [(n, f) for (n, f) in methods if n != 'direct']
-            if direct_methods:
-                methods = direct_methods + other_methods
-                    # Direct-native platforms: _launch_direct has an explicit handler for each of these.
-                        # Always run 'direct' FIRST and bypass the health check gate for these platforms -
-                        # the health check guards unknown platforms only. Known platforms go direct unconditionally.
-                        DIRECT_NATIVE_PLATFORMS = {
-                                        # MAME family
-                                        'arcade', 'arcade mame', 'mame',
-                                        # Laserdisc family
-                                        'daphne', 'singe2', 'singe-hypseus',
-                                        # Nintendo
-                                        'nintendo ds',
-                                        # Sega
-                                        'sega model 3', 'sega model 2',
-                                        # Sony
-                                        'sony playstation 2', 'playstation 2', 'ps2',
-                                        'sony playstation 3', 'playstation 3', 'ps3',
-                                        # Microsoft
-                                        'xbox', 'xbox 360',
-                                        # Dreamcast
-                                        'sega dreamcast', 'dreamcast',
-                                        # TeknoParrot
-                                        'teknoparrot',
-                                        # Wii / GameCube
-                                        'nintendo wii', 'wii', 'nintendo gamecube', 'gamecube',
-                        }
-                
-                        platform_key_for_routing = normalize_key(getattr(game, 'platform', '') or '')
-                        if platform_key_for_routing in DIRECT_NATIVE_PLATFORMS:
-                                # If health check stripped 'direct', add it back - known platforms always go direct
-                                if not any(n == 'direct' for n, _ in methods):
-                                                    methods = [('direct', self._launch_direct)] + [
-                                                                            (n, f) for (n, f) in methods if n != 'direct'
-                                                    ]
-                                else:
-                                                    direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
-                                                    other_methods = [(n, f) for (n, f) in methods if n != 'direct']
-                                                    methods = direct_methods + other_methods
-                                    
-        # Try each method in sequence (optimized: early return on success)
+        # Direct-native platforms: _launch_direct has an explicit handler for each of these.
+        # Always run 'direct' FIRST and bypass the health check gate for these platforms —
+        # the health check guards unknown platforms only. Known platforms go direct unconditionally.
+        DIRECT_NATIVE_PLATFORMS = {
+            # MAME family
+            'arcade', 'arcade mame', 'mame',
+            # Laserdisc family
+            'daphne', 'singe2', 'singe-hypseus',
+            # Nintendo
+            'nintendo ds',
+            # Sega
+            'sega model 3', 'sega model 2',
+            # Sony
+            'sony playstation 2', 'playstation 2', 'ps2',
+            'sony playstation 3', 'playstation 3', 'ps3',
+            # Microsoft
+            'xbox', 'xbox 360',
+            # Dreamcast
+            'sega dreamcast', 'dreamcast',
+            # TeknoParrot
+            'teknoparrot',
+            # Wii / GameCube
+            'nintendo wii', 'wii', 'nintendo gamecube', 'gamecube',
+        }
+        platform_key_for_routing = normalize_key(getattr(game, 'platform', '') or '')
+        if platform_key_for_routing in DIRECT_NATIVE_PLATFORMS:
+            # If health check stripped 'direct', add it back — known platforms always go direct
+            if not any(n == 'direct' for n, _ in methods):
+                methods = [('direct', self._launch_direct)] + [
+                    (n, f) for (n, f) in methods if n != 'direct'
+                ]
+            else:
+                direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
+                other_methods = [(n, f) for (n, f) in methods if n != 'direct']
+                methods = direct_methods + other_methods        # Try each method in sequence (optimized: early return on success)
         for method_name, method_func in methods:
             result = self._try_launch_method(game, method_name, method_func, profile_hint)
             if result:
