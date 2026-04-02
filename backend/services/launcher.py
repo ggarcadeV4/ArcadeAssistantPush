@@ -42,7 +42,7 @@ import socket
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Launcher Agent client â€” sends launch commands to arcade_launcher_agent.py
+# Launcher Agent client Ã¢â¬â sends launch commands to arcade_launcher_agent.py
 # which runs in a clean interactive session (not under run-backend.bat's
 # redirected stdout chain).  Required for OpenGL emulators like Supermodel.
 # ---------------------------------------------------------------------------
@@ -272,13 +272,13 @@ class GameLauncher:
 
 
         # Direct-native platforms: _launch_direct has an explicit handler for each of these.
-        # Always run 'direct' FIRST and bypass the health check gate for these platforms —
+        # Always run 'direct' FIRST and bypass the health check gate for these platforms â
         # the health check guards unknown platforms only. Known platforms go direct unconditionally.
         DIRECT_NATIVE_PLATFORMS = {
             # MAME family
             'arcade', 'arcade mame', 'mame',
             # Laserdisc family
-            'daphne', 'singe2', 'singe-hypseus',
+            'daphne', 'singe2', 'singe-hypseus', 'american laser games',
             # Nintendo
             'nintendo ds',
             # Sega
@@ -297,7 +297,7 @@ class GameLauncher:
         }
         platform_key_for_routing = normalize_key(getattr(game, 'platform', '') or '')
         if platform_key_for_routing in DIRECT_NATIVE_PLATFORMS:
-            # If health check stripped 'direct', add it back — known platforms always go direct
+            # If health check stripped 'direct', add it back â known platforms always go direct
             if not any(n == 'direct' for n, _ in methods):
                 methods = [('direct', self._launch_direct)] + [
                     (n, f) for (n, f) in methods if n != 'direct'
@@ -305,7 +305,8 @@ class GameLauncher:
             else:
                 direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
                 other_methods = [(n, f) for (n, f) in methods if n != 'direct']
-                methods = direct_methods + other_methods        # Try each method in sequence (optimized: early return on success)
+                methods = direct_methods + other_methods
+        # Try each method in sequence (optimized: early return on success)
         for method_name, method_func in methods:
             result = self._try_launch_method(game, method_name, method_func, profile_hint)
             if result:
@@ -444,7 +445,7 @@ class GameLauncher:
             return False
 
         # Check if MAME emulator exists (for direct MAME launch)
-        # Use EmulatorPaths which derives from AA_DRIVE_ROOT — not a static frozen path
+        # Use EmulatorPaths which derives from AA_DRIVE_ROOT â not a static frozen path
         mame_exists = False
         try:
             mame_exists = EmulatorPaths.mame().exists()
@@ -990,13 +991,13 @@ class GameLauncher:
         # Launch with proper error handling
         try:
             # OpenGL/DirectX emulators (e.g. Supermodel) need full process
-            # detachment via cmd.exe /c start â€” direct subprocess.Popen
+            # detachment via cmd.exe /c start Ã¢â¬â direct subprocess.Popen
             # prevents SDL/OpenGL from hooking into the Windows DWM + GPU.
             emu_title = getattr(emulator, 'title', '') or ''
             needs_detach = 'supermodel' in emu_title.lower() or 'supermodel' in str(command[0]).lower()
 
             if needs_detach:
-                # Route through the Launcher Agent â€” a separate process running
+                # Route through the Launcher Agent Ã¢â¬â a separate process running
                 # in a clean interactive session without poisoned console handles.
                 # Required because run-backend.bat redirects stdout/stderr to a
                 # log file, which taints the entire process tree and prevents
@@ -1110,7 +1111,7 @@ class GameLauncher:
             "command": " ".join(command),
         }
 
-    # â”€â”€ Stderr Trap: 1.5s Watchdog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢ââ¬Ã¢ââ¬ Stderr Trap: 1.5s Watchdog Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬Ã¢ââ¬
 
     @staticmethod
     def _launch_with_stderr_trap(
@@ -1122,13 +1123,13 @@ class GameLauncher:
 
         Wraps ``subprocess.Popen`` with ``stdout=PIPE, stderr=PIPE``.
         After 1.5 seconds:
-        - If the process is still running â†’ launch is healthy, release pipes.
-        - If the process exited with code 0 â†’ clean exit.
-        - If the process exited with non-zero code â†’ capture up to 4 KB stderr.
+        - If the process is still running Ã¢â â launch is healthy, release pipes.
+        - If the process exited with code 0 Ã¢â â clean exit.
+        - If the process exited with non-zero code Ã¢â â capture up to 4 KB stderr.
 
         Returns a ``StderrTrapResult`` dict:
             success (bool), command (str), return_code (int|None),
-            stderr (str, â‰¤4 KB), timestamp (str ISO 8601).
+            stderr (str, Ã¢â°Â¤4 KB), timestamp (str ISO 8601).
         """
         from datetime import datetime, timezone
 
@@ -1162,9 +1163,9 @@ class GameLauncher:
         try:
             proc.wait(timeout=WATCHDOG_SECONDS)
         except subprocess.TimeoutExpired:
-            # Process still running after watchdog window â†’ healthy launch
+            # Process still running after watchdog window Ã¢â â healthy launch
             logger.info(
-                "[StderrTrap] Process PID %d still running after %.1fs â€” launch OK",
+                "[StderrTrap] Process PID %d still running after %.1fs Ã¢â¬â launch OK",
                 proc.pid, WATCHDOG_SECONDS,
             )
             # Release pipes in a background thread so they don't block
@@ -1196,7 +1197,7 @@ class GameLauncher:
                 "timestamp": ts,
             }
 
-        # Non-zero exit â€” capture stderr (bounded at 4 KB)
+        # Non-zero exit Ã¢â¬â capture stderr (bounded at 4 KB)
         stderr_output = ""
         try:
             raw = proc.stderr.read(MAX_STDERR_BYTES) if proc.stderr else b""
@@ -1882,6 +1883,17 @@ class GameLauncher:
                      that fail with 'OpenGL not available' when pipes are attached.
         """
         workdir = Path(cwd) if cwd else Path(exe).parent
+        pipe_sensitive_exes = {
+            "daphne.exe",
+            "daphne",
+            "hypseus",
+            "hypseus.exe",
+            "singe.exe",
+            "singe",
+            "singe-v2.00-windows-x86_64.exe",
+        }
+        exe_name = Path(exe).name.lower()
+        no_pipe = no_pipe or exe_name in pipe_sensitive_exes
         try:
             # WSL interop: if running under WSL Linux and exe looks like Windows path, use cmd.exe start
             if platform.system() == 'Linux' and 'microsoft' in platform.release().lower() and (':' in exe or exe.lower().startswith('/mnt/')):
@@ -1929,32 +1941,79 @@ class GameLauncher:
                                 pass
                     threading.Thread(target=_delayed, daemon=True).start()
             elif no_pipe:
-                # Route through the Launcher Agent (see _execute_emulator).
                 full_command = [exe, *args]
                 win_command = _convert_wsl_paths_for_windows(full_command)
                 wsl_cwd = str(workdir)
+                pid = None
                 agent_result = _launch_via_agent(win_command, cwd=wsl_cwd)
                 if agent_result.get("ok"):
-                    logger.info("[Adapter] Launched via agent, PID=%s", agent_result.get('pid'))
+                    pid = agent_result.get("pid")
+                    logger.info("[Adapter] Launched via agent, PID=%s", pid)
                 else:
-                    raise RuntimeError(
-                        f"Launcher Agent failed: {agent_result.get('error', 'unknown')}"
+                    if platform.system() == 'Linux' and 'microsoft' in platform.release().lower():
+                        raise RuntimeError(
+                            f"Launcher Agent failed: {agent_result.get('error', 'unknown')}"
+                        )
+
+                    def _ps_quote(value: str) -> str:
+                        return "'" + str(value).replace("'", "''") + "'"
+
+                    powershell_exe = os.path.join(
+                        os.environ.get("SystemRoot", r"C:\\Windows"),
+                        "System32",
+                        "WindowsPowerShell",
+                        "v1.0",
+                        "powershell.exe",
                     )
+                    arg_items = ", ".join(_ps_quote(str(arg)) for arg in win_command[1:])
+                    ps_command = (
+                        f"Start-Process -FilePath {_ps_quote(win_command[0])} "
+                        f"-WorkingDirectory {_ps_quote(wsl_cwd)}"
+                    )
+                    if arg_items:
+                        ps_command += f" -ArgumentList {arg_items}"
+                    completed = subprocess.run(
+                        [powershell_exe, "-NoProfile", "-Command", ps_command],
+                        cwd=wsl_cwd,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+                    if completed.returncode != 0:
+                        raise RuntimeError(
+                            "PowerShell Start-Process failed: "
+                            f"{(completed.stderr or completed.stdout or '').strip()}"
+                        )
+                    logger.info("[Adapter] Launched detached no-pipe subprocess via PowerShell Start-Process: %s", ps_command)
                 if on_exit:
-                    # No direct process handle with cmd.exe /c start; use delayed cleanup
-                    try:
-                        ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
-                    except Exception:
-                        ttl = 900
-                    def _delayed_np():
-                        try:
-                            time.sleep(max(1, ttl))
-                        finally:
+                    if pid:
+                        def _await_then_cleanup_np(pid):
                             try:
-                                on_exit()
+                                import psutil
+                                p = psutil.Process(pid)
+                                p.wait()
                             except Exception:
                                 pass
-                    threading.Thread(target=_delayed_np, daemon=True).start()
+                            finally:
+                                try:
+                                    on_exit()
+                                except Exception:
+                                    pass
+                        threading.Thread(target=_await_then_cleanup_np, args=(pid,), daemon=True).start()
+                    else:
+                        try:
+                            ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
+                        except Exception:
+                            ttl = 900
+                        def _delayed_np():
+                            try:
+                                time.sleep(max(1, ttl))
+                            finally:
+                                try:
+                                    on_exit()
+                                except Exception:
+                                    pass
+                        threading.Thread(target=_delayed_np, daemon=True).start()
             else:
                 # Convert paths for WSL
                 full_command = [exe, *args]
@@ -1972,7 +2031,7 @@ class GameLauncher:
                     # Store trap result for remediation (caller can inspect)
                     GameLauncher._last_trap_result = trap_result
                 if on_exit:
-                    # Schedule cleanup â€” process already exited or is running
+                    # Schedule cleanup Ã¢â¬â process already exited or is running
                     if trap_result.get("pid"):
                         # Process still running, wait for it
                         def _await_then_cleanup(pid):
@@ -2050,7 +2109,7 @@ class GameLauncher:
         Raises:
             FileNotFoundError: If MAME executable not found
         """
-        # Resolve MAME exe via EmulatorPaths — derives from AA_DRIVE_ROOT, always correct
+        # Resolve MAME exe via EmulatorPaths â derives from AA_DRIVE_ROOT, always correct
         mame_exe = EmulatorPaths.mame()
 
         if not mame_exe.exists():
@@ -2080,7 +2139,7 @@ class GameLauncher:
                 cheat_path = cheat.get("path")
                 if isinstance(cheat_path, str) and cheat_path:
                     # Include path only if it exists on this system
-                    # Handle WSL path translation for A:/ â†’ /mnt/a/
+                    # Handle WSL path translation for A:/ Ã¢â â /mnt/a/
                     cpath = cheat_path
                     try:
                         if platform.system() == 'Linux' and 'microsoft' in platform.release().lower():
