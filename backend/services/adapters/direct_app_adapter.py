@@ -19,6 +19,7 @@ import os
 import shutil
 import shlex
 import logging
+from difflib import SequenceMatcher
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.constants.drive_root import get_drive_root
@@ -131,6 +132,34 @@ def _extract_run_target_from_ahk(ahk_path: Path) -> Tuple[Optional[str], Optiona
     return None, None
 
 
+def _resolve_existing_app_path(resolved_path: Path) -> Path:
+    """Best-effort recovery for stale LaunchBox AHK paths that drifted on disk."""
+    if resolved_path.exists() or resolved_path.suffix.lower() != ".ahk":
+        return resolved_path
+
+    parent = resolved_path.parent
+    if not parent.exists():
+        return resolved_path
+
+    target_norm = re.sub(r"[^a-z0-9]+", "", resolved_path.stem.lower())
+    best_match = None
+    best_score = 0.0
+    for candidate in parent.glob("*.ahk"):
+        candidate_norm = re.sub(r"[^a-z0-9]+", "", candidate.stem.lower())
+        if not candidate_norm:
+            continue
+        score = SequenceMatcher(None, target_norm, candidate_norm).ratio()
+        if target_norm in candidate_norm or candidate_norm in target_norm:
+            score += 0.15
+        if score > best_score:
+            best_score = score
+            best_match = candidate
+
+    if best_match and best_score >= 0.72:
+        return best_match.resolve()
+    return resolved_path
+
+
 def _parse_daphne_ahk_command(ahk_path: Path, manifest: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Parse Daphne/Hypseus/Singe AHK scripts into a direct executable launch."""
     run_target, run_args = _extract_run_target_from_ahk(ahk_path)
@@ -140,7 +169,19 @@ def _parse_daphne_ahk_command(ahk_path: Path, manifest: Optional[Dict[str, Any]]
 
     target_name = Path(run_target).name
     exe_name = target_name.lower()
-    known_exes = {"daphne.exe", "daphne", "hypseus", "hypseus.exe", "singe.exe", "singe"}
+    known_exes = {
+        "daphne.exe",
+        "daphne",
+        "hypseus",
+        "hypseus.exe",
+        "singe.exe",
+        "singe",
+        "singe-v2.00-windows-x86_64.exe",
+        "winuae.exe",
+        "winuae64.exe",
+        "_winuae.exe",
+        "_winuae64.exe",
+    }
     if exe_name not in known_exes:
         logger.debug(
             "[DirectApp] AHK parse skip: unsupported_target ('%s' not in allowed list)",
@@ -175,10 +216,22 @@ def _parse_daphne_ahk_command(ahk_path: Path, manifest: Optional[Dict[str, Any]]
         logger.debug("[DirectApp] AHK parse skip: missing_executable (tried %s)", exe_path)
         return None
 
+    pipe_sensitive_exes = {
+        "daphne.exe",
+        "daphne",
+        "hypseus",
+        "hypseus.exe",
+        "singe.exe",
+        "singe",
+        "singe-v2.00-windows-x86_64.exe",
+    }
+
     return {
         "exe": str(_norm_path(str(exe_path))),
         "args": run_args,
         "cwd": str(_norm_path(str(script_dir))),
+        # SDL/OpenGL launches can fail when stdout/stderr pipes are attached.
+        "no_pipe": exe_name in pipe_sensitive_exes,
     }
 
 
@@ -278,6 +331,7 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
 
     launchbox_root = LaunchBoxPaths.LAUNCHBOX_ROOT
     resolved_path = (launchbox_root / app_path).resolve()
+    resolved_path = _resolve_existing_app_path(resolved_path)
     normalized_path = _norm_path(str(resolved_path))
 
     if not normalized_path.exists():
