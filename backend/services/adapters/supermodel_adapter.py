@@ -93,9 +93,11 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 p = p.resolve()
 
-    # Fallback: physical ROMs under A:\Roms\MODEL3 regardless of what LaunchBox reports
+    # Fallback: physical ROMs under AA_DRIVE_ROOT/Roms/MODEL3
+    # Uses the environment variable so it resolves correctly on both dev (W:) and cabinet (A:)
     if not p.exists():
-        alt = Path(r"A:\Roms\MODEL3") / p.name
+        import os
+        alt = Path(os.getenv('AA_DRIVE_ROOT', '')) / 'Roms' / 'MODEL3' / p.name
         if alt.exists():
             p = alt
 
