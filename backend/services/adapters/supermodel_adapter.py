@@ -8,6 +8,7 @@ from .adapter_utils import (
     launch_fullscreen_enabled,
     _load_config,
 )
+from backend.constants.a_drive_paths import EmulatorPaths
 from backend.constants.runtime_paths import aa_tmp_dir
 from backend.services.platform_names import normalize_key
 from backend.services.archive_utils import _extract_zip as au_extract_zip  # type: ignore
@@ -26,10 +27,12 @@ def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False)
 
 
 def _prefer_supermodel_exe_for_platform(game: Any) -> Path | None:
-    """Prefer Supermodel exe based on platform context.
+    """Resolve Supermodel executable path.
 
-    For 'Model 3 Gun Games', prefer the 'Supermodel Gun' entry if present in
-    configs/emulator_paths.json. Otherwise, fall back to generic discovery.
+    Priority:
+      1. emulator_paths.json 'Supermodel Gun' entry (for gun game platforms)
+      2. emulator_paths.json any entry containing 'supermodel'
+      3. EmulatorPaths.supermodel() — deterministic cabinet path (guaranteed fallback)
     """
     try:
         plat = (getattr(game, 'platform', None) or (game.get('platform') if isinstance(game, dict) else '') or '')
@@ -47,7 +50,7 @@ def _prefer_supermodel_exe_for_platform(game: Any) -> Path | None:
                     exe = (LaunchBoxPaths.LAUNCHBOX_ROOT / exe).resolve()
                 if exe.exists():
                     return exe
-        # Fallback: any supermodel entry
+        # Fallback: any supermodel entry in emulator_paths.json
         for emu in emus.values():
             exe_rel = emu.get('executable_path') or ''
             if 'supermodel' in (emu.get('title') or '').lower() or 'supermodel' in exe_rel.lower():
@@ -59,8 +62,13 @@ def _prefer_supermodel_exe_for_platform(game: Any) -> Path | None:
                     return exe
     except Exception:
         pass
-    # Last resort: generic discovery
-    return find_emulator_exe('supermodel')
+
+    # Guaranteed fallback: deterministic cabinet path constant
+    fallback = EmulatorPaths.supermodel()
+    if fallback.exists():
+        return fallback
+
+    return None
 
 
 def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
@@ -72,15 +80,20 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "message": "MISSING-ROM: stem='', tried_exts=['.zip']"}
     p = Path(str(rp))
     if not p.is_absolute():
-        try:
-            from backend.constants.a_drive_paths import LaunchBoxPaths
-            p = (LaunchBoxPaths.LAUNCHBOX_ROOT / p).resolve()
-        except Exception:
-            p = p.resolve()
+        # Priority 1: relative to Supermodel exe dir — the most common LaunchBox
+        # setup stores ROMs as e.g. "ROMs\dirtdvlsj.zip" relative to the emulator folder.
+        exe_relative = (exe.parent / p).resolve()
+        if exe_relative.exists():
+            p = exe_relative
+        else:
+            # Priority 2: relative to LaunchBox root
+            try:
+                from backend.constants.a_drive_paths import LaunchBoxPaths
+                p = (LaunchBoxPaths.LAUNCHBOX_ROOT / p).resolve()
+            except Exception:
+                p = p.resolve()
 
-    # Fallback: LaunchBox may report 'Sega Model 3' as the ROM folder but
-    # the physical ROMs live under A:\Roms\MODEL3.  Try the alternate path
-    # before giving up.
+    # Fallback: physical ROMs under A:\Roms\MODEL3 regardless of what LaunchBox reports
     if not p.exists():
         alt = Path(r"A:\Roms\MODEL3") / p.name
         if alt.exists():
