@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import platform
 import re
 import os
-from backend.constants.a_drive_paths import LaunchBoxPaths
+from backend.constants.a_drive_paths import AA_DRIVE_ROOT, EmulatorPaths
 
 
 @dataclass
@@ -62,7 +62,6 @@ DEFAULT_PLATFORM_OVERLAY_MAP: Dict[str, str] = {
     "Atari 7800": "overlays/Atari-7800.cfg",
     "Nintendo Entertainment System": "overlays/Nintendo-Entertainment-System.cfg",
     "Super Nintendo Entertainment System": "overlays/Super-Nintendo-Entertainment-System.cfg",
-    "Nintendo GameCube": "overlays/Nintendo-GameCube.cfg",
     "Sega Genesis": "overlays/Sega-Genesis.cfg",
     "Nintendo Game Boy": "overlays/Nintendo-Game-Boy.cfg",
     "Nintendo Game Boy Advance": "overlays/Nintendo-Game-Boy-Advance.cfg",
@@ -84,6 +83,49 @@ DEFAULT_PLATFORM_OVERLAY_MAP: Dict[str, str] = {
     "Sega Dreamcast": "overlays/Dreamcast.cfg",
     "Sega Naomi": "overlays/Naomi.cfg",
     "Sammy Atomiswave": "overlays/Atomiswave.cfg",
+}
+
+INSTANCE_REGISTRY: Dict[str, Dict[str, str]] = {
+    # Standard RetroArch instance
+    "Atari 2600": {"instance": "retroarch", "core": "stella_libretro.dll"},
+    "Atari 7800": {"instance": "retroarch", "core": "prosystem_libretro.dll"},
+    "Super Nintendo Entertainment System": {"instance": "retroarch", "core": "snes9x_libretro.dll"},
+    "Sega Genesis": {"instance": "retroarch", "core": "genesis_plus_gx_libretro.dll"},
+    "Sega Game Gear": {"instance": "retroarch", "core": "genesis_plus_gx_libretro.dll"},
+    "Sega Master System": {"instance": "retroarch", "core": "genesis_plus_gx_libretro.dll"},
+    "Atari Lynx": {"instance": "retroarch", "core": "handy_libretro.dll"},
+    "Atari Jaguar": {"instance": "retroarch", "core": "virtualjaguar_libretro.dll"},
+    "NEC TurboGrafx-16": {"instance": "retroarch", "core": "mednafen_pce_fast_libretro.dll"},
+    "Sega 32X": {"instance": "retroarch", "core": "picodrive_libretro.dll"},
+    "Sega CD": {"instance": "retroarch", "core": "genesis_plus_gx_libretro.dll"},
+    "Sony Playstation": {"instance": "retroarch", "core": "mednafen_psx_hw_libretro.dll"},
+    "Sony PSP": {"instance": "retroarch", "core": "ppsspp_libretro.dll"},
+    "Sony PSP Minis": {"instance": "retroarch", "core": "ppsspp_libretro.dll"},
+    "Neo Geo Pocket": {"instance": "retroarch", "core": "mednafen_ngp_libretro.dll"},
+    "Neo Geo Pocket Color": {"instance": "retroarch", "core": "mednafen_ngp_libretro.dll"},
+    "WonderSwan": {"instance": "retroarch", "core": "mednafen_wswan_libretro.dll"},
+    "WonderSwan Color": {"instance": "retroarch", "core": "mednafen_wswan_libretro.dll"},
+    "Sega Dreamcast": {"instance": "retroarch", "core": "flycast_libretro.dll"},
+    "Sega Naomi": {"instance": "retroarch", "core": "flycast_libretro.dll"},
+    "Sammy Atomiswave": {"instance": "retroarch", "core": "flycast_libretro.dll"},
+    # Gamepad instance
+    "Nintendo Entertainment System": {"instance": "retroarch_gamepad", "core": "mesen_libretro.dll"},
+    "Nintendo Game Boy": {"instance": "retroarch_gamepad", "core": "gambatte_libretro.dll"},
+    "Nintendo Game Boy Color": {"instance": "retroarch_gamepad", "core": "gambatte_libretro.dll"},
+    "Nintendo Game Boy Advance": {"instance": "retroarch_gamepad", "core": "mgba_libretro.dll"},
+    # Nintendo GameCube: routed to standalone Dolphin.exe (dolphin_adapter).
+    # dolphin_libretro is blacklisted — black screen with audio on this cabinet.
+    # "Nintendo GameCube": {DISABLED},
+    # Gun instance
+    "NES Gun Games": {"instance": "retroarch_gun", "core": "nestopia_libretro.dll"},
+    "Master System Gun Games": {"instance": "retroarch_gun", "core": "genesis_plus_gx_libretro.dll"},
+    "Saturn Gun Games": {"instance": "retroarch_gun", "core": "mednafen_saturn_libretro.dll"},
+    "American Laser Games": {"instance": "retroarch_gun", "core": "opera_libretro.dll"},
+}
+
+OVERLAY_DISABLED_PLATFORMS = {
+    # GameCube is no longer routed through RetroArch — handled by dolphin_adapter.
+    # Entry kept as empty set for future use.
 }
 
 
@@ -140,6 +182,16 @@ def _resolve_overlay_path(overlay_ref: str, exe: Path) -> Optional[Path]:
     return None
 
 
+def _get_instance_exe(instance_name: str) -> Path:
+    mapping = {
+        "retroarch": EmulatorPaths.retroarch(),
+        "retroarch_gamepad": EmulatorPaths.retroarch_gamepad(),
+        "retroarch_gun": EmulatorPaths.retroarch_gun(),
+        "retroarch_gun_win64": EmulatorPaths.retroarch_gun_win64(),
+    }
+    return mapping.get(instance_name, EmulatorPaths.retroarch())
+
+
 def _ensure_platform_override(platform_name: str, overlay_cfg: Path) -> Optional[Path]:
     try:
         repo_root = Path(__file__).resolve().parents[3]
@@ -168,11 +220,54 @@ def _ensure_platform_override(platform_name: str, overlay_cfg: Path) -> Optional
         return None
 
 
+def _ensure_platform_launch_override(platform_name: str, *, overlay_cfg: Optional[Path] = None) -> Optional[Path]:
+    try:
+        repo_root = Path(__file__).resolve().parents[3]
+        state_root = os.getenv("AA_RUNTIME_STATE_DIR")
+        base_dir = Path(state_root) if state_root else (repo_root / ".aa" / "state")
+        out_dir = base_dir / "retroarch" / "platform_overrides"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"{_safe_slug(platform_name)}.cfg"
+
+        lines: List[str] = ['auto_overrides_enable = "false"']
+        if overlay_cfg:
+            overlay_text = str(overlay_cfg).replace("\\", "/")
+            lines.extend([
+                f'input_overlay = "{overlay_text}"',
+                'input_overlay_enable = "true"',
+                'input_overlay_opacity = "1.000000"',
+            ])
+
+        if platform_name == "Nintendo GameCube":
+            # dolphin_libretro is currently black-screening on gameplay while audio
+            # continues. Disable the two highest-risk global frontend features for
+            # this core at launch time: rewind and shaders.
+            lines.extend([
+                'rewind_enable = "false"',
+                'video_shader_enable = "false"',
+            ])
+
+        content = "\n".join(lines) + "\n"
+        current = ""
+        if out_file.exists():
+            try:
+                current = out_file.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                current = ""
+        if current != content:
+            out_file.write_text(content, encoding="utf-8")
+        return out_file
+    except Exception:
+        return None
+
+
 def can_handle(game: Any, manifest: Dict[str, Any]) -> bool:
+    plat = _normalize_platform_name(_platform_name_for_game(game))
+    if plat in INSTANCE_REGISTRY:
+        return True
     emu = _get_ra_config(manifest)
     if not emu:
         return False
-    plat = _normalize_platform_name(_platform_name_for_game(game))
     core_key = (emu.get("platform_map") or {}).get(plat)
     return bool(core_key)
 
@@ -200,67 +295,64 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
 
     Returns None if mapping is missing or inputs are incomplete.
     """
-    if not manifest:
-        return None
-    emu = _get_ra_config(manifest)
-    if not emu:
-        return None
-
+    manifest = manifest or {}
+    emu = _get_ra_config(manifest) or {}
     plat = _normalize_platform_name(_platform_name_for_game(game))
-    core_key = ((_get(game, "retroarch_core_override") or "").strip() or (emu.get("platform_map") or {}).get(plat))
-    if not core_key:
-        return None
-
-    cores = emu.get("cores") or {}
-    core_rel = cores.get(core_key)
-    if not core_rel:
-        return None
-
     exe_override = (_get(game, "retroarch_exe_override") or "").strip()
-    exe = _norm_path(exe_override or str(emu.get("exe", "")))
-    # Fallback discovery: if exe missing, try common LaunchBox locations
-    if not str(exe) or not exe.exists():
-        try:
-            # Prefer LaunchBox embedded RetroArch
-            lb_emus = LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators"
-            candidates: List[Path] = []
-            for base in [lb_emus, LaunchBoxPaths.EMULATORS_ROOT]:
-                try:
-                    if base.exists():
-                        candidates.extend(base.rglob("retroarch.exe"))
-                except Exception:
-                    continue
-            # Choose the first matching exe deterministically
-            if candidates:
-                exe = candidates[0]
-        except Exception:
-            pass
+    registry_entry = INSTANCE_REGISTRY.get(plat)
+
+    core_path: Optional[Path] = None
+    if exe_override:
+        exe = _norm_path(exe_override)
+        if registry_entry:
+            core_path = exe.parent / "cores" / registry_entry["core"]
+    elif registry_entry:
+        exe = _get_instance_exe(registry_entry["instance"])
+        core_path = exe.parent / "cores" / registry_entry["core"]
+    else:
+        manifest_exe = str(emu.get("exe", "") or "").strip()
+        manifest_exe_norm = manifest_exe.replace("\\", "/").lower()
+        if "a:/launchbox" in manifest_exe_norm:
+            exe = EmulatorPaths.retroarch()
+        else:
+            exe = _norm_path(manifest_exe)
+        if not str(exe) or not exe.exists():
+            exe = EmulatorPaths.retroarch()
     if not str(exe) or not exe.exists():
         return None
 
-    # Core path may be relative to RetroArch directory
-    core_path = Path(core_rel)
-    if not core_path.is_absolute():
-        candidate = exe.parent / core_rel
-        if not candidate.exists():
-            # Common layout: cores/<dll>
-            candidate2 = exe.parent / "cores" / core_rel
-            core_path = candidate2
-        else:
-            core_path = candidate
+    if core_path is None:
+        core_key = ((_get(game, "retroarch_core_override") or "").strip() or (emu.get("platform_map") or {}).get(plat))
+        if not core_key:
+            return None
+        cores = emu.get("cores") or {}
+        core_rel = cores.get(core_key)
+        if not core_rel:
+            return None
+        # Core path may be relative to RetroArch directory
+        core_path = Path(core_rel)
+        if not core_path.is_absolute():
+            candidate = exe.parent / core_rel
+            if not candidate.exists():
+                # Common layout: cores/<dll>
+                candidate2 = exe.parent / "cores" / core_rel
+                core_path = candidate2
+            else:
+                core_path = candidate
 
     # ROM path from game
     rom = _get(game, "rom_path") or _get(game, "application_path") or _get(game, "romPath")
     if not rom:
         return None
-    # Resolve ROM path: absolute stays absolute; relative is resolved against LaunchBox root
+    # Resolve ROM path: absolute stays absolute; relative LaunchBox-style paths
+    # are anchored from the configured LaunchBox root on disk.
     rom_str = str(rom).replace('\\', '/')
     is_abs = bool(re.match(r"^[A-Za-z]:/", rom_str) or rom_str.startswith('/mnt/'))
     if is_abs:
         romfile = _norm_path(rom_str)
     else:
-        # Resolve relative to LaunchBox root (e.g., ..\\Console ROMs\\...)
-        base = LaunchBoxPaths.LAUNCHBOX_ROOT
+        launchbox_root = os.getenv("LAUNCHBOX_ROOT", "").strip()
+        base = Path(launchbox_root) if launchbox_root else (Path(AA_DRIVE_ROOT) / "LaunchBox")
         rom_abs = (base / rom_str).resolve()
         romfile = rom_abs
 
@@ -272,13 +364,13 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
     # 2) append platform-specific config
     # 3) disable legacy per-game overrides for this launch to avoid wrong-system carryover
     overlay_map = emu.get("overlay_map") or {}
-    overlay_ref = overlay_map.get(plat) or DEFAULT_PLATFORM_OVERLAY_MAP.get(plat)
-    if overlay_ref:
-        overlay_path = _resolve_overlay_path(str(overlay_ref), exe)
-        if overlay_path:
-            platform_cfg = _ensure_platform_override(plat, overlay_path)
-            if platform_cfg:
-                flags.extend(["--appendconfig", str(platform_cfg)])
+    overlay_ref = None if plat in OVERLAY_DISABLED_PLATFORMS else (
+        overlay_map.get(plat) or DEFAULT_PLATFORM_OVERLAY_MAP.get(plat)
+    )
+    overlay_path = _resolve_overlay_path(str(overlay_ref), exe) if overlay_ref else None
+    platform_cfg = _ensure_platform_launch_override(plat, overlay_cfg=overlay_path)
+    if platform_cfg:
+        flags.extend(["--appendconfig", str(platform_cfg)])
 
     return RAConfig(exe=exe, core=str(core_path), romfile=romfile, flags=flags, platform=plat)
 
@@ -396,6 +488,28 @@ def propose_mapping_from_installed(cores_listing: List[str]) -> Dict[str, str]:
         "Nintendo Entertainment System": ["mesen_libretro.dll", "fceumm_libretro.dll", "nestopia_libretro.dll"],
         "Super Nintendo Entertainment System": ["snes9x_libretro.dll", "bsnes_libretro.dll"],
         "Sega Genesis": ["genesis_plus_gx_libretro.dll", "picodrive_libretro.dll"],
+        "Atari 7800": ["prosystem_libretro.dll"],
+        "Nintendo GameCube": ["dolphin_libretro.dll"],
+        "Nintendo Game Boy": ["gambatte_libretro.dll"],
+        "Nintendo Game Boy Advance": ["mgba_libretro.dll"],
+        "Nintendo Game Boy Color": ["gambatte_libretro.dll"],
+        "Sega Game Gear": ["genesis_plus_gx_libretro.dll"],
+        "Sega Master System": ["genesis_plus_gx_libretro.dll"],
+        "Atari Lynx": ["handy_libretro.dll"],
+        "Atari Jaguar": ["virtualjaguar_libretro.dll"],
+        "NEC TurboGrafx-16": ["mednafen_pce_fast_libretro.dll"],
+        "Sega 32X": ["picodrive_libretro.dll"],
+        "Sega CD": ["genesis_plus_gx_libretro.dll"],
+        "Sony Playstation": ["mednafen_psx_hw_libretro.dll"],
+        "Sony PSP": ["ppsspp_libretro.dll"],
+        "Sony PSP Minis": ["ppsspp_libretro.dll"],
+        "Neo Geo Pocket": ["mednafen_ngp_libretro.dll"],
+        "Neo Geo Pocket Color": ["mednafen_ngp_libretro.dll"],
+        "WonderSwan": ["mednafen_wswan_libretro.dll"],
+        "WonderSwan Color": ["mednafen_wswan_libretro.dll"],
+        "Sega Dreamcast": ["flycast_libretro.dll"],
+        "Sega Naomi": ["flycast_libretro.dll"],
+        "Sammy Atomiswave": ["flycast_libretro.dll"],
     }
     result: Dict[str, str] = {}
     for core_key, candidates in preferred.items():
