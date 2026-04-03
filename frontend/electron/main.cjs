@@ -10,7 +10,7 @@
  * Duplication readiness still requires it to load successfully against the shipped gateway build.
  */
 
-const { app, BrowserWindow, globalShortcut, screen } = require('electron');
+const { app, BrowserWindow, globalShortcut, screen, session } = require('electron');
 const WebSocket = require('ws');
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -404,6 +404,21 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+    // ── Microphone Permission Handler ───────────────────────────────────────────────
+    // Electron blocks getUserMedia() by default. This handler grants mic/camera
+    // access so LoRa's voice recording can work inside the renderer.
+    // We grant only media-related permissions; all others are denied.
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        const ALLOWED_PERMISSIONS = ['media', 'microphone', 'audioCapture', 'speaker'];
+        const granted = ALLOWED_PERMISSIONS.includes(permission);
+        if (granted) {
+            try { console.log(`[Dewey] Permission granted: ${permission}`); } catch { }
+        } else {
+            try { console.log(`[Dewey] Permission denied: ${permission}`); } catch { }
+        }
+        callback(granted);
+    });
+
     createWindow();
     registerShortcuts();
     connectHotkeyBridge();
@@ -425,5 +440,3 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
     app.quit();
 });
-
-
