@@ -17,9 +17,6 @@ def is_enabled(manifest: Dict[str, Any]) -> bool:
 
 def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False):
     key = normalize_key((getattr(game, 'platform', None) or (game.get('platform') if isinstance(game, dict) else '') or ''))
-    # Standalone Dolphin handles both Wii and GameCube.
-    # dolphin_libretro (RetroArch core) is blacklisted — it produces audio
-    # with no visible gameplay (black screen) on this cabinet build.
     ok = key in {'nintendo wii', 'nintendo gamecube', 'gamecube'}
     if return_reason:
         return ok, f"platform_key={key}"
@@ -27,19 +24,9 @@ def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False)
 
 
 def _resolve_exe(platform_key: str) -> Optional[Path]:
-    """
-    Return the correct Dolphin executable for the given platform.
-
-    GameCube  → Dolphin Joystick  (arcade gamepad layout, standard GC controller mapping)
-    Wii       → Dolphin Joystick  (same build, Wiimote/nunchuk emulated via gamepad)
-
-    We use EmulatorPaths directly to avoid the ambiguous find_emulator_exe('dolphin')
-    lookup which can match Dolphin Triforce, Dolphin-Controller, or DolphinWX variants.
-    """
     exe = EmulatorPaths.dolphin_joystick()
     if exe.exists():
         return exe
-    # Fallback: standard Dolphin build
     fallback = EmulatorPaths.dolphin()
     if fallback.exists():
         return fallback
