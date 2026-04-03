@@ -64,7 +64,7 @@ def _register_adapter(adapter_name: str, module_path: str, enabled: bool = None)
 
 # Register feature-flagged adapters
 _register_adapter('duckstation', 'backend.services.adapters.duckstation_adapter')
-_register_adapter('dolphin', 'backend.services.adapters.dolphin_adapter')
+_register_adapter('dolphin', 'backend.services.adapters.dolphin_adapter', enabled=True)  # Always: handles Wii + GameCube
 _register_adapter('flycast', 'backend.services.adapters.flycast_adapter')
 _register_adapter('model2', 'backend.services.adapters.model2_adapter')
 _register_adapter('supermodel', 'backend.services.adapters.supermodel_adapter')
@@ -73,6 +73,7 @@ _register_adapter('retroarch', 'backend.services.adapters.retroarch_adapter', en
 _register_adapter('redream', 'backend.services.adapters.redream_adapter')
 _register_adapter('pcsx2', 'backend.services.adapters.pcsx2_adapter')
 _register_adapter('rpcs3', 'backend.services.adapters.rpcs3_adapter', enabled=True)
+_register_adapter('ppsspp', 'backend.services.adapters.ppsspp_adapter', enabled=True)
 _register_adapter('teknoparrot', 'backend.services.adapters.teknoparrot_adapter', enabled=True)
 _register_adapter('cemu', 'backend.services.adapters.cemu_adapter')
 

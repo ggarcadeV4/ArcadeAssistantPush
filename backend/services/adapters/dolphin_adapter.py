@@ -17,7 +17,10 @@ def is_enabled(manifest: Dict[str, Any]) -> bool:
 
 def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False):
     key = normalize_key((getattr(game, 'platform', None) or (game.get('platform') if isinstance(game, dict) else '') or ''))
-    ok = key in {'nintendo gamecube', 'nintendo wii'}
+    # Standalone Dolphin handles both Wii and GameCube.
+    # dolphin_libretro (RetroArch core) is blacklisted — it produces audio
+    # with no visible gameplay (black screen) on this cabinet build.
+    ok = key in {'nintendo wii', 'nintendo gamecube', 'gamecube'}
     if return_reason:
         return ok, f"platform_key={key}"
     return ok
