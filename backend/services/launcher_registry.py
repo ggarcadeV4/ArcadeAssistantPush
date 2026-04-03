@@ -70,7 +70,7 @@ _register_adapter('model2', 'backend.services.adapters.model2_adapter')
 _register_adapter('supermodel', 'backend.services.adapters.supermodel_adapter')
 # RetroArch: ALWAYS enabled (direct-to-emulator model - no config gating)
 _register_adapter('retroarch', 'backend.services.adapters.retroarch_adapter', enabled=True)
-_register_adapter('redream', 'backend.services.adapters.redream_adapter')
+_register_adapter('redream', 'backend.services.adapters.redream_adapter', enabled=True)  # Always: Sega Dreamcast -> Redream standalone
 _register_adapter('pcsx2', 'backend.services.adapters.pcsx2_adapter')
 _register_adapter('rpcs3', 'backend.services.adapters.rpcs3_adapter', enabled=True)
 _register_adapter('ppsspp', 'backend.services.adapters.ppsspp_adapter', enabled=True)

@@ -33,15 +33,10 @@
                 "Sega 32X":                             "picodrive",
                 "Sega CD":                              "genesis_plus_gx",
                 "Sony Playstation":                     "mednafen_psx_hw",
-                "Sony PSP":                             "ppsspp",
-                "Sony PSP Minis":                       "ppsspp",
                 "Neo Geo Pocket":                       "mednafen_ngp",
                 "Neo Geo Pocket Color":                 "mednafen_ngp",
                 "WonderSwan":                           "mednafen_wswan",
-                "WonderSwan Color":                     "mednafen_wswan",
-                "Sega Dreamcast":                       "flycast",
-                "Sega Naomi":                           "flycast",
-                "Sammy Atomiswave":                     "flycast"
+                "WonderSwan Color":                     "mednafen_wswan"
             },
             "cores": {
                 "stella":            "cores/stella_libretro.dll",
@@ -56,10 +51,8 @@
                 "mednafen_pce_fast": "cores/mednafen_pce_fast_libretro.dll",
                 "picodrive":         "cores/picodrive_libretro.dll",
                 "mednafen_psx_hw":   "cores/mednafen_psx_hw_libretro.dll",
-                "ppsspp":            "cores/ppsspp_libretro.dll",
                 "mednafen_ngp":      "cores/mednafen_ngp_libretro.dll",
-                "mednafen_wswan":    "cores/mednafen_wswan_libretro.dll",
-                "flycast":           "cores/flycast_libretro.dll"
+                "mednafen_wswan":    "cores/mednafen_wswan_libretro.dll"
             },
             "flags": ["-f"]
         },
