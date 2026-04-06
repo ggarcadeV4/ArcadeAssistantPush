@@ -37,12 +37,17 @@ class SecureAIClient:
     
     def __init__(self):
         self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.service_key = os.environ.get("SUPABASE_SERVICE_KEY")
+        self.service_key = (
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_SERVICE_KEY")
+        )
         self.cabinet_id = self._get_cabinet_id()
         self.tenant_id = os.environ.get("TENANT_ID", "gg_arcade")
         
         if not self.supabase_url or not self.service_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+            raise ValueError(
+                "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY must be set"
+            )
     
     def _get_cabinet_id(self) -> str:
         """Read cabinet ID from drive_root/.aa/device_id.txt
@@ -132,7 +137,8 @@ class SecureAIClient:
         model: str = "gemini-2.0-flash",
         max_tokens: int = 4096,
         temperature: float = 0.4,
-        panel: Optional[str] = None
+        panel: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Call Google Gemini API through Supabase Edge Function.
@@ -175,6 +181,8 @@ class SecureAIClient:
 
         if system_parts:
             payload["system"] = "\n\n".join(system_parts)
+        if tools:
+            payload["tools"] = tools
 
         start_time = time.time()
         response = requests.post(
@@ -192,7 +200,7 @@ class SecureAIClient:
         result = response.json()
 
         # Send AI telemetry (fire-and-forget)
-        usage = result.get('usageMetadata', {})
+        usage = result.get('usage', {})
         _send_telemetry(
             self.cabinet_id,
             'INFO',
@@ -203,8 +211,8 @@ class SecureAIClient:
                 'model': model,
                 'panel': panel or 'backend',
                 'latency_ms': latency_ms,
-                'input_tokens': usage.get('promptTokenCount'),
-                'output_tokens': usage.get('candidatesTokenCount')
+                'input_tokens': usage.get('input_tokens'),
+                'output_tokens': usage.get('output_tokens')
             },
             panel or 'backend'
         )
@@ -366,7 +374,7 @@ if __name__ == "__main__":
             f.write(audio_data)
         print(f"Audio saved to: {output_path}")
         
-        print("\n✅ All tests passed!")
+        print("\n\u2705 All tests passed!")
         
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n\u274c Error: {e}")
