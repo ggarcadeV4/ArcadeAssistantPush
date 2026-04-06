@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -24,6 +25,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 _prompt_cache: Dict[str, str] = {}
 _knowledge_cache: Dict[str, str] = {}
+_lb_game_cache: Optional[List[Dict[str, Any]]] = None
+_lb_cache_loaded: bool = False
 _MAX_HISTORY_MESSAGES = 12
 _DEFAULT_PREFERENCE_SUMMARY = "No saved preferences yet - ask quick follow-ups to learn their tastes."
 _NEWS_KEYWORDS = [
@@ -123,6 +126,166 @@ _STATIC_COLLECTION_FALLBACK = [
         "metadata": {"game_title": "Collection Fallback", "generated": False},
     },
 ]
+_UNCERTAINTY_MARKERS: List[str] = [
+    "i'm not sure",
+    "i don't know",
+    "i cannot confirm",
+    "i'm uncertain",
+    "i don't have information",
+    "i cannot verify",
+    "my knowledge may be",
+    "i'm not certain",
+    "i may be wrong",
+    "you may want to verify",
+    "i don't have specific",
+    "i lack information",
+]
+
+
+def _get_lb_games() -> List[Dict[str, Any]]:
+    """Load and cache launchbox_games.json on first call."""
+    global _lb_game_cache, _lb_cache_loaded
+    if _lb_cache_loaded:
+        return _lb_game_cache or []
+    _lb_cache_loaded = True
+    try:
+        cache_path = _launchbox_cache_path()
+        if not cache_path or not cache_path.exists():
+            return []
+        with open(cache_path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        _lb_game_cache = raw if isinstance(raw, list) else []
+    except Exception:
+        _lb_game_cache = []
+    return _lb_game_cache or []
+
+
+def _resolve_local_image(
+    game_title: str,
+    media_type: str = "default"
+) -> List[str]:
+    """
+    Find a local LaunchBox image for the given game title and
+    media type. Returns a list with one gateway URL or empty.
+
+    media_type values: cabinet, marquee, screenshot, box,
+                       logo, default
+    """
+    import urllib.parse
+
+    if not game_title or game_title.lower() in (
+        "null", "none", "", "unknown"
+    ):
+        return []
+
+    games = _get_lb_games()
+    if not games:
+        return []
+
+    def _norm(s: str) -> str:
+        import re
+        s = s.lower()
+        s = re.sub(r"[^a-z0-9 ]", "", s)
+        s = re.sub(r"\barcade\b", "", s)
+        return s.strip()
+
+    query = _norm(game_title)
+    if not query:
+        return []
+
+    match: Optional[Dict[str, Any]] = None
+    for game in games:
+        if _norm(str(game.get("title", ""))) == query:
+            match = game
+            break
+    if match is None:
+        for game in games:
+            if _norm(str(game.get("title", ""))).startswith(query):
+                match = game
+                break
+    if match is None:
+        for game in games:
+            if query in _norm(str(game.get("title", ""))):
+                match = game
+                break
+    if match is None:
+        return []
+
+    if media_type == "screenshot":
+        fields = ["screenshot_path", "box_front_path", "clear_logo_path"]
+    elif media_type == "logo":
+        fields = ["clear_logo_path", "box_front_path", "screenshot_path"]
+    elif media_type == "marquee":
+        fields = ["clear_logo_path", "box_front_path", "screenshot_path"]
+    else:
+        fields = ["box_front_path", "screenshot_path", "clear_logo_path"]
+
+    if media_type == "cabinet":
+        drive_root = os.environ.get("AA_DRIVE_ROOT", "W:\\Arcade Assistant Master Build")
+        platform = str(match.get("platform", "")).strip()
+        title = str(match.get("title", "")).strip()
+        safe = re.sub(r'[<>:"/\\|?*]', "_", title).strip()
+        cabinet_base = os.path.join(drive_root, "LaunchBox", "Images", platform, "Arcade - Cabinet")
+        for region in ["North America", "United States", ""]:
+            search_dir = os.path.join(cabinet_base, region) if region else cabinet_base
+            for suffix in ["-01.png", "-01.jpg", ".png", ".jpg"]:
+                candidate = os.path.join(search_dir, f"{safe}{suffix}")
+                if os.path.exists(candidate):
+                    marker = "\\LaunchBox\\Images\\"
+                    norm = candidate.replace("/", "\\")
+                    idx = norm.lower().find(marker.lower())
+                    if idx >= 0:
+                        rel = norm[idx + len(marker):].replace("\\", "/")
+                        enc = urllib.parse.quote(rel, safe="/")
+                        return [f"http://127.0.0.1:8787/api/launchbox/image/{enc}"]
+
+    image_path = ""
+    for field in fields:
+        val = str(match.get(field) or "").strip()
+        if val:
+            image_path = val
+            break
+
+    if not image_path:
+        return []
+
+    norm = image_path.replace("/", "\\")
+    marker = "\\LaunchBox\\Images\\"
+    idx = norm.lower().find(marker.lower())
+    if idx < 0:
+        return []
+    rel = norm[idx + len(marker):].replace("\\", "/")
+    enc = urllib.parse.quote(rel, safe="/")
+    return [f"http://127.0.0.1:8787/api/launchbox/image/{enc}"]
+
+
+def _parse_media_tag(reply: str) -> tuple[str, str, str]:
+    """
+    Extract [MEDIA:{...}] tag from Dewey's reply.
+    Returns (clean_reply, game_title, media_type).
+    """
+    import re
+    pattern = r"\[MEDIA:\s*(\{[^]]*\})\s*\]"
+    match = re.search(pattern, reply, re.DOTALL)
+    if not match:
+        return reply, "", ""
+    tag_json = match.group(1)
+    clean = (reply[:match.start()] + reply[match.end():]).strip()
+    try:
+        data = json.loads(tag_json)
+        game = str(data.get("game") or "").strip()
+        mtype = str(data.get("type") or "default").strip()
+        return clean, game, mtype
+    except Exception:
+        return reply, "", ""
+
+def _dewey_chat_max_tokens() -> int:
+    raw = os.getenv("DEWEY_CHAT_MAX_TOKENS", "300")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = 300
+    return max(128, min(512, value))
 
 
 class DeweyChatTurn(BaseModel):
@@ -159,7 +322,6 @@ def _load_static_collection_questions(count: int = 10) -> List[Dict[str, Any]]:
                 return questions[:count]
     except Exception as exc:
         logger.warning("Failed to load static collection trivia from trivia database: %s", exc)
-
     return [dict(item) for item in _STATIC_COLLECTION_FALLBACK[:count]]
 
 
@@ -176,13 +338,11 @@ def _load_launchbox_games() -> List[Dict[str, Any]]:
     if cache_path is None or not cache_path.exists():
         logger.warning("LaunchBox cache missing for collection trivia: %s", cache_path)
         return []
-
     try:
         payload = json.loads(cache_path.read_text(encoding="utf-8"))
     except Exception as exc:
         logger.warning("Failed to read LaunchBox cache for collection trivia: %s", exc)
         return []
-
     raw_games: Any
     if isinstance(payload, dict):
         raw_games = payload.get("games", [])
@@ -190,10 +350,8 @@ def _load_launchbox_games() -> List[Dict[str, Any]]:
         raw_games = payload
     else:
         raw_games = []
-
     if not isinstance(raw_games, list):
         return []
-
     normalized: List[Dict[str, Any]] = []
     for game in raw_games:
         if not isinstance(game, dict):
@@ -201,17 +359,14 @@ def _load_launchbox_games() -> List[Dict[str, Any]]:
         title = str(game.get("title") or "").strip()
         if not title:
             continue
-        normalized.append(
-            {
-                "title": title,
-                "platform": str(game.get("platform") or "Unknown platform").strip(),
-                "developer": str(game.get("developer") or "Unknown developer").strip(),
-                "publisher": str(game.get("publisher") or "Unknown publisher").strip(),
-                "release_year": game.get("release_year") or game.get("year"),
-                "genre": str(game.get("genre") or "Unknown genre").strip(),
-            }
-        )
-
+        normalized.append({
+            "title": title,
+            "platform": str(game.get("platform") or "Unknown platform").strip(),
+            "developer": str(game.get("developer") or "Unknown developer").strip(),
+            "publisher": str(game.get("publisher") or "Unknown publisher").strip(),
+            "release_year": game.get("release_year") or game.get("year"),
+            "genre": str(game.get("genre") or "Unknown genre").strip(),
+        })
     return normalized
 
 
@@ -226,24 +381,17 @@ def _normalize_collection_questions(items: List[Dict[str, Any]]) -> List[Dict[st
         difficulty = str(item.get("difficulty") or "medium").strip().lower() or "medium"
         game_title = str(item.get("game_title") or "").strip()
         normalized_options = [str(option).strip() for option in options]
-
         if not question or len(normalized_options) != 4 or answer not in normalized_options:
             continue
-
-        questions.append(
-            {
-                "id": f"collection_dynamic_{index:03d}",
-                "category": ["collection"],
-                "difficulty": difficulty if difficulty in {"easy", "medium", "hard"} else "medium",
-                "question": question,
-                "choices": normalized_options,
-                "correct_index": normalized_options.index(answer),
-                "metadata": {
-                    "game_title": game_title,
-                    "generated": True,
-                },
-            }
-        )
+        questions.append({
+            "id": f"collection_dynamic_{index:03d}",
+            "category": ["collection"],
+            "difficulty": difficulty if difficulty in {"easy", "medium", "hard"} else "medium",
+            "question": question,
+            "choices": normalized_options,
+            "correct_index": normalized_options.index(answer),
+            "metadata": {"game_title": game_title, "generated": True},
+        })
     return questions
 
 
@@ -259,24 +407,20 @@ def _candidate_paths(filename: str, extension: str) -> List[Path]:
 def _load_knowledge() -> str:
     if "dewey" in _knowledge_cache:
         return _knowledge_cache["dewey"]
-
     for candidate in _candidate_paths("dewey_knowledge", "md"):
         if candidate.exists():
             _knowledge_cache["dewey"] = candidate.read_text(encoding="utf-8").strip()
             return _knowledge_cache["dewey"]
-
     raise FileNotFoundError("Prompt file not found: dewey_knowledge.md")
 
 
 def _load_prompt() -> str:
     if "dewey" in _prompt_cache:
         return _prompt_cache["dewey"]
-
     for candidate in _candidate_paths("dewey", "prompt"):
         if candidate.exists():
             _prompt_cache["dewey"] = candidate.read_text(encoding="utf-8").strip()
             return _prompt_cache["dewey"]
-
     raise FileNotFoundError("Prompt file not found: dewey.prompt")
 
 
@@ -314,21 +458,17 @@ def _is_news_query(message: str) -> bool:
 async def _build_news_context(message: str) -> str:
     if not _is_news_query(message):
         return ""
-
     try:
         from backend.routers.gaming_news import fetch_all_headlines
-
         headlines = await fetch_all_headlines()
         if not headlines:
             return ""
-
         headlines_summary = "\n".join(
             f"{index + 1}. {headline.get('source', 'Unknown')}: "
             f"\"{headline.get('title', '')}\" "
             f"({headline.get('published_relative', 'Unknown')})"
             for index, headline in enumerate(headlines[:10])
         )
-
         return (
             "\n\n=== CURRENT GAMING HEADLINES (Real-time RSS) ===\n"
             f"{headlines_summary}\n"
@@ -336,28 +476,25 @@ async def _build_news_context(message: str) -> str:
             "Reference these actual headlines when discussing gaming news. "
             "Be specific about sources and recency."
         )
-    except Exception as exc:  # pragma: no cover - fail open
+    except Exception as exc:
         logger.warning("Failed to load Dewey news context: %s", exc)
         return ""
 
 
 def _build_messages(*, history: List[DeweyChatTurn], system_prompt: str, user_text: str) -> List[Dict[str, str]]:
     messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
-
     for turn in (history or [])[-_MAX_HISTORY_MESSAGES:]:
         content = _html_to_plain_text(turn.content if turn.content is not None else (turn.text or ""))
         if not content:
             continue
         role = "assistant" if turn.role in {"assistant", "dewey"} else "user"
         messages.append({"role": role, "content": content})
-
     messages.append({"role": "user", "content": _html_to_plain_text(user_text)})
     return messages
 
 
 def _extract_ai_text(result: Dict) -> str:
     """Extract text from Gemini or Anthropic-style response."""
-    # Gemini format: candidates[0].content.parts[0].text
     candidates = result.get("candidates")
     if isinstance(candidates, list) and candidates:
         parts = (candidates[0].get("content") or {}).get("parts", [])
@@ -365,12 +502,8 @@ def _extract_ai_text(result: Dict) -> str:
             text = parts[0].get("text", "")
             if text:
                 return text.strip()
-
-    # Gemini proxy normalized format: text field
     if result.get("text"):
         return str(result["text"]).strip()
-
-    # Anthropic format fallback: content[].text
     content = result.get("content")
     if isinstance(content, list):
         text_parts = [
@@ -379,14 +512,11 @@ def _extract_ai_text(result: Dict) -> str:
             if isinstance(block, dict) and block.get("type") == "text"
         ]
         return "\n".join(part for part in text_parts if part).strip()
-
     if isinstance(content, str):
         return content.strip()
-
     response_text = result.get("response")
     if isinstance(response_text, str):
         return response_text.strip()
-
     return ""
 
 
@@ -395,7 +525,7 @@ def _call_gemini(messages: List[Dict[str, str]]) -> str:
     result = client.call_gemini(
         messages=messages,
         model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.0-flash"),
-        max_tokens=1024,
+        max_tokens=_dewey_chat_max_tokens(),
         temperature=0.7,
         panel="dewey",
     )
@@ -405,42 +535,81 @@ def _call_gemini(messages: List[Dict[str, str]]) -> str:
     return reply
 
 
-async def _stream_sse(reply: str, chunk_size: int = 160):
+def _call_gemini_with_tools(
+    messages: List[Dict[str, Any]],
+    tools: List[Dict[str, Any]],
+) -> str:
+    """
+    Synchronous wrapper: calls SecureAIClient.call_gemini()
+    with tools. Intended for use with asyncio.to_thread().
+    Returns extracted reply text or empty string.
+    """
+    client = SecureAIClient()
+    result = client.call_gemini(
+        messages=messages,
+        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.0-flash"),
+        max_tokens=1024,
+        temperature=0.7,
+        panel="dewey",
+        tools=tools,
+    )
+    return _extract_ai_text(result) or ""
+
+
+async def _call_gemini_grounded(
+    messages: List[Dict[str, Any]],
+) -> str:
+    """
+    Retry a Gemini call with Google Search grounding enabled.
+    Routes through SecureAIClient -> Supabase gemini-proxy.
+    Used when the initial reply contains uncertainty markers.
+    """
+    try:
+        grounded = await asyncio.to_thread(
+            _call_gemini_with_tools,
+            messages,
+            [{"google_search": {}}],
+        )
+        if grounded:
+            logger.info("[dewey] Grounded reply received (%d chars)", len(grounded))
+        return grounded
+    except Exception as exc:
+        logger.warning("[dewey] Grounded call failed: %s", exc)
+        return ""
+
+
+async def _stream_sse(
+    reply: str,
+    chunk_size: int = 160,
+    gallery_images: Optional[List[str]] = None,
+):
     for start in range(0, len(reply), chunk_size):
         chunk = reply[start:start + chunk_size]
         yield f"data: {json.dumps({'delta': chunk})}\n\n"
         await asyncio.sleep(0)
-    yield "data: {\"done\":true}\n\n"
+    done: Dict[str, Any] = {"done": True}
+    if gallery_images:
+        done["gallery_images"] = gallery_images
+    yield f"data: {json.dumps(done)}\n\n"
 
 
 @router.post("/trivia/collection")
 async def dewey_collection_trivia(request: Request, payload: CollectionTriviaRequest):
     require_scope(request, "state")
-
     requested_count = payload.count or 10
     launchbox_games = _load_launchbox_games()
     if not launchbox_games:
         logger.warning("Collection trivia falling back to static questions because LaunchBox cache is unavailable")
         fallback = _load_static_collection_questions(requested_count)
-        return {
-            "questions": fallback,
-            "count": len(fallback),
-            "source": "static_fallback",
-        }
-
+        return {"questions": fallback, "count": len(fallback), "source": "static_fallback"}
     try:
         generated = await asyncio.to_thread(generate_collection_trivia, launchbox_games, requested_count)
     except Exception as exc:
         logger.warning("Collection trivia generation failed; using static fallback: %s", exc)
         generated = []
-
     questions = _normalize_collection_questions(generated)
     if len(questions) < requested_count:
-        logger.warning(
-            "Collection trivia returned %s/%s AI questions; topping up with static fallback",
-            len(questions),
-            requested_count,
-        )
+        logger.warning("Collection trivia returned %s/%s AI questions; topping up with static fallback", len(questions), requested_count)
         fallback = _load_static_collection_questions(requested_count)
         used_ids = {question["id"] for question in questions}
         for item in fallback:
@@ -450,7 +619,6 @@ async def dewey_collection_trivia(request: Request, payload: CollectionTriviaReq
                 continue
             questions.append(item)
             used_ids.add(item.get("id"))
-
     return {
         "questions": questions[:requested_count],
         "count": min(len(questions), requested_count),
@@ -461,11 +629,9 @@ async def dewey_collection_trivia(request: Request, payload: CollectionTriviaReq
 @router.post("/chat")
 async def dewey_chat(request: Request, payload: DeweyChatRequest):
     require_scope(request, "state")
-
     user_name = (payload.user_name or "Guest").strip() or "Guest"
     preference_summary = (payload.preference_summary or "").strip() or _DEFAULT_PREFERENCE_SUMMARY
     user_message = payload.message.strip()
-
     try:
         system_prompt = _render_system_prompt(user_name, preference_summary)
         news_context = await _build_news_context(user_message)
@@ -477,6 +643,26 @@ async def dewey_chat(request: Request, payload: DeweyChatRequest):
             user_text=user_message,
         )
         reply = await asyncio.to_thread(_call_gemini, messages)
+
+        # Google Search grounding fallback
+        reply_lower = reply.lower()
+        if any(marker in reply_lower for marker in _UNCERTAINTY_MARKERS):
+            logger.info("[dewey] Uncertainty detected - retrying with Google Search grounding")
+            grounded = await _call_gemini_grounded(messages)
+            if grounded:
+                reply = grounded
+        # End Google Search grounding fallback
+
+        # Structured output image enrichment
+        gallery_images: List[str] = []
+        try:
+            clean_reply, game_title, media_type = _parse_media_tag(reply)
+            if game_title:
+                reply = clean_reply
+                gallery_images = _resolve_local_image(game_title, media_type)
+        except Exception:
+            pass
+        # End structured output image enrichment
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except ValueError as exc:
@@ -486,7 +672,7 @@ async def dewey_chat(request: Request, payload: DeweyChatRequest):
         raise HTTPException(status_code=500, detail=f"Dewey chat failed: {exc}") from exc
 
     return StreamingResponse(
-        _stream_sse(reply),
+        _stream_sse(reply, gallery_images=gallery_images),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
