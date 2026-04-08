@@ -12,7 +12,7 @@ set "DRIVE=%~d0"
 set "LOGDIR=%DRIVE%\.aa\logs"
 set "REPOROOT=%~dp0"
 set "DIST_INDEX=%REPOROOT%frontend\dist\index.html"
-set "AA_DRIVE_ROOT=%DRIVE%\"
+for %%I in ("%~dp0..") do set "AA_DRIVE_ROOT=%%~fI"
 
 set PYTHON_EXE=python
 if exist "%~dp0.venv\Scripts\python.exe" (
@@ -131,7 +131,7 @@ timeout /t 8 >nul
 echo [INFO] Backend startup window elapsed. Continuing to gateway startup.
 
 echo [INFO] Starting Gateway server on 127.0.0.1:8787...
-start "AA-Gateway" /b %ComSpec% /c call "%REPOROOT%scripts\run-gateway.bat"
+powershell -WindowStyle Hidden -Command "Start-Process -FilePath '%ComSpec%' -ArgumentList '/c call ""%REPOROOT%scripts\run-gateway.bat""' -WindowStyle Hidden"
 
 echo [INFO] Waiting 6 seconds for gateway initialization...
 timeout /t 6 >nul

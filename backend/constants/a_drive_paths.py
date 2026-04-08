@@ -90,14 +90,37 @@ else:
 
 
 def is_on_a_drive() -> bool:
-    """Check if AA_DRIVE_ROOT points to A: drive.
-    
-    Note: This is deprecated. Drive letter should not matter for functionality.
-    Re-reads from env to handle late .env loading.
+    """Check whether Arcade Assistant is pointed at a real LaunchBox install.
+
+    Historically this meant "A: drive", but modern installs can live on any
+    Windows path. Treat any configured root with a reachable LaunchBox tree as
+    a real cabinet install so launch/image/parser flows do not fall back to
+    mock mode on W:/F:/etc.
     """
-    root = os.getenv('AA_DRIVE_ROOT', '') or ''
-    root_upper = root.upper()
-    return root_upper.startswith('A:') or root_upper.startswith('/MNT/A')
+    raw_root = (os.getenv("AA_DRIVE_ROOT", "") or "").strip()
+    if not raw_root:
+        return False
+
+    try:
+        root_path = Path(_convert_to_wsl_path(raw_root))
+        if not root_path.exists():
+            return False
+    except Exception:
+        return False
+
+    raw_launchbox_root = (os.getenv("LAUNCHBOX_ROOT", "") or "").strip()
+    launchbox_root = (
+        Path(_convert_to_wsl_path(raw_launchbox_root))
+        if raw_launchbox_root
+        else (root_path / "LaunchBox")
+    )
+
+    candidates = [
+        launchbox_root,
+        launchbox_root / "Data" / "Platforms",
+        launchbox_root / "LaunchBox.exe",
+    ]
+    return any(candidate.exists() for candidate in candidates)
 
 
 class LaunchBoxPaths:
