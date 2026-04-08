@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at);
 """
 
-# ── Singleton connection with lock ─────────────────────────────────────────
+# \u2500\u2500 Singleton connection with lock \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 _db: aiosqlite.Connection | None = None
 _db_lock = asyncio.Lock()
 _seeded = False  # Track whether we've already seeded this session
@@ -67,6 +67,20 @@ async def get_db() -> aiosqlite.Connection:
     await _db.execute("PRAGMA journal_mode=WAL")
     await _db.execute("PRAGMA foreign_keys=ON")
     await _db.executescript(SCHEMA)
+
+    # \u2500\u2500 Auto-migration: add persona_id to existing conversations table \u2500\u2500\u2500\u2500\u2500
+    # CREATE TABLE IF NOT EXISTS won't alter an existing table, so we need
+    # to check and add the column manually for databases created pre-Phase 2.
+    try:
+        cursor = await _db.execute("PRAGMA table_info(conversations)")
+        columns = [row[1] for row in await cursor.fetchall()]
+        if "persona_id" not in columns:
+            await _db.execute("ALTER TABLE conversations ADD COLUMN persona_id INTEGER")
+            await _db.commit()
+            print("[DB] Migrated: added persona_id column to conversations table")
+    except Exception as e:
+        print(f"[DB] Migration check warning: {e}")
+
     print(f"[DB] Connected to {DB_PATH}")
 
     # Seed default personas on first connection of this process
@@ -76,7 +90,7 @@ async def get_db() -> aiosqlite.Connection:
             await seed_default_personas(_db)
             _seeded = True
         except Exception as e:
-            print(f"[DB] Warning: persona seeding failed — {e}")
+            print(f"[DB] Warning: persona seeding failed \u2014 {e}")
             _seeded = True  # Don't retry endlessly
 
     return _db
@@ -90,7 +104,7 @@ async def close_db():
         _db = None
 
 
-# ── Conversations ────────────────────────────────────────────────────────────
+# \u2500\u2500 Conversations \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 async def create_conversation(title: str = "New Chat", persona_id: int | None = None) -> dict:
     async with _db_lock:
@@ -167,7 +181,7 @@ async def touch_conversation(conv_id: str):
         await db.commit()
 
 
-# ── Messages ───────────────────────────────────────────────────────────────
+# \u2500\u2500 Messages \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 async def add_message(conv_id: str, role: str, content: str) -> dict:
     async with _db_lock:
@@ -197,7 +211,7 @@ async def get_messages(conv_id: str) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-# ── Personas ───────────────────────────────────────────────────────────────
+# \u2500\u2500 Personas \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 async def create_persona(
     name: str,
@@ -251,7 +265,7 @@ async def update_persona(persona_id: int, **fields) -> bool:
     if not fields:
         return False
 
-    # Filter out None values — only update explicitly provided fields
+    # Filter out None values \u2014 only update explicitly provided fields
     updates = {k: v for k, v in fields.items() if v is not None}
     if not updates:
         return False
@@ -285,7 +299,7 @@ async def delete_persona(persona_id: int) -> bool:
         return cursor.rowcount > 0
 
 
-# ── Internal helpers ───────────────────────────────────────────────────────
+# \u2500\u2500 Internal helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 async def _fetch_persona(db, persona_id: int) -> dict | None:
     """Fetch a single persona row (caller must hold _db_lock)."""
