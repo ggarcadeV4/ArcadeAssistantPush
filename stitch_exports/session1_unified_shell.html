@@ -1,0 +1,1281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arcade OS</title>
+  <meta name="description" content="Arcade OS — Your local-first AI business operating system" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c1116;
+      --panel: #121922;
+      --panel-soft: #18222d;
+      --surface: #f7faf8;
+      --text: #e5edf5;
+      --muted: #95a8ba;
+      --accent: #10b981;
+      --accent-2: #0ea371;
+      --accent-glow: rgba(16, 185, 129, 0.15);
+      --line: #223141;
+      --danger: #ef4444;
+      --shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
+      --user-bubble: #1a2b3d;
+      --ai-bubble: #121922;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Manrope, 'Segoe UI', Arial, sans-serif;
+      background: radial-gradient(circle at 10% -10%, #193046 0%, var(--bg) 42%);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 450, 'GRAD' 0, 'opsz' 24;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      height: 100vh;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────── */
+    .rail {
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18,25,34,0.92) 0%, rgba(18,25,34,0.74) 100%);
+      backdrop-filter: blur(10px);
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    .brand { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; }
+    .brand .title { font-weight: 800; letter-spacing: -0.02em; font-size: 17px; }
+    .brand .meta { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+      margin-right: 6px;
+      transition: background 0.3s;
+    }
+    .status-dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    .new-chat {
+      border: 1px solid rgba(16,185,129,0.45);
+      background: rgba(16,185,129,0.12);
+      color: #d3faeb;
+      font-weight: 700; font-family: inherit;
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .new-chat:hover { background: rgba(16,185,129,0.22); }
+    .new-chat:active { transform: scale(0.97); }
+
+    .search-wrap { position: relative; }
+    .search-wrap input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(15,22,30,0.82);
+      color: var(--text); font-family: inherit;
+      border-radius: 10px;
+      padding: 9px 12px 9px 34px;
+      font-size: 13px;
+      outline: none;
+    }
+    .search-wrap input:focus { border-color: rgba(16,185,129,0.4); }
+    .search-wrap .material-symbols-outlined {
+      position: absolute; left: 10px; top: 9px; font-size: 16px; color: var(--muted);
+    }
+
+    .chat-list {
+      flex: 1; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 4px;
+      padding-right: 2px;
+    }
+    .chat-list::-webkit-scrollbar { width: 4px; }
+    .chat-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+    .chat-item {
+      border: 1px solid transparent;
+      color: var(--muted); background: transparent;
+      border-radius: 10px; text-align: left;
+      padding: 10px; font-size: 12px; font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chat-item:hover { border-color: rgba(149,168,186,0.2); color: #c8d6e4; background: rgba(255,255,255,0.03); }
+    .chat-item.active { color: #e8f2fb; background: rgba(16,185,129,0.14); border-color: rgba(16,185,129,0.32); }
+
+    .chat-item .chat-item-delete {
+      float: right; opacity: 0; font-size: 14px; color: var(--danger);
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .chat-item:hover .chat-item-delete { opacity: 0.7; }
+    .chat-item .chat-item-delete:hover { opacity: 1; }
+
+    /* ── Main Panel ─────────────────────────────────────────── */
+    .main {
+      min-width: 0;
+      display: flex; flex-direction: column;
+      padding: 12px 18px 14px;
+      gap: 12px;
+    }
+
+    .top {
+      height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(18,25,34,0.68);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px; gap: 10px;
+      flex-shrink: 0;
+    }
+    .top-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .top .page-title { font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+    .top .subtitle { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+
+    .model-switcher {
+      position: relative;
+    }
+    .model-chip {
+      border: 1px solid rgba(16,185,129,0.4);
+      background: rgba(16,185,129,0.14);
+      color: #c9fae7;
+      border-radius: 999px;
+      padding: 5px 10px 5px 10px;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .model-chip:hover { background: rgba(16,185,129,0.25); border-color: rgba(16,185,129,0.6); }
+    .model-chip .chip-arrow {
+      font-size: 14px;
+      transition: transform 0.2s;
+    }
+    .model-chip.open .chip-arrow { transform: rotate(180deg); }
+
+    .model-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 220px;
+      max-height: 320px;
+      overflow-y: auto;
+      background: #151d28;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      z-index: 100;
+      padding: 6px;
+      animation: dropIn 0.15s ease-out;
+    }
+    .model-dropdown.show { display: block; }
+    @keyframes dropIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .model-dropdown::-webkit-scrollbar { width: 4px; }
+    .model-dropdown::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+    .model-dropdown .dd-label {
+      padding: 6px 10px 4px;
+      font-size: 10px; font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .model-dropdown .dd-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none; background: none;
+      color: var(--text);
+      font-size: 13px; font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.1s;
+    }
+    .model-dropdown .dd-item:hover { background: rgba(16,185,129,0.12); }
+    .model-dropdown .dd-item.active {
+      background: rgba(16,185,129,0.18);
+      color: #d5f8eb;
+    }
+    .model-dropdown .dd-item .dd-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+    .model-dropdown .dd-item .dd-name { flex: 1; text-align: left; }
+    .model-dropdown .dd-item .dd-provider {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* ── Chat Area ──────────────────────────────────────────── */
+    .chat-area {
+      flex: 1; min-height: 0;
+      border-radius: 16px; overflow: hidden;
+      border: 1px solid var(--line);
+      background: #0b1015;
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column;
+    }
+
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .messages::-webkit-scrollbar { width: 5px; }
+    .messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+    /* Welcome state */
+    .welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; padding: 40px;
+      text-align: center;
+    }
+    .welcome-icon {
+      width: 64px; height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid; place-items: center;
+      box-shadow: 0 8px 32px rgba(16,185,129,0.25);
+    }
+    .welcome-icon .material-symbols-outlined { font-size: 32px; color: #052318; font-variation-settings: 'FILL' 1; }
+    .welcome h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-top: 8px; }
+    .welcome p { color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 400px; }
+
+    /* Message bubbles */
+    .msg { display: flex; flex-direction: column; gap: 4px; max-width: 80%; animation: fadeIn 0.25s ease; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .msg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 0 4px; }
+    .msg.assistant .msg-label { color: var(--accent); }
+
+    .msg-bubble {
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 14px; line-height: 1.65;
+      word-wrap: break-word;
+    }
+    .msg.user .msg-bubble { background: var(--user-bubble); border-bottom-right-radius: 4px; }
+    .msg.assistant .msg-bubble { background: var(--ai-bubble); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+
+    .msg-bubble p { margin: 0 0 8px; }
+    .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-bubble code { background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 4px; font-size: 13px; }
+    .msg-bubble pre { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+    .msg-bubble pre code { background: transparent; padding: 0; }
+    .msg-bubble strong { color: var(--accent); }
+    .msg-bubble ul, .msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+    .msg-bubble li { margin: 4px 0; }
+
+    /* Tool events */
+    .tool-event {
+      align-self: flex-start;
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.2);
+      border-radius: 10px;
+      font-size: 11px; color: var(--accent);
+      font-weight: 600;
+      animation: fadeIn 0.2s ease;
+    }
+    .tool-event .material-symbols-outlined { font-size: 16px; }
+
+    /* Streaming indicator */
+    .streaming-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1s infinite;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Composer ────────────────────────────────────────────── */
+    .composer {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(18,25,34,0.78);
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      flex-shrink: 0;
+      transition: border-color 0.2s;
+    }
+    .composer:focus-within { border-color: rgba(16,185,129,0.4); }
+
+    .composer textarea {
+      flex: 1; min-width: 0;
+      border: 0; outline: none;
+      background: transparent;
+      color: var(--text); font-size: 14px; font-family: inherit;
+      resize: none; height: 22px; max-height: 120px;
+      line-height: 1.5;
+    }
+
+    .icon-btn, .send-btn {
+      border: 0; border-radius: 10px;
+      width: 34px; height: 34px;
+      display: grid; place-items: center;
+      cursor: pointer; flex-shrink: 0;
+      transition: transform 0.1s, opacity 0.15s;
+    }
+    .icon-btn { background: rgba(255,255,255,0.06); color: var(--muted); }
+    .icon-btn:hover { color: var(--text); }
+
+    .send-btn {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #052318; font-weight: 700;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+    }
+    .send-btn:hover { transform: scale(1.05); }
+    .send-btn:active { transform: scale(0.95); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── Bottom Tabs ────────────────────────────────────────── */
+    .tabs {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(18,25,34,0.82);
+      display: grid; grid-template-columns: repeat(5,1fr);
+      gap: 8px; padding: 8px;
+      flex-shrink: 0;
+    }
+    .tab {
+      border: 1px solid transparent; background: transparent;
+      color: var(--muted);
+      border-radius: 12px;
+      padding: 10px 6px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 12px; font-weight: 700; font-family: inherit;
+      letter-spacing: 0.01em; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab:hover { color: #c8d6e4; }
+    .tab.active { color: #d5f8eb; border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.14); }
+
+    /* ── Tab Panels ──────────────────────────────────────────── */
+    .tab-panel {
+      display: none;
+      flex: 1; min-height: 0;
+      border-radius: 16px; overflow: hidden;
+      border: 1px solid var(--line);
+      background: #0b1015;
+      box-shadow: var(--shadow);
+      padding: 32px 24px;
+      overflow-y: auto;
+    }
+    .tab-panel.active { display: flex; flex-direction: column; }
+    .tab-panel::-webkit-scrollbar { width: 5px; }
+    .tab-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+    .panel-header { margin-bottom: 24px; }
+    .panel-header h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .panel-header p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .panel-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(18,25,34,0.6);
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 10px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .panel-card:hover { border-color: rgba(16,185,129,0.3); background: rgba(18,25,34,0.8); }
+    .panel-card .card-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: rgba(16,185,129,0.12);
+      display: grid; place-items: center;
+    }
+    .panel-card .card-icon .material-symbols-outlined { font-size: 20px; color: var(--accent); }
+    .panel-card h3 { font-size: 14px; font-weight: 700; margin: 0; }
+    .panel-card p { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0; }
+    .panel-card .badge-soon {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 10px; font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      align-self: flex-start;
+    }
+
+    /* ── Error Toast ────────────────────────────────────────── */
+    .toast {
+      position: fixed; top: 20px; right: 20px;
+      padding: 12px 20px;
+      background: rgba(239,68,68,0.95);
+      color: white; font-size: 13px; font-weight: 600;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 1000;
+      opacity: 0; transform: translateY(-10px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .rail { display: none; }
+      .main { padding: 8px; }
+      .top .subtitle { max-width: 150px; }
+      .tab span:last-child { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ── Sidebar ──────────────────────────────────────── -->
+    <aside class="rail">
+      <div class="brand">
+        <div class="title">Arcade OS</div>
+        <div class="meta"><span class="status-dot" id="status-dot"></span><span id="status-text">Connecting…</span></div>
+      </div>
+
+      <button class="new-chat" id="new-chat-btn" type="button">
+        <span class="material-symbols-outlined">edit_square</span>
+        New Chat
+      </button>
+
+      <div class="search-wrap">
+        <span class="material-symbols-outlined">search</span>
+        <input type="text" placeholder="Search chats" aria-label="Search chats" id="search-input" />
+      </div>
+
+      <div class="chat-list" id="chat-list">
+        <!-- Populated dynamically -->
+      </div>
+    </aside>
+
+    <!-- ── Main Panel ──────────────────────────────────── -->
+    <main class="main">
+      <header class="top">
+        <div class="top-left">
+          <span class="page-title" id="page-title">Chat</span>
+          <span class="subtitle" id="page-subtitle">Connected to your local AI</span>
+        </div>
+        <div class="model-switcher">
+          <button class="model-chip" id="model-chip" type="button" title="Click to switch model">
+            <span id="model-chip-name">loading…</span>
+            <span class="material-symbols-outlined chip-arrow">expand_more</span>
+          </button>
+          <div class="model-dropdown" id="model-dropdown"></div>
+        </div>
+      </header>
+
+      <!-- ── Chat Panel (active by default) ──────────────── -->
+      <section class="chat-area tab-panel active" id="panel-chat">
+        <div class="messages" id="messages">
+          <div class="welcome" id="welcome">
+            <div class="welcome-icon">
+              <span class="material-symbols-outlined">smart_toy</span>
+            </div>
+            <h2>Welcome to Arcade OS</h2>
+            <p>Your local-first AI business assistant. Type a message below to start a conversation. Everything stays on your machine.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Personas Panel ────────────────────────────────── -->
+      <section class="tab-panel" id="panel-personas">
+        <div class="panel-header">
+          <h2>AI Personas</h2>
+          <p>Your AI employees — each with a specialized role, system prompt, and conversation memory. Switch personas to change how the AI thinks and responds.</p>
+        </div>
+        <div class="panel-grid">
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">psychology</span></div>
+            <h3>Strategist</h3>
+            <p>Business planning, market analysis, competitive intelligence, and high-level decision making.</p>
+            <span class="badge-soon">Phase 2</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">edit_note</span></div>
+            <h3>Content Writer</h3>
+            <p>Blog posts, social media captions, email copy, and content calendars.</p>
+            <span class="badge-soon">Phase 2</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">campaign</span></div>
+            <h3>Social Media Manager</h3>
+            <p>Platform strategy, posting schedules, engagement tactics, and audience growth.</p>
+            <span class="badge-soon">Phase 2</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">analytics</span></div>
+            <h3>Data Analyst</h3>
+            <p>Metrics tracking, reporting, trend analysis, and actionable insights from your business data.</p>
+            <span class="badge-soon">Phase 2</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">add_circle</span></div>
+            <h3>Create Custom</h3>
+            <p>Define your own persona with a custom name, role, system prompt, and preferred AI model.</p>
+            <span class="badge-soon">Phase 2</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Tools Panel ───────────────────────────────────── -->
+      <section class="tab-panel" id="panel-tools">
+        <div class="panel-header">
+          <h2>Tools</h2>
+          <p>Built-in capabilities your AI can use. These tools are already wired into the agent — they activate automatically when needed.</p>
+        </div>
+        <div class="panel-grid">
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">language</span></div>
+            <h3>Web Search</h3>
+            <p>Search the web via DuckDuckGo for real-time information and research.</p>
+            <span class="badge-soon">Active</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">download</span></div>
+            <h3>Web Fetch</h3>
+            <p>Download and read content from any URL — articles, docs, APIs.</p>
+            <span class="badge-soon">Active</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">folder_open</span></div>
+            <h3>File Read/Write</h3>
+            <p>Read, create, and edit files on your local machine.</p>
+            <span class="badge-soon">Active</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">terminal</span></div>
+            <h3>Command Runner</h3>
+            <p>Execute shell commands and scripts directly from the chat.</p>
+            <span class="badge-soon">Active</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">manage_search</span></div>
+            <h3>Knowledge Base</h3>
+            <p>Upload documents and build a searchable knowledge base for your AI.</p>
+            <span class="badge-soon">Phase 3</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Automations Panel ─────────────────────────────── -->
+      <section class="tab-panel" id="panel-automations">
+        <div class="panel-header">
+          <h2>Automations</h2>
+          <p>Background workflows and scheduled tasks. Set up recurring jobs, approval flows, and automated pipelines that run while you focus on other things.</p>
+        </div>
+        <div class="panel-grid">
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">schedule</span></div>
+            <h3>Scheduled Tasks</h3>
+            <p>Set up daily, weekly, or custom-interval automated jobs.</p>
+            <span class="badge-soon">Phase 4</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">approval</span></div>
+            <h3>Approval Queue</h3>
+            <p>Review and approve AI-drafted actions before they execute.</p>
+            <span class="badge-soon">Phase 6</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">history</span></div>
+            <h3>Action Log</h3>
+            <p>Full audit trail of everything the AI has done, with timestamps and context.</p>
+            <span class="badge-soon">Phase 6</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Workspace Panel ───────────────────────────────── -->
+      <section class="tab-panel" id="panel-workspace">
+        <div class="panel-header">
+          <h2>Workspace</h2>
+          <p>Your business command center. Manage files, configurations, and the shared knowledge store that powers all your AI personas.</p>
+        </div>
+        <div class="panel-grid">
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">settings</span></div>
+            <h3>Settings</h3>
+            <p>Configure your default AI model, API keys, and system preferences.</p>
+            <span class="badge-soon">Phase 2</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">storage</span></div>
+            <h3>Data Store</h3>
+            <p>View and manage the SQLite database — leads, tasks, campaigns, and approvals.</p>
+            <span class="badge-soon">Phase 3</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">hub</span></div>
+            <h3>Integrations</h3>
+            <p>Connect external services — email, social media, analytics platforms.</p>
+            <span class="badge-soon">Phase 4</span>
+          </div>
+          <div class="panel-card">
+            <div class="card-icon"><span class="material-symbols-outlined">info</span></div>
+            <h3>System Health</h3>
+            <p>Server status, model availability, database size, and connection diagnostics.</p>
+            <span class="badge-soon" id="health-badge">Checking…</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="composer" id="composer">
+        <button class="icon-btn" type="button" title="Attach file (coming soon)" disabled>
+          <span class="material-symbols-outlined">attach_file</span>
+        </button>
+        <textarea id="msg-input" placeholder="Type your message…" aria-label="Message input" rows="1"></textarea>
+        <button class="icon-btn" type="button" title="Voice input (coming soon)" disabled>
+          <span class="material-symbols-outlined">mic</span>
+        </button>
+        <button class="send-btn" type="button" title="Send" id="send-btn">
+          <span class="material-symbols-outlined">arrow_upward</span>
+        </button>
+      </div>
+
+      <nav class="tabs" aria-label="Bottom tabs">
+        <button class="tab active" data-tab="chat" type="button">
+          <span class="material-symbols-outlined">chat</span><span>Chat</span>
+        </button>
+        <button class="tab" data-tab="personas" type="button">
+          <span class="material-symbols-outlined">group</span><span>Personas</span>
+        </button>
+        <button class="tab" data-tab="tools" type="button">
+          <span class="material-symbols-outlined">build</span><span>Tools</span>
+        </button>
+        <button class="tab" data-tab="automations" type="button">
+          <span class="material-symbols-outlined">auto_mode</span><span>Automations</span>
+        </button>
+        <button class="tab" data-tab="workspace" type="button">
+          <span class="material-symbols-outlined">folder</span><span>Workspace</span>
+        </button>
+      </nav>
+    </main>
+  </div>
+
+  <!-- Error toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let ws = null;
+    let currentConvId = null;
+    let isStreaming = false;
+    let activeStreamEl = null;
+    let selectedModel = null;  // Current model override
+
+    const messagesEl  = document.getElementById('messages');
+    const welcomeEl   = document.getElementById('welcome');
+    const inputEl     = document.getElementById('msg-input');
+    const sendBtn     = document.getElementById('send-btn');
+    const chatListEl  = document.getElementById('chat-list');
+    const statusDot   = document.getElementById('status-dot');
+    const statusText  = document.getElementById('status-text');
+    const modelChip   = document.getElementById('model-chip');
+    const searchInput = document.getElementById('search-input');
+    const toastEl     = document.getElementById('toast');
+
+    // ── Toast ─────────────────────────────────────────────────────────────
+    function showToast(msg, duration = 4000) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), duration);
+    }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws/chat`);
+
+      ws.onopen = () => {
+        statusDot.classList.add('connected');
+        statusText.textContent = 'Online';
+        console.log('[WS] Connected');
+      };
+
+      ws.onclose = () => {
+        statusDot.classList.remove('connected');
+        statusText.textContent = 'Disconnected';
+        console.log('[WS] Disconnected — reconnecting in 3s');
+        setTimeout(connectWS, 3000);
+      };
+
+      ws.onerror = (e) => {
+        console.error('[WS] Error:', e);
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleWSMessage(msg);
+      };
+    }
+
+    function handleWSMessage(msg) {
+      switch (msg.type) {
+        case 'text_chunk':
+          if (!activeStreamEl) {
+            activeStreamEl = addMessage('assistant', '');
+          }
+          appendToStream(msg.data);
+          break;
+
+        case 'thinking':
+          // Optionally show thinking indicator
+          break;
+
+        case 'tool_start':
+          addToolEvent(`⚙️ Using tool: ${msg.data.name}`);
+          break;
+
+        case 'tool_end':
+          addToolEvent(`✓ ${msg.data.name} complete`);
+          break;
+
+        case 'turn_done':
+          // Could show token count
+          break;
+
+        case 'done':
+          finishStream();
+          break;
+
+        case 'error':
+          // Show error as a visible message in chat, not just a toast
+          addErrorMessage(msg.data);
+          finishStream();
+          break;
+
+        case 'permission':
+          addToolEvent(`🔓 Auto-approved: ${msg.data.description}`);
+          break;
+      }
+    }
+
+    // ── Message Rendering ─────────────────────────────────────────────────
+    function hideWelcome() {
+      if (welcomeEl) welcomeEl.style.display = 'none';
+    }
+
+    function showWelcome() {
+      if (welcomeEl) welcomeEl.style.display = '';
+    }
+
+    function addMessage(role, text) {
+      hideWelcome();
+      const wrapper = document.createElement('div');
+      wrapper.className = `msg ${role}`;
+
+      const label = document.createElement('div');
+      label.className = 'msg-label';
+      label.textContent = role === 'user' ? 'You' : 'Arcade OS';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.innerHTML = renderMarkdown(text);
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(bubble);
+      messagesEl.appendChild(wrapper);
+      scrollToBottom();
+      return bubble;
+    }
+
+    function appendToStream(text) {
+      if (!activeStreamEl) return;
+      // Remove streaming dot if present
+      const dot = activeStreamEl.querySelector('.streaming-dot');
+      if (dot) dot.remove();
+
+      // Append text to raw content data attribute
+      const raw = (activeStreamEl.dataset.raw || '') + text;
+      activeStreamEl.dataset.raw = raw;
+      activeStreamEl.innerHTML = renderMarkdown(raw) + '<span class="streaming-dot"></span>';
+      scrollToBottom();
+    }
+
+    function finishStream() {
+      if (activeStreamEl) {
+        const dot = activeStreamEl.querySelector('.streaming-dot');
+        if (dot) dot.remove();
+        // Re-render final markdown
+        const raw = activeStreamEl.dataset.raw || '';
+        activeStreamEl.innerHTML = renderMarkdown(raw);
+      }
+      activeStreamEl = null;
+      isStreaming = false;
+      sendBtn.disabled = false;
+      inputEl.disabled = false;
+      inputEl.focus();
+      // Refresh sidebar to show updated title
+      loadConversations();
+    }
+
+    function addToolEvent(text) {
+      hideWelcome();
+      const el = document.createElement('div');
+      el.className = 'tool-event';
+      el.innerHTML = `<span class="material-symbols-outlined">build</span>${text}`;
+      messagesEl.appendChild(el);
+      scrollToBottom();
+    }
+
+    function addErrorMessage(text) {
+      hideWelcome();
+      const wrapper = document.createElement('div');
+      wrapper.className = 'msg assistant';
+      const label = document.createElement('div');
+      label.className = 'msg-label';
+      label.textContent = '⚠️ System';
+      label.style.color = '#ef4444';
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.style.borderColor = 'rgba(239,68,68,0.3)';
+      bubble.style.background = 'rgba(239,68,68,0.08)';
+      bubble.innerHTML = `<p><strong style="color:#ef4444">Error:</strong> ${renderMarkdown(text)}</p>
+        <p style="color:var(--muted);font-size:12px;margin-top:8px">
+          Check the terminal window where the server is running for more details.
+          Common fixes: Make sure Ollama is running (<code>ollama serve</code>) and you have a model pulled (<code>ollama pull phi4-mini</code>).
+        </p>`;
+      wrapper.appendChild(label);
+      wrapper.appendChild(bubble);
+      messagesEl.appendChild(wrapper);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // ── Simple Markdown Renderer ──────────────────────────────────────────
+    function renderMarkdown(text) {
+      if (!text) return '';
+      let html = text
+        // Escape HTML first
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        // Code blocks
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        // Inline code
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // Bold
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        // Italic
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        // Unordered lists
+        .replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
+        // Ordered lists
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        // Paragraphs (double newline)
+        .replace(/\n\n/g, '</p><p>')
+        // Single newlines
+        .replace(/\n/g, '<br/>');
+
+      // Wrap consecutive <li> in <ul>
+      html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+      // Clean up nested ul
+      html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+      return `<p>${html}</p>`.replace('<p></p>', '');
+    }
+
+    // ── Send Message ──────────────────────────────────────────────────────
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text || isStreaming) return;
+
+      // Create conversation if needed
+      if (!currentConvId) {
+        try {
+          const resp = await fetch('/api/conversations', { method: 'POST' });
+          if (!resp.ok) {
+            const errText = await resp.text();
+            console.error('[Chat] Failed to create conversation:', resp.status, errText);
+            addErrorMessage(`Failed to create conversation (HTTP ${resp.status}). Check the server terminal for details.`);
+            return;
+          }
+          const conv = await resp.json();
+          currentConvId = conv.id;
+          console.log('[Chat] Created conversation:', currentConvId);
+        } catch (e) {
+          console.error('[Chat] Network error creating conversation:', e);
+          addErrorMessage(`Cannot reach server to create conversation. Is the server running?`);
+          return;
+        }
+      }
+
+      // Show user message
+      addMessage('user', text);
+      inputEl.value = '';
+      autoResize();
+
+      // Send via WebSocket
+      isStreaming = true;
+      sendBtn.disabled = true;
+      inputEl.disabled = true;
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const payload = {
+          conversation_id: currentConvId,
+          message: text,
+        };
+        if (selectedModel) payload.model = selectedModel;
+        ws.send(JSON.stringify(payload));
+      } else {
+        showToast('Not connected to server');
+        isStreaming = false;
+        sendBtn.disabled = false;
+        inputEl.disabled = false;
+      }
+    }
+
+    // ── Conversations ─────────────────────────────────────────────────────
+    async function loadConversations() {
+      try {
+        const resp = await fetch('/api/conversations');
+        const convs = await resp.json();
+        renderConversationList(convs);
+      } catch (e) {
+        console.error('Failed to load conversations:', e);
+      }
+    }
+
+    function renderConversationList(convs) {
+      chatListEl.innerHTML = '';
+      convs.forEach(conv => {
+        const btn = document.createElement('button');
+        btn.className = 'chat-item' + (conv.id === currentConvId ? ' active' : '');
+        btn.dataset.convId = conv.id;
+
+        const deleteSpan = document.createElement('span');
+        deleteSpan.className = 'chat-item-delete material-symbols-outlined';
+        deleteSpan.textContent = 'close';
+        deleteSpan.title = 'Delete conversation';
+        deleteSpan.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm('Delete this conversation?')) {
+            await fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' });
+            if (currentConvId === conv.id) {
+              currentConvId = null;
+              clearMessages();
+              showWelcome();
+            }
+            loadConversations();
+          }
+        };
+
+        btn.textContent = conv.title;
+        btn.appendChild(deleteSpan);
+        btn.onclick = () => loadConversation(conv.id);
+        chatListEl.appendChild(btn);
+      });
+    }
+
+    async function loadConversation(convId) {
+      try {
+        const resp = await fetch(`/api/conversations/${convId}`);
+        const data = await resp.json();
+        currentConvId = convId;
+        clearMessages();
+        if (data.messages.length === 0) {
+          showWelcome();
+        } else {
+          data.messages.forEach(msg => {
+            if (msg.role === 'user' || msg.role === 'assistant') {
+              addMessage(msg.role, msg.content);
+            }
+          });
+        }
+        loadConversations(); // refresh active state
+      } catch (e) {
+        showToast('Failed to load conversation');
+      }
+    }
+
+    function clearMessages() {
+      messagesEl.innerHTML = '';
+      // Re-add welcome
+      const w = document.createElement('div');
+      w.className = 'welcome';
+      w.id = 'welcome';
+      w.innerHTML = `
+        <div class="welcome-icon">
+          <span class="material-symbols-outlined">smart_toy</span>
+        </div>
+        <h2>Welcome to Arcade OS</h2>
+        <p>Your local-first AI business assistant. Type a message below to start a conversation. Everything stays on your machine.</p>
+      `;
+      messagesEl.appendChild(w);
+    }
+
+    async function newChat() {
+      currentConvId = null;
+      clearMessages();
+      showWelcome();
+      inputEl.focus();
+      loadConversations();
+    }
+
+    // ── Model Switcher ────────────────────────────────────────────────────
+    const modelChipEl = document.getElementById('model-chip');
+    const modelChipName = document.getElementById('model-chip-name');
+    const modelDropdown = document.getElementById('model-dropdown');
+    let availableModels = [];
+
+    async function loadModels() {
+      try {
+        const resp = await fetch('/api/models');
+        const data = await resp.json();
+        availableModels = data.models || [];
+        console.log('[Models] Available:', availableModels.map(m => m.name).join(', '));
+      } catch (e) {
+        console.error('[Models] Failed to fetch:', e);
+      }
+    }
+
+    function renderModelDropdown() {
+      modelDropdown.innerHTML = '';
+
+      // Group by provider
+      const groups = {};
+      availableModels.forEach(m => {
+        const p = m.provider || 'unknown';
+        if (!groups[p]) groups[p] = [];
+        groups[p].push(m);
+      });
+
+      const providerLabels = {
+        ollama:    '🖥️ Local Models (Ollama)',
+        gemini:    '☁️ Google Gemini',
+        openai:    '☁️ OpenAI',
+        anthropic: '☁️ Anthropic',
+        groq:      '⚡ Groq',
+        deepseek:  '☁️ DeepSeek',
+        mistral:   '☁️ Mistral',
+        cohere:    '☁️ Cohere',
+        together:  '☁️ Together AI',
+        perplexity:'☁️ Perplexity',
+      };
+
+      for (const [provider, models] of Object.entries(groups)) {
+        const label = document.createElement('div');
+        label.className = 'dd-label';
+        label.textContent = providerLabels[provider] || provider;
+        modelDropdown.appendChild(label);
+
+        models.forEach(m => {
+          const btn = document.createElement('button');
+          btn.className = 'dd-item' + (m.id === selectedModel ? ' active' : '');
+          btn.type = 'button';
+          btn.innerHTML = `
+            <span class="dd-dot"></span>
+            <span class="dd-name">${m.name}</span>
+            <span class="dd-provider">${m.provider}</span>
+          `;
+          btn.addEventListener('click', () => selectModel(m));
+          modelDropdown.appendChild(btn);
+        });
+      }
+
+      if (availableModels.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dd-label';
+        empty.textContent = 'No models found. Run: ollama pull gemma4';
+        empty.style.color = '#ef4444';
+        modelDropdown.appendChild(empty);
+      }
+    }
+
+    function selectModel(model) {
+      selectedModel = model.id;
+      modelChipName.textContent = model.name;
+      modelDropdown.classList.remove('show');
+      modelChipEl.classList.remove('open');
+      // Mark active in dropdown
+      modelDropdown.querySelectorAll('.dd-item').forEach(item => {
+        item.classList.toggle('active', item.querySelector('.dd-name').textContent === model.name);
+      });
+      console.log('[Models] Selected:', model.id);
+    }
+
+    function toggleModelDropdown() {
+      const isOpen = modelDropdown.classList.contains('show');
+      if (isOpen) {
+        modelDropdown.classList.remove('show');
+        modelChipEl.classList.remove('open');
+      } else {
+        renderModelDropdown();
+        modelDropdown.classList.add('show');
+        modelChipEl.classList.add('open');
+      }
+    }
+
+    modelChipEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleModelDropdown();
+    });
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+      if (!modelDropdown.contains(e.target) && e.target !== modelChipEl) {
+        modelDropdown.classList.remove('show');
+        modelChipEl.classList.remove('open');
+      }
+    });
+
+    // ── Health Check ──────────────────────────────────────────────────────
+    async function checkHealth() {
+      try {
+        const resp = await fetch('/api/health');
+        const data = await resp.json();
+        const modelName = data.model.replace('ollama/', '').replace('gemini/', '');
+        modelChipName.textContent = modelName;
+        selectedModel = data.model;  // Set initial model from server
+
+        // Update health badge in Workspace tab
+        const healthBadge = document.getElementById('health-badge');
+
+        if (data.agent_error) {
+          showToast(`⚠️ Agent error: ${data.agent_error}`, 8000);
+          if (healthBadge) { healthBadge.textContent = 'Agent Error'; healthBadge.style.color = '#ef4444'; }
+        } else if (!data.ollama_connected) {
+          showToast('⚠️ Ollama not detected — start it with: ollama serve', 6000);
+          if (healthBadge) { healthBadge.textContent = 'Ollama Offline'; healthBadge.style.color = '#f59e0b'; }
+        } else {
+          if (healthBadge) { healthBadge.textContent = 'All Systems Go'; healthBadge.style.color = '#10b981'; }
+          // Check if the model we need is actually pulled
+          const shortModel = data.model.replace('ollama/', '');
+          const modelAvailable = data.ollama_models.some(m => m.startsWith(shortModel));
+          if (!modelAvailable && data.model.startsWith('ollama/')) {
+            showToast(`⚠️ Model "${shortModel}" not found. Pull it with: ollama pull ${shortModel}`, 8000);
+            if (healthBadge) { healthBadge.textContent = 'Model Missing'; healthBadge.style.color = '#f59e0b'; }
+          }
+        }
+      } catch (e) {
+        modelChipName.textContent = 'offline';
+        const healthBadge = document.getElementById('health-badge');
+        if (healthBadge) { healthBadge.textContent = 'Server Offline'; healthBadge.style.color = '#ef4444'; }
+      }
+    }
+
+    // ── Textarea Auto-resize ──────────────────────────────────────────────
+    function autoResize() {
+      inputEl.style.height = '22px';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+    }
+
+    // ── Event Listeners ───────────────────────────────────────────────────
+    sendBtn.addEventListener('click', sendMessage);
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    inputEl.addEventListener('input', autoResize);
+
+    document.getElementById('new-chat-btn').addEventListener('click', newChat);
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toLowerCase();
+      document.querySelectorAll('.chat-item').forEach(el => {
+        el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+
+    // ── Tab Panel Switching ────────────────────────────────────────────────
+    const tabInfo = {
+      chat:        { title: 'Chat',        subtitle: 'Connected to your local AI' },
+      personas:    { title: 'Personas',    subtitle: 'Your AI team' },
+      tools:       { title: 'Tools',       subtitle: 'Built-in AI capabilities' },
+      automations: { title: 'Automations', subtitle: 'Background workflows' },
+      workspace:   { title: 'Workspace',   subtitle: 'Business command center' },
+    };
+
+    function switchTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      const activeTab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+      if (activeTab) activeTab.classList.add('active');
+
+      // Update panels
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      const panel = document.getElementById(`panel-${tabName}`);
+      if (panel) panel.classList.add('active');
+
+      // Update header
+      const info = tabInfo[tabName] || tabInfo.chat;
+      document.getElementById('page-title').textContent = info.title;
+      document.getElementById('page-subtitle').textContent = info.subtitle;
+
+      // Show/hide composer (only for chat)
+      document.getElementById('composer').style.display = tabName === 'chat' ? '' : 'none';
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // ── Init ──────────────────────────────────────────────────────────────
+    (async function init() {
+      connectWS();                // fire-and-forget (WebSocket is event-driven)
+      await checkHealth();        // sets initial model chip + selectedModel
+      await loadModels();         // populates dropdown with all available models
+      await loadConversations();  // renders sidebar conversation list
+      inputEl.focus();
+    })();
+  </script>
+</body>
+</html>
