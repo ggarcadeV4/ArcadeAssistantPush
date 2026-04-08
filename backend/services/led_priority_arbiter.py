@@ -268,3 +268,6 @@ def get_led_arbiter() -> LEDPriorityArbiter:
     if _arbiter is None:
         _arbiter = LEDPriorityArbiter()
     return _arbiter
+
+
+led_priority_arbiter = get_led_arbiter()

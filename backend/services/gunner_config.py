@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -28,6 +29,26 @@ DEFAULT_PROFILE = {
 }
 
 
+def _fallback_storage_path() -> Path:
+    return Path(tempfile.gettempdir()) / "arcade-assistant" / "state" / "gun_profiles"
+
+
+def _ensure_storage_path(candidate: Path) -> Path:
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+    except Exception as exc:
+        fallback = _fallback_storage_path()
+        fallback.mkdir(parents=True, exist_ok=True)
+        logger.warning(
+            "Failed to initialize gunner storage at %s: %s. Falling back to %s",
+            candidate,
+            exc,
+            fallback,
+        )
+        return fallback
+
+
 class GunnerConfigService:
     """Calibration profile management backed by local JSON files."""
 
@@ -36,8 +57,7 @@ class GunnerConfigService:
             drive_root = Path(os.getenv('AA_DRIVE_ROOT', '.'))
             local_storage_path = drive_root / '.aa' / 'state' / 'gun_profiles'
 
-        self.local_storage_path = Path(local_storage_path)
-        self.local_storage_path.mkdir(parents=True, exist_ok=True)
+        self.local_storage_path = _ensure_storage_path(Path(local_storage_path))
         logger.info("Local gunner storage: %s", self.local_storage_path)
 
     def save_profile(

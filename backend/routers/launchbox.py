@@ -44,6 +44,7 @@ from difflib import SequenceMatcher
 import re
 
 from backend.models.game import Game, LaunchRequest, LaunchResponse, GameCacheStats
+from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.services.launchbox_parser import parser, get_platform_games
 from backend.services import launchbox_cache as lb_cache
 from backend.services.launchbox_json_cache import json_cache
@@ -857,17 +858,32 @@ async def launch_launchbox_app(req: Request):
     """Launch LaunchBox.exe as a detached process."""
     drive_root = getattr(req.app.state, "drive_root", None)
     drive_letter_root: Optional[Path] = None
+    actual_drive_root: Optional[Path] = None
     try:
-        if isinstance(drive_root, Path) and drive_root.drive:
-            drive_letter_root = Path(f"{drive_root.drive}\\")
+        if isinstance(drive_root, Path):
+            actual_drive_root = drive_root
+            if drive_root.drive:
+                drive_letter_root = Path(f"{drive_root.drive}\\")
         elif isinstance(drive_root, str):
             p = Path(drive_root)
+            actual_drive_root = p
             if p.drive:
                 drive_letter_root = Path(f"{p.drive}\\")
     except Exception:
+        actual_drive_root = None
         drive_letter_root = None
 
     candidates: List[Path] = []
+    dynamic_launchbox_root = LaunchBoxPaths._get_launchbox_root_dynamic()
+    candidates.extend([
+        dynamic_launchbox_root / "LaunchBox.exe",
+        dynamic_launchbox_root / "Core" / "LaunchBox.exe",
+    ])
+    if actual_drive_root:
+        candidates.extend([
+            actual_drive_root / "LaunchBox" / "LaunchBox.exe",
+            actual_drive_root / "LaunchBox" / "Core" / "LaunchBox.exe",
+        ])
     if drive_letter_root:
         candidates.extend([
             drive_letter_root / "LaunchBox" / "LaunchBox.exe",
