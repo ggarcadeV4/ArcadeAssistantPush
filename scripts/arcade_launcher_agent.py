@@ -60,11 +60,17 @@ def handle_client(conn: socket.socket, addr):
 
         log.info("Launching: %s  cwd=%s", " ".join(command)[:120], cwd)
 
+        create_new_process_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+        detached_process = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+
         proc = subprocess.Popen(
             command,
             cwd=cwd,
             env=env,
-            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010),
+            creationflags=create_new_process_group | detached_process,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
         response = {"ok": True, "pid": proc.pid}

@@ -19,6 +19,7 @@ import subprocess
 import logging
 import shlex
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable, List, Tuple
@@ -51,10 +52,100 @@ _AGENT_PORT = int(os.getenv("AA_LAUNCHER_AGENT_PORT", "9123"))
 _AGENT_TIMEOUT = 5.0  # seconds
 
 
+def _agent_is_reachable(timeout: float = 0.5) -> bool:
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect((_AGENT_HOST, _AGENT_PORT))
+        sock.close()
+        return True
+    except Exception:
+        return False
+
+
+def _start_launcher_agent() -> bool:
+    if _agent_is_reachable():
+        return True
+
+    repo_root = Path(__file__).resolve().parents[2]
+    starter_script = repo_root / "scripts" / "start_launcher_agent.bat"
+    agent_script = repo_root / "scripts" / "arcade_launcher_agent.py"
+    if not agent_script.exists():
+        logger.warning("[Agent] script missing: %s", agent_script)
+        return False
+
+    if starter_script.exists():
+        try:
+            subprocess.Popen(
+                f'cmd.exe /c start "" "{starter_script}"',
+                cwd=str(repo_root),
+                shell=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as e:
+            logger.warning("[Agent] batch auto-start failed: %s", e)
+        else:
+            deadline = time.time() + 3.0
+            while time.time() < deadline:
+                if _agent_is_reachable():
+                    logger.info("[Agent] auto-start via batch succeeded")
+                    return True
+                time.sleep(0.2)
+
+    python_candidates = []
+    try:
+        exe_path = Path(sys.executable)
+        python_candidates.append(exe_path.with_name("pythonw.exe"))
+        python_candidates.append(exe_path)
+    except Exception:
+        pass
+    python_candidates.append(Path(str(repo_root / ".venv" / "Scripts" / "pythonw.exe")))
+    python_candidates.append(Path(str(repo_root / ".venv" / "Scripts" / "python.exe")))
+
+    python_cmd = None
+    for candidate in python_candidates:
+        try:
+            if candidate.exists():
+                python_cmd = str(candidate)
+                break
+        except Exception:
+            continue
+    if not python_cmd:
+        python_cmd = "pythonw.exe"
+
+    try:
+        create_new_process_group = 0x00000200
+        detached_process = 0x00000008
+        subprocess.Popen(
+            [python_cmd, str(agent_script)],
+            cwd=str(repo_root),
+            creationflags=create_new_process_group | detached_process,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.warning("[Agent] auto-start failed: %s", e)
+        return False
+
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        if _agent_is_reachable():
+            logger.info("[Agent] auto-start succeeded")
+            return True
+        time.sleep(0.2)
+
+    logger.warning("[Agent] auto-start timed out")
+    return False
+
+
 def _launch_via_agent(
     command: list,
     cwd: str = None,
     env_override: dict = None,
+    _retry_started: bool = False,
 ) -> dict:
     """Send a launch command to the Launcher Agent.
 
@@ -85,6 +176,13 @@ def _launch_via_agent(
         return result
     except Exception as e:
         logger.warning("[Agent] unreachable (%s:%d): %s", _AGENT_HOST, _AGENT_PORT, e)
+        if not _retry_started and _start_launcher_agent():
+            return _launch_via_agent(
+                command,
+                cwd=cwd,
+                env_override=env_override,
+                _retry_started=True,
+            )
         return {"ok": False, "error": str(e)}
 
 
@@ -135,6 +233,48 @@ def _convert_wsl_paths_for_windows(command: List[str]) -> List[str]:
             converted.append(arg_str)
 
     return converted
+
+
+def _absolutize_daphne_wrapper_args(args: List[str], base_dir: Path) -> List[str]:
+    """Resolve relative Hypseus/Singe wrapper paths against the AHK script directory."""
+    rewritten: List[str] = []
+    idx = 0
+    path_flags = {"-framefile", "-script", "-homedir", "-bezel"}
+    while idx < len(args):
+        token = str(args[idx])
+        low = token.lower()
+
+        if low in path_flags and idx + 1 < len(args):
+            value = str(args[idx + 1]).strip().strip('"')
+            candidate = Path(value.replace("\\", "/"))
+            if value and not candidate.is_absolute():
+                candidate = (base_dir / candidate).resolve()
+                if low == "-bezel" and not candidate.exists():
+                    bezel_candidate = (base_dir / "bezels" / value).resolve()
+                    if bezel_candidate.exists():
+                        candidate = bezel_candidate
+            rewritten.extend([token, str(candidate)])
+            idx += 2
+            continue
+
+        if "=" in token:
+            key, value = token.split("=", 1)
+            if key.lower() in path_flags:
+                candidate = Path(value.strip().strip('"').replace("\\", "/"))
+                if value and not candidate.is_absolute():
+                    candidate = (base_dir / candidate).resolve()
+                    if key.lower() == "-bezel" and not candidate.exists():
+                        bezel_candidate = (base_dir / "bezels" / value).resolve()
+                        if bezel_candidate.exists():
+                            candidate = bezel_candidate
+                rewritten.append(f"{key}={candidate}")
+                idx += 1
+                continue
+
+        rewritten.append(token)
+        idx += 1
+
+    return rewritten
 
 
 class GameLauncher:
@@ -280,6 +420,9 @@ class GameLauncher:
             other_methods = [(n, f) for (n, f) in methods if n != 'direct']
             if direct_methods:
                 methods = direct_methods + other_methods
+        no_launchbox_fallback = {'daphne', 'hypseus', 'laserdisc'}
+        if normalize_key(getattr(game, 'platform', '') or '') in no_launchbox_fallback:
+            methods = [(n, f) for (n, f) in methods if n != 'launchbox']
         # Try each method in sequence (optimized: early return on success)
         for method_name, method_func in methods:
             result = self._try_launch_method(game, method_name, method_func, profile_hint)
@@ -943,6 +1086,13 @@ class GameLauncher:
         Raises:
             FileNotFoundError: If LaunchBox.exe not found
         """
+        platform_key = normalize_key(getattr(game, "platform", "") or "")
+        if platform_key in {"daphne", "hypseus", "laserdisc"}:
+            return {
+                "success": False,
+                "message": f"LaunchBox fallback disabled for direct-only platform: {game.platform}",
+            }
+
         lb_exe = LaunchBoxPaths.LAUNCHBOX_EXE
 
         if not lb_exe.exists():
@@ -1157,6 +1307,7 @@ class GameLauncher:
                 game.platform == "Daphne"
                 and app_path_str.endswith((".zip", ".7z"))
             )
+            daphne_wrapper_launch = app_path_str.endswith((".ahk", ".bat", ".cmd"))
             platform_key = normalize_key(getattr(game, "platform", "") or "")
             if platform_key in {"arcade", "arcade mame", "mame"} or daphne_uses_mame:
                 rom_path = self._resolve_rom_path(game)
@@ -1183,40 +1334,79 @@ class GameLauncher:
                     }
 
             # Daphne/Hypseus laserdisc direct launch
-            if platform_key == "daphne" and not daphne_uses_mame:
-                exe = r"A:\Emulators\Hypseus\Hypseus Singe\hypseus.exe"
-                homedir = r"A:\Roms\DAPHNE"
+            if platform_key == "daphne" and not daphne_uses_mame and not daphne_wrapper_launch:
+                aa_root = (os.getenv("AA_DRIVE_ROOT", "") or "").strip()
+                if aa_root:
+                    aa_root_path = Path(aa_root)
+                else:
+                    aa_root_path = Path(LaunchBoxPaths.LAUNCHBOX_ROOT).parent
+
+                exe = aa_root_path / "Emulators" / "Hypseus" / "Hypseus Singe" / "hypseus.exe"
+                homedir = aa_root_path / "Roms" / "DAPHNE"
 
                 daphne_game_map = {
-                    "astron belt": ("astron", r"A:\Roms\DAPHNE\framefile\astron.txt"),
-                    "badlands": ("badlands", r"A:\Roms\DAPHNE\framefile\badlands.txt"),
-                    "bega's battle": ("bega", r"A:\Roms\DAPHNE\framefile\bega.txt"),
-                    "cobra command": ("cobraab", r"A:\Roms\DAPHNE\framefile\cobraab.txt"),
-                    "dragons lair": ("lair", r"A:\Roms\DAPHNE\vldp\lair\lair.txt"),
-                    "dragon's lair hd": ("lair", r"A:\Roms\DAPHNE\vldp\lair\lair.txt"),
-                    "dragon's lair ii hd": ("lair2", r"A:\Roms\DAPHNE\vldp\lair2\dl2-framefile.txt"),
-                    "galaxy ranger": ("galaxy", r"A:\Roms\DAPHNE\framefile\galaxy.txt"),
-                    "gp world": ("gpworld", r"A:\Roms\DAPHNE\framefile\gpworld.txt"),
-                    "inter stellar": ("interstellar", r"A:\Roms\DAPHNE\framefile\interstellar.txt"),
-                    "mach 3": ("mach3", r"A:\Roms\DAPHNE\framefile\mach3.txt"),
-                    "road blaster": ("roadblaster", r"A:\Roms\DAPHNE\framefile\roadblaster.txt"),
-                    "space ace hd": ("ace", r"A:\Roms\DAPHNE\vldp\ace\ace.txt"),
-                    "super don quix-ote": ("sdq", r"A:\Roms\DAPHNE\framefile\sdq.txt"),
-                    "thayer's quest": ("tq", r"A:\Roms\DAPHNE\framefile\tq.txt"),
-                    "us vs them": ("uvt", r"A:\Roms\DAPHNE\framefile\uvt.txt"),
+                    "astron belt": ("astron", homedir / "framefile" / "astron.txt"),
+                    "badlands": ("badlands", homedir / "framefile" / "badlands.txt"),
+                    "bega's battle": ("bega", homedir / "framefile" / "bega.txt"),
+                    "cobra command": ("cobraab", homedir / "framefile" / "cobraab.txt"),
+                    "dragons lair": ("lair", homedir / "vldp" / "lair" / "lair.txt"),
+                    "dragon's lair hd": ("lair", homedir / "vldp" / "lair" / "lair.txt"),
+                    "dragon's lair ii hd": ("lair2", homedir / "vldp" / "lair2" / "dl2-framefile.txt"),
+                    "galaxy ranger": ("galaxy", homedir / "framefile" / "galaxy.txt"),
+                    "gp world": ("gpworld", homedir / "framefile" / "gpworld.txt"),
+                    "inter stellar": ("interstellar", homedir / "framefile" / "interstellar.txt"),
+                    "mach 3": ("mach3", homedir / "framefile" / "mach3.txt"),
+                    "road blaster": ("roadblaster", homedir / "framefile" / "roadblaster.txt"),
+                    "space ace hd": ("ace", homedir / "vldp" / "ace" / "ace.txt"),
+                    "super don quix-ote": ("sdq", homedir / "framefile" / "sdq.txt"),
+                    "thayer's quest": ("tq", homedir / "framefile" / "tq.txt"),
+                    "us vs them": ("uvt", homedir / "framefile" / "uvt.txt"),
                 }
 
-                ahk_stem = Path(str(getattr(game, "application_path", "") or "")).stem.lower()
-                if ahk_stem not in daphne_game_map:
-                    raise ValueError(f"No Hypseus mapping for Daphne game: {ahk_stem}")
+                # Allow lookup by LaunchBox title, Hypseus ROM name, or framefile stem.
+                for _, mapping in list(daphne_game_map.items()):
+                    mapped_game_name, mapped_framefile = mapping
+                    daphne_game_map.setdefault(mapped_game_name.lower(), mapping)
+                    daphne_game_map.setdefault(Path(mapped_framefile).stem.lower(), mapping)
 
-                game_name, framefile = daphne_game_map[ahk_stem]
+                app_ref = str(getattr(game, "application_path", "") or getattr(game, "rom_path", "") or "").strip()
+                app_ref_path = Path(app_ref.replace("\\", "/")) if app_ref else Path()
+                app_ext = app_ref_path.suffix.lower()
+
+                framefile: Optional[Path] = None
+                game_name: Optional[str] = None
+                primary_lookup = app_ref_path.stem.lower() if app_ref else ""
+
+                if app_ext in {".txt", ".m2v"}:
+                    framefile = app_ref_path
+                    if not framefile.is_absolute():
+                        framefile = (LaunchBoxPaths.LAUNCHBOX_ROOT / framefile).resolve()
+                    alias = daphne_game_map.get(framefile.stem.lower())
+                    if alias:
+                        game_name = alias[0]
+                    else:
+                        cleaned = "".join(ch for ch in framefile.stem.lower() if ch.isalnum())
+                        game_name = cleaned or framefile.stem.lower()
+                else:
+                    title_lookup = str(getattr(game, "title", "") or "").strip().lower()
+                    alias = None
+                    for candidate in (primary_lookup, title_lookup):
+                        if candidate and candidate in daphne_game_map:
+                            alias = daphne_game_map[candidate]
+                            break
+                    if not alias:
+                        raise ValueError(f"No Hypseus mapping for Daphne game: {primary_lookup}")
+                    game_name, framefile = alias
+
+                if framefile is None:
+                    raise ValueError(f"No framefile resolved for Daphne game: {primary_lookup or game.title}")
+
                 command = [
-                    exe,
+                    str(exe),
                     game_name,
                     "vldp",
-                    "-homedir", homedir,
-                    "-framefile", framefile,
+                    "-homedir", str(homedir),
+                    "-framefile", str(framefile),
                     "-fullscreen",
                     "-x", "1920",
                     "-y", "1080",
@@ -1230,9 +1420,7 @@ class GameLauncher:
                 if dry_run_enabled():
                     logger.info(f"[DIRECT] Hypseus DRY-RUN: {' '.join(win_command)}")
                     return {"success": True, "command": " ".join(win_command), "message": "dry-run"}
-                hypseus_env = os.environ.copy()
-                hypseus_env["SDL_VIDEODRIVER"] = "windows"
-                trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd, env=hypseus_env)
+                trap_result = self._launch_with_stderr_trap(win_command, cwd=wsl_cwd)
                 if trap_result["success"]:
                     logger.info(f"[DIRECT] Hypseus launch SUCCESS: {' '.join(win_command)}")
                     return {"success": True, "command": " ".join(win_command)}
@@ -1247,6 +1435,15 @@ class GameLauncher:
             manifest = self._load_launchers_config() or {}
             last_msg: Optional[str] = None
             adapters_tried = []
+            has_registered_adapter = False
+            for adapter in ADAPTERS:
+                try:
+                    if adapter.can_handle(game, manifest):
+                        has_registered_adapter = True
+                        break
+                except Exception:
+                    continue
+
             for adapter in ADAPTERS:
                 adapter_name = getattr(adapter, "__name__", str(adapter)).split('.')[-1]
                 # Check if adapter can handle this game's platform FIRST
@@ -1403,7 +1600,14 @@ class GameLauncher:
                         logger.info(f"[DIRECT] Adapter {adapter_name} DRY-RUN: {' '.join([exe, *[str(a) for a in args]])}")
                         return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
                     no_pipe = bool((cfg or {}).get("no_pipe"))
-                    self._run_adapter_process(exe, args, cwd, cleanup_cb, no_pipe=no_pipe)
+                    self._run_adapter_process(
+                        exe,
+                        args,
+                        cwd,
+                        cleanup_cb,
+                        no_pipe=no_pipe,
+                        skip_agent=has_registered_adapter,
+                    )
                     logger.info(f"[DIRECT] Adapter {adapter_name} launch SUCCESS: {' '.join([exe, *[str(a) for a in args]])}")
                     return {"success": True, "command": " ".join([exe, *[str(a) for a in args]]), "notes": (cfg or {}).get("notes", "")}
 
@@ -1420,7 +1624,15 @@ class GameLauncher:
                 pass
 
     @staticmethod
-    def _run_adapter_process(exe: str, args: List[str], cwd: Optional[str], on_exit: Optional[Callable[[], None]] = None, *, no_pipe: bool = False) -> None:
+    def _run_adapter_process(
+        exe: str,
+        args: List[str],
+        cwd: Optional[str],
+        on_exit: Optional[Callable[[], None]] = None,
+        *,
+        no_pipe: bool = False,
+        skip_agent: bool = False,
+    ) -> None:
         """Execute adapter-provided command line.
 
         Uses working directory if provided; otherwise defaults to exe parent.
@@ -1432,6 +1644,16 @@ class GameLauncher:
                      that fail with 'OpenGL not available' when pipes are attached.
         """
         workdir = Path(cwd) if cwd else Path(exe).parent
+        exe_name = Path(str(exe)).name.lower()
+        daphne_wrapper_bypass = exe_name in {
+            "daphne",
+            "daphne.exe",
+            "hypseus",
+            "hypseus.exe",
+            "singe",
+            "singe.exe",
+            "singe-v2.00-windows-x86_64.exe",
+        }
         try:
             # WSL interop: if running under WSL Linux and exe looks like Windows path, use cmd.exe start
             if platform.system() == 'Linux' and 'microsoft' in platform.release().lower() and (':' in exe or exe.lower().startswith('/mnt/')):
@@ -1478,7 +1700,59 @@ class GameLauncher:
                             except Exception:
                                 pass
                     threading.Thread(target=_delayed, daemon=True).start()
-            elif no_pipe:
+            elif no_pipe and not daphne_wrapper_bypass and skip_agent:
+                logger.info("[Adapter] Launching registered adapter without agent or pipes: %s", exe)
+                full_command = [exe, *args]
+                win_command = _convert_wsl_paths_for_windows(full_command)
+                wsl_cwd = str(workdir)
+                if "supermodel" in exe_name:
+                    agent_result = _launch_via_agent(win_command, cwd=wsl_cwd)
+                    if agent_result.get("ok"):
+                        logger.info("[Adapter] Launched Supermodel via auto-started agent, PID=%s", agent_result.get('pid'))
+                    else:
+                        raise RuntimeError(
+                            f"Launcher Agent failed: {agent_result.get('error', 'unknown')}"
+                        )
+                    if on_exit:
+                        try:
+                            ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
+                        except Exception:
+                            ttl = 900
+                        def _delayed_agent():
+                            try:
+                                time.sleep(max(1, ttl))
+                            finally:
+                                try:
+                                    on_exit()
+                                except Exception:
+                                    pass
+                        threading.Thread(target=_delayed_agent, daemon=True).start()
+                    return
+                create_new_process_group = 0x00000200
+                detached_process = 0x00000008
+                subprocess.Popen(
+                    win_command,
+                    cwd=wsl_cwd,
+                    creationflags=create_new_process_group | detached_process,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                if on_exit:
+                    try:
+                        ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
+                    except Exception:
+                        ttl = 900
+                    def _delayed_skip_agent():
+                        try:
+                            time.sleep(max(1, ttl))
+                        finally:
+                            try:
+                                on_exit()
+                            except Exception:
+                                pass
+                    threading.Thread(target=_delayed_skip_agent, daemon=True).start()
+            elif no_pipe and not daphne_wrapper_bypass:
                 # Route through the Launcher Agent (see _execute_emulator).
                 full_command = [exe, *args]
                 win_command = _convert_wsl_paths_for_windows(full_command)
@@ -1505,6 +1779,31 @@ class GameLauncher:
                             except Exception:
                                 pass
                     threading.Thread(target=_delayed_np, daemon=True).start()
+            elif no_pipe and daphne_wrapper_bypass:
+                logger.info("[Adapter] Launching Daphne/Singe wrapper without agent or pipes: %s", exe)
+                safe_args = _absolutize_daphne_wrapper_args([str(a) for a in args], workdir)
+                full_command = [exe, *safe_args]
+                win_command = _convert_wsl_paths_for_windows(full_command)
+                wsl_cwd = str(workdir)
+                subprocess.Popen(
+                    win_command,
+                    cwd=wsl_cwd,
+                    creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+                )
+                if on_exit:
+                    try:
+                        ttl = int(os.getenv('AA_TMP_CLEANUP_TTL_S', '900'))
+                    except Exception:
+                        ttl = 900
+                    def _delayed_np_bypass():
+                        try:
+                            time.sleep(max(1, ttl))
+                        finally:
+                            try:
+                                on_exit()
+                            except Exception:
+                                pass
+                    threading.Thread(target=_delayed_np_bypass, daemon=True).start()
             else:
                 # Convert paths for WSL
                 full_command = [exe, *args]
