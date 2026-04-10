@@ -54,6 +54,35 @@ const normalizeTitleForMatch = (str) => {
     .trim()
 }
 
+const LORA_HIDDEN_PLATFORM_KEYS = new Set([
+  'american laser games',
+  'atomiswave gun games',
+  'daphne',
+  'dreamcast gun games',
+  'flash gun games',
+  'genesis gun games',
+  'mame gun games',
+  'master system gun games',
+  'model 2 gun games',
+  'model 3 gun games',
+  'naomi gun games',
+  'nes gun games',
+  'pc gun games',
+  'pcsx2 gun games',
+  'ps2 gun games',
+  'ps3 gun games',
+  'psx gun games',
+  'saturn gun games',
+  'snes gun games',
+  'teknoparrot gun games',
+  'wii gun games',
+])
+
+const isLoraVisiblePlatform = (platform) => {
+  const normalized = (platform || '').toString().trim().toLowerCase()
+  return Boolean(normalized) && !LORA_HIDDEN_PLATFORM_KEYS.has(normalized)
+}
+
 const getPlatformIcon = (platform) => {
   const name = (platform || '').toLowerCase()
 
@@ -417,10 +446,8 @@ function LaunchBoxPanelContent() {
     // These either require special hardware, have no reliable emulator path,
     // or were intentionally quarantined to prevent broken launches.
     const excludedPlatforms = [
-      'saturn gun games',
-      'model 3 gun games',
-      'ps2 gun games',
-      'pcsx2 gun games',
+      'american laser games',
+      'daphne',
       'flash games',
     ]
     if (excludedPlatforms.includes(normalized)) return false
@@ -472,7 +499,7 @@ function LaunchBoxPanelContent() {
         const platformsData = await platformsRes.json();
         const genresData = await genresRes.json();
         const statsData = await statsRes.json();
-        setPlatforms(platformsData);
+        setPlatforms((Array.isArray(platformsData) ? platformsData : []).filter(isLoraVisiblePlatform));
         setGenres(genresData);
         setStats(statsData);
       } catch (err) {
@@ -1126,6 +1153,12 @@ function LaunchBoxPanelContent() {
   useEffect(() => {
     setCurrentPage(1)
   }, [platformFilter, genreFilter, yearFilter, sortBy, sortOrder, debouncedSearchQuery])
+
+  useEffect(() => {
+    if (platformFilter !== 'All' && !isLoraVisiblePlatform(platformFilter)) {
+      setPlatformFilter('All')
+    }
+  }, [platformFilter])
 
   // Ctrl+F keyboard shortcut to focus search
   useEffect(() => {
