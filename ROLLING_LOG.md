@@ -1,5 +1,60 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-04-10 (Antigravity Session — LoRa Platform Routing Complete ✅ MILESTONE)
+
+**Net Progress**: Full LoRa validation pass. Every platform on the cabinet now launches correctly through its designated emulator. All critical routing bugs fixed across launchers.json, RetroArch, Dolphin, Cemu, and Supermodel. Bezel drift resolved permanently. CRT-Easymode shader applied globally. LoRa declared the **first completed panel in AA V1**.
+
+**Platform Routing — Final Status:**
+
+| Platform | Status | Emulator |
+|----------|--------|----------|
+| Arcade MAME | ✅ Working | MAME direct |
+| Atari 2600 | ✅ Working | RetroArch (stella) |
+| Sega Dreamcast | ✅ Working | Redream standalone |
+| Sony PlayStation 2 | ✅ Working | PCSX2 (44 confirmed titles) |
+| Sony PlayStation 3 | ✅ Working | RPCS3 standalone |
+| Sega Model 2 | ✅ Working | Model 2 Emulator |
+| Sega Model 3 | ✅ Working | Supermodel standalone |
+| Sony PSP | ✅ Working | PPSSPP standalone |
+| Nintendo GameCube / Wii | ✅ Working | Dolphin standalone |
+| Nintendo Wii U | ✅ Working | Cemu standalone |
+| Pinball FX2 / FX3 | ✅ Working | Direct app launch |
+| Full RetroArch stack | ✅ Working | NES/SNES/Genesis/GBA/PS1/etc. |
+
+Cut from LoRa by design (LaunchBox direct only): Daphne/laser disc, all gun platforms (~15), Nintendo Switch (legal), Nintendo DS, Dev2.
+
+**Key Fixes Applied:**
+- **launchers.json — Hardcoded A:\\ paths removed**: All emulator exe paths now use `${AA_DRIVE_ROOT}`. Unblocked PS3, Model 2, Wii U, and Hypseus which were silently failing on W drive.
+- **RetroArch adapter — PSP routing fixed**: Removed Sony PSP and Sony PSP Minis from `INSTANCE_REGISTRY`. PPSSPP standalone adapter now handles PSP correctly.
+- **Dolphin adapter — GameCube/Wii fixed**: Added dolphin block to `launchers.json` pointing to `LaunchBox\Emulators\dolphin-2412-x64\Dolphin-x64\Dolphin.exe`. Adapter reads manifest first.
+- **Cemu adapter — Wii U fixed**: Updated to read exe from `launchers.json` directly, bypassing broken `emulator_paths.json` first-match logic.
+- **emulator_paths.json — Stale A:\\ path cleared**: One remaining `A:\LaunchBox` reference replaced with correct W drive path.
+- **Launcher Agent — Model 3 / no_pipe adapters**: Updated `arcade_launcher_agent.py` to launch processes fully detached (`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`) with DEVNULL stdio. Fixed Supermodel's OpenGL startup environment.
+- **Agent bypass for registered adapters**: `launcher.py` now computes `has_registered_adapter` before the adapter loop and passes `skip_agent=True`. Prevents port 9123 connection failures from blocking launches.
+- **Bezel drift — Fixed permanently**: Root cause was `LaunchBox\Emulators\RetroArch\RetroArch-Controller\retroarch.cfg` with a GameCube overlay hardcoded at global level. All three RetroArch instances now have `input_overlay = ""`, `input_overlay_enable = "false"`, `config_save_on_exit = "false"`, `video_shader_preset_save_reference_enable = "false"`.
+- **CRT shader — Applied globally**: `crt-easymode.slangp` applied to all three RetroArch instances (Standard, Gamepad, RetroArch-Controller). Clean scanlines on every retro platform.
+- **retroarch_adapter.py — Runtime base config isolation**: Each RetroArch launch now generates a clean runtime base config with overlays stripped before applying platform override via `--appendconfig`. Prevents future bezel carryover between sessions.
+- **Frontend — Gun games and dead platforms hidden**: `LORA_HIDDEN_PLATFORM_KEYS` updated to hide all gun game platforms, Nintendo Switch, Nintendo DS, Pinball (direct), Dev2.
+- **PS2 library — Cleaned to 44 confirmed titles**: 44 unresolvable ROM paths removed from the GUI.
+
+**⚠️ CRITICAL RULES FOR NEXT AGENT:**
+- NEVER change `config_save_on_exit` in any RetroArch cfg — it's set to `"false"` intentionally
+- Three RetroArch instances exist: Standard, Gamepad, and RetroArch-Controller (LaunchBox tree) — all three must stay in sync
+- Launcher Agent runs on port 9123 — required for no_pipe adapter launches (Model 3, etc.)
+- `AA_DRIVE_ROOT` must always point to `W:\Arcade Assistant Master Build`
+- Launch AA ONLY from: `W:\Arcade Assistant Master Build\Arcade Assistant Local\start-aa.bat`
+
+**Next Session Priority Order:**
+1. ⚡ **Blinky Chat Interface** — 6 coherence disconnections from 04-07-2026 audit (missing LED repair route, two-API calibration problem, shared chat store, command executor, live LED context assembler, `blinky_knowledge.md` to create)
+2. 🔶 **Chuck / Wizard Chat Interfaces** — `stash@{1}` exists with WIP modal work — audit before touching
+3. 🔶 **Gunner** — audit first, status unknown
+4. 🌱 **Doc** — untouched panel, needs knowledge pass
+5. 🌱 **Sam** — 2-3 sessions, pipeline hooks confirmed wired
+
+**PAT Warning**: "Antigravity Push v2" expires ~April 25, 2026 — rotate within 2 weeks.
+
+---
+
 ## 2026-03-19 (Antigravity Session — Gun Platform Routing, AHK Bulk Fix, LoRa Hardening)
 
 **Net Progress**: Fixed Pinball FX2/FX3 launch block. Built and verified the entire Gun Platform Routing system (16 platforms → Gun Build emulators). Bulk-fixed 213 AHK scripts (D:\→A:\, Sinden removal). Suppressed Sinden hardware warnings. Wired 4 Retro Shooter VID/PIDs. Removed 5 unstable platforms from LoRa GUI. Fixed PS3 AHK routing bypass bug.

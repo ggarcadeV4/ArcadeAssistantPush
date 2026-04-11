@@ -49,6 +49,47 @@ cd frontend && npm run dev
 
 ---
 
+## 2026-04-10 — LoRa Platform Routing Complete ✅ MILESTONE
+
+**LaunchBox LoRa is the first completed panel in Arcade Assistant V1.** Every platform on the cabinet now launches directly through its correct emulator.
+
+### Platform Status
+| Platform | Status | Emulator |
+|----------|--------|----------|
+| Arcade MAME | ✅ Working | MAME direct |
+| Atari 2600 | ✅ Working | RetroArch (stella) |
+| Sega Dreamcast | ✅ Working | Redream standalone |
+| Sony PlayStation 2 | ✅ Working | PCSX2 (44 confirmed titles) |
+| Sony PlayStation 3 | ✅ Working | RPCS3 standalone |
+| Sega Model 2 | ✅ Working | Model 2 Emulator |
+| Sega Model 3 | ✅ Working | Supermodel standalone |
+| Sony PSP | ✅ Working | PPSSPP standalone |
+| Nintendo GameCube / Wii | ✅ Working | Dolphin standalone |
+| Nintendo Wii U | ✅ Working | Cemu standalone |
+| Pinball FX2 / FX3 | ✅ Working | Direct app launch |
+| Full RetroArch stack | ✅ Working | NES/SNES/Genesis/GBA/PS1/etc. |
+
+### Key Fixes Applied
+- `launchers.json` — All hardcoded `A:\` paths replaced with `${AA_DRIVE_ROOT}` — unblocked PS3, Model 2, Wii U, Hypseus
+- RetroArch adapter — Sony PSP removed from `INSTANCE_REGISTRY`; PPSSPP standalone now handles PSP
+- Dolphin adapter — `launchers.json` block added; adapter reads manifest first
+- Cemu adapter — reads exe from `launchers.json` directly, bypasses broken `emulator_paths.json` first-match
+- `emulator_paths.json` — stale `A:\LaunchBox` reference replaced with W drive path
+- `arcade_launcher_agent.py` — Processes now launch fully detached (`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`) with DEVNULL stdio; fixes Supermodel OpenGL startup
+- `launcher.py` — `has_registered_adapter` check added; `skip_agent=True` prevents port 9123 failures from blocking launches
+- **Bezel drift fixed permanently** — Root cause: `LaunchBox\Emulators\RetroArch\RetroArch-Controller\retroarch.cfg` had GameCube overlay hardcoded globally. All three RetroArch instances now have overlays stripped and `config_save_on_exit = "false"`
+- **CRT shader applied globally** — `crt-easymode.slangp` active on all three RetroArch instances
+- `retroarch_adapter.py` — Runtime base config isolation: clean config generated per launch, `--appendconfig` applies platform override; prevents bezel carryover
+- Frontend — gun games, Nintendo Switch, Nintendo DS, Dev2 hidden from LoRa sidebar
+- PS2 library cleaned to 44 confirmed working titles
+
+### Architecture Reminders
+- ⚠️ NEVER change `config_save_on_exit` in any RetroArch cfg — intentionally `"false"`
+- Three RetroArch instances: Standard, Gamepad, RetroArch-Controller (LaunchBox tree) — all must stay in sync
+- Launcher Agent on port 9123 — required for no_pipe adapter launches (Model 3, etc.)
+
+---
+
 ## 2026-03-20 — Security Hardening + Pre-Duplication Validation
 
 ### Security (Pillar 2 — Local Physical Security)
