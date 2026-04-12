@@ -49,6 +49,53 @@ cd frontend && npm run dev
 
 ---
 
+## Daily Slice — 2026-04-11
+
+### What landed today
+
+We completed a major infrastructure-stabilization sequence across Arcade Assistant:
+
+#### Campaign 1 — Gateway Enclosure
+- Removed direct frontend backend-bypass behavior.
+- Removed direct frontend Supabase browser-client usage from active runtime paths.
+- Reconciled backend port drift to the canonical `:8000` contract.
+- Added the missing backend websocket termination point for `/api/local/hardware/ws/encoder-events`.
+- Removed dead legacy Gunner panel code and cleaned stale backend-port guidance.
+
+#### Campaign 2 — Identity & Device-ID Standardization
+- Centralized frontend device identity through `frontend/src/utils/identity.js`.
+- Eliminated synthetic frontend device-id fallbacks such as `CAB-0001`, `cabinet-001`, `demo_001`, `controller_chuck`, and `unknown-device`.
+- Removed unsanctioned localStorage-based device identity resolution.
+- Standardized `x-device-id`, `x-panel`, and `x-scope` header usage across frontend runtime paths.
+- Verified `playerTrackingClient.js` scope header (`x-scope: 'local'`) as correct and intentional.
+
+#### Campaign 3 — Path Determinism & Root Unification
+- Aligned `.env` and `.aa/manifest.json` to the same `AA_DRIVE_ROOT` value.
+- Unified sanctioned-path bootstrap defaults through `backend/constants/sanctioned_paths.py`.
+- Replaced inline drive-root fallbacks in backend services with canonical `get_drive_root()` helper from `backend/constants/drive_root.py`.
+- Gateway now uses `requireDriveRoot()` and `resolveDriveRoot()` utilities from `gateway/utils/driveDetection.js`.
+- Removed hardcoded `A:\` / `W:\` runtime literals from active backend and gateway paths.
+- Classified remaining `process.cwd()` shims in 4 gateway adapter/utility files as acceptable compatibility shims (deferred to Gateway Pass 2).
+
+#### Safety Model Hardening
+- Hardened 5 mutation surfaces to support preview, dry-run, backup, and request-aware JSONL audit logging:
+  - `/api/local/config/restore`
+  - `/api/local/profile/primary`
+  - `/api/local/controller/cascade/apply`
+  - `/api/local/controller/mapping/set`
+  - `/api/scores/reset/{rom_name}`
+
+### Contracts established today
+- **Golden Drive Contract**: All modules must use `backend.constants.drive_root` or `gateway.utils.driveDetection` helpers. Hardcoded drive literals are prohibited in runtime code.
+- **Gateway Mediation**: All frontend-to-backend communication must flow through the Node Gateway.
+- **Identity Source**: Frontend identity is strictly mediated through `frontend/src/utils/identity.js`.
+
+### Deferred / Known Backlog
+- 4 `process.cwd()` gateway adapter shims remain (Gateway Pass 2).
+- LaunchBox LoRa GUI regression (light guns / American Laser Games titles reappearing in AA GUI) — intentionally deferred; direct LaunchBox access functional.
+
+---
+
 ## 2026-04-10 — LoRa Platform Routing Complete ✅ MILESTONE
 
 **LaunchBox LoRa is the first completed panel in Arcade Assistant V1.** Every platform on the cabinet now launches directly through its correct emulator.
@@ -1323,6 +1370,86 @@ Open follow-ups for next session:
   - Chuck wizard commit through Controller Cascade on live cabinet hardware
 - Re-enable and hardware-validate marquee content flow before flipping `AA_MARQUEE_ENABLED` back to `1`.
 - Restore NotebookLM CLI/tooling so session summaries and architectural deltas can be written back to the second-brain notebooks again.
+
+---
+
+### Session Catalog - 2026-04-11 (LoRa Hardening Sprint - Conversation Memory, Gemini Model Trials, Launch Truth, Runtime Triage)
+
+Scope completed in this session focused on making LaunchBox LoRa behave like a reliable ongoing conversation partner, tightening launch truthfulness, and stabilizing customer-facing model/runtime behavior.
+
+Key outcomes:
+
+- **LoRa Follow-Up Conversation State Hardened**:
+  - Numeric follow-ups like `3` now remain attached to the active candidate list instead of dropping back to raw title search.
+  - Version/platform refinements such as `the NES version`, `the arcade version`, `Nintendo version`, `2600 version`, `original`, and year-only replies are now interpreted against the prior result set when LoRa is already disambiguating.
+  - Multi-result replies are promoted into a real pending-selection state instead of relying on loose conversational wording.
+  - Exact-title anchoring was tightened so franchise queries like `Pac-Man` do not drift toward sibling titles like `Jr. Pac-Man` during later refinement.
+  - Single-candidate confirmation prompts now arm a true ready-to-launch state, so affirmatives like `Yes`, `Yeah`, `Sure`, and `Let's do this` launch the selected game instead of being parsed as a new search.
+
+- **Voice/Vernacular Normalization Expanded**:
+  - Added normalization for ASR-style mishears such as `verses of` -> `versions of`.
+  - LoRa is now more tolerant of natural follow-up phrasing after she asks a clarifying question.
+
+- **LoRa Launch Speech Improved**:
+  - Launch announcements now derive a friendly spoken version label from `game.platform`, so LoRa can say `arcade version`, `NES version`, `PlayStation 2 version`, etc.
+  - Numbered disambiguation choices remain visible in the panel instead of being stripped by the message renderer.
+
+- **Gemini Model Trials Completed**:
+  - Tested moving LoRa/Dewey from `gemini-2.0-flash` to `gemini-2.5-flash-lite`, then to `gemini-3-flash-preview`.
+  - `gemini-3-flash-preview` produced gateway/runtime instability for this stack, including 500 errors in LoRa flows.
+  - Final recommendation and current stable target for customer-facing use is `gemini-2.5-flash`.
+  - Code/default fallbacks were updated so the stack no longer silently prefers deprecated `gemini-2.0-flash`.
+
+- **Launch Truthfulness Fixed for LoRa Panel**:
+  - Root cause: the panel/gateway could report `Launching ...` as successful when the backend had only issued a command, not confirmed that the emulator process actually stayed alive.
+  - Added short-window PID confirmation in `backend/routers/launchbox.py` so LaunchBox/RetroFE/Pegasus panel callers only get a successful launch result when a recent process can be confirmed.
+  - `launchbox_only` platforms are no longer reported as successful panel launches.
+  - When the command is issued but the process cannot be confirmed, LoRa now reports that the launch could not be verified instead of pretending the game launched.
+
+- **Backend / Runtime Triage**:
+  - Investigated a report that browsing Naomi caused the backend to quit.
+  - After restart, Naomi list/detail/image endpoints were healthy and reproducible.
+  - The only concrete backend-side exception found during startup was a file-lock race in `backend/services/hiscore_watcher.py` when replacing `scores.jsonl`.
+  - Windows event logs also showed a separate `redream.exe` crash earlier in the evening, but not a clean Python/uvicorn crash signature tied directly to Naomi browsing.
+
+- **Duplicate Launch Mitigation**:
+  - Investigated reports of repeated GameCube launches.
+  - Hardened the shared gateway retry helper so it no longer retries non-idempotent HTTP methods; `POST` launch requests will not be retried automatically.
+  - Added a runtime guard in `LaunchBoxPanel.jsx` so `launchGame()` refuses to execute when the launch lock is already active, instead of relying only on disabled buttons.
+  - Logs still suggest GameCube routing can fan across more than one backend launch path in some cases; that remains a targeted follow-up.
+
+Files modified during this session included:
+
+- `gateway/routes/launchboxAI.js`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+- `backend/routers/launchbox.py`
+- `backend/tests/test_launchbox_router.py`
+- `gateway/lib/http.js`
+- `.env`
+- model/default callers touched during Gemini standardization:
+  - `gateway/adapters/gemini.js`
+  - `gateway/gems/aa-lora/tool_loop.js`
+  - `gateway/routes/aiHealth.js`
+  - `backend/routers/dewey.py`
+  - `backend/routers/dewey_chat.py`
+  - `backend/services/drive_a_ai_client.py`
+
+Validation completed during this session:
+
+- `node --check gateway/routes/launchboxAI.js`
+- `node --check gateway/lib/http.js`
+- `python -m py_compile backend/routers/launchbox.py`
+- targeted pytest checks passed for:
+  - unverified direct launch downgrade
+  - launchbox-only platform downgrade
+- `npm.cmd run build:frontend` passed after frontend edits
+
+Open follow-ups for next session:
+
+- Live LoRa transcript validation for the newest conversation-state fixes using real customer-style phrasing.
+- Hard-fix GameCube routing so it uses one explicit emulator path and cannot fan across duplicate launch methods.
+- Investigate and harden the `hiscore_watcher.py` file-replace race around `scores.jsonl`.
+- Continue transcript-driven LoRa tuning, but this is now edge-case work rather than foundational rewrite work.
 
 ---
 
