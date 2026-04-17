@@ -11,6 +11,9 @@ import { speakAsLora, stopSpeaking } from '../../services/ttsClient'
 import './launchbox.css'
 import { useProfileContext } from '../../context/ProfileContext'
 import { useBlinkyGameSelection } from '../../hooks/useBlinkyGameSelection'
+import useVoiceRecording from './hooks/useVoiceRecording'
+import useLaunchLock from './hooks/useLaunchLock'
+import usePluginHealth from './hooks/usePluginHealth'
 
 // Inline useDebounce hook since it's not available in the hooks folder
 function useDebounce(value, delay) {
@@ -84,19 +87,7 @@ const arrayBufferToBase64 = (buffer) => {
   throw new Error('Base64 encoding not supported in this environment.')
 }
 
-const pickRecorderOptions = () => {
-  if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
-    return undefined
-  }
-  if (typeof window.MediaRecorder.isTypeSupported !== 'function') {
-    return undefined
-  }
-  // Prefer WAV format for better Whisper API compatibility
-  // WebM chunks don't concatenate into valid files for Whisper
-  const preferred = ['audio/wav', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
-  const supported = preferred.find(type => window.MediaRecorder.isTypeSupported(type))
-  return supported ? { mimeType: supported } : undefined
-}
+
 
 /**
  * Step 1: Response Normalizer
@@ -223,7 +214,7 @@ export default function LaunchBoxPanel() {
     setMessages(prev => [...prev, { role, text }])
   }, [])
   const [input, setInput] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
+
 
   // Panel state
   const [activeTab, setActiveTab] = useState('recent')
@@ -247,19 +238,19 @@ export default function LaunchBoxPanel() {
 
   // LED Blinky integration - lights up cabinet when hovering games
   const blinkySelection = useBlinkyGameSelection({ onToast: showToast })
-  // Cross-tab launch lock (BroadcastChannel/localStorage fallback)
-  const [lockUntil, setLockUntil] = useState(0)
-  const lockMs = 5000
-  const isLockActive = Date.now() < lockUntil
-  const bcRef = useRef(null)
+  // Cross-tab launch lock
+  const { lockUntil, isLockActive, acquireLock, releaseLock } = useLaunchLock({
+    storageKey: 'launchbox:lock',
+    lockMs: 5000,
+  })
 
-  const [isTranscribing, setIsTranscribing] = useState(false)
-
-  // Plugin health check state
-  const [lastPluginCheck, setLastPluginCheck] = useState(0)
-  const [checkingPlugin, setCheckingPlugin] = useState(false)
-  const [pluginStatus, setPluginStatus] = useState(null)
-  const [pluginAvailable, setPluginAvailable] = useState(false)
+  // Plugin health
+  const {
+    checkingPlugin,
+    pluginStatus,
+    pluginAvailable,
+    checkPluginHealth,
+  } = usePluginHealth({ gateway: GATEWAY, cacheMs: 30000 })
 
   const [allowRetroArch, setAllowRetroArch] = useState(() => {
     try {
@@ -345,30 +336,8 @@ export default function LaunchBoxPanel() {
   const scoreProfileId = sharedProfile?.userId || 'guest'
   const scoreProfileName = sharedProfile?.displayName || 'Guest'
 
-  // Cross-tab lock functions
-  const acquireLock = useCallback(() => {
-    const until = Date.now() + 5000
-    setLockUntil(until)
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('launchbox:lock', until.toString())
-      }
-    } catch { }
-  }, [])
-  const releaseLock = useCallback(() => {
-    setLockUntil(0)
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('launchbox:lock')
-      }
-    } catch { }
-  }, [])
 
   // Refs
-  const wsRef = useRef(null)
-  const mediaRecorderRef = useRef(null)
-  const mediaStreamRef = useRef(null)
-  const chunkSequenceRef = useRef(0)
   const chatMessagesRef = useRef(null)
   const searchInputRef = useRef(null)
   const sendMessageWithTextRef = useRef(null)
@@ -382,305 +351,21 @@ export default function LaunchBoxPanel() {
     }
   }, [sharedProfile])
 
-  const cleanupVoiceStream = useCallback(() => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => {
-        try { track.stop() } catch { }
-      })
-      mediaStreamRef.current = null
-    }
-  }, [])
-
-  const sendVoiceMessage = useCallback((payload) => {
-    if (typeof WebSocket === 'undefined') {
-      console.error('[LaunchBox Voice] WebSocket not supported')
-      return false
-    }
-    const ws = wsRef.current
-    if (!ws) {
-      console.error('[LaunchBox Voice] WebSocket not initialized')
-      return false
-    }
-    if (ws.readyState !== WebSocket.OPEN) {
-      console.error('[LaunchBox Voice] WebSocket not open. State:', ws.readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)')
-      return false
-    }
-    try {
-      console.log('[LaunchBox Voice] Sending message:', payload.type)
-      ws.send(JSON.stringify(payload))
-      return true
-    } catch (err) {
-      console.error('[LaunchBox Voice] Send failed:', err)
-      return false
-    }
-  }, [])
-
-  const stopVoiceRecording = useCallback((options = {}) => {
-    const { skipSignal = false, silent = false } = options
-    const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      try { recorder.stop() } catch { }
-    }
-    mediaRecorderRef.current = null
-    cleanupVoiceStream()
-    if (!skipSignal) {
-      // Provide the last sequence so the server can wait for any late chunks
-      const lastSeq = chunkSequenceRef.current || 0
-      sendVoiceMessage({ type: 'stop_recording', lastSequence: lastSeq })
-      if (!silent) setIsTranscribing(true) // Lock UI while waiting for transcript
-    }
-    setIsRecording(false)
-    if (!silent) {
-      setLoraState('listening') // Will switch to processing/idle on transcript
-    }
-  }, [cleanupVoiceStream, sendVoiceMessage])
-
-  const processVoiceCommand = useCallback((transcript) => {
-    const sanitized = (transcript || '').trim()
-    if (!sanitized) {
-      addMessage("I didn't catch that. Try again.", 'assistant')
-      return
-    }
-    // Send transcribed text directly to LoRa AI chat
-    setInput(sanitized)
-    // Trigger the message send with the transcribed text
-    sendMessageWithTextRef.current?.(sanitized)
-  }, [addMessage])
-
-  const startVoiceRecording = useCallback(async () => {
-    console.log('[LaunchBox Voice] Start recording called')
-    stopSpeaking() // Stop any ongoing TTS
-
-    // Feature detection: Try Web Speech API first (native pause detection)
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-
-    // Ensure audio WebSocket is ready when using MediaRecorder fallback
-    const waitForWsOpen = async (timeoutMs = 1500) => {
-      const ws = wsRef.current
-      if (!ws) return false
-      if (ws.readyState === WebSocket.OPEN) return true
-      const start = Date.now()
-      return await new Promise(resolve => {
-        const t = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) { clearInterval(t); resolve(true) }
-          else if (Date.now() - start > timeoutMs) { clearInterval(t); resolve(false) }
-        }, 50)
-      })
-    }
-
-    if (SpeechRecognition) {
-      console.log('[LaunchBox Voice] Using Web Speech API (native pause detection)')
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false // Auto-stop on pause
-      recognition.interimResults = false
-      recognition.lang = 'en-US'
-      recognition.maxAlternatives = 1
-
-      recognition.onstart = () => {
-        console.log('[Web Speech API] 🎙️ Recording started')
-        setIsRecording(true)
-        setLoraState('listening')
-      }
-
-      recognition.onresult = (event) => {
-        // Only process final results to avoid duplicates
-        if (!event.results[0].isFinal) return
-
-        const transcript = event.results[0][0].transcript
-        console.log('[Web Speech API] ✅ Transcription:', transcript)
-
-        // Send transcription directly to LoRa
-        setIsRecording(false)
-        setLoraState('processing')
-        processVoiceCommand(transcript)
-      }
-
-      recognition.onerror = (event) => {
-        console.error('[Web Speech API] Error:', event.error)
-        setIsRecording(false)
-        setLoraState('idle')
-
-        if (event.error === 'no-speech') {
-          showToast('No speech detected. Please try again.')
-        } else if (event.error === 'aborted') {
-          // User stopped recording, ignore
-        } else {
-          showToast(`Speech recognition error: ${event.error}`)
-        }
-      }
-
-      recognition.onend = () => {
-        console.log('[Web Speech API] 🔴 Recording ended')
-        setIsRecording(false)
-        if (loraState === 'listening') {
-          setLoraState('idle')
-        }
-      }
-
-      try {
-        recognition.start()
-        mediaRecorderRef.current = { stop: () => recognition.stop() } // Store for cleanup
-      } catch (err) {
-        console.error('[Web Speech API] Failed to start:', err)
-        showToast('Failed to start speech recognition.')
-        setIsRecording(false)
-      }
-      return
-    }
-
-    // Fallback: MediaRecorder with manual pause detection
-    console.log('[LaunchBox Voice] Web Speech API unavailable, falling back to MediaRecorder')
-
-    if (typeof navigator === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
-      showToast('Microphone access is not supported in this browser.')
-      return
-    }
-    if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
-      showToast('MediaRecorder API is not available in this browser.')
-      return
-    }
-
-    try {
-      // Ensure WS ready to accept audio
-      const wsReady = await waitForWsOpen(1500)
-      if (!wsReady) {
-        showToast('Voice service unavailable. Please refresh and try again.')
-        return
-      }
-
-      console.log('[LaunchBox Voice] Requesting microphone access...')
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
-      console.log('[LaunchBox Voice] Microphone access granted')
-      mediaStreamRef.current = stream
-      const options = pickRecorderOptions()
-      const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream)
-      mediaRecorderRef.current = recorder
-      chunkSequenceRef.current = 0
-
-      // Silence detection with initial speech gate
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-      const source = audioContext.createMediaStreamSource(stream)
-      const analyser = audioContext.createAnalyser()
-      analyser.fftSize = 512
-      analyser.smoothingTimeConstant = 0.1
-      source.connect(analyser)
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
-      let speechDetected = false
-      let silenceStart = null
-
-      const SPEECH_GATE = 8 // % volume to detect initial speech (was 12)
-      const SILENCE_THRESHOLD = 6 // % volume for silence (was 8)
-      const SILENCE_DURATION = 700 // ms of silence before auto-stop (was 800)
-
-      console.log('[Fallback VAD] 🎙️ Waiting for speech (gate:', SPEECH_GATE, '%)')
-
-      const checkAudio = () => {
-        if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
-          audioContext.close()
-          return
-        }
-
-        analyser.getByteFrequencyData(dataArray)
-        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
-        const volumePercent = Math.round((average / 255) * 100)
-
-        if (!speechDetected) {
-          // Wait for initial speech
-          if (volumePercent > SPEECH_GATE) {
-            speechDetected = true
-            console.log('[Fallback VAD] 🗣️ Speech detected, monitoring for pauses...')
-          }
-        } else {
-          // Monitor for silence after speech detected
-          if (volumePercent < SILENCE_THRESHOLD) {
-            if (silenceStart === null) {
-              silenceStart = Date.now()
-            } else {
-              const silenceDuration = Date.now() - silenceStart
-              if (silenceDuration > SILENCE_DURATION) {
-                console.log('[Fallback VAD] ✅ AUTO-STOPPING after', silenceDuration, 'ms silence')
-                audioContext.close()
-                stopVoiceRecording()
-                return
-              }
-            }
-          } else {
-            silenceStart = null
-          }
-        }
-
-        requestAnimationFrame(checkAudio)
-      }
-
-      checkAudio()
-
-      recorder.ondataavailable = async (event) => {
-        if (!event.data || event.data.size === 0) return
-        try {
-          const ws = wsRef.current
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(event.data) // Send binary blob directly
-          }
-          chunkSequenceRef.current += 1
-        } catch (err) {
-          console.error('Failed to process audio chunk', err)
-          showToast('Failed to process microphone audio.')
-        }
-      }
-
-      recorder.onerror = (event) => {
-        console.error('MediaRecorder error', event?.error)
-        showToast('Microphone error occurred. Stopping recording.')
-        audioContext.close()
-        stopVoiceRecording()
-      }
-
-      if (!sendVoiceMessage({ type: 'start_recording' })) {
-        showToast('Voice service unavailable. Refresh and try again.')
-        audioContext.close()
-        stopVoiceRecording({ skipSignal: true, silent: true })
-        return
-      }
-
-      recorder.start(250)
-      setIsRecording(true)
-      setLoraState('listening')
-      addMessage('dY"? Listening... say "Launch <game>" or "Search for <term>".', 'assistant')
-    } catch (err) {
-      console.error('Unable to access microphone', err)
-      showToast(err?.name === 'NotAllowedError' ? 'Microphone permission denied.' : 'Microphone unavailable.')
-      stopVoiceRecording({ skipSignal: true, silent: true })
-    }
-  }, [addMessage, processVoiceCommand, sendVoiceMessage, showToast, stopVoiceRecording])
-
-  const handleVoiceTranscript = useCallback((payload) => {
-    console.log('[LaunchBox Voice] Received transcription payload:', payload)
-    setIsRecording(false)
-    setIsTranscribing(false)
-    setLoraState('idle')
-    if (!payload) {
-      console.log('[LaunchBox Voice] No payload received')
-      return
-    }
-    if (payload.code === 'NOT_CONFIGURED') {
-      addMessage('Voice transcription is not configured. Add an OpenAI key in settings.', 'assistant')
-      showToast('STT not configured')
-      return
-    }
-    if (payload.code === 'AUDIO_TOO_LONG') {
-      showToast('Recording too long - try a shorter phrase.')
-      return
-    }
-    const text = (payload.text || '').trim()
-    console.log('[LaunchBox Voice] Transcribed text:', text)
-    if (!text) {
-      addMessage("I didn't catch that. Try again.", 'assistant')
-      return
-    }
-    console.log('[LaunchBox Voice] Processing voice command with text:', text)
-    processVoiceCommand(text)
-  }, [addMessage, processVoiceCommand, showToast])
+  // Voice recording (replaces inline MediaRecorder + Web Speech logic)
+  const {
+    isRecording,
+    isTranscribing,
+    startVoiceRecording,
+    stopVoiceRecording,
+  } = useVoiceRecording({
+    addMessage,
+    showToast,
+    setLoraState,
+    onTranscript: (text) => {
+      setInput(text)
+      sendMessageWithTextRef.current?.(text)
+    },
+  })
 
   // Cache status (for stale indicator)
   const [cacheStatus, setCacheStatus] = useState(null)
@@ -698,65 +383,7 @@ export default function LaunchBoxPanel() {
     }
   }, [])
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
-      return
-    }
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    // Use gateway directly in dev to avoid Vite proxy issues
-    const isDev = window.location.port === '5173'
-    const wsUrl = isDev
-      ? 'ws://localhost:8787/ws/audio'
-      : `${proto}://${window.location.host}/ws/audio`
-    console.log('[LaunchBox Voice] Connecting to WebSocket:', wsUrl)
-    const socket = new WebSocket(wsUrl)
-    wsRef.current = socket
 
-    socket.onopen = () => {
-      console.log('[LaunchBox Voice] WebSocket connected')
-    }
-
-    socket.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        console.log('[LaunchBox Voice] WebSocket message received:', msg)
-        if (msg?.code === 'AUDIO_TOO_LONG') {
-          showToast('Recording too long - try a shorter phrase.')
-          setIsRecording(false)
-          setLoraState('idle')
-          return
-        }
-        if (msg?.type === 'transcription') {
-          handleVoiceTranscript(msg)
-        }
-      } catch (err) {
-        console.error('[LaunchBox Voice] WebSocket parse error', err)
-      }
-    }
-
-    socket.onerror = (err) => {
-      console.error('[LaunchBox Voice] WebSocket error:', err)
-      showToast('Voice service connection error.')
-    }
-
-    socket.onclose = (event) => {
-      console.log('[LaunchBox Voice] WebSocket closed. Code:', event.code, 'Reason:', event.reason)
-      wsRef.current = null
-      setIsRecording(false)
-      setLoraState('idle')
-    }
-
-    return () => {
-      try { socket.close() } catch { }
-      wsRef.current = null
-    }
-  }, [handleVoiceTranscript, showToast])
-
-  useEffect(() => {
-    return () => {
-      stopVoiceRecording({ skipSignal: true, silent: true })
-    }
-  }, [stopVoiceRecording])
 
   // Define supported platforms for direct launch in this panel
   const isSupportedPlatform = useCallback((platform) => {
@@ -771,54 +398,12 @@ export default function LaunchBoxPanel() {
   }, [isSupportedPlatform])
 
 
-  // Memoized plugin health check function with 30-second caching
-  const checkPluginHealth = useCallback(async (forceCheck = false) => {
-    // Use cached result if within 30 seconds and not forcing
-    const now = Date.now()
-    if (!forceCheck && (now - lastPluginCheck) < 30000) {
-      return // Skip check, use cached status
-    }
-
-    setCheckingPlugin(true)
-    try {
-      const response = await fetch(`${GATEWAY}/api/launchbox/plugin-status`, {
-        method: 'GET',
-        headers: {
-          'x-panel': 'launchbox',
-          'Cache-Control': 'no-cache'
-        },
-        signal: AbortSignal.timeout(3000) // 3 second timeout
-      })
-
-      if (!response.ok) {
-        throw new Error(`Plugin check failed: ${response.status}`)
-      }
-
-      const status = await response.json()
-      setPluginStatus(status)
-      setPluginAvailable(status.available)
-      setLastPluginCheck(now)
-
-      // Log plugin status for debugging
-      console.log('[Plugin Health]', status.available ? 'Online' : 'Offline', status.message)
-    } catch (error) {
-      console.error('[Plugin Health] Check failed:', error)
-      setPluginAvailable(false)
-      setPluginStatus({
-        available: false,
-        url: 'http://127.0.0.1:9999',
-        message: error.message || 'Plugin offline',
-        port: 9999
-      })
-      setLastPluginCheck(now)
-    } finally {
-      setCheckingPlugin(false)
-    }
-  }, [lastPluginCheck])
-
-  // Check plugin health on mount (non-blocking)
   useEffect(() => {
     checkPluginHealth()
+  }, [checkPluginHealth])
+
+  // Fetch cache status and initial metadata on mount
+  useEffect(() => {
     fetchCacheStatus()
 
     // Fetch initial metadata
