@@ -44,7 +44,7 @@ const normalizeTitleForMatch = (str) => {
     .toString()
     .trim()
     .toLowerCase()
-    .replace(/['’]/g, '')
+    .replace(/[\u2018\u2019]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -120,7 +120,7 @@ const ChatMessage = memo(({ message, role }) => {
   const cleanMessage = message
     .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove **bold**
     .replace(/\*([^*]+)\*/g, '$1')       // Remove *italic*
-    .replace(/^[-•]\s+/gm, '')           // Remove bullet points
+    .replace(/^[-\u2022]\s+/gm, '')           // Remove bullet points
     .replace(/^\d+\.\s+/gm, '')          // Remove numbered lists
 
   return (
@@ -169,7 +169,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
           onError={handleImageError}
         />
         <div className="game-image-placeholder" style={hiddenStyle}>
-          <span className="placeholder-icon">🎮</span>
+          <span className="placeholder-icon">\uD83C\uDFAE</span>
           <span className="placeholder-text">{game.title.substring(0, 1)}</span>
         </div>
       </div>
@@ -185,10 +185,10 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
           <span className="game-year">{game.year}</span>
         </div>
         <div className="game-meta">
-          <span className="meta-item">🎮 {game.platform}</span>
-          <span className="meta-item">🕐 {formatRelativeTime(game.lastPlayed)}</span>
-          <span className="meta-item">⏱️ {game.sessionTime}</span>
-          <span className="meta-item">🔥 {game.playCount} plays</span>
+          <span className="meta-item">\uD83C\uDFAE {game.platform}</span>
+          <span className="meta-item">\uD83D\uDD50 {formatRelativeTime(game.lastPlayed)}</span>
+          <span className="meta-item">\u23F1\uFE0F {game.sessionTime}</span>
+          <span className="meta-item">\uD83D\uDD25 {game.playCount} plays</span>
         </div>
       </div>
       <button
@@ -198,7 +198,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
         title={launchTooltip}
         aria-label={launchTooltip}
       >
-        ▶
+        \u25B6
       </button>
     </div>
   )
@@ -628,32 +628,32 @@ export default function LaunchBoxPanel() {
   const launchGame = useCallback(async (game) => {
     // Validation guards to prevent errors
     if (!game || !game.id) {
-      addMessage('❌ No game selected to launch.', 'assistant')
+      addMessage('\u274C No game selected to launch.', 'assistant')
       return
     }
 
     if (loading) {
-      addMessage('⏳ Library is still loading. Try again in a moment.', 'assistant')
+      addMessage('\u23F3 Library is still loading. Try again in a moment.', 'assistant')
       return
     }
 
     // Respect panel scope: only allow supported platforms here
     if (!canLaunchHere(game)) {
-      addMessage('ℹ️ Heads up: This title isn’t launchable from this panel. Try LaunchBox for this game.', 'assistant')
+      addMessage('\u2139\uFE0F Heads up: This title isn\u2019t launchable from this panel. Try LaunchBox for this game.', 'assistant')
       showToast('Try LaunchBox for this title')
       return
     }
 
     // If plugin is offline, continue with backend fallbacks for supported platforms
     if (!pluginAvailable) {
-      addMessage('⚠️ Plugin offline. Attempting fallback launch for supported platforms...', 'assistant')
+      addMessage('\u26A0\uFE0F Plugin offline. Attempting fallback launch for supported platforms...', 'assistant')
     }
 
     // Debounce: prevent launching same game within 3 seconds
     const now = Date.now()
     if (lastLaunchRef.current.title === game.title &&
       (now - lastLaunchRef.current.timestamp) < 3000) {
-      addMessage(`⏸️ Already launching ${game.title}, please wait...`, 'assistant')
+      addMessage(`\u23F8\uFE0F Already launching ${game.title}, please wait...`, 'assistant')
       return
     }
 
@@ -701,19 +701,19 @@ export default function LaunchBoxPanel() {
       const result = await response.json()
 
       if (result.success) {
-        addMessage(`✅ ${game.title} launched via ${result.method_used}`, 'assistant')
+        addMessage(`\u2705 ${game.title} launched via ${result.method_used}`, 'assistant')
         showToast(`Launched via: ${result.method_used}`)
       } else {
         // Backend returns 'message' field, not 'error' field - check message first
         const errorMsg = result.message || result.error || 'Unknown error occurred'
-        addMessage(`❌ Failed to launch ${game.title}: ${errorMsg}`, 'assistant')
+        addMessage(`\u274C Failed to launch ${game.title}: ${errorMsg}`, 'assistant')
         showToast('Launch failed')
       }
     } catch (err) {
       console.error('Launch failed:', err)
       // Provide more detailed error information with proper fallbacks
       const errorDetail = err.message || err.toString() || 'Network error'
-      addMessage(`❌ Launch error: ${errorDetail}`, 'assistant')
+      addMessage(`\u274C Launch error: ${errorDetail}`, 'assistant')
       showToast('Launch error')
     } finally {
       setLoraState('idle')
@@ -970,7 +970,7 @@ export default function LaunchBoxPanel() {
         const confidenceSuffix = payload.game.confidence ? ` (${Math.round(payload.game.confidence * 100)}% confidence)` : ''
 
         if (!isExact) {
-          addMessage(`Heads up: ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Please confirm by adding platform/year so I don’t launch the wrong game.`, 'assistant')
+          addMessage(`Heads up: ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Please confirm by adding platform/year so I don't launch the wrong game.`, 'assistant')
           return
         }
 
@@ -998,7 +998,7 @@ export default function LaunchBoxPanel() {
 
         const listPreview = suggestions.slice(0, 4).map((g, i) => `${i + 1}) ${g.title} (${g.platform || 'Unknown'})`).join(', ')
 
-        addMessage(`Heads up: I found ${suggestions.length} matches for "${trimmedTitle}". Please specify platform/year so I don’t launch the wrong one. Top matches: ${listPreview}`, 'assistant')
+        addMessage(`Heads up: I found ${suggestions.length} matches for "${trimmedTitle}". Please specify platform/year so I don't launch the wrong one. Top matches: ${listPreview}`, 'assistant')
 
         return
 
@@ -1205,7 +1205,7 @@ export default function LaunchBoxPanel() {
         throw new Error('No random game returned')
       }
 
-      addMessage(`🎲 Random selection for ${scoreProfileName}: ${randomGame.title} (${randomGame.year || 'Unknown'})`, 'assistant')
+      addMessage(`\uD83C\uDFB2 Random selection for ${scoreProfileName}: ${randomGame.title} (${randomGame.year || 'Unknown'})`, 'assistant')
       setLoraState('launching')
       setTimeout(() => {
         launchGame(randomGame)
@@ -1215,15 +1215,15 @@ export default function LaunchBoxPanel() {
       // Fallback: pick from currently loaded page
       const candidates = visibleGames.length > 0 ? visibleGames : games
       if (!candidates || candidates.length === 0) {
-        addMessage('❌ No games available for random selection.', 'assistant')
+        addMessage('\u274C No games available for random selection.', 'assistant')
         return
       }
       const fallback = candidates[Math.floor(Math.random() * candidates.length)]
       if (!fallback) {
-        addMessage('❌ Failed to select a random game. Please try again.', 'assistant')
+        addMessage('\u274C Failed to select a random game. Please try again.', 'assistant')
         return
       }
-      addMessage(`🎲 Random selection for ${scoreProfileName}: ${fallback.title} (${fallback.year || 'Unknown'})`, 'assistant')
+      addMessage(`\uD83C\uDFB2 Random selection for ${scoreProfileName}: ${fallback.title} (${fallback.year || 'Unknown'})`, 'assistant')
       setLoraState('launching')
       setTimeout(() => {
         launchGame(fallback)
@@ -1234,7 +1234,7 @@ export default function LaunchBoxPanel() {
   // Launch Pegasus fullscreen frontend (fire-and-forget for instant UI response)
   const launchPegasus = useCallback(() => {
     // Immediate UI feedback - don't wait for API
-    addMessage('🎮 Launching Pegasus...', 'assistant')
+    addMessage('\uD83C\uDFAE Launching Pegasus...', 'assistant')
 
     // Fire-and-forget: launch in background, don't block UI
     fetch(`${GATEWAY}/api/launchbox/pegasus/launch`, {
@@ -1247,13 +1247,13 @@ export default function LaunchBoxPanel() {
     }).then(response => {
       if (!response.ok) {
         response.json().catch(() => ({})).then(data => {
-          addMessage(`❌ Failed to launch Pegasus: ${data.message || 'Unknown error'}`, 'assistant')
+          addMessage(`\u274C Failed to launch Pegasus: ${data.message || 'Unknown error'}`, 'assistant')
         })
       }
       // Success case: Pegasus is launching, no need for confirmation message
       // (it takes over the screen anyway)
     }).catch(err => {
-      addMessage(`❌ Failed to launch Pegasus: ${err.message}`, 'assistant')
+      addMessage(`\u274C Failed to launch Pegasus: ${err.message}`, 'assistant')
     })
   }, [addMessage, deviceId])
 
@@ -1442,7 +1442,7 @@ export default function LaunchBoxPanel() {
   // Stop any ongoing TTS when this panel unmounts
   useEffect(() => () => { try { stopSpeaking() } catch { } }, [])
 
-  // Handoff effect (handles Dewey → LaunchBox context handoff)
+  // Handoff effect (handles Dewey -> LaunchBox context handoff)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const handoffContext = urlParams.get('context')
@@ -1589,7 +1589,7 @@ export default function LaunchBoxPanel() {
         <div className="error-container">
           {isBackendStarting ? (
             <>
-              <p className="error-message">⏳ Arcade Assistant is starting up...</p>
+              <p className="error-message">\u23F3 Arcade Assistant is starting up...</p>
               <p className="error-detail">The backend is still loading. This usually takes 10-30 seconds on startup.</p>
               <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
                 If this persists, make sure the Arcade Assistant launcher is running.
@@ -1597,7 +1597,7 @@ export default function LaunchBoxPanel() {
             </>
           ) : isLaunchBoxMissing ? (
             <>
-              <p className="error-message">📂 LaunchBox Not Found</p>
+              <p className="error-message">\uD83D\uDCC2 LaunchBox Not Found</p>
               <p className="error-detail">{error}</p>
               <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
                 LoRa needs LaunchBox to browse your game library. Other panels will still work.
@@ -1605,7 +1605,7 @@ export default function LaunchBoxPanel() {
             </>
           ) : (
             <>
-              <p className="error-message">❌ Failed to load game library</p>
+              <p className="error-message">\u274C Failed to load game library</p>
               <p className="error-detail">{error}</p>
             </>
           )}
@@ -1614,7 +1614,7 @@ export default function LaunchBoxPanel() {
             onClick={handleReload}
             className="error-retry-btn"
           >
-            🔄 Retry
+            \uD83D\uDD04 Retry
           </button>
         </div>
       </PanelShell>
@@ -1704,7 +1704,7 @@ export default function LaunchBoxPanel() {
             aria-label="Select random game"
             title="Launch random game"
           >
-            <span className="random-icon">🎲</span>
+            <span className="random-icon">\uD83C\uDFB2</span>
           </button>
 
           {/* Pegasus Launch Button */}
@@ -1727,7 +1727,7 @@ export default function LaunchBoxPanel() {
             className="lora-chat-btn"
             aria-label="Toggle chat with LoRa"
           >
-            <span className="chat-icon">💬</span>
+            <span className="chat-icon">\uD83D\uDCAC</span>
             {!chatOpen && <span className="chat-notification">!</span>}
           </button>
 
@@ -1790,7 +1790,7 @@ export default function LaunchBoxPanel() {
                 Cancel
               </button>
               <button onClick={applyShaderChange} disabled={shaderModal.applying} className="shader-btn shader-btn-apply">
-                {shaderModal.applying ? 'Applying…' : 'Apply Shader'}
+                {shaderModal.applying ? 'Applying\u2026' : 'Apply Shader'}
               </button>
             </div>
           </div>
@@ -1813,14 +1813,14 @@ export default function LaunchBoxPanel() {
                 onClick={setTabRecent}
                 className={`lora-tab ${activeTab === 'recent' ? 'active' : ''}`}
               >
-                <span className="tab-icon">🕐</span>
+                <span className="tab-icon">\uD83D\uDD50</span>
                 Recently Played
               </button>
               <button
                 onClick={setTabStats}
                 className={`lora-tab ${activeTab === 'stats' ? 'active' : ''}`}
               >
-                <span className="tab-icon">📊</span>
+                <span className="tab-icon">\uD83D\uDCCA</span>
                 Quick Stats
               </button>
               <button
@@ -1828,7 +1828,7 @@ export default function LaunchBoxPanel() {
                 className="lora-tab-close"
                 aria-label="Collapse panel"
               >
-                ×
+                \u00D7
               </button>
             </div>
 
@@ -1908,7 +1908,7 @@ export default function LaunchBoxPanel() {
                     </div>
 
                     <div className="filter-results">
-                      Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total • {visibleGames.length} on this page
+                      Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total \u2022 {visibleGames.length} on this page
                     </div>
                     <div className="filter-actions">
                       <button className="lb-refresh-btn" onClick={refreshLibrary} title="Revalidate library cache">
@@ -1948,7 +1948,7 @@ export default function LaunchBoxPanel() {
                         disabled={currentPage === 1}
                         className="pagination-btn"
                       >
-                        ← Previous
+                        \u2190 Previous
                       </button>
                       <span className="pagination-info">
                         Page {currentPage} of {totalPages}
@@ -1958,7 +1958,7 @@ export default function LaunchBoxPanel() {
                         disabled={currentPage === totalPages}
                         className="pagination-btn"
                       >
-                        Next →
+                        Next \u2192
                       </button>
                     </div>
                   )}
@@ -1999,7 +1999,7 @@ export default function LaunchBoxPanel() {
             onClick={toggleSubPanel}
             className="lora-expand-btn"
           >
-            Show Recent Games ▲
+            Show Recent Games \u25B2
           </button>
         )}
 
@@ -2020,7 +2020,7 @@ export default function LaunchBoxPanel() {
             disabled={isChatLoading || !input.trim()}
             aria-label="Send message"
           >
-            ➤
+            \u27A4
           </button>
         </div>
       </div>
@@ -2037,7 +2037,7 @@ export default function LaunchBoxPanel() {
                 <h3>Chat with LoRa</h3>
                 {isRecording && (
                   <div className="voice-active-indicator">
-                    <span className="voice-wave-icon">〰️</span>
+                    <span className="voice-wave-icon">\u3030\uFE0F</span>
                     Voice Active
                   </div>
                 )}
@@ -2047,7 +2047,7 @@ export default function LaunchBoxPanel() {
                 className="chat-close-btn"
                 aria-label="Close chat"
               >
-                ×
+                \u00D7
               </button>
             </div>
 
@@ -2063,7 +2063,7 @@ export default function LaunchBoxPanel() {
               {isChatLoading && (
                 <div className="chat-message assistant">
                   <div className="message-bubble">
-                    <span className="typing-indicator">●●●</span>
+                    <span className="typing-indicator">\u25CF\u25CF\u25CF</span>
                   </div>
                 </div>
               )}
@@ -2101,7 +2101,7 @@ export default function LaunchBoxPanel() {
                   aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
                 >
                   {isRecording ? (
-                    <span style={memoizedStyles.stopIcon}>⏹️</span>
+                    <span style={memoizedStyles.stopIcon}>\u23F9\uFE0F</span>
                   ) : (
                     <img src="/lora-mic.png" alt="Microphone" style={memoizedStyles.micIcon} />
                   )}
@@ -2112,7 +2112,7 @@ export default function LaunchBoxPanel() {
                   disabled={isChatLoading || !input.trim()}
                   aria-label="Send message"
                 >
-                  ➤
+                  \u27A4
                 </button>
               </div>
             </div>
