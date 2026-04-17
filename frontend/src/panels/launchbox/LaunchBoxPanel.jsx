@@ -11,6 +11,9 @@ import { speakAsLora, stopSpeaking } from '../../services/ttsClient'
 import './launchbox.css'
 import { useProfileContext } from '../../context/ProfileContext'
 import { useBlinkyGameSelection } from '../../hooks/useBlinkyGameSelection'
+import useVoiceRecording from './hooks/useVoiceRecording'
+import useLaunchLock from './hooks/useLaunchLock'
+import usePluginHealth from './hooks/usePluginHealth'
 
 // Inline useDebounce hook since it's not available in the hooks folder
 function useDebounce(value, delay) {
@@ -41,7 +44,7 @@ const normalizeTitleForMatch = (str) => {
     .toString()
     .trim()
     .toLowerCase()
-    .replace(/['’]/g, '')
+    .replace(/[\u2018\u2019]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -84,19 +87,7 @@ const arrayBufferToBase64 = (buffer) => {
   throw new Error('Base64 encoding not supported in this environment.')
 }
 
-const pickRecorderOptions = () => {
-  if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
-    return undefined
-  }
-  if (typeof window.MediaRecorder.isTypeSupported !== 'function') {
-    return undefined
-  }
-  // Prefer WAV format for better Whisper API compatibility
-  // WebM chunks don't concatenate into valid files for Whisper
-  const preferred = ['audio/wav', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
-  const supported = preferred.find(type => window.MediaRecorder.isTypeSupported(type))
-  return supported ? { mimeType: supported } : undefined
-}
+
 
 /**
  * Step 1: Response Normalizer
@@ -129,7 +120,7 @@ const ChatMessage = memo(({ message, role }) => {
   const cleanMessage = message
     .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove **bold**
     .replace(/\*([^*]+)\*/g, '$1')       // Remove *italic*
-    .replace(/^[-•]\s+/gm, '')           // Remove bullet points
+    .replace(/^[-\u2022]\s+/gm, '')           // Remove bullet points
     .replace(/^\d+\.\s+/gm, '')          // Remove numbered lists
 
   return (
@@ -178,7 +169,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
           onError={handleImageError}
         />
         <div className="game-image-placeholder" style={hiddenStyle}>
-          <span className="placeholder-icon">🎮</span>
+          <span className="placeholder-icon">\uD83C\uDFAE</span>
           <span className="placeholder-text">{game.title.substring(0, 1)}</span>
         </div>
       </div>
@@ -194,10 +185,10 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
           <span className="game-year">{game.year}</span>
         </div>
         <div className="game-meta">
-          <span className="meta-item">🎮 {game.platform}</span>
-          <span className="meta-item">🕐 {formatRelativeTime(game.lastPlayed)}</span>
-          <span className="meta-item">⏱️ {game.sessionTime}</span>
-          <span className="meta-item">🔥 {game.playCount} plays</span>
+          <span className="meta-item">\uD83C\uDFAE {game.platform}</span>
+          <span className="meta-item">\uD83D\uDD50 {formatRelativeTime(game.lastPlayed)}</span>
+          <span className="meta-item">\u23F1\uFE0F {game.sessionTime}</span>
+          <span className="meta-item">\uD83D\uDD25 {game.playCount} plays</span>
         </div>
       </div>
       <button
@@ -207,7 +198,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
         title={launchTooltip}
         aria-label={launchTooltip}
       >
-        ▶
+        \u25B6
       </button>
     </div>
   )
@@ -223,7 +214,7 @@ export default function LaunchBoxPanel() {
     setMessages(prev => [...prev, { role, text }])
   }, [])
   const [input, setInput] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
+
 
   // Panel state
   const [activeTab, setActiveTab] = useState('recent')
@@ -247,19 +238,19 @@ export default function LaunchBoxPanel() {
 
   // LED Blinky integration - lights up cabinet when hovering games
   const blinkySelection = useBlinkyGameSelection({ onToast: showToast })
-  // Cross-tab launch lock (BroadcastChannel/localStorage fallback)
-  const [lockUntil, setLockUntil] = useState(0)
-  const lockMs = 5000
-  const isLockActive = Date.now() < lockUntil
-  const bcRef = useRef(null)
+  // Cross-tab launch lock
+  const { lockUntil, isLockActive, acquireLock, releaseLock } = useLaunchLock({
+    storageKey: 'launchbox:lock',
+    lockMs: 5000,
+  })
 
-  const [isTranscribing, setIsTranscribing] = useState(false)
-
-  // Plugin health check state
-  const [lastPluginCheck, setLastPluginCheck] = useState(0)
-  const [checkingPlugin, setCheckingPlugin] = useState(false)
-  const [pluginStatus, setPluginStatus] = useState(null)
-  const [pluginAvailable, setPluginAvailable] = useState(false)
+  // Plugin health
+  const {
+    checkingPlugin,
+    pluginStatus,
+    pluginAvailable,
+    checkPluginHealth,
+  } = usePluginHealth({ gateway: GATEWAY, cacheMs: 30000 })
 
   const [allowRetroArch, setAllowRetroArch] = useState(() => {
     try {
@@ -345,30 +336,8 @@ export default function LaunchBoxPanel() {
   const scoreProfileId = sharedProfile?.userId || 'guest'
   const scoreProfileName = sharedProfile?.displayName || 'Guest'
 
-  // Cross-tab lock functions
-  const acquireLock = useCallback(() => {
-    const until = Date.now() + 5000
-    setLockUntil(until)
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('launchbox:lock', until.toString())
-      }
-    } catch { }
-  }, [])
-  const releaseLock = useCallback(() => {
-    setLockUntil(0)
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('launchbox:lock')
-      }
-    } catch { }
-  }, [])
 
   // Refs
-  const wsRef = useRef(null)
-  const mediaRecorderRef = useRef(null)
-  const mediaStreamRef = useRef(null)
-  const chunkSequenceRef = useRef(0)
   const chatMessagesRef = useRef(null)
   const searchInputRef = useRef(null)
   const sendMessageWithTextRef = useRef(null)
@@ -382,305 +351,21 @@ export default function LaunchBoxPanel() {
     }
   }, [sharedProfile])
 
-  const cleanupVoiceStream = useCallback(() => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => {
-        try { track.stop() } catch { }
-      })
-      mediaStreamRef.current = null
-    }
-  }, [])
-
-  const sendVoiceMessage = useCallback((payload) => {
-    if (typeof WebSocket === 'undefined') {
-      console.error('[LaunchBox Voice] WebSocket not supported')
-      return false
-    }
-    const ws = wsRef.current
-    if (!ws) {
-      console.error('[LaunchBox Voice] WebSocket not initialized')
-      return false
-    }
-    if (ws.readyState !== WebSocket.OPEN) {
-      console.error('[LaunchBox Voice] WebSocket not open. State:', ws.readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)')
-      return false
-    }
-    try {
-      console.log('[LaunchBox Voice] Sending message:', payload.type)
-      ws.send(JSON.stringify(payload))
-      return true
-    } catch (err) {
-      console.error('[LaunchBox Voice] Send failed:', err)
-      return false
-    }
-  }, [])
-
-  const stopVoiceRecording = useCallback((options = {}) => {
-    const { skipSignal = false, silent = false } = options
-    const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      try { recorder.stop() } catch { }
-    }
-    mediaRecorderRef.current = null
-    cleanupVoiceStream()
-    if (!skipSignal) {
-      // Provide the last sequence so the server can wait for any late chunks
-      const lastSeq = chunkSequenceRef.current || 0
-      sendVoiceMessage({ type: 'stop_recording', lastSequence: lastSeq })
-      if (!silent) setIsTranscribing(true) // Lock UI while waiting for transcript
-    }
-    setIsRecording(false)
-    if (!silent) {
-      setLoraState('listening') // Will switch to processing/idle on transcript
-    }
-  }, [cleanupVoiceStream, sendVoiceMessage])
-
-  const processVoiceCommand = useCallback((transcript) => {
-    const sanitized = (transcript || '').trim()
-    if (!sanitized) {
-      addMessage("I didn't catch that. Try again.", 'assistant')
-      return
-    }
-    // Send transcribed text directly to LoRa AI chat
-    setInput(sanitized)
-    // Trigger the message send with the transcribed text
-    sendMessageWithTextRef.current?.(sanitized)
-  }, [addMessage])
-
-  const startVoiceRecording = useCallback(async () => {
-    console.log('[LaunchBox Voice] Start recording called')
-    stopSpeaking() // Stop any ongoing TTS
-
-    // Feature detection: Try Web Speech API first (native pause detection)
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-
-    // Ensure audio WebSocket is ready when using MediaRecorder fallback
-    const waitForWsOpen = async (timeoutMs = 1500) => {
-      const ws = wsRef.current
-      if (!ws) return false
-      if (ws.readyState === WebSocket.OPEN) return true
-      const start = Date.now()
-      return await new Promise(resolve => {
-        const t = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) { clearInterval(t); resolve(true) }
-          else if (Date.now() - start > timeoutMs) { clearInterval(t); resolve(false) }
-        }, 50)
-      })
-    }
-
-    if (SpeechRecognition) {
-      console.log('[LaunchBox Voice] Using Web Speech API (native pause detection)')
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false // Auto-stop on pause
-      recognition.interimResults = false
-      recognition.lang = 'en-US'
-      recognition.maxAlternatives = 1
-
-      recognition.onstart = () => {
-        console.log('[Web Speech API] 🎙️ Recording started')
-        setIsRecording(true)
-        setLoraState('listening')
-      }
-
-      recognition.onresult = (event) => {
-        // Only process final results to avoid duplicates
-        if (!event.results[0].isFinal) return
-
-        const transcript = event.results[0][0].transcript
-        console.log('[Web Speech API] ✅ Transcription:', transcript)
-
-        // Send transcription directly to LoRa
-        setIsRecording(false)
-        setLoraState('processing')
-        processVoiceCommand(transcript)
-      }
-
-      recognition.onerror = (event) => {
-        console.error('[Web Speech API] Error:', event.error)
-        setIsRecording(false)
-        setLoraState('idle')
-
-        if (event.error === 'no-speech') {
-          showToast('No speech detected. Please try again.')
-        } else if (event.error === 'aborted') {
-          // User stopped recording, ignore
-        } else {
-          showToast(`Speech recognition error: ${event.error}`)
-        }
-      }
-
-      recognition.onend = () => {
-        console.log('[Web Speech API] 🔴 Recording ended')
-        setIsRecording(false)
-        if (loraState === 'listening') {
-          setLoraState('idle')
-        }
-      }
-
-      try {
-        recognition.start()
-        mediaRecorderRef.current = { stop: () => recognition.stop() } // Store for cleanup
-      } catch (err) {
-        console.error('[Web Speech API] Failed to start:', err)
-        showToast('Failed to start speech recognition.')
-        setIsRecording(false)
-      }
-      return
-    }
-
-    // Fallback: MediaRecorder with manual pause detection
-    console.log('[LaunchBox Voice] Web Speech API unavailable, falling back to MediaRecorder')
-
-    if (typeof navigator === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
-      showToast('Microphone access is not supported in this browser.')
-      return
-    }
-    if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
-      showToast('MediaRecorder API is not available in this browser.')
-      return
-    }
-
-    try {
-      // Ensure WS ready to accept audio
-      const wsReady = await waitForWsOpen(1500)
-      if (!wsReady) {
-        showToast('Voice service unavailable. Please refresh and try again.')
-        return
-      }
-
-      console.log('[LaunchBox Voice] Requesting microphone access...')
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
-      console.log('[LaunchBox Voice] Microphone access granted')
-      mediaStreamRef.current = stream
-      const options = pickRecorderOptions()
-      const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream)
-      mediaRecorderRef.current = recorder
-      chunkSequenceRef.current = 0
-
-      // Silence detection with initial speech gate
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-      const source = audioContext.createMediaStreamSource(stream)
-      const analyser = audioContext.createAnalyser()
-      analyser.fftSize = 512
-      analyser.smoothingTimeConstant = 0.1
-      source.connect(analyser)
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
-      let speechDetected = false
-      let silenceStart = null
-
-      const SPEECH_GATE = 8 // % volume to detect initial speech (was 12)
-      const SILENCE_THRESHOLD = 6 // % volume for silence (was 8)
-      const SILENCE_DURATION = 700 // ms of silence before auto-stop (was 800)
-
-      console.log('[Fallback VAD] 🎙️ Waiting for speech (gate:', SPEECH_GATE, '%)')
-
-      const checkAudio = () => {
-        if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
-          audioContext.close()
-          return
-        }
-
-        analyser.getByteFrequencyData(dataArray)
-        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
-        const volumePercent = Math.round((average / 255) * 100)
-
-        if (!speechDetected) {
-          // Wait for initial speech
-          if (volumePercent > SPEECH_GATE) {
-            speechDetected = true
-            console.log('[Fallback VAD] 🗣️ Speech detected, monitoring for pauses...')
-          }
-        } else {
-          // Monitor for silence after speech detected
-          if (volumePercent < SILENCE_THRESHOLD) {
-            if (silenceStart === null) {
-              silenceStart = Date.now()
-            } else {
-              const silenceDuration = Date.now() - silenceStart
-              if (silenceDuration > SILENCE_DURATION) {
-                console.log('[Fallback VAD] ✅ AUTO-STOPPING after', silenceDuration, 'ms silence')
-                audioContext.close()
-                stopVoiceRecording()
-                return
-              }
-            }
-          } else {
-            silenceStart = null
-          }
-        }
-
-        requestAnimationFrame(checkAudio)
-      }
-
-      checkAudio()
-
-      recorder.ondataavailable = async (event) => {
-        if (!event.data || event.data.size === 0) return
-        try {
-          const ws = wsRef.current
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(event.data) // Send binary blob directly
-          }
-          chunkSequenceRef.current += 1
-        } catch (err) {
-          console.error('Failed to process audio chunk', err)
-          showToast('Failed to process microphone audio.')
-        }
-      }
-
-      recorder.onerror = (event) => {
-        console.error('MediaRecorder error', event?.error)
-        showToast('Microphone error occurred. Stopping recording.')
-        audioContext.close()
-        stopVoiceRecording()
-      }
-
-      if (!sendVoiceMessage({ type: 'start_recording' })) {
-        showToast('Voice service unavailable. Refresh and try again.')
-        audioContext.close()
-        stopVoiceRecording({ skipSignal: true, silent: true })
-        return
-      }
-
-      recorder.start(250)
-      setIsRecording(true)
-      setLoraState('listening')
-      addMessage('dY"? Listening... say "Launch <game>" or "Search for <term>".', 'assistant')
-    } catch (err) {
-      console.error('Unable to access microphone', err)
-      showToast(err?.name === 'NotAllowedError' ? 'Microphone permission denied.' : 'Microphone unavailable.')
-      stopVoiceRecording({ skipSignal: true, silent: true })
-    }
-  }, [addMessage, processVoiceCommand, sendVoiceMessage, showToast, stopVoiceRecording])
-
-  const handleVoiceTranscript = useCallback((payload) => {
-    console.log('[LaunchBox Voice] Received transcription payload:', payload)
-    setIsRecording(false)
-    setIsTranscribing(false)
-    setLoraState('idle')
-    if (!payload) {
-      console.log('[LaunchBox Voice] No payload received')
-      return
-    }
-    if (payload.code === 'NOT_CONFIGURED') {
-      addMessage('Voice transcription is not configured. Add an OpenAI key in settings.', 'assistant')
-      showToast('STT not configured')
-      return
-    }
-    if (payload.code === 'AUDIO_TOO_LONG') {
-      showToast('Recording too long - try a shorter phrase.')
-      return
-    }
-    const text = (payload.text || '').trim()
-    console.log('[LaunchBox Voice] Transcribed text:', text)
-    if (!text) {
-      addMessage("I didn't catch that. Try again.", 'assistant')
-      return
-    }
-    console.log('[LaunchBox Voice] Processing voice command with text:', text)
-    processVoiceCommand(text)
-  }, [addMessage, processVoiceCommand, showToast])
+  // Voice recording (replaces inline MediaRecorder + Web Speech logic)
+  const {
+    isRecording,
+    isTranscribing,
+    startVoiceRecording,
+    stopVoiceRecording,
+  } = useVoiceRecording({
+    addMessage,
+    showToast,
+    setLoraState,
+    onTranscript: (text) => {
+      setInput(text)
+      sendMessageWithTextRef.current?.(text)
+    },
+  })
 
   // Cache status (for stale indicator)
   const [cacheStatus, setCacheStatus] = useState(null)
@@ -698,65 +383,7 @@ export default function LaunchBoxPanel() {
     }
   }, [])
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
-      return
-    }
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    // Use gateway directly in dev to avoid Vite proxy issues
-    const isDev = window.location.port === '5173'
-    const wsUrl = isDev
-      ? 'ws://localhost:8787/ws/audio'
-      : `${proto}://${window.location.host}/ws/audio`
-    console.log('[LaunchBox Voice] Connecting to WebSocket:', wsUrl)
-    const socket = new WebSocket(wsUrl)
-    wsRef.current = socket
 
-    socket.onopen = () => {
-      console.log('[LaunchBox Voice] WebSocket connected')
-    }
-
-    socket.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        console.log('[LaunchBox Voice] WebSocket message received:', msg)
-        if (msg?.code === 'AUDIO_TOO_LONG') {
-          showToast('Recording too long - try a shorter phrase.')
-          setIsRecording(false)
-          setLoraState('idle')
-          return
-        }
-        if (msg?.type === 'transcription') {
-          handleVoiceTranscript(msg)
-        }
-      } catch (err) {
-        console.error('[LaunchBox Voice] WebSocket parse error', err)
-      }
-    }
-
-    socket.onerror = (err) => {
-      console.error('[LaunchBox Voice] WebSocket error:', err)
-      showToast('Voice service connection error.')
-    }
-
-    socket.onclose = (event) => {
-      console.log('[LaunchBox Voice] WebSocket closed. Code:', event.code, 'Reason:', event.reason)
-      wsRef.current = null
-      setIsRecording(false)
-      setLoraState('idle')
-    }
-
-    return () => {
-      try { socket.close() } catch { }
-      wsRef.current = null
-    }
-  }, [handleVoiceTranscript, showToast])
-
-  useEffect(() => {
-    return () => {
-      stopVoiceRecording({ skipSignal: true, silent: true })
-    }
-  }, [stopVoiceRecording])
 
   // Define supported platforms for direct launch in this panel
   const isSupportedPlatform = useCallback((platform) => {
@@ -771,54 +398,12 @@ export default function LaunchBoxPanel() {
   }, [isSupportedPlatform])
 
 
-  // Memoized plugin health check function with 30-second caching
-  const checkPluginHealth = useCallback(async (forceCheck = false) => {
-    // Use cached result if within 30 seconds and not forcing
-    const now = Date.now()
-    if (!forceCheck && (now - lastPluginCheck) < 30000) {
-      return // Skip check, use cached status
-    }
-
-    setCheckingPlugin(true)
-    try {
-      const response = await fetch(`${GATEWAY}/api/launchbox/plugin-status`, {
-        method: 'GET',
-        headers: {
-          'x-panel': 'launchbox',
-          'Cache-Control': 'no-cache'
-        },
-        signal: AbortSignal.timeout(3000) // 3 second timeout
-      })
-
-      if (!response.ok) {
-        throw new Error(`Plugin check failed: ${response.status}`)
-      }
-
-      const status = await response.json()
-      setPluginStatus(status)
-      setPluginAvailable(status.available)
-      setLastPluginCheck(now)
-
-      // Log plugin status for debugging
-      console.log('[Plugin Health]', status.available ? 'Online' : 'Offline', status.message)
-    } catch (error) {
-      console.error('[Plugin Health] Check failed:', error)
-      setPluginAvailable(false)
-      setPluginStatus({
-        available: false,
-        url: 'http://127.0.0.1:9999',
-        message: error.message || 'Plugin offline',
-        port: 9999
-      })
-      setLastPluginCheck(now)
-    } finally {
-      setCheckingPlugin(false)
-    }
-  }, [lastPluginCheck])
-
-  // Check plugin health on mount (non-blocking)
   useEffect(() => {
     checkPluginHealth()
+  }, [checkPluginHealth])
+
+  // Fetch cache status and initial metadata on mount
+  useEffect(() => {
     fetchCacheStatus()
 
     // Fetch initial metadata
@@ -1043,32 +628,32 @@ export default function LaunchBoxPanel() {
   const launchGame = useCallback(async (game) => {
     // Validation guards to prevent errors
     if (!game || !game.id) {
-      addMessage('❌ No game selected to launch.', 'assistant')
+      addMessage('\u274C No game selected to launch.', 'assistant')
       return
     }
 
     if (loading) {
-      addMessage('⏳ Library is still loading. Try again in a moment.', 'assistant')
+      addMessage('\u23F3 Library is still loading. Try again in a moment.', 'assistant')
       return
     }
 
     // Respect panel scope: only allow supported platforms here
     if (!canLaunchHere(game)) {
-      addMessage('ℹ️ Heads up: This title isn’t launchable from this panel. Try LaunchBox for this game.', 'assistant')
+      addMessage('\u2139\uFE0F Heads up: This title isn\u2019t launchable from this panel. Try LaunchBox for this game.', 'assistant')
       showToast('Try LaunchBox for this title')
       return
     }
 
     // If plugin is offline, continue with backend fallbacks for supported platforms
     if (!pluginAvailable) {
-      addMessage('⚠️ Plugin offline. Attempting fallback launch for supported platforms...', 'assistant')
+      addMessage('\u26A0\uFE0F Plugin offline. Attempting fallback launch for supported platforms...', 'assistant')
     }
 
     // Debounce: prevent launching same game within 3 seconds
     const now = Date.now()
     if (lastLaunchRef.current.title === game.title &&
       (now - lastLaunchRef.current.timestamp) < 3000) {
-      addMessage(`⏸️ Already launching ${game.title}, please wait...`, 'assistant')
+      addMessage(`\u23F8\uFE0F Already launching ${game.title}, please wait...`, 'assistant')
       return
     }
 
@@ -1116,19 +701,19 @@ export default function LaunchBoxPanel() {
       const result = await response.json()
 
       if (result.success) {
-        addMessage(`✅ ${game.title} launched via ${result.method_used}`, 'assistant')
+        addMessage(`\u2705 ${game.title} launched via ${result.method_used}`, 'assistant')
         showToast(`Launched via: ${result.method_used}`)
       } else {
         // Backend returns 'message' field, not 'error' field - check message first
         const errorMsg = result.message || result.error || 'Unknown error occurred'
-        addMessage(`❌ Failed to launch ${game.title}: ${errorMsg}`, 'assistant')
+        addMessage(`\u274C Failed to launch ${game.title}: ${errorMsg}`, 'assistant')
         showToast('Launch failed')
       }
     } catch (err) {
       console.error('Launch failed:', err)
       // Provide more detailed error information with proper fallbacks
       const errorDetail = err.message || err.toString() || 'Network error'
-      addMessage(`❌ Launch error: ${errorDetail}`, 'assistant')
+      addMessage(`\u274C Launch error: ${errorDetail}`, 'assistant')
       showToast('Launch error')
     } finally {
       setLoraState('idle')
@@ -1385,7 +970,7 @@ export default function LaunchBoxPanel() {
         const confidenceSuffix = payload.game.confidence ? ` (${Math.round(payload.game.confidence * 100)}% confidence)` : ''
 
         if (!isExact) {
-          addMessage(`Heads up: ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Please confirm by adding platform/year so I don’t launch the wrong game.`, 'assistant')
+          addMessage(`Heads up: ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Please confirm by adding platform/year so I don't launch the wrong game.`, 'assistant')
           return
         }
 
@@ -1413,7 +998,7 @@ export default function LaunchBoxPanel() {
 
         const listPreview = suggestions.slice(0, 4).map((g, i) => `${i + 1}) ${g.title} (${g.platform || 'Unknown'})`).join(', ')
 
-        addMessage(`Heads up: I found ${suggestions.length} matches for "${trimmedTitle}". Please specify platform/year so I don’t launch the wrong one. Top matches: ${listPreview}`, 'assistant')
+        addMessage(`Heads up: I found ${suggestions.length} matches for "${trimmedTitle}". Please specify platform/year so I don't launch the wrong one. Top matches: ${listPreview}`, 'assistant')
 
         return
 
@@ -1620,7 +1205,7 @@ export default function LaunchBoxPanel() {
         throw new Error('No random game returned')
       }
 
-      addMessage(`🎲 Random selection for ${scoreProfileName}: ${randomGame.title} (${randomGame.year || 'Unknown'})`, 'assistant')
+      addMessage(`\uD83C\uDFB2 Random selection for ${scoreProfileName}: ${randomGame.title} (${randomGame.year || 'Unknown'})`, 'assistant')
       setLoraState('launching')
       setTimeout(() => {
         launchGame(randomGame)
@@ -1630,15 +1215,15 @@ export default function LaunchBoxPanel() {
       // Fallback: pick from currently loaded page
       const candidates = visibleGames.length > 0 ? visibleGames : games
       if (!candidates || candidates.length === 0) {
-        addMessage('❌ No games available for random selection.', 'assistant')
+        addMessage('\u274C No games available for random selection.', 'assistant')
         return
       }
       const fallback = candidates[Math.floor(Math.random() * candidates.length)]
       if (!fallback) {
-        addMessage('❌ Failed to select a random game. Please try again.', 'assistant')
+        addMessage('\u274C Failed to select a random game. Please try again.', 'assistant')
         return
       }
-      addMessage(`🎲 Random selection for ${scoreProfileName}: ${fallback.title} (${fallback.year || 'Unknown'})`, 'assistant')
+      addMessage(`\uD83C\uDFB2 Random selection for ${scoreProfileName}: ${fallback.title} (${fallback.year || 'Unknown'})`, 'assistant')
       setLoraState('launching')
       setTimeout(() => {
         launchGame(fallback)
@@ -1649,7 +1234,7 @@ export default function LaunchBoxPanel() {
   // Launch Pegasus fullscreen frontend (fire-and-forget for instant UI response)
   const launchPegasus = useCallback(() => {
     // Immediate UI feedback - don't wait for API
-    addMessage('🎮 Launching Pegasus...', 'assistant')
+    addMessage('\uD83C\uDFAE Launching Pegasus...', 'assistant')
 
     // Fire-and-forget: launch in background, don't block UI
     fetch(`${GATEWAY}/api/launchbox/pegasus/launch`, {
@@ -1662,13 +1247,13 @@ export default function LaunchBoxPanel() {
     }).then(response => {
       if (!response.ok) {
         response.json().catch(() => ({})).then(data => {
-          addMessage(`❌ Failed to launch Pegasus: ${data.message || 'Unknown error'}`, 'assistant')
+          addMessage(`\u274C Failed to launch Pegasus: ${data.message || 'Unknown error'}`, 'assistant')
         })
       }
       // Success case: Pegasus is launching, no need for confirmation message
       // (it takes over the screen anyway)
     }).catch(err => {
-      addMessage(`❌ Failed to launch Pegasus: ${err.message}`, 'assistant')
+      addMessage(`\u274C Failed to launch Pegasus: ${err.message}`, 'assistant')
     })
   }, [addMessage, deviceId])
 
@@ -1857,7 +1442,7 @@ export default function LaunchBoxPanel() {
   // Stop any ongoing TTS when this panel unmounts
   useEffect(() => () => { try { stopSpeaking() } catch { } }, [])
 
-  // Handoff effect (handles Dewey → LaunchBox context handoff)
+  // Handoff effect (handles Dewey -> LaunchBox context handoff)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const handoffContext = urlParams.get('context')
@@ -2004,7 +1589,7 @@ export default function LaunchBoxPanel() {
         <div className="error-container">
           {isBackendStarting ? (
             <>
-              <p className="error-message">⏳ Arcade Assistant is starting up...</p>
+              <p className="error-message">\u23F3 Arcade Assistant is starting up...</p>
               <p className="error-detail">The backend is still loading. This usually takes 10-30 seconds on startup.</p>
               <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
                 If this persists, make sure the Arcade Assistant launcher is running.
@@ -2012,7 +1597,7 @@ export default function LaunchBoxPanel() {
             </>
           ) : isLaunchBoxMissing ? (
             <>
-              <p className="error-message">📂 LaunchBox Not Found</p>
+              <p className="error-message">\uD83D\uDCC2 LaunchBox Not Found</p>
               <p className="error-detail">{error}</p>
               <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
                 LoRa needs LaunchBox to browse your game library. Other panels will still work.
@@ -2020,7 +1605,7 @@ export default function LaunchBoxPanel() {
             </>
           ) : (
             <>
-              <p className="error-message">❌ Failed to load game library</p>
+              <p className="error-message">\u274C Failed to load game library</p>
               <p className="error-detail">{error}</p>
             </>
           )}
@@ -2029,7 +1614,7 @@ export default function LaunchBoxPanel() {
             onClick={handleReload}
             className="error-retry-btn"
           >
-            🔄 Retry
+            \uD83D\uDD04 Retry
           </button>
         </div>
       </PanelShell>
@@ -2119,7 +1704,7 @@ export default function LaunchBoxPanel() {
             aria-label="Select random game"
             title="Launch random game"
           >
-            <span className="random-icon">🎲</span>
+            <span className="random-icon">\uD83C\uDFB2</span>
           </button>
 
           {/* Pegasus Launch Button */}
@@ -2142,7 +1727,7 @@ export default function LaunchBoxPanel() {
             className="lora-chat-btn"
             aria-label="Toggle chat with LoRa"
           >
-            <span className="chat-icon">💬</span>
+            <span className="chat-icon">\uD83D\uDCAC</span>
             {!chatOpen && <span className="chat-notification">!</span>}
           </button>
 
@@ -2205,7 +1790,7 @@ export default function LaunchBoxPanel() {
                 Cancel
               </button>
               <button onClick={applyShaderChange} disabled={shaderModal.applying} className="shader-btn shader-btn-apply">
-                {shaderModal.applying ? 'Applying…' : 'Apply Shader'}
+                {shaderModal.applying ? 'Applying\u2026' : 'Apply Shader'}
               </button>
             </div>
           </div>
@@ -2228,14 +1813,14 @@ export default function LaunchBoxPanel() {
                 onClick={setTabRecent}
                 className={`lora-tab ${activeTab === 'recent' ? 'active' : ''}`}
               >
-                <span className="tab-icon">🕐</span>
+                <span className="tab-icon">\uD83D\uDD50</span>
                 Recently Played
               </button>
               <button
                 onClick={setTabStats}
                 className={`lora-tab ${activeTab === 'stats' ? 'active' : ''}`}
               >
-                <span className="tab-icon">📊</span>
+                <span className="tab-icon">\uD83D\uDCCA</span>
                 Quick Stats
               </button>
               <button
@@ -2243,7 +1828,7 @@ export default function LaunchBoxPanel() {
                 className="lora-tab-close"
                 aria-label="Collapse panel"
               >
-                ×
+                \u00D7
               </button>
             </div>
 
@@ -2323,7 +1908,7 @@ export default function LaunchBoxPanel() {
                     </div>
 
                     <div className="filter-results">
-                      Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total • {visibleGames.length} on this page
+                      Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total \u2022 {visibleGames.length} on this page
                     </div>
                     <div className="filter-actions">
                       <button className="lb-refresh-btn" onClick={refreshLibrary} title="Revalidate library cache">
@@ -2363,7 +1948,7 @@ export default function LaunchBoxPanel() {
                         disabled={currentPage === 1}
                         className="pagination-btn"
                       >
-                        ← Previous
+                        \u2190 Previous
                       </button>
                       <span className="pagination-info">
                         Page {currentPage} of {totalPages}
@@ -2373,7 +1958,7 @@ export default function LaunchBoxPanel() {
                         disabled={currentPage === totalPages}
                         className="pagination-btn"
                       >
-                        Next →
+                        Next \u2192
                       </button>
                     </div>
                   )}
@@ -2414,7 +1999,7 @@ export default function LaunchBoxPanel() {
             onClick={toggleSubPanel}
             className="lora-expand-btn"
           >
-            Show Recent Games ▲
+            Show Recent Games \u25B2
           </button>
         )}
 
@@ -2435,7 +2020,7 @@ export default function LaunchBoxPanel() {
             disabled={isChatLoading || !input.trim()}
             aria-label="Send message"
           >
-            ➤
+            \u27A4
           </button>
         </div>
       </div>
@@ -2452,7 +2037,7 @@ export default function LaunchBoxPanel() {
                 <h3>Chat with LoRa</h3>
                 {isRecording && (
                   <div className="voice-active-indicator">
-                    <span className="voice-wave-icon">〰️</span>
+                    <span className="voice-wave-icon">\u3030\uFE0F</span>
                     Voice Active
                   </div>
                 )}
@@ -2462,7 +2047,7 @@ export default function LaunchBoxPanel() {
                 className="chat-close-btn"
                 aria-label="Close chat"
               >
-                ×
+                \u00D7
               </button>
             </div>
 
@@ -2478,7 +2063,7 @@ export default function LaunchBoxPanel() {
               {isChatLoading && (
                 <div className="chat-message assistant">
                   <div className="message-bubble">
-                    <span className="typing-indicator">●●●</span>
+                    <span className="typing-indicator">\u25CF\u25CF\u25CF</span>
                   </div>
                 </div>
               )}
@@ -2516,7 +2101,7 @@ export default function LaunchBoxPanel() {
                   aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
                 >
                   {isRecording ? (
-                    <span style={memoizedStyles.stopIcon}>⏹️</span>
+                    <span style={memoizedStyles.stopIcon}>\u23F9\uFE0F</span>
                   ) : (
                     <img src="/lora-mic.png" alt="Microphone" style={memoizedStyles.micIcon} />
                   )}
@@ -2527,7 +2112,7 @@ export default function LaunchBoxPanel() {
                   disabled={isChatLoading || !input.trim()}
                   aria-label="Send message"
                 >
-                  ➤
+                  \u27A4
                 </button>
               </div>
             </div>
