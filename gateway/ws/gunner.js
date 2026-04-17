@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws'
-import { randomUUID } from 'crypto'
+import { buildIdentityHeaders, ensureDeviceIdentity, extractWebSocketIdentity } from './identity.js'
 
 const WS_PATH = '/api/local/gunner/ws'
 
@@ -27,23 +27,26 @@ export const setupGunnerWebSocket = (wss) => {
   }
 
   wss.on('connection', (client, req) => {
-    const url = new URL(req.url, `http://${req.headers.host}`)
+    const identity = extractWebSocketIdentity(req, {
+      defaultPanel: 'gunner',
+      corrPrefix: 'gunner'
+    })
+    const { url } = identity
     if (url.pathname !== WS_PATH) {
       return
     }
 
-    const corrId = url.searchParams.get('corr_id') || randomUUID()
-    const deviceId = url.searchParams.get('device') || req.headers['x-device-id'] || 'unknown'
+    if (!ensureDeviceIdentity(client, identity, { channel: 'gunner websocket' })) {
+      return
+    }
+
     const backendUrl = new URL(backendBase)
     backendUrl.search = url.search
 
     const bridge = new WebSocket(backendUrl.toString(), {
-      headers: {
-        'x-device-id': deviceId,
-        'x-panel': 'gunner',
-        'x-corr-id': corrId,
+      headers: buildIdentityHeaders(identity, {
         'x-scope': req.headers['x-scope'] || 'state'
-      }
+      })
     })
 
     const safeClose = (code, reason) => {
@@ -61,7 +64,13 @@ export const setupGunnerWebSocket = (wss) => {
 
     bridge.on('open', () => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ type: 'gateway_notice', status: 'gunner_proxy_connected' }))
+        client.send(JSON.stringify({
+          type: 'gateway_notice',
+          status: 'gunner_proxy_connected',
+          device: identity.deviceId,
+          panel: identity.panel,
+          corr_id: identity.corrId
+        }))
       }
     })
 

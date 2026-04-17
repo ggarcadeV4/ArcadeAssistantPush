@@ -14,6 +14,7 @@ import shutil
 from datetime import datetime, timezone
 from typing import Optional
 
+from backend.constants.drive_root import get_drive_root
 from backend.services.cabinet_registration import load_device_id
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ async def send_heartbeat() -> bool:
             "mac_address": os.getenv("DEVICE_SERIAL", "unknown"),
         }
         try:
-            usage = shutil.disk_usage(os.getenv("AA_DRIVE_ROOT", os.getcwd()))
+            usage = shutil.disk_usage(get_drive_root(context="heartbeat"))
             disk_usage = round((usage.used / usage.total) * 100, 2)
             payload["disk_usage"] = disk_usage
         except Exception:

@@ -2,118 +2,52 @@
 Drive path constants for LaunchBox integration.
 NEVER hardcode paths elsewhere - always import from this module.
 
-IMPORTANT: No hardcoded drive letters. Uses AA_DRIVE_ROOT environment variable.
+IMPORTANT: Runtime paths resolve from AA_DRIVE_ROOT and the shared drive-root
+helpers, not from an inferred bare drive letter.
 
 Critical path corrections (2025-10-06):
-- LaunchBox root is <AA_DRIVE_ROOT>/LaunchBox
+- LaunchBox root is <AA_DRIVE_ROOT>/LaunchBox unless LAUNCHBOX_ROOT overrides it
 - Master XML (LaunchBox.xml) NOT FOUND - must parse platform XMLs
 - CLI_Launcher.exe NOT FOUND - use fallback launch methods
 """
-import os
 from pathlib import Path
 
-from backend.constants.drive_root import get_drive_root
+from backend.constants.drive_root import (
+    get_bios_root,
+    get_drive_root,
+    get_emulators_root,
+    get_gun_emulators_root,
+    get_launchbox_root,
+    get_roms_root,
+)
 
 
-# Environment-based root detection
-def _convert_to_wsl_path(windows_path: str) -> str:
-    """
-    Convert Windows path to WSL path ONLY when running inside WSL.
-
-    CRITICAL FIX: Do NOT convert paths on native Windows systems!
-    Only performs conversion when:
-    1. System is Linux (not Windows)
-    2. Kernel release contains 'microsoft' (WSL indicator)
-    3. Path is a valid Windows path (drive letter format)
-
-    Args:
-        windows_path: Windows-style path (e.g., "C:\\Users\\...")
-
-    Returns:
-        WSL path if running in WSL, original path otherwise
-    """
-    import platform
-
-    # Check if we're actually running on WSL
-    is_wsl = platform.system() == 'Linux' and 'microsoft' in platform.release().lower()
-
-    # CRITICAL: Return unchanged on native Windows
-    if not is_wsl:
-        return windows_path  # Do NOT modify paths on Windows!
-
-    # Only convert valid Windows paths in WSL environment
-    if windows_path and len(windows_path) >= 2 and windows_path[1] == ':':
-        drive_letter = windows_path[0].lower()
-        rest = windows_path[2:].replace('\\', '/').lstrip('/')
-        wsl_path = f"/mnt/{drive_letter}"
-        if rest:
-            wsl_path = f"{wsl_path}/{rest}"
-        return wsl_path
-
-    return windows_path
-
-
-def _get_drive_root_str() -> str:
-    """Get drive root as string. No CWD fallback per Slice 2 contract."""
+def _safe_path(factory):
     try:
-        return str(get_drive_root(allow_cwd_fallback=False))
+        return factory()
     except Exception:
-        # Return sentinel that will fail path validation, not a silent CWD
-        return "<AA_DRIVE_ROOT_NOT_SET>"
+        return Path("<AA_DRIVE_ROOT_NOT_SET>")
 
 
-_raw_drive_root = os.getenv('AA_DRIVE_ROOT', '') or _get_drive_root_str()
-AA_DRIVE_ROOT = _convert_to_wsl_path(_raw_drive_root)
+AA_ROOT = _safe_path(lambda: get_drive_root(allow_cwd_fallback=False))
+AA_DRIVE_ROOT = str(AA_ROOT)
+STATE_DIR = AA_ROOT / ".aa" / "state"
 
-# Extract drive letter root (e.g., "A:\" from "A:\Arcade Assistant Local")
-# LaunchBox, ROMs, Emulators are at drive root, not project folder
-def _get_drive_letter_root() -> str:
-    """Get just the drive letter root from AA_DRIVE_ROOT."""
-    root = AA_DRIVE_ROOT
-    if len(root) >= 2 and root[1] == ':':
-        return root[0:2] + "\\"
-    if root.startswith('/mnt/') and len(root) >= 6:
-        return root[0:6]  # /mnt/a
-    return root
-
-DRIVE_LETTER_ROOT = _get_drive_letter_root()
-
-# LaunchBox root can be configured separately from AA_DRIVE_ROOT
-# This allows LaunchBox on any drive while Arcade Assistant is elsewhere
-_raw_launchbox_root = os.getenv('LAUNCHBOX_ROOT', None)
-if _raw_launchbox_root:
-    # User specified explicit LaunchBox location
-    LAUNCHBOX_ROOT_OVERRIDE = Path(_convert_to_wsl_path(_raw_launchbox_root))
-else:
-    # Default: LaunchBox at drive root (A:\LaunchBox), not project folder
-    LAUNCHBOX_ROOT_OVERRIDE = Path(DRIVE_LETTER_ROOT) / "LaunchBox"
+# Legacy alias kept for compatibility with older imports.
+DRIVE_LETTER_ROOT = AA_DRIVE_ROOT
+LAUNCHBOX_ROOT_OVERRIDE = _safe_path(get_launchbox_root)
 
 
 def is_on_a_drive() -> bool:
-    """Check whether Arcade Assistant is pointed at a real LaunchBox install.
-
-    Historically this meant "A: drive", but modern installs can live on any
-    Windows path. Treat any configured root with a reachable LaunchBox tree as
-    a real cabinet install so launch/image/parser flows do not fall back to
-    mock mode on W:/F:/etc.
-    """
-    raw_root = (os.getenv("AA_DRIVE_ROOT", "") or "").strip()
-    if not raw_root:
-        return False
-
+    """Check whether the configured root points at a reachable LaunchBox tree."""
     try:
-        root_path = Path(_convert_to_wsl_path(raw_root))
-        if not root_path.exists():
-            return False
+        root_path = get_drive_root(allow_cwd_fallback=False)
+        launchbox_root = get_launchbox_root(root_path)
     except Exception:
         return False
 
-    raw_launchbox_root = (os.getenv("LAUNCHBOX_ROOT", "") or "").strip()
-    launchbox_root = (
-        Path(_convert_to_wsl_path(raw_launchbox_root))
-        if raw_launchbox_root
-        else (root_path / "LaunchBox")
-    )
+    if not root_path.exists():
+        return False
 
     candidates = [
         launchbox_root,
@@ -132,6 +66,7 @@ class LaunchBoxPaths:
 
     # Root (configurable via env)
     LAUNCHBOX_ROOT = LAUNCHBOX_ROOT_OVERRIDE
+    AA_DRIVE_ROOT = AA_DRIVE_ROOT
 
     # Data directories
     DATA_DIR = LAUNCHBOX_ROOT / "Data"
@@ -148,30 +83,22 @@ class LaunchBoxPaths:
     BIGBOX_EXE = LAUNCHBOX_ROOT / "BigBox.exe"
     CLI_LAUNCHER_EXE = LAUNCHBOX_ROOT / "ThirdParty" / "CLI_Launcher" / "CLI_Launcher.exe"
 
-    # ROMs (at drive root, not project folder)
-    ROMS_ROOT = Path(DRIVE_LETTER_ROOT) / "Roms"
+    # ROMs
+    ROMS_ROOT = _safe_path(get_roms_root)
     MAME_ROMS = ROMS_ROOT / "MAME"  # 14,233 .zip files
 
-    # BIOS (at drive root, not project folder)
-    BIOS_ROOT = Path(DRIVE_LETTER_ROOT) / "Bios"
+    # BIOS
+    BIOS_ROOT = _safe_path(get_bios_root)
     SYSTEM_BIOS = BIOS_ROOT / "system"  # 586 files
 
-    # Emulators (at drive root, not project folder)
-    EMULATORS_ROOT = Path(DRIVE_LETTER_ROOT) / "Emulators"
+    # Emulators
+    EMULATORS_ROOT = _safe_path(get_emulators_root)
     MAME_EMULATOR = EMULATORS_ROOT / "MAME" / "mame.exe"
 
     @classmethod
     def _get_launchbox_root_dynamic(cls) -> Path:
-        """Get LaunchBox root dynamically from current env (handles late .env loading)."""
-        raw = os.getenv('LAUNCHBOX_ROOT', '')
-        if raw:
-            return Path(_convert_to_wsl_path(raw))
-        # Default: derive from AA_DRIVE_ROOT
-        drive_root = os.getenv('AA_DRIVE_ROOT', '')
-        if drive_root and len(drive_root) >= 2 and drive_root[1] == ':':
-            drive_letter = drive_root[0:2] + "\\"
-            return Path(drive_letter) / "LaunchBox"
-        return cls.LAUNCHBOX_ROOT  # Fall back to cached value
+        """Get LaunchBox root dynamically from the current configured root."""
+        return _safe_path(get_launchbox_root)
 
     @classmethod
     def validate(cls) -> dict:
@@ -225,7 +152,7 @@ class LaunchBoxPaths:
 # LaunchBox platform XML discovery (robust, AA_DRIVE_ROOT-based)
 # Example: <AA_DRIVE_ROOT>/LaunchBox/Data/Platforms/*.xml
 LB_A_ROOT = AA_DRIVE_ROOT
-LB_PLATFORMS_GLOB = str(Path(LB_A_ROOT) / "LaunchBox" / "Data" / "Platforms" / "*.xml")
+LB_PLATFORMS_GLOB = str(LAUNCHBOX_ROOT_OVERRIDE / "Data" / "Platforms" / "*.xml")
 
 
 class AutoConfigPaths:
@@ -304,8 +231,8 @@ class EmulatorPaths:
     """
     Deterministic emulator executable paths for the Dual-Build Architecture.
     Two trees exist:
-      - DRIVE_LETTER_ROOT / Emulators       -> Arcade Panel & Gamepad builds
-      - DRIVE_LETTER_ROOT / Gun Build / Emulators -> Light Gun builds
+      - <AA_DRIVE_ROOT>/Emulators -> Arcade Panel & Gamepad builds
+      - <AA_DRIVE_ROOT>/Gun Build/Emulators -> Light Gun builds
     RULES:
       - Every physical emulator folder with a distinct executable gets an accessor.
       - Variants that share the SAME executable but differ only by CLI args
@@ -313,8 +240,8 @@ class EmulatorPaths:
       - all_executables() must list every accessor for health-check scanning.
     """
 
-    _PANEL_ROOT = Path(DRIVE_LETTER_ROOT) / "Emulators"
-    _GUN_ROOT = Path(DRIVE_LETTER_ROOT) / "Gun Build" / "Emulators"
+    _PANEL_ROOT = _safe_path(get_emulators_root)
+    _GUN_ROOT = _safe_path(get_gun_emulators_root)
 
     # Arcade Panel / Gamepad Builds
     # MAME family

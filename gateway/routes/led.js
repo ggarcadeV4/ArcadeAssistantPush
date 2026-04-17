@@ -314,22 +314,12 @@ router.post(
   (req, res) => proxyToFastAPI(req, res)
 )
 
-// -----------------------------------------------------------------------------
-// Blinky game events (forwarded to FastAPI)
-// -----------------------------------------------------------------------------
-router.post(
-  '/blinky/game-selected',
-  enforceScopeHeader,
-  enforceDeviceHeaders,
-  (req, res) => proxyToFastAPI(req, res)
-)
-
-router.post(
-  '/blinky/game-launch',
-  enforceScopeHeader,
-  enforceDeviceHeaders,
-  (req, res) => proxyToFastAPI(req, res)
-)
+router.use('/blinky', (req, res) => {
+  res.status(404).json({
+    error: 'route_moved',
+    message: 'Blinky event routes moved to /api/local/blinky/*'
+  })
+})
 
 router.get('/ws', enforceDeviceHeaders, (req, res) => {
   const status = getLedWebSocketStatus()

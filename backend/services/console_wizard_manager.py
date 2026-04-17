@@ -23,6 +23,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from fastapi import HTTPException
 
+from backend.constants.drive_root import resolve_runtime_path
+
 from . import controller_cascade
 from .backup import create_backup
 from .diffs import compute_diff, has_changes
@@ -468,7 +470,7 @@ class ConsoleWizardManager:
         if info.config_path:
             config_path = Path(info.config_path) if isinstance(info.config_path, str) else info.config_path
         
-        # Fallback to DEFAULT_CONFIG_PATHS resolved against drive letter root
+        # Fallback to DEFAULT_CONFIG_PATHS resolved against the configured root contract.
         if not config_path or not config_path.exists():
             config_hint = controller_cascade.DEFAULT_CONFIG_PATHS.get(emulator_type.lower())
             if config_hint:
@@ -478,9 +480,7 @@ class ConsoleWizardManager:
                     import os
                     config_path = Path(os.path.expanduser(config_hint_str))
                 else:
-                    # Resolve against drive letter root, not project folder
-                    drive_letter_root = Path(self.drive_root.drive + "\\") if self.drive_root.drive else self.drive_root
-                    config_path = drive_letter_root / config_hint
+                    config_path = resolve_runtime_path(config_hint, drive_root=self.drive_root)
 
         if not config_path:
             logger.warning(f"No config path for {emulator_type}, skipping real config write")
@@ -491,14 +491,9 @@ class ConsoleWizardManager:
             logger.warning(f"Config path does not exist: {config_path}, skipping")
             return None
 
-        # Sanctioned path check: use drive letter root for emulator paths
-        # since emulators are at A:\Emulators, not A:\Arcade Assistant Local\Emulators
-        drive_letter_root = Path(self.drive_root.drive + "\\") if self.drive_root.drive else self.drive_root
-        if not is_allowed_file(config_path, drive_letter_root, self.sanctioned_paths):
-            # Also try relative to project folder for configs inside project
-            if not is_allowed_file(config_path, self.drive_root, self.sanctioned_paths):
-                logger.warning(f"Config path not sanctioned: {config_path}, skipping")
-                return None
+        if not is_allowed_file(config_path, self.drive_root, self.sanctioned_paths):
+            logger.warning(f"Config path not sanctioned: {config_path}, skipping")
+            return None
 
         # Determine format and call appropriate apply function
         format_hint = info.config_format.lower() if info.config_format else "ini"

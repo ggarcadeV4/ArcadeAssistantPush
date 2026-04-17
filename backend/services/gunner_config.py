@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILE = {
@@ -54,7 +55,7 @@ class GunnerConfigService:
 
     def __init__(self, local_storage_path: Optional[Path] = None):
         if local_storage_path is None:
-            drive_root = Path(os.getenv('AA_DRIVE_ROOT', '.'))
+            drive_root = get_drive_root(context="gunner_config")
             local_storage_path = drive_root / '.aa' / 'state' / 'gun_profiles'
 
         self.local_storage_path = _ensure_storage_path(Path(local_storage_path))

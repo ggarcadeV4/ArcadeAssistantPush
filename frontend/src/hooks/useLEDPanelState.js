@@ -197,7 +197,18 @@ export default function useLEDPanelState({ showToast }) {
                 return {
                     className: 'led-panel__status-badge--idle',
                     dotClass: 'led-panel__status-dot--idle',
-                    text: connectionStatus === 'connected' ? 'Connected' : 'Simulation Mode',
+                    text:
+                        connectionStatus === 'connected'
+                            ? 'Connected'
+                            : connectionStatus === 'simulated'
+                                ? 'Simulation Mode'
+                                : connectionStatus === 'error'
+                                    ? 'LED Service Error'
+                                    : connectionStatus === 'connecting'
+                                        ? 'Connecting to Gateway'
+                                        : connectionStatus === 'disconnected'
+                                            ? 'Gateway Disconnected'
+                                            : 'LED Status Unknown',
                 }
         }
     }, [mode, activeGame, wizard.currentPort, wizard.totalPorts])

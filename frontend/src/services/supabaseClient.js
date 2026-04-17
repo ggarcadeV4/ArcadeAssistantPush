@@ -1,75 +1,116 @@
-import { createClient } from '@supabase/supabase-js';
+import { getGatewayUrl, getGatewayWsUrl } from './gateway.js';
+import { buildStandardHeaders, resolveDeviceId } from '../utils/identity';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('[Supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Chat history will not be saved.');
+function buildCorrId(prefix) {
+    return `${prefix}-${Date.now()}`;
 }
 
-export const supabase = (supabaseUrl && supabaseAnonKey)
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
+function buildHeaders({ panel = 'global', scope = 'state', corrId, json = true } = {}) {
+    const headers = buildStandardHeaders({
+        panel,
+        scope,
+        extraHeaders: {
+            'x-corr-id': corrId || buildCorrId(panel),
+        },
+    });
 
-/**
- * Logs a chat message to the Supabase 'chat_history' table.
- * @param {Object} params
- * @param {string} params.panel_id - The ID of the panel (e.g., 'controller-chuck')
- * @param {string} params.role - 'user' or 'assistant'
- * @param {string} params.content - The message content
- * @param {Object} [params.metadata] - Optional metadata
- * @param {string} [params.session_id] - Optional session ID to group conversations
- */
-export const logChatHistory = async ({ panel_id, role, content, metadata = {}, session_id }) => {
-    if (!supabase) return;
+    if (json) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    return headers;
+}
+
+export const supabase = null;
+
+export const logChatHistory = async (params = {}) => {
+    const panel = params.panel || params.panel_id || 'global';
+    const corrId = buildCorrId(`${panel}-chat`);
+
+    const payload = {
+        event: 'chat_history',
+        ...params,
+        panel,
+        corr_id: corrId,
+    };
 
     try {
-        const { error } = await supabase
-            .from('chat_history')
-            .insert([
-                {
-                    panel_id,
-                    role,
-                    content,
-                    metadata,
-                    session_id: session_id || undefined // Let DB generate default if null
-                }
-            ]);
+        const response = await fetch(`${getGatewayUrl()}/api/frontend/log`, {
+            method: 'POST',
+            headers: buildHeaders({ panel, scope: 'state', corrId }),
+            body: JSON.stringify(payload),
+        });
 
-        if (error) {
-            console.error('[Supabase] Failed to log chat history:', error);
+        if (!response.ok) {
+            console.warn('[Gateway Log] Failed to record chat history:', response.status);
         }
     } catch (err) {
-        console.error('[Supabase] Error logging chat history:', err);
+        console.error('[Gateway Log] Chat history logging error:', err);
     }
 };
 
-/**
- * Subscribe to realtime inserts on the Supabase 'scores' table.
- * Returns the channel so the caller can unsubscribe on cleanup.
- *
- * @param {(payload: object) => void} onInsert - callback fired with the new row
- * @returns {object|null} Supabase RealtimeChannel (call .unsubscribe() to stop)
- */
 export const subscribeToScores = (onInsert) => {
-    if (!supabase) {
-        console.warn('[Supabase] No client — skipping realtime scores subscription');
+    if (typeof WebSocket === 'undefined') {
+        console.warn('[Scorekeeper WS] WebSocket unavailable - skipping score subscription');
         return null;
     }
 
-    const channel = supabase
-        .channel('public:scores')
-        .on(
-            'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'scores' },
-            (payload) => {
-                console.log('[Supabase] Realtime score insert:', payload.new);
-                if (typeof onInsert === 'function') onInsert(payload.new);
-            }
-        )
-        .subscribe((status) => {
-            console.log('[Supabase] Realtime scores channel status:', status);
-        });
+    const corrId = buildCorrId('scorekeeper');
+    const params = new URLSearchParams({
+        device: resolveDeviceId(),
+        panel: 'scorekeeper',
+        corr_id: corrId,
+    });
+    const url = getGatewayWsUrl(`/scorekeeper/ws?${params.toString()}`);
 
-    return channel;
+    let socket = null;
+    let reconnectTimer = null;
+    let closedByClient = false;
+
+    const connect = () => {
+        if (closedByClient) return;
+
+        socket = new WebSocket(url);
+
+        socket.onopen = () => {
+            socket.send(JSON.stringify({ type: 'subscribe' }));
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                if (payload?.type === 'score_updated' && typeof onInsert === 'function') {
+                    onInsert(payload.entry ?? payload.new ?? payload);
+                }
+            } catch (err) {
+                console.warn('[Scorekeeper WS] Ignoring malformed event:', err);
+            }
+        };
+
+        socket.onclose = () => {
+            socket = null;
+            if (!closedByClient) {
+                reconnectTimer = setTimeout(connect, 1000);
+            }
+        };
+
+        socket.onerror = (err) => {
+            console.warn('[Scorekeeper WS] Subscription error:', err);
+        };
+    };
+
+    connect();
+
+    return {
+        unsubscribe() {
+            closedByClient = true;
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            if (socket && socket.readyState <= WebSocket.OPEN) {
+                socket.close(1000, 'unsubscribe');
+            }
+        },
+    };
 };

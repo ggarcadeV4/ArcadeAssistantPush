@@ -14,6 +14,7 @@ import {
   streamCalibration as streamCalibrationApi
 } from '../../services/gunnerClient'
 import { testLED } from '../../services/ledBlinkyClient'
+import { buildStandardHeaders, resolveDeviceId } from '../../utils/identity'
 
 // ============================================================================
 // Calibration State Machine (Reducer Pattern)
@@ -116,13 +117,6 @@ const useGunner = () => {
   }, [])
 
   return { devices, loading, fetchDevices, capturePoint, saveProfile }
-}
-
-const resolveDeviceId = () => {
-  if (typeof window === 'undefined') {
-    return 'CAB-0001'
-  }
-  return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
 }
 
 const formatProfileTimestamp = (value) => {
@@ -285,12 +279,11 @@ export default function LightGunsPanel({ showProfilesSection = false }) {
       try {
         const response = await fetch('/api/local/dewey/handoff/gunner', {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
-            'x-panel': 'gunner',
-            'x-scope': 'state'
-          }
+          headers: buildStandardHeaders({
+            panel: 'gunner',
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' }
+          })
         })
         const text = await response.text()
         let data = null

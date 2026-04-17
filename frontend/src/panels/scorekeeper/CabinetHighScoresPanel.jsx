@@ -6,7 +6,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getGatewayUrl, getGatewayWsUrl } from '../../services/gateway'
+import { getGatewayUrl } from '../../services/gateway'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../../utils/network'
 
 // API base URL - use gateway for consistent routing
 const API_BASE = window.location.port === '5173'
@@ -108,11 +109,10 @@ export default function CabinetHighScoresPanel() {
     }, []);
 
     useEffect(() => {
-        const isDev = window.location.port === '5173';
-        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = isDev
-            ? getGatewayWsUrl('/scorekeeper/ws')
-            : `${proto}://${window.location.host}/scorekeeper/ws`;
+        const wsUrl = buildGatewayWsIdentityUrl('/scorekeeper/ws', {
+            panel: 'scorekeeper',
+            corrId: generateCorrelationId('scorekeeper-cabinet')
+        });
 
         let ws;
         try {

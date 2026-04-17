@@ -426,7 +426,7 @@ async def test_concurrent_launch_requests(mock_request, mock_services, sample_ga
 
 @pytest.mark.asyncio
 async def test_launchbox_panel_prefers_direct_for_type_x(mock_request, mock_services, monkeypatch):
-    """LaunchBox panel should not force plugin-first for Type X / TeknoParrot-class games."""
+    """LaunchBox panel should still use direct launch for Type X games when a PID is confirmed."""
     from backend.routers import launchbox as launchbox_router
 
     game = Game(
@@ -463,7 +463,7 @@ async def test_launchbox_panel_prefers_direct_for_type_x(mock_request, mock_serv
     monkeypatch.setattr(launchbox_router, "_log_launch_event", Mock())
     monkeypatch.setattr(launchbox_router, "log_decision", Mock())
     monkeypatch.setattr(launchbox_router, "update_runtime_state", Mock())
-    monkeypatch.setattr(launchbox_router, "_best_effort_find_pid", Mock(return_value=None))
+    monkeypatch.setattr(launchbox_router, "_best_effort_find_pid", Mock(return_value=4321))
     monkeypatch.setattr(
         launchbox_router,
         "run_in_threadpool",
@@ -478,5 +478,90 @@ async def test_launchbox_panel_prefers_direct_for_type_x(mock_request, mock_serv
 
     assert response.success is True
     assert response.method_used == "direct"
+    assert response.pid == 4321
     launcher_mock.launch.assert_called_once_with(game, "direct", None)
     plugin_mock.launch_game.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_launchbox_panel_downgrades_unverified_direct_launch(mock_request, mock_services, monkeypatch):
+    """LoRa should not announce a launch when the backend cannot confirm the spawned process."""
+    from backend.routers import launchbox as launchbox_router
+
+    game = Game(
+        id="mvc-dc-1",
+        title="Marvel vs. Capcom",
+        platform="Sega Dreamcast",
+        year=1999,
+        genre="Fighting",
+        application_path="Games/Dreamcast/MarvelVsCapcom.chd",
+    )
+    parser_mock = Mock()
+    parser_mock.get_cache_stats = Mock(return_value={"is_mock_data": False})
+    parser_mock.get_game_by_id = Mock(return_value=game)
+
+    launcher_mock = Mock()
+    launcher_mock.launch = Mock(return_value=launchbox_router.LaunchResponse(
+        success=True,
+        game_id=game.id,
+        method_used="direct",
+        message="Launched Marvel vs. Capcom via direct",
+        game_title=game.title,
+        command="W:/Emulators/redream/redream.exe W:/Roms/Dreamcast/MarvelVsCapcom.chd",
+    ))
+
+    monkeypatch.setenv("AA_LAUNCH_THROTTLE_SEC", "0")
+    monkeypatch.setattr(launchbox_router, "parser", parser_mock)
+    monkeypatch.setattr(launchbox_router, "launcher", launcher_mock)
+    monkeypatch.setattr(launchbox_router, "get_plugin_client", Mock(return_value=Mock(is_available=Mock(return_value=False))))
+    monkeypatch.setattr(launchbox_router, "_read_routing_policy", Mock(return_value={}))
+    monkeypatch.setattr(launchbox_router, "_log_launch_event", Mock())
+    monkeypatch.setattr(launchbox_router, "log_decision", Mock())
+    monkeypatch.setattr(launchbox_router, "update_runtime_state", Mock())
+    monkeypatch.setattr(launchbox_router, "_best_effort_find_pid", Mock(return_value=None))
+    monkeypatch.setattr(
+        launchbox_router,
+        "run_in_threadpool",
+        AsyncMock(side_effect=lambda func, *args, **kwargs: func(*args, **kwargs)),
+    )
+
+    for attr in ("_last_launch", "_inflight", "_last_ahk_launch"):
+        if hasattr(launchbox_router.launch_game, attr):
+            delattr(launchbox_router.launch_game, attr)
+
+    response = await launchbox_router.launch_game(game.id, mock_request, services=mock_services)
+
+    assert response.success is False
+    assert "could not be confirmed" in response.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_launchbox_only_platform_is_not_reported_as_launch(mock_request, mock_services, monkeypatch):
+    """LaunchBox-only platforms should not return a success signal to the LoRa panel."""
+    from backend.routers import launchbox as launchbox_router
+
+    game = Game(
+        id="daphne-native-1",
+        title="Dragon's Lair",
+        platform="Daphne",
+        year=1983,
+        genre="Laserdisc",
+        application_path="Games/Daphne/dragonslair.txt",
+    )
+    parser_mock = Mock()
+    parser_mock.get_cache_stats = Mock(return_value={"is_mock_data": False})
+    parser_mock.get_game_by_id = Mock(return_value=game)
+
+    monkeypatch.setenv("AA_LAUNCH_THROTTLE_SEC", "0")
+    monkeypatch.setattr(launchbox_router, "parser", parser_mock)
+    monkeypatch.setattr(launchbox_router, "log_decision", Mock())
+
+    for attr in ("_last_launch", "_inflight", "_last_ahk_launch"):
+        if hasattr(launchbox_router.launch_game, attr):
+            delattr(launchbox_router.launch_game, attr)
+
+    response = await launchbox_router.launch_game(game.id, mock_request, services=mock_services)
+
+    assert response.success is False
+    assert response.method_used == "launchbox_only"
+    assert "use launchbox" in response.message.lower()

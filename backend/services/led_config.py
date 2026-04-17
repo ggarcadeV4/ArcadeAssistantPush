@@ -7,6 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +28,7 @@ class LEDConfigService:
             return
         self._initialized = True
 
-        drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
+        drive_root = get_drive_root(context="led_config")
         self.state_root = drive_root / ".aa" / "state"
         self.config_dir = self.state_root / "led_configs"
         self.map_dir = self.state_root / "led_maps"

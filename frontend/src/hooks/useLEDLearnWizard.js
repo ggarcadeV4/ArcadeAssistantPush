@@ -1,14 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { buildStandardHeaders } from '../utils/identity';
 
 const LED_BASE = '/api/local/led';
 const POLL_INTERVAL_MS = 200;
-
-const resolveDeviceId = () => {
-    if (typeof window === 'undefined') {
-        return 'CAB-0001'
-    }
-    return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
-}
 
 /**
  * LED Learn Wizard Hook - Polls backend for input detection during LED calibration.
@@ -50,11 +44,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
 
         try {
             const res = await fetch(`${LED_BASE}/learn-wizard/status`, {
-                headers: {
-                    'x-scope': 'state',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'state' })
             });
 
             if (!res.ok) return;
@@ -113,11 +103,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
             const url = `${LED_BASE}/learn-wizard/start?${params.toString()}`;
             const res = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'config' })
             });
 
             if (!res.ok) {
@@ -152,11 +138,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
         try {
             const res = await fetch(`${LED_BASE}/learn-wizard/confirm`, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'config' })
             });
 
             if (!res.ok) return;
@@ -187,11 +169,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
         try {
             const res = await fetch(`${LED_BASE}/learn-wizard/skip`, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'config' })
             });
 
             const data = await res.json();
@@ -217,11 +195,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
         try {
             const res = await fetch(`${LED_BASE}/learn-wizard/save`, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'config' })
             });
 
             const data = await res.json();
@@ -243,11 +217,7 @@ export function useLEDLearnWizard({ onToast } = {}) {
         try {
             await fetch(`${LED_BASE}/learn-wizard/stop`, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'config' })
             });
         } catch (err) { console.warn('[LEDLearnWizard]', err) }
 

@@ -16,6 +16,7 @@ import { resolveRequestDeviceId } from '../utils/cabinetIdentity.js';
 import fs from 'fs';
 
 const router = express.Router();
+let speakingModeActive = false;
 
 router.get('/config', async (req, res) => {
     try {
@@ -170,7 +171,18 @@ router.post('/wizard/cancel', (req, res) => {
 });
 
 router.get('/wizard/speaking', (req, res) => {
-    res.json({ success: true, speaking: speakingMode.active });
+    res.json({ success: true, speaking: speakingModeActive });
+});
+
+router.post('/lighting/speaking', (req, res) => {
+    try {
+        const enabled = Boolean(req.body?.enabled);
+        speakingMode(enabled);
+        speakingModeActive = enabled;
+        res.json({ success: true, speaking: speakingModeActive });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 export default router;

@@ -4,6 +4,26 @@ import path from 'path';
 
 const router = express.Router();
 
+function buildForwardHeaders(req, defaults = {}) {
+  const forwarded = {
+    'x-scope': req.headers['x-scope'],
+    'x-device-id': req.headers['x-device-id'],
+    'x-panel': req.headers['x-panel'],
+    'x-corr-id': req.headers['x-corr-id'],
+    'x-user-profile': req.headers['x-user-profile'],
+    'x-user-name': req.headers['x-user-name'],
+    'x-session-owner': req.headers['x-session-owner'],
+  };
+
+  const headers = { ...defaults, ...forwarded };
+  Object.keys(headers).forEach((key) => {
+    if (headers[key] === undefined || headers[key] === null || headers[key] === '') {
+      delete headers[key];
+    }
+  });
+  return headers;
+}
+
 // ===== SHADER MANAGEMENT ROUTES =====
 // These explicit routes ensure required headers are forwarded with defaults
 // and provide a stable alias for the backend's "available" endpoint as "catalog".
@@ -11,13 +31,13 @@ const router = express.Router();
 // GET /shaders/catalog -> backend /api/launchbox/shaders/available
 router.get('/shaders/catalog', async (req, res) => {
   try {
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/api/launchbox/shaders/available`, {
-      headers: {
-        'x-scope': req.headers['x-scope'] || 'state',
-        'x-device-id': req.headers['x-device-id'] || 'unknown',
-        'x-panel': req.headers['x-panel'] || 'launchbox'
-      }
+      headers: buildForwardHeaders(req, {
+        'x-scope': 'state',
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      })
     });
     const data = await response.json();
     res.status(response.status).json(data);
@@ -31,13 +51,13 @@ router.get('/shaders/catalog', async (req, res) => {
 router.get('/shaders/game/:game_id', async (req, res) => {
   try {
     const { game_id } = req.params;
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/api/launchbox/shaders/game/${game_id}`, {
-      headers: {
-        'x-scope': req.headers['x-scope'] || 'state',
-        'x-device-id': req.headers['x-device-id'] || 'unknown',
-        'x-panel': req.headers['x-panel'] || 'launchbox'
-      }
+      headers: buildForwardHeaders(req, {
+        'x-scope': 'state',
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      })
     });
     const data = await response.json();
     res.status(response.status).json(data);
@@ -50,15 +70,15 @@ router.get('/shaders/game/:game_id', async (req, res) => {
 // POST /shaders/preview
 router.post('/shaders/preview', async (req, res) => {
   try {
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/api/launchbox/shaders/preview`, {
       method: 'POST',
-      headers: {
+      headers: buildForwardHeaders(req, {
         'Content-Type': 'application/json',
-        'x-scope': req.headers['x-scope'] || 'state',
-        'x-device-id': req.headers['x-device-id'] || 'unknown',
-        'x-panel': req.headers['x-panel'] || 'launchbox'
-      },
+        'x-scope': 'state',
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      }),
       body: JSON.stringify(req.body)
     });
     const data = await response.json();
@@ -72,15 +92,15 @@ router.post('/shaders/preview', async (req, res) => {
 // POST /shaders/apply
 router.post('/shaders/apply', async (req, res) => {
   try {
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/api/launchbox/shaders/apply`, {
       method: 'POST',
-      headers: {
+      headers: buildForwardHeaders(req, {
         'Content-Type': 'application/json',
-        'x-scope': req.headers['x-scope'] || 'config',
-        'x-device-id': req.headers['x-device-id'] || 'unknown',
-        'x-panel': req.headers['x-panel'] || 'launchbox'
-      },
+        'x-scope': 'config',
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      }),
       body: JSON.stringify(req.body)
     });
     const data = await response.json();
@@ -95,7 +115,7 @@ router.post('/shaders/apply', async (req, res) => {
 router.delete('/shaders/game/:game_id', async (req, res) => {
   try {
     const { game_id } = req.params;
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
 
     // Optional emulator filter as query param
     const queryParams = new URLSearchParams();
@@ -106,11 +126,11 @@ router.delete('/shaders/game/:game_id', async (req, res) => {
 
     const response = await fetch(`${backendUrl}/api/launchbox/shaders/game/${game_id}${queryString}`, {
       method: 'DELETE',
-      headers: {
-        'x-scope': req.headers['x-scope'] || 'config',
-        'x-device-id': req.headers['x-device-id'] || 'unknown',
-        'x-panel': req.headers['x-panel'] || 'launchbox'
-      }
+      headers: buildForwardHeaders(req, {
+        'x-scope': 'config',
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      })
     });
     const data = await response.json();
     res.status(response.status).json(data);
@@ -123,15 +143,15 @@ router.delete('/shaders/game/:game_id', async (req, res) => {
 // POST /shaders/revert
 router.post('/shaders/revert', async (req, res) => {
   try {
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/api/launchbox/shaders/revert`, {
       method: 'POST',
-      headers: {
+      headers: buildForwardHeaders(req, {
         'Content-Type': 'application/json',
-        'x-scope': req.headers['x-scope'] || 'config',
-        'x-device-id': req.headers['x-device-id'] || 'unknown',
-        'x-panel': req.headers['x-panel'] || 'launchbox'
-      },
+        'x-scope': 'config',
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      }),
       body: JSON.stringify(req.body)
     });
     const data = await response.json();
@@ -151,86 +171,44 @@ router.post('/shaders/revert', async (req, res) => {
 
 // (imports at top of file)
 
-const LAUNCHBOX_IMAGES_ROOT = 'A:/LaunchBox/Images';
-const IMAGE_TYPES = ['Clear Logo', 'Box - Front', 'Screenshot - Game Title', 'Fanart - Background', 'Arcade - Marquee'];
-
 /**
  * GET /image/:uuid
- * Resolves a game UUID to its box art image and serves it
+ * Proxies LaunchBox game artwork resolution to FastAPI.
  */
 router.get('/image/:uuid', async (req, res) => {
   const { uuid } = req.params;
-  console.log(`[Image Resolver] Looking up game: ${uuid}`);
+  console.log(`[Image Resolver] Proxying image lookup for game: ${uuid}`);
 
   try {
-    // Step 1: Query FastAPI for game metadata by UUID
-    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8888';
-    const gameResponse = await fetch(`${backendUrl}/api/launchbox/games/${uuid}`, {
-      headers: {
+    const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
+    const imageResponse = await fetch(`${backendUrl}/api/launchbox/image/${uuid}`, {
+      headers: buildForwardHeaders(req, {
         'x-scope': 'state',
-        'x-device-id': req.headers['x-device-id'] || 'unknown'
-      }
+        'x-device-id': 'unknown',
+        'x-panel': 'launchbox'
+      })
     });
 
-    if (!gameResponse.ok) {
-      console.log(`[Image Resolver] Game not found: ${uuid}`);
-      return res.status(404).json({ error: 'game_not_found', uuid });
+    if (!imageResponse.ok) {
+      const contentType = imageResponse.headers.get('content-type') || 'application/json';
+      const body = contentType.includes('application/json')
+        ? await imageResponse.text()
+        : await imageResponse.text();
+      res.status(imageResponse.status);
+      res.setHeader('Content-Type', contentType);
+      return res.send(body);
     }
 
-    const game = await gameResponse.json();
-    const title = game.title || game.Title || game.name || '';
-    const platform = game.platform || game.Platform || 'MAME';
-
-    if (!title) {
-      console.log(`[Image Resolver] No title for game: ${uuid}`);
-      return res.status(404).json({ error: 'no_title', uuid });
-    }
-
-    console.log(`[Image Resolver] Game: ${title} [${platform}]`);
-
-    // Step 2: Sanitize title for filesystem (remove invalid chars)
-    const safeTitle = title.replace(/[<>:"/\\|?*]/g, '_').trim();
-
-    // Step 3: Search for image file across image types
-    // LaunchBox structure: Images/{Platform}/{ImageType}/{Title}-NN.ext
-    for (const imageType of IMAGE_TYPES) {
-      const candidates = [
-        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}.png`),
-        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}.jpg`),
-        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}-01.png`),
-        path.join(LAUNCHBOX_IMAGES_ROOT, platform, imageType, `${safeTitle}-01.jpg`)
-      ];
-
-      for (const imagePath of candidates) {
-        if (fs.existsSync(imagePath)) {
-          console.log(`[Image Resolver] Found: ${imagePath}`);
-          return res.sendFile(imagePath);
-        }
-      }
-    }
-
-    // Step 4: Fallback - try platform root directly
-    const fallbackPaths = [
-      path.join(LAUNCHBOX_IMAGES_ROOT, platform, `${safeTitle}.png`),
-      path.join(LAUNCHBOX_IMAGES_ROOT, platform, `${safeTitle}.jpg`)
-    ];
-
-    for (const imagePath of fallbackPaths) {
-      if (fs.existsSync(imagePath)) {
-        console.log(`[Image Resolver] Fallback found: ${imagePath}`);
-        return res.sendFile(imagePath);
-      }
-    }
-
-    // No image found
-    console.log(`[Image Resolver] No image for: ${safeTitle} [${platform}]`);
-    return res.status(404).json({
-      error: 'image_not_found',
-      uuid,
-      title: safeTitle,
-      platform,
-      searched: IMAGE_TYPES
-    });
+    const contentType = imageResponse.headers.get('content-type') || 'application/octet-stream';
+    const cacheControl = imageResponse.headers.get('cache-control');
+    const gameTitle = imageResponse.headers.get('x-game-title');
+    const region = imageResponse.headers.get('x-region');
+    if (cacheControl) res.setHeader('Cache-Control', cacheControl);
+    if (gameTitle) res.setHeader('X-Game-Title', gameTitle);
+    if (region) res.setHeader('X-Region', region);
+    res.setHeader('Content-Type', contentType);
+    const buffer = Buffer.from(await imageResponse.arrayBuffer());
+    return res.status(imageResponse.status).send(buffer);
 
   } catch (err) {
     console.error(`[Image Resolver] Error for ${uuid}:`, err);
@@ -248,24 +226,15 @@ router.get('/image/:uuid', async (req, res) => {
 
 router.use('/', async (req, res) => {
   try {
-    const fastapiUrl = req.app.locals.fastapiUrl || process.env.FASTAPI_URL || 'http://127.0.0.1:8888';
+    const fastapiUrl = req.app.locals.fastapiUrl || process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
     const targetUrl = `${fastapiUrl}${req.originalUrl}`;
 
     console.log(`[LaunchBox Proxy] ${req.method} ${req.originalUrl} → ${targetUrl}`);
 
     // Prepare headers (forward custom headers from frontend)
-    const headers = {
+    const headers = buildForwardHeaders(req, {
       'Content-Type': req.headers['content-type'] || 'application/json',
       'x-panel': req.headers['x-panel'] || 'launchbox',
-      'x-corr-id': req.headers['x-corr-id'],
-      'x-device-id': req.headers['x-device-id'],
-    };
-
-    // Remove undefined headers
-    Object.keys(headers).forEach(key => {
-      if (!headers[key]) {
-        delete headers[key];
-      }
     });
 
     // Prepare request options
@@ -321,7 +290,7 @@ router.use('/', async (req, res) => {
       res.status(503).json({
         error: 'FastAPI unavailable',
         message: 'Backend not running. Start with: npm run dev:backend',
-        hint: 'LaunchBox routes require FastAPI on port 8888'
+        hint: 'LaunchBox routes require FastAPI on port 8000'
       });
     } else {
       res.status(500).json({

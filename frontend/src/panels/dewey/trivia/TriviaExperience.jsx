@@ -6,6 +6,7 @@ import QuestionScreen from './QuestionScreen'
 import ResultsScreen from './ResultsScreen'
 import { getQuestions, getStats, saveStats } from '../../../services/deweyClient'
 import './TriviaExperience.css'
+import { buildStandardHeaders } from '../../../utils/identity'
 
 const SCREENS = {
   CATEGORY: 'category',
@@ -22,12 +23,11 @@ const COLLECTION_LOADING_MESSAGE = 'Generating questions from your library...'
 async function fetchCollectionTriviaQuestions(limit = 10) {
   const response = await fetch('/api/local/dewey/trivia/collection', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-panel': 'dewey',
-      'x-scope': 'state',
-      'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001'
-    },
+    headers: buildStandardHeaders({
+      panel: 'dewey',
+      scope: 'state',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     body: JSON.stringify({ count: limit })
   })
 

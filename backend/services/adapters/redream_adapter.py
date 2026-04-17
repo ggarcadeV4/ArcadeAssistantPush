@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from backend.constants.a_drive_paths import EmulatorPaths, LaunchBoxPaths
+from backend.constants.drive_root import get_launchbox_root
 from backend.services.platform_names import normalize_key
 
 
@@ -27,10 +28,13 @@ def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False)
 
 
 def _resolve_exe() -> Optional[Path]:
-    """Prefer Redream; fallback to None if absent."""
+    """Prefer Redream; fall back to the cabinet's LaunchBox emulator tree."""
     exe = EmulatorPaths.redream()
     if exe.exists():
         return exe
+    fallback = get_launchbox_root() / "Emulators" / "redream.x86_64-windows-v1.5.0" / "redream.exe"
+    if fallback.exists():
+        return fallback
     return None
 
 

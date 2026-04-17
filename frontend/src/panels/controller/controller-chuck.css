@@ -70,22 +70,45 @@
   background-size: 40px 40px, 40px 40px, 400px 400px;
 }
 
-/* ── Header ─────────────────────────────────────────────── */
+/* ── Header ───────────────────────────────────────── */
 .chuck-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
+  gap: 10px;
+  padding: 6px 12px;
   background: rgba(0, 0, 0, 0.6);
   border-bottom: 1px solid var(--chuck-border);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: 0;
+}
+
+/* ── Header consolidated action bar ───────────────────────── */
+/* All 7 controls live here now. Top strip is removed from chuck-main —
+   this gives all remaining height to the 4 player cards.               */
+.chuck-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  flex: 1;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+/* Header buttons are slightly smaller than top-strip buttons — fits in 1 line */
+.chuck-header-actions .chuck-strip-btn {
+  padding: 3px 8px;
+  font-size: 8.5px;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
 }
 
 .chuck-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 1;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .chuck-title {
@@ -443,24 +466,28 @@
   animation: pulse 1s infinite;
 }
 
-/* ── Body Layout ────────────────────────────────────────── */
+/* ── Body Layout — Two-zone: slim left rail + controller stage ── */
+/* Rail width is set by CabinetControlStatus (200px fixed).
+   The controller stage gets all remaining space.              */
 .chuck-body {
-  display: flex;
+  display: grid;
+  grid-template-columns: 200px 1fr;
   flex: 1;
   overflow: hidden;
+  gap: 0;
 }
 
 /* ── Main Panel Grid ────────────────────────────────────── */
+/* Top strip is REMOVED from chuck-main — zero padding at top.
+   Player cards start immediately and claim all available height. */
 .chuck-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 8px;
-  /* Point 4: tighter vertical rhythm between rows */
-  gap: 6px;
+  padding: 4px 8px 8px 8px;
+  gap: 4px;
   overflow-y: auto;
   position: relative;
-  /* anchor for focus-active absolute centering */
 }
 
 .chuck-player-row {
@@ -496,6 +523,13 @@
   left: 50%;
   /* Lock width so card doesn't reshape when leaving the grid */
   width: var(--flip-w, 260px);
+  /* Viewport clamp: visual size = real * 1.35 (see scale below).
+     Cap the real box so the scaled visual stays within ~92% of the viewport
+     in both axes — keeps the focused card fully on-screen on small windows
+     without redesigning the FLIP layout. */
+  max-width: calc(92vw / 1.35);
+  max-height: calc(92vh / 1.35);
+  overflow-y: auto;
   transform: translate(-50%, -50%) scale(1.35);
   z-index: 50;
   box-shadow: 0 0 40px rgba(0, 255, 65, 0.45), inset 0 0 16px rgba(0, 255, 65, 0.08);
@@ -535,6 +569,10 @@
   top: 50%;
   left: 50%;
   width: var(--flip-w, 260px);
+  /* Match focus-active clamp so the return animation starts from the same
+     on-screen footprint and never briefly blows past the viewport edges. */
+  max-width: calc(92vw / 1.35);
+  max-height: calc(92vh / 1.35);
   z-index: 50;
   pointer-events: none;
   animation: return-to-grid 0.5s cubic-bezier(0.55, 0, 1, 0.45) both;
@@ -1676,6 +1714,8 @@
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .chuck-strip-btn {
@@ -1724,6 +1764,239 @@
   background: var(--chuck-green);
   box-shadow: 0 0 6px var(--chuck-green);
   animation: pulse 1.2s ease-in-out infinite;
+}
+
+.chuck-flash-banner {
+  margin: 10px 10px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 255, 65, 0.28);
+  background: rgba(0, 255, 65, 0.08);
+  color: var(--chuck-green);
+  font-family: var(--chuck-font-body);
+  font-size: 12px;
+}
+
+.chuck-flash-banner.error {
+  border-color: rgba(255, 77, 77, 0.35);
+  background: rgba(255, 77, 77, 0.1);
+  color: #ff9b9b;
+}
+
+.chuck-flash-banner.success {
+  border-color: rgba(57, 255, 20, 0.35);
+}
+
+/* ── Diagnostics Status Bar ─────────────────────────────────── */
+/* Slim always-visible strip between top-strip and player rows.  */
+/* Tapping expands the full diagnostics panel below player cards */
+.chuck-diag-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 255, 65, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--chuck-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chuck-diag-bar:hover {
+  background: rgba(0, 255, 65, 0.05);
+  border-color: rgba(0, 255, 65, 0.25);
+}
+
+.chuck-diag-bar--open {
+  border-color: rgba(0, 255, 65, 0.3);
+  background: rgba(0, 255, 65, 0.06);
+}
+
+.chuck-diag-bar--warn {
+  border-color: rgba(255, 120, 0, 0.3);
+}
+
+/* Status pills inside the bar */
+.chuck-diag-bar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 255, 65, 0.15);
+  color: var(--chuck-text);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.chuck-diag-bar__pill--board {
+  border-color: rgba(0, 255, 65, 0.25);
+  color: var(--chuck-green);
+}
+
+.chuck-diag-bar__pill--pending {
+  border-color: rgba(255, 204, 0, 0.35);
+  color: #ffcc00;
+  background: rgba(255, 204, 0, 0.08);
+}
+
+.chuck-diag-bar__pill--error {
+  border-color: rgba(255, 60, 60, 0.4);
+  color: var(--chuck-red);
+  background: rgba(255, 60, 60, 0.08);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* Live status dot inside board pill */
+.chuck-diag-bar__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--chuck-text-dim);
+  flex-shrink: 0;
+}
+
+.chuck-diag-bar__dot.ready {
+  background: var(--chuck-green);
+  box-shadow: 0 0 5px var(--chuck-green);
+}
+
+.chuck-diag-bar__dot.offline,
+.chuck-diag-bar__dot.error {
+  background: var(--chuck-red);
+  box-shadow: 0 0 5px var(--chuck-red);
+}
+
+.chuck-diag-bar__dot.scanning {
+  background: var(--chuck-cyan);
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+/* Expand chevron — pushes to far right */
+.chuck-diag-bar__expand {
+  margin-left: auto;
+  color: var(--chuck-text-dim);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Player rows: flex priority — always fill space above diag panel ─── */
+/* Ensures player cards expand to fill available height without diagnostics  */
+/* stealing vertical space. `flex-shrink: 0` on diag panel prevents squeeze. */
+.chuck-main > .chuck-player-row {
+  flex: 1;
+  min-height: 0;
+}
+
+/* chuck-diagnostics-panel is secondary — sits below players, does not flex */
+.chuck-diagnostics-panel {
+  flex-shrink: 0;
+}
+
+/* ── Diagnostics panel — slimmed instrument readout ─────────── */
+/* Previously a heavy bordered card grid;
+   now a compact borderless readout rail below the top strip.   */
+.chuck-diagnostics-panel {
+  margin: 6px 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 255, 65, 0.12);
+  border-radius: 4px;
+  background: rgba(4, 10, 6, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 2-column readout grid — tight, high-density but not cramped */
+.chuck-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
+}
+
+/* Each readout cell — no inner border box, just a subtle separator */
+.chuck-diagnostic-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px 8px;
+  border-left: 2px solid rgba(0, 255, 65, 0.12);
+  background: transparent;
+}
+
+.chuck-diagnostic-card--wide {
+  grid-column: span 2;
+}
+
+.chuck-diagnostic-label {
+  color: var(--chuck-text-dim);
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chuck-diagnostic-card strong {
+  color: #d8f0e0;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.chuck-diagnostic-help {
+  color: var(--chuck-text-dim);
+  font-size: 9.5px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chuck-callout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chuck-callout-chip {
+  padding: 3px 8px;
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  background: rgba(0, 255, 65, 0.06);
+  color: var(--chuck-green);
+  font-size: 9px;
+  border-radius: 3px;
+}
+
+.chuck-callout-chip.warn {
+  border-color: rgba(255, 209, 102, 0.3);
+  background: rgba(255, 209, 102, 0.07);
+  color: #ffd166;
+}
+
+.chuck-callout-chip.error {
+  border-color: rgba(255, 77, 77, 0.3);
+  background: rgba(255, 77, 77, 0.07);
+  color: #ff9b9b;
+}
+
+.chuck-diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(0, 255, 65, 0.08);
 }
 
 /* ── Mapping Confirmation Animations ──────────────────────── */

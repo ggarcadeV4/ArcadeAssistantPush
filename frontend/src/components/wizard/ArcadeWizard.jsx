@@ -31,9 +31,19 @@ const WIZARD_STEPS = [
 
 // WebSocket URL for the wizard input stream
 import { getGatewayWsUrl, getGatewayUrl } from '../../services/gateway'
+import { buildStandardHeaders, resolveDeviceId } from '../../utils/identity'
 
-const WS_URL = getGatewayWsUrl('/api/wizard/listen')
+const WIZARD_PANEL = 'arcade-wizard'
 const API_BASE = getGatewayUrl()
+
+function buildWizardWsUrl() {
+    const params = new URLSearchParams({
+        device: resolveDeviceId(),
+        panel: WIZARD_PANEL,
+        corr_id: `${WIZARD_PANEL}-${Date.now()}`,
+    })
+    return getGatewayWsUrl(`/api/wizard/listen?${params.toString()}`)
+}
 
 export default function ArcadeWizard({ onClose, playerCount = 1 }) {
     // Wizard state
@@ -76,10 +86,11 @@ export default function ArcadeWizard({ onClose, playerCount = 1 }) {
             return
         }
 
+        const wsUrl = buildWizardWsUrl()
         setWsStatus('connecting')
-        console.log('[ArcadeWizard] Connecting to WebSocket:', WS_URL)
+        console.log('[ArcadeWizard] Connecting to WebSocket:', wsUrl)
 
-        const ws = new WebSocket(WS_URL)
+        const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
         ws.onopen = () => {
@@ -172,9 +183,11 @@ export default function ArcadeWizard({ onClose, playerCount = 1 }) {
 
             const response = await fetch(`${API_BASE}/api/wizard/save`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: buildStandardHeaders({
+                    panel: WIZARD_PANEL,
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({
                     controls: controls,
                     generate_mame_config: true,

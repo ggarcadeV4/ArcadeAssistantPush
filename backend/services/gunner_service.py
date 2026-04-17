@@ -31,6 +31,7 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, validator, model_validator
 
+from backend.constants.drive_root import get_drive_root
 # Import hardware and config services
 from .gunner_hardware import HardwareDetector  # Legacy, for backward compatibility
 from .gunner.hardware import MultiGunDetector, get_gun_registry  # New multi-gun system
@@ -314,8 +315,7 @@ class GunnerService:
 
         # Configure telemetry logging
         if telemetry_path is None:
-            aa_root = os.getenv('AA_DRIVE_ROOT', '.')
-            telemetry_path = os.path.join(aa_root, 'logs', 'gunner_telemetry.jsonl')
+            telemetry_path = os.path.join(str(get_drive_root(context="gunner_service telemetry")), 'logs', 'gunner_telemetry.jsonl')
 
         self.telemetry_path = telemetry_path
         os.makedirs(os.path.dirname(telemetry_path), exist_ok=True)
@@ -757,7 +757,7 @@ class GunnerService:
         storage = getattr(self.config_service, 'local_storage_path', None)
         if storage:
             return Path(storage)
-        drive_root = Path(os.getenv('AA_DRIVE_ROOT', '.'))
+        drive_root = get_drive_root(context="gunner_service profiles")
         return drive_root / '.aa' / 'state' / 'gun_profiles'
 
     def _load_local_calibration_map(self, device_ids: List[str]) -> Dict[str, Dict[str, Any]]:

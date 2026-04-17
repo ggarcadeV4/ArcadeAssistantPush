@@ -21,6 +21,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
     const [selectedGameProfileName, setSelectedGameProfileName] = useState('')
     const [gameBindingsIndex, setGameBindingsIndex] = useState({})
     const [bindingPreview, setBindingPreview] = useState(null)
+    const [bindingBackupPath, setBindingBackupPath] = useState(null)
     const [lastBindingPreviewKey, setLastBindingPreviewKey] = useState(null)
     const [isPreviewingBinding, setIsPreviewingBinding] = useState(false)
     const [isApplyingBinding, setIsApplyingBinding] = useState(false)
@@ -52,6 +53,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
 
     useEffect(() => {
         setBindingPreview(null)
+        setBindingBackupPath(null)
         setLastBindingPreviewKey(null)
     }, [selectedGame?.id, selectedGameProfileName])
 
@@ -118,6 +120,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
             setSelectedGame(game)
             setSelectedGameBinding(null)
             setBindingPreview(null)
+            setBindingBackupPath(null)
             setLastBindingPreviewKey(null)
             setIsLoadingBinding(true)
             try {
@@ -154,6 +157,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
                 profileName: selectedGameProfileName
             })
             setBindingPreview(response?.preview || null)
+            setBindingBackupPath(null)
             setLastBindingPreviewKey(`${selectedGame.id}:${selectedGameProfileName}`)
             showToast('Binding preview ready', 'success')
         } catch (err) {
@@ -186,6 +190,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
             })
             const binding = response?.binding || null
             setBindingPreview(response?.preview || null)
+            setBindingBackupPath(response?.backup_path || null)
             setSelectedGameBinding(binding)
             setGameBindingsIndex(prev => ({ ...prev, [selectedGame.id]: binding }))
             setLastBindingPreviewKey(previewKey)
@@ -209,7 +214,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
         }
         setIsClearingBinding(true)
         try {
-            await deleteGameProfileBinding(selectedGame.id)
+            const response = await deleteGameProfileBinding(selectedGame.id)
             setGameBindingsIndex(prev => {
                 const next = { ...prev }
                 delete next[selectedGame.id]
@@ -218,6 +223,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
             setSelectedGameBinding(null)
             setSelectedGameProfileName('')
             setBindingPreview(null)
+            setBindingBackupPath(response?.backup_path || null)
             setLastBindingPreviewKey(null)
             showToast(`Cleared LED profile for ${selectedGame.title}`, 'success')
         } catch (err) {
@@ -246,6 +252,7 @@ export function useLEDGameBindings({ showToast, activeMode }) {
         setSelectedGameProfileName,
         gameBindingsIndex,
         bindingPreview,
+        bindingBackupPath,
         lastBindingPreviewKey,
         isPreviewingBinding,
         isApplyingBinding,

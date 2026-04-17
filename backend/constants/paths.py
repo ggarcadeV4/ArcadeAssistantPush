@@ -22,7 +22,16 @@ import os
 from pathlib import Path
 from typing import ClassVar
 
-from backend.constants.drive_root import get_drive_root
+from backend.constants.drive_root import (
+    get_bios_root,
+    get_console_roms_root,
+    get_drive_root,
+    get_emulators_root,
+    get_launchbox_root,
+    get_ledblinky_root,
+    get_roms_root,
+    get_tools_root,
+)
 
 
 def _get_drive_root() -> Path:
@@ -30,31 +39,16 @@ def _get_drive_root() -> Path:
     return get_drive_root(allow_cwd_fallback=False)
 
 
-# Dynamic path resolution - no hardcoded drive letters
-def _drive_letter_root() -> Path:
-    """Get the drive letter root (e.g., A:\\) from AA_DRIVE_ROOT.
-    
-    Tools, Emulators, Roms, Playnite are at drive letter root,
-    not under the project folder.
-    """
-    drive_root = _get_drive_root()
-    # Extract drive letter (e.g., "A:" from "A:\\Arcade Assistant Local")
-    if drive_root.drive:
-        return Path(drive_root.drive + "\\")
-    # Fallback for non-Windows or edge cases
-    return drive_root
-
-
 def _launchbox_root() -> Path:
-    return _drive_letter_root() / "LaunchBox"
+    return get_launchbox_root(_get_drive_root())
 
 
 def _playnite_root() -> Path:
-    return _drive_letter_root() / "Playnite"
+    return _get_drive_root() / "Playnite"
 
 
 def _tools_root() -> Path:
-    return _drive_letter_root() / "Tools"
+    return get_tools_root(_get_drive_root())
 
 
 def _logs_root() -> Path:
@@ -66,19 +60,19 @@ def _backups_configs() -> Path:
 
 
 def _roms_root() -> Path:
-    return _drive_letter_root() / "Roms"
+    return get_roms_root(_get_drive_root())
 
 
 def _console_roms_root() -> Path:
-    return _drive_letter_root() / "Console ROMs"
+    return get_console_roms_root(_get_drive_root())
 
 
 def _emulators_root() -> Path:
-    return _drive_letter_root() / "Emulators"
+    return get_emulators_root(_get_drive_root())
 
 
 def _bios_root() -> Path:
-    return _drive_letter_root() / "Bios"
+    return get_bios_root(_get_drive_root())
 
 
 class Paths:
@@ -481,7 +475,7 @@ class Paths:
             
             @classmethod
             def root(cls) -> Path:
-                return _drive_letter_root() / "LEDBlinky"
+                return get_ledblinky_root(_get_drive_root())
             
             @classmethod
             def executable(cls) -> Path:

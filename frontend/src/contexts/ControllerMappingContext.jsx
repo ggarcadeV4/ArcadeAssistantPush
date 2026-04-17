@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { buildStandardHeaders } from '../utils/identity';
 
 /**
  * Context for managing controller mappings state
@@ -69,14 +70,11 @@ export function ControllerMappingProvider({ children }) {
         try {
             const res = await fetch('/api/local/controller/mapping/set', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'controller',
-                    // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
-                    // enabling this path in production fleet deployment.
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001',
-                },
+                headers: buildStandardHeaders({
+                    panel: 'controller',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({ controlKey, keycode, source }),
             });
 
@@ -115,11 +113,11 @@ export function ControllerMappingProvider({ children }) {
         try {
             const res = await fetch('/api/local/controller/mapping/clear', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'controller',
-                },
+                headers: buildStandardHeaders({
+                    panel: 'controller',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({ controlKey }),
             });
 
@@ -144,11 +142,11 @@ export function ControllerMappingProvider({ children }) {
         try {
             await fetch('/api/local/controller/encoder-mode', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'controller',
-                },
+                headers: buildStandardHeaders({
+                    panel: 'controller',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({ mode }),
             });
         } catch (err) {

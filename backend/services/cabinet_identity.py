@@ -352,8 +352,8 @@ def ensure_local_identity(
             "mac_address": identity.mac_address,
             "identity_source": identity.source,
             "provisioned_at": manifest_payload.get("provisioned_at") or datetime.now(timezone.utc).isoformat(),
-            "emulator_root": str(root.drive + "\\Emulators") if root.drive else str(root / "Emulators"),
-            "notes": "Golden image assumes emulator installs live under A:\\Emulators and sanctioned_paths align to that layout.",
+            "emulator_root": str(root / "Emulators"),
+            "notes": "Configured cabinet assets resolve from AA_DRIVE_ROOT; keep sanctioned_paths aligned to that root contract.",
         }
     )
 

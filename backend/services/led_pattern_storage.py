@@ -12,12 +12,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from backend.constants.drive_root import get_drive_root
 from .backup import create_backup
 
 logger = logging.getLogger(__name__)
 
-# SANCTIONED PATH - Do not modify without Senior Architect approval
-SANCTIONED_PATH = Path("A:/Arcade Assistant/configs/led-patterns.json")
+# SANCTIONED PATH - resolved from the shared drive-root contract
+SANCTIONED_PATH = get_drive_root(context="led_pattern_storage") / "configs" / "led-patterns.json"
 
 
 class LEDPatternStorage:

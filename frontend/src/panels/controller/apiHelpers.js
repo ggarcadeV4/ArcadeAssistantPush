@@ -1,3 +1,5 @@
+import { buildStandardHeaders } from '../../utils/identity';
+
 const CONTROLLER_API = '/api/local/controller';
 
 function resolveUrl(path) {
@@ -14,14 +16,11 @@ function resolveUrl(path) {
 export async function fetchCascadeStatus({ signal } = {}) {
   const response = await fetch(resolveUrl(`${CONTROLLER_API}/cascade/status`), {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-scope': 'state',
-      'x-panel': 'controller-chuck',
-      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
-      // enabling this path in production fleet deployment.
-      'x-device-id': 'controller_chuck_status',
-    },
+    headers: buildStandardHeaders({
+      panel: 'controller-chuck',
+      scope: 'state',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     signal,
   });
 
@@ -37,14 +36,11 @@ export async function fetchCascadeStatus({ signal } = {}) {
 export async function fetchBaseline({ signal } = {}) {
   const response = await fetch(resolveUrl(`${CONTROLLER_API}/baseline`), {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-scope': 'state',
-      'x-panel': 'controller-chuck',
-      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
-      // enabling this path in production fleet deployment.
-      'x-device-id': 'controller_chuck_status',
-    },
+    headers: buildStandardHeaders({
+      panel: 'controller-chuck',
+      scope: 'state',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     signal,
   });
 
@@ -75,14 +71,11 @@ export async function requestCascade({
 
   const response = await fetch(resolveUrl(`${CONTROLLER_API}/cascade/apply`), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-scope': 'config',
-      'x-panel': 'controller-chuck',
-      // TODO: Replace CAB-0001 with window.AA_DEVICE_ID before
-      // enabling this path in production fleet deployment.
-      'x-device-id': 'controller_chuck',
-    },
+    headers: buildStandardHeaders({
+      panel: 'controller-chuck',
+      scope: 'config',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     body: JSON.stringify(payload),
   });
 

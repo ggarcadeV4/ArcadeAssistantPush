@@ -1,5 +1,176 @@
 # ROLLING LOG — Arcade Assistant
 
+## 2026-04-13 NIGHT (Antigravity Session — Console Wizard Milestone + Controller Chuck Progress)
+
+**Net Progress**: Console Wizard accepted as a functional product surface. Controller Chuck made major progress on board-identity detection but still needs one final truth-surface reconciliation pass before it is declared done. Session doctrine was sharpened and carried forward.
+
+---
+
+### Console Wizard — Accepted as Functional ✅
+
+**What was done:**
+
+- **Mic capture hardened**: `EngineeringBaySidebar` gained an optional `micHandlers` prop (`{ isRecording, onToggle }`). When provided, the sidebar's mic button delegates to the panel's own capture stack rather than the shared Web Speech path. Console Wizard injects its `isRecording` / `toggleMic` pair here, bypassing the Web Speech API that was dropping mic state immediately under Electron's permission model.
+- **Capture path**: `getUserMedia` → `MediaRecorder` → `/ws/audio` WebSocket. The WebSocket now connects lazily on first mic press (not on panel mount), preventing early gateway rejection during dev startup.
+- **Silence detection**: Web Audio API `AnalyserNode` RMS polling auto-stops recording after 1.5 s of silence (1.5 s lead-in). User presses mic once per utterance — no second press required.
+- **Unified chat path**: Mic transcripts now route into `EngineeringBaySidebar`'s canonical `sendMessage` via a `wizSendRef` bridge (`onSendRef` prop). Typed and voice chat land in the same visible conversation.
+- **DIAG greeting visible**: `useDiagnosisMode` `onGreeting` callback now posts the spoken DIAG greeting into the chat history so mode transitions are explicit in the UI.
+- **Visible failures**: All mic / WS failure modes surface an explicit `⚠️` system message in chat rather than silently resetting state.
+- **De-dupe guard**: `externalMicRecording` flag added to the sidebar's auto-listen effect so the Web Speech auto-listen path cannot overlap with an active external `MediaRecorder` session.
+
+**Runtime verdict**: Diagnostic Mode felt excellent in live testing. Regular chat path is unified. Remaining Wizard work is polish (UI edge cases, transcript latency), not rescue.
+
+**Files modified:**
+- `frontend/src/panels/_kit/EngineeringBaySidebar.jsx` — `micHandlers`, `onSendRef`, `externalMicRecording` de-dupe guard, `onGreeting` callback wiring
+- `frontend/src/panels/console-wizard/ConsoleWizardPanel.jsx` — lazy WS connect, `getUserMedia`-first mic, silence detection, `wizSendRef` bridge, DIAG greeting, cleanup on unmount
+
+---
+
+### Controller Chuck — Close, Not Finished
+
+**What landed:**
+- Status semantics corrected: "NO BOARD" / "NO SIGNAL" replace the misleading "OFFLINE" label
+- SCAN now triggers a backend detection refresh before refetch
+- Focused PlayerCard overflow substantially improved
+- Canonical board lane hardened progressively:
+  - XInput-spoofed arcade-encoder cases added to detection
+  - Discovery widened with WMI / device-scanner supplementation
+  - Existing Pacto-style grouped XInput topology logic wired into the canonical lane
+
+**Remaining gap:**
+- GUI truth vs AI truth are not yet fully reconciled around logical board identity
+- Chuck needs one final pass to unify board identity across the visible GUI card, the AI response, and DIAG entry sequencing
+- Prior detection logic was not wasted — the intelligence exists in the backend; it is not fully surfacing in the live panel
+
+**Status: Truth-surface reconciliation pass is the next and final Chuck task.**
+
+---
+
+### Session Doctrine (Carry Forward)
+
+1. One panel at a time
+2. Codex pre-audit first → narrow implementation → runtime verification
+3. Finish by panel promise and canonical path, not by random symptom chasing
+
+---
+
+### Tomorrow's First Move
+
+1. Fresh thread
+2. Focus only on Controller Chuck
+3. Task: final truth-surface reconciliation pass
+   - Logical board identity unified across visible GUI + AI response + DIAG sequencing
+   - Focused-card tuning only if still needed once identity is resolved
+
+---
+
+## 2026-04-12 NIGHT (Antigravity Session — F9 / Dewey Summon Path Recovery)
+
+**Net Progress**: Repaired the broken F9 summon path so that Dewey can be called from inside LaunchBox / Big Box. The fix was a narrow transport-layer correction in `frontend/electron/main.cjs` — specifically the WebSocket client that carries hotkey events from the Electron shell to the backend. The summon path now connects with correct device identity, receives hotkey events, and routes Dewey correctly. Game launch from the recovered summon flow was confirmed live by the user. No broad redesign was performed.
+
+**What Was Repaired:**
+
+- **Electron hotkey WebSocket client (`frontend/electron/main.cjs`)** — The client that connects `main.cjs` to the backend `/ws/hotkey` endpoint was broken. The fix corrected the WebSocket connection path and ensured the Electron process attaches with a proper device identity so the backend can identify the source of hotkey presses. Dewey overlay now receives F9 events reliably.
+- **Dewey overlay connection** — After the transport fix, the Dewey overlay connected successfully. The backend hotkey manager received the F9 event and triggered the overlay summon as expected.
+
+**Live Validation Completed:**
+
+- F9 key pressed → backend hotkey WebSocket received the event → Dewey overlay summoned. ✅
+- User told Dewey "controller wasn't working" → Dewey routed the user correctly to Controller Wizard. ✅
+- User launched a game from the recovered summon flow → launch succeeded. ✅
+
+**Scope of Change:**
+This was a narrow transport/client fix, not an architectural change. No backend routes, no frontend panel logic, no persona prompts, and no LaunchBox plumbing were modified. The hotkey router and hotkey manager on the backend side were already correct; only the Electron-side WebSocket client was broken.
+
+**Known Remaining Follow-ups (Not Fixed Tonight):**
+
+| Item | Status |
+|------|--------|
+| Shift+F9 global shortcut registration | ⚠️ Still failing — OS-level shortcut registration conflict not resolved |
+| Electron console window polish | 🔶 Deferred — customer-facing console window cleanup not done |
+| PS3 backend multi-launch cascade | 🔶 Pending — separate fix, unrelated to tonight's work |
+| LaunchBox-side duplicate PS3 record cleanup | 🔶 Separate task — LaunchBox data hygiene, not AA code |
+
+**Key File:**
+- `frontend/electron/main.cjs` — WebSocket hotkey client corrected (device identity + connection path)
+
+---
+
+## 2026-04-12 — RESET NOTE — Session Paused, GitHub Backup Withheld
+
+> **⛔ DO NOT BACK THIS STATE UP TO GITHUB**
+> **⛔ DO NOT TREAT CURRENT CODE AS APPROVED**
+> **⛔ NEXT WORK MUST BEGIN FROM A RESET MINDSET**
+
+### Why This Note Exists
+
+The 2026-04-12 session sequence attempted a deep midline audit followed by a LED Blinky panel restoration. The audit was thorough and produced 5 campaign reports. The restoration work improved some code paths but introduced regressions and left the LED Blinky panel in a partially restored state that does not match the user's intended design. The codebase is not ready for GitHub backup or shipping.
+
+### Session Play-by-Play
+
+**Phase 1 — Read-Only Midline Audit (Campaigns 1–5)**
+- Campaign 1: Frontend routing and gateway mediation — verified intact.
+- Campaign 2: Identity flows — verified consistent.
+- Campaign 3: WebSocket and real-time paths — verified working.
+- Campaign 4: Backend router and service layer — verified stable.
+- Campaign 5: Cross-panel integration — verified LED hooks, game bindings, and connection state machine are robust.
+- **Conclusion**: Infrastructure and backend were determined to be solid. Frontend panel rendering was identified as the regression area.
+
+**Phase 2 — LED Blinky Panel Regression Audit**
+- Identified that the user's original ~5,400-line tabbed LED panel (`LEDBlinkyPanel.jsx`) had been replaced by a simplified, flattened component (`LEDBlinkyPanelNew.jsx`) during a prior stability pass.
+- 6 tab components were orphaned on disk but disconnected from the render path: `GameProfilesTab`, `RealtimeControlTab`, `HardwareTab`, `LEDLayoutTab`, `CalibrationTab`, and an inline Design mode.
+- Backend hooks (`useLEDPanelState`, `useLEDConnection`, `useLEDGameBindings`) were confirmed stable and untouched.
+
+**Phase 3 — LED Blinky Panel Restoration Attempt**
+- Rewrote `LEDBlinkyPanelNew.jsx` as a tab orchestrator to re-integrate orphaned tab components.
+- Added ~25 bridge state variables and ~20 handler functions to map hook outputs to legacy tab prop signatures.
+- Added tab bar CSS to `LEDBlinkyPanel.css`.
+- Added `EngineeringBaySidebar` chat drawer (Blinky AI persona).
+- The chat drawer was attempted 3 times with different CSS patterns (generic `eb-chat-*`, then `blinky-drawer` matching Chuck's pattern).
+
+**Phase 4 — Session Paused by User**
+- User reported the panel was only partially restored.
+- The AI chat sidebar was visible but not interactive — the user could not find a way to start a conversation with Blinky.
+- The tab bar and full tabbed layout were not confirmed working from the user's perspective.
+- The restoration did not match the user's intended design.
+
+### Specific Regressions — Must Be Restored
+
+1. **LED Blinky panel is incomplete**
+   - The designed LED panel was not truly restored.
+   - It is partially restored at best.
+   - The AI chat sidebar has no functional chat entry point — the user cannot engage Blinky.
+   - The intended panel behavior, layout, and tab architecture are not back to the user's expectation.
+   - Files touched: `LEDBlinkyPanelNew.jsx`, `LEDBlinkyPanel.css`.
+
+2. **LaunchBox LoRa voice regression**
+   - LoRa's voice is using a fallback/default voice instead of the intended ElevenLabs voice that was previously configured and working.
+   - This voice regression predates the LED work but was surfaced during this session.
+   - Must be investigated and restored.
+
+3. **General process drift**
+   - The work was not methodical enough panel-by-panel.
+   - Some changes improved code paths while breaking intended panel behavior.
+   - The purpose of a "finish pass" is defeated if the intended UX, personality, and layout are lost.
+
+### What Is Solid (Do Not Re-Break)
+
+- **Infrastructure (Campaigns 1–3)**: Gateway enclosure, identity standardization, path determinism — all verified intact on 2026-04-11 and re-confirmed on 2026-04-12.
+- **Backend hooks**: `useLEDPanelState`, `useLEDConnection`, `useLEDGameBindings` — stable, untouched during the restoration.
+- **All non-LED panels**: Gunner, Chuck, Doc, Dewey, Wiz, Voice, Scorekeeper — not touched during this session.
+- **LoRa platform routing**: All platforms still launching correctly.
+
+### Guardrails for Next Session
+
+1. **Do not push to GitHub** until the user explicitly approves the state.
+2. **Do not treat current code as approved** — it is work-in-progress with known regressions.
+3. **Next work must begin from a reset mindset** — re-read the current file state, not assumptions from this session.
+4. **Future workflow must be**: intention → Anti-Gravity plan → execution → panel-specific verification (user confirms in browser) → move on.
+5. **One panel at a time** — do not batch panel work across multiple panels in a single pass.
+6. **Verify before declaring done** — a panel is not "restored" until the user confirms it works in the GUI.
+
+---
+
 ## 2026-04-11 (Antigravity Session — Infrastructure Stabilization: Campaigns 1–3)
 
 **Net Progress**: Completed a 3-campaign infrastructure-stabilization sequence. Campaign 1 enclosed all frontend traffic through the Node Gateway, eliminating direct backend bypasses and direct Supabase browser-client usage. Campaign 2 centralized frontend device identity through `frontend/src/utils/identity.js`, eliminating synthetic fallback IDs and unsanctioned localStorage resolution. Campaign 3 aligned `.env` and `.aa/manifest.json` root paths, unified sanctioned-path bootstrap defaults, and replaced inline drive-root fallbacks with canonical helpers. Additionally hardened 5 mutation surfaces with preview/dry-run/audit-log support.

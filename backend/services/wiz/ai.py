@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import anthropic
+from backend.constants.drive_root import get_drive_root
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def _load_prompts() -> None:
     if "chat" in _prompt_cache:
         return  # already loaded
 
-    root = Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local"))
+    root = get_drive_root(context="wiz_ai")
     prompt_path = root / _PROMPT_FILE
 
     if not prompt_path.exists():

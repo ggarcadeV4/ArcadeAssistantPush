@@ -64,11 +64,11 @@ class BoardTimeoutError(BoardDetectionError):
 @dataclass
 class BoardInfo:
     """Detected board information."""
-    vid: str
-    pid: str
-    vid_pid: str
-    name: str
-    manufacturer: str
+    vid: Optional[str] = None
+    pid: Optional[str] = None
+    vid_pid: Optional[str] = None
+    name: str = "Unknown"
+    manufacturer: str = "Unknown"
     product_string: Optional[str] = None
     manufacturer_string: Optional[str] = None
     detected: bool = True

@@ -11,17 +11,15 @@
  * No controller mapping, no LED states, no LaunchBox feed.
  */
 
+import { buildStandardHeaders } from '../../utils/identity';
+
 const HEALTH_API = '/api/local/health';
 
 /** Silent fetch — returns null on any error */
 async function safeFetch(url) {
     try {
         const res = await fetch(url, {
-            headers: {
-                'x-panel': 'doc',
-                'x-scope': 'state',
-                'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
-            },
+            headers: buildStandardHeaders({ panel: 'doc', scope: 'state' }),
         });
         if (!res.ok) return null;
         return await res.json();
@@ -36,7 +34,9 @@ async function safeFetch(url) {
  */
 export async function docContextAssembler() {
     // ── Tier 1: Always included (core telemetry) ────────────────────────
-    const [performance, processes, hardware, alertsData] = await Promise.all([
+    const [summary, gateway, performance, processes, hardware, alertsData] = await Promise.all([
+        safeFetch(`${HEALTH_API}/summary`),
+        safeFetch('/api/health'),
         safeFetch(`${HEALTH_API}/performance`),
         safeFetch(`${HEALTH_API}/processes`),
         safeFetch(`${HEALTH_API}/hardware`),
@@ -49,10 +49,29 @@ export async function docContextAssembler() {
     const memTotalGb = performance?.memory?.total_gb;
     const uptimeSec = performance?.uptime_seconds;
     const alerts = alertsData?.alerts ?? [];
+    const dependencies = summary?.dependencies ?? {};
 
     const tier1 = {
         diagMode: true,
         timestamp: new Date().toISOString(),
+        cabinet: {
+            dependency_status: summary?.dependency_overview?.status ?? 'unknown',
+            dependencies: {
+                configured_root: dependencies.configured_root?.summary ?? null,
+                manifest: dependencies.manifest?.summary ?? null,
+                launchbox: dependencies.launchbox?.summary ?? null,
+                plugin: dependencies.plugin?.summary ?? null,
+                emulators: dependencies.emulators?.summary ?? null,
+                roms: dependencies.roms?.summary ?? null,
+                bios: dependencies.bios?.summary ?? null,
+            },
+        },
+        gateway: {
+            status: gateway?.fastapi?.connected ? 'ok' : 'degraded',
+            summary: gateway?.fastapi?.connected
+                ? 'Gateway is connected to the backend'
+                : 'Gateway cannot confirm backend connectivity',
+        },
         system: {
             cpu_percent: cpuPercent ?? 'unavailable',
             memory_percent: memPercent ?? 'unavailable',

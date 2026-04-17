@@ -27,6 +27,12 @@ import json
 from backend.services.supabase_client import send_telemetry as sb_send_telemetry
 import platform
 
+from backend.constants.drive_root import (
+    get_drive_root,
+    get_drive_root_or_none,
+    get_project_root,
+    resolve_runtime_path,
+)
 from backend.models.game import Game, LaunchResponse
 from backend.constants.a_drive_paths import LaunchBoxPaths
 from backend.services.launchbox_plugin_client import get_plugin_client, LaunchBoxPluginError
@@ -412,22 +418,53 @@ class GameLauncher:
 
 
         # Direct-preferred platforms: reorder so 'direct' runs FIRST.
-        # These platforms have dedicated adapters (e.g., Supermodel) and must
-        # bypass the plugin bridge which would delegate to LaunchBox's UI.
-        direct_preferred = {'sega model 3'}
-        if normalize_key(getattr(game, 'platform', '') or '') in direct_preferred:
+        # These platforms have dedicated adapters and must bypass stale
+        # LaunchBox cached emulator mappings when possible.
+        platform_key = normalize_key(getattr(game, 'platform', '') or '')
+        direct_preferred = {
+            'sega model 3',
+            'sega dreamcast',
+            'dreamcast',
+            'sony playstation 2',
+            'playstation 2',
+            'ps2',
+            'ps2 gun games',
+        }
+        prefer_retroarch_direct = self._should_prefer_retroarch_direct(game)
+        direct_only_platforms = {
+            'sony playstation 2',
+            'playstation 2',
+            'ps2',
+            'ps2 gun games',
+        }
+        if prefer_retroarch_direct:
+            # RetroArch-routed console platforms must stay on the direct
+            # adapter path. LaunchBox/plugin fallbacks route into stale
+            # LaunchBox-managed RetroArch installs and break bezel/core
+            # selection for end users.
+            methods = [(n, f) for (n, f) in methods if n == 'direct']
+            direct_preferred.add(platform_key)
+        elif platform_key in direct_only_platforms:
+            # PS2 must launch directly through PCSX2 and never route back
+            # through LaunchBox/plugin fallbacks.
+            methods = [(n, f) for (n, f) in methods if n == 'direct']
+
+        if platform_key in direct_preferred:
             direct_methods = [(n, f) for (n, f) in methods if n == 'direct']
             other_methods = [(n, f) for (n, f) in methods if n != 'direct']
             if direct_methods:
                 methods = direct_methods + other_methods
         no_launchbox_fallback = {'daphne', 'hypseus', 'laserdisc'}
-        if normalize_key(getattr(game, 'platform', '') or '') in no_launchbox_fallback:
+        if platform_key in no_launchbox_fallback:
             methods = [(n, f) for (n, f) in methods if n != 'launchbox']
         # Try each method in sequence (optimized: early return on success)
+        last_failure: Optional[str] = None
         for method_name, method_func in methods:
-            result = self._try_launch_method(game, method_name, method_func, profile_hint)
+            result, failure_msg = self._try_launch_method(game, method_name, method_func, profile_hint)
             if result:
                 return result
+            if failure_msg:
+                last_failure = f"{method_name}: {failure_msg}"
 
         # All methods failed
         try:
@@ -439,7 +476,7 @@ class GameLauncher:
             game_id=game.id,
             method_used="none",
             command="",
-            message=f"All launch methods failed for {game.title}",
+            message=last_failure or f"All launch methods failed for {game.title}",
             error="No suitable launch method found",
         )
 
@@ -476,6 +513,30 @@ class GameLauncher:
             methods = [(n, f) for (n, f) in methods if n != 'direct']
         return methods
 
+    def _should_prefer_retroarch_direct(self, game: Game) -> bool:
+        platform_name = getattr(game, 'platform', '') or ''
+        if not platform_name:
+            return False
+
+        try:
+            manifest = self._load_launchers_config() or {}
+        except Exception:
+            manifest = {}
+
+        for adapter in ADAPTERS:
+            try:
+                adapter_name = str(getattr(adapter, "__name__", "") or getattr(adapter, "__module__", ""))
+                if not adapter_name.endswith("retroarch_adapter"):
+                    continue
+                if hasattr(adapter, "is_enabled") and not adapter.is_enabled(manifest):
+                    return False
+                return bool(adapter.can_handle(game, manifest))
+            except Exception as e:
+                logger.debug(f"[DIRECT] RetroArch routing probe failed for {platform_name}: {e}")
+                return False
+
+        return False
+
     def _ps2_lookup_override(self, game_id: str, requested: str) -> Optional[str]:
         try:
             # Load lazily under lock
@@ -508,7 +569,7 @@ class GameLauncher:
         if self._routing_policy is not None and (now - self._routing_policy_time) < ttl:
             return self._routing_policy or {}
         try:
-            root = Path(LaunchBoxPaths.AA_DRIVE_ROOT)
+            root = get_drive_root(context="launcher routing policy")
             target = root / 'configs' / 'routing-policy.json'
             if target.exists():
                 data = json.loads(target.read_text(encoding='utf-8'))
@@ -701,7 +762,7 @@ class GameLauncher:
 
     def _try_launch_method(
         self, game: Game, method_name: str, method_func: Callable, profile_hint: Optional[str] = None
-    ) -> Optional[LaunchResponse]:
+    ) -> Tuple[Optional[LaunchResponse], Optional[str]]:
         """
         Try a single launch method and return result if successful.
 
@@ -711,7 +772,7 @@ class GameLauncher:
             method_func: Function to call for launching
 
         Returns:
-            LaunchResponse if successful, None if failed
+            Tuple of (LaunchResponse if successful, failure message if failed)
         """
         try:
             logger.info(f"Attempting launch via {method_name}: {game.title}")
@@ -747,13 +808,15 @@ class GameLauncher:
                     method_used=method_name,
                     command=result.get("command", ""),
                     message=f"Launched {game.title} via {method_name}",
-                )
+                ), None
+            failure_msg = result.get("message") or result.get("error") or str(result)
             logger.warning(
                 "%s returned non-success for %s: %s",
                 method_name,
                 game.title,
-                result.get("message") or result.get("error") or result,
+                failure_msg,
             )
+            return None, str(failure_msg)
 
         except Exception as e:
             logger.warning(f"{method_name} failed for {game.title}: {e}")
@@ -761,8 +824,9 @@ class GameLauncher:
                 sb_send_telemetry(os.getenv('AA_DEVICE_ID', ''), 'ERROR', 'LAUNCH_FAIL', f"{method_name} failed for {game.title}: {e}")
             except Exception:
                 pass
+            return None, str(e)
 
-        return None
+        return None, None
 
     def _launch_via_plugin(self, game: Game) -> Dict[str, Any]:
         """
@@ -1335,11 +1399,7 @@ class GameLauncher:
 
             # Daphne/Hypseus laserdisc direct launch
             if platform_key == "daphne" and not daphne_uses_mame and not daphne_wrapper_launch:
-                aa_root = (os.getenv("AA_DRIVE_ROOT", "") or "").strip()
-                if aa_root:
-                    aa_root_path = Path(aa_root)
-                else:
-                    aa_root_path = Path(LaunchBoxPaths.LAUNCHBOX_ROOT).parent
+                aa_root_path = get_drive_root_or_none() or Path(LaunchBoxPaths.LAUNCHBOX_ROOT).parent
 
                 exe = aa_root_path / "Emulators" / "Hypseus" / "Hypseus Singe" / "hypseus.exe"
                 homedir = aa_root_path / "Roms" / "DAPHNE"
@@ -1482,6 +1542,14 @@ class GameLauncher:
                 try:
                     adapter_name = getattr(adapter, "__name__", "").lower()
                     if exe and "pcsx2" in adapter_name:
+                        try:
+                            from backend.services.pcsx2_preflight import kill_running_pcsx2, write_upscale_override
+
+                            kill_running_pcsx2()
+                            write_upscale_override(game, exe, upscale_multiplier=2)
+                        except Exception as preflight_exc:
+                            logger.warning("PCSX2 preflight setup skipped: %s", preflight_exc)
+
                         # Determine romfile argument (prefer explicit key from cfg)
                         romfile = (cfg or {}).get("romfile") or (args[-1] if args else None)
                         if romfile:
@@ -1551,6 +1619,9 @@ class GameLauncher:
                                                 logger.warning("PCSX2 temp cleanup failed: %s", ce)
 
                                         cleanup_cb = _cleanup
+
+                        if "-batch" not in args:
+                            args.insert(min(len(args), 1), "-batch")
                 except Exception as e:
                     logger.warning(f"PCSX2 auto-extract preparation skipped: {e}")
 
@@ -1906,9 +1977,9 @@ class GameLauncher:
         cfg_exe = mame_cfg.get("exe")
         if isinstance(cfg_exe, str) and cfg_exe.strip():
             mame_candidates.append(Path(cfg_exe))
-        aa_root = (os.getenv("AA_DRIVE_ROOT", "") or "").strip()
-        if aa_root:
-            mame_candidates.append(Path(aa_root) / "Emulators" / "MAME" / "mame.exe")
+        aa_root = get_drive_root_or_none()
+        if aa_root is not None:
+            mame_candidates.append(aa_root / "Emulators" / "MAME" / "mame.exe")
         mame_candidates.extend([
             LaunchBoxPaths.MAME_EMULATOR,
             LaunchBoxPaths.LAUNCHBOX_ROOT / "Emulators" / "MAME" / "mame.exe",
@@ -1994,14 +2065,6 @@ class GameLauncher:
     _launchers_config_mtime: Optional[float] = None
 
     @staticmethod
-    def _launcher_config_roots() -> Tuple[str, str]:
-        aa_root = (os.getenv("AA_DRIVE_ROOT", "") or "").strip().rstrip("\\/")
-        lb_root = (os.getenv("LAUNCHBOX_ROOT", "") or "").strip().rstrip("\\/")
-        if not lb_root and aa_root:
-            lb_root = str(Path(aa_root) / "LaunchBox")
-        return aa_root, lb_root
-
-    @staticmethod
     def _canonicalize_launcher_value(value: Any) -> Any:
         if isinstance(value, dict):
             return {k: GameLauncher._canonicalize_launcher_value(v) for k, v in value.items()}
@@ -2010,27 +2073,20 @@ class GameLauncher:
         if not isinstance(value, str):
             return value
 
-        aa_root, lb_root = GameLauncher._launcher_config_roots()
-        text = value
+        text = value.strip()
+        is_path_like = (
+            "${AA_DRIVE_ROOT}" in text
+            or "${LAUNCHBOX_ROOT}" in text
+            or text.lower().startswith("/mnt/")
+            or (len(text) > 2 and text[1] == ":" and text[2] in ("\\", "/"))
+        )
+        if not is_path_like:
+            return value
 
-        if aa_root:
-            text = text.replace("${AA_DRIVE_ROOT}", aa_root)
-        if lb_root:
-            text = text.replace("${LAUNCHBOX_ROOT}", lb_root)
-
-        normalized = text.replace("/", "\\")
-        lower = normalized.lower()
-        if lb_root and lower.startswith("a:\\launchbox\\"):
-            suffix = normalized[len("A:\\LaunchBox\\"):]
-            return str(Path(lb_root) / suffix)
-        if lb_root and lower == "a:\\launchbox":
-            return lb_root
-        if aa_root and lower.startswith("a:\\"):
-            suffix = normalized[len("A:\\"):]
-            return str(Path(aa_root) / suffix)
-        if aa_root and lower == "a:":
-            return aa_root
-        return text
+        resolved = resolve_runtime_path(text)
+        if resolved is not None:
+            return str(resolved)
+        return value
 
     @staticmethod
     def _canonicalize_launcher_config(config: Any) -> Any:
@@ -2044,11 +2100,7 @@ class GameLauncher:
         boolean toggles on next launch without restart.
         """
 
-        # Try CWD/config/launchers.json then backend/../config/launchers.json
-        candidates = [
-            Path.cwd() / 'config' / 'launchers.json',
-            Path(__file__).resolve().parents[2] / 'config' / 'launchers.json',
-        ]
+        candidates = [get_project_root() / 'config' / 'launchers.json']
         for fp in candidates:
             try:
                 if fp.exists():

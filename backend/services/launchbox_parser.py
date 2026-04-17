@@ -121,6 +121,7 @@ class LaunchBoxParser:
     Singleton parser service for LaunchBox platform XMLs.
     Maintains in-memory cache of all games for fast filtering.
     """
+    HIDDEN_MISSING_PS2_PLATFORM = "Sony Playstation 2"
 
     _instance = None
     _lock = threading.Lock()
@@ -543,10 +544,35 @@ class LaunchBoxParser:
                 if not self._cache:  # Double-check pattern
                     self.initialize()
 
+    def _resolve_game_application_path(self, game: Game) -> Optional[Path]:
+        """Resolve a game's LaunchBox application path against the LaunchBox root."""
+        raw_path = (game.application_path or game.rom_path or "").strip().strip('"')
+        if not raw_path:
+            return None
+
+        candidate = Path(raw_path)
+        if not candidate.is_absolute():
+            launchbox_root = LaunchBoxPaths._get_launchbox_root_dynamic()
+            candidate = (launchbox_root / raw_path).resolve()
+
+        return candidate
+
+    def _is_hidden_missing_ps2_game(self, game: Game) -> bool:
+        """Hide PS2 entries from the GUI when their listed ROM path is missing on disk."""
+        if not game or game.platform != self.HIDDEN_MISSING_PS2_PLATFORM:
+            return False
+
+        resolved_path = self._resolve_game_application_path(game)
+        return resolved_path is None or not resolved_path.exists()
+
+    def _get_visible_games(self) -> List[Game]:
+        """Return cached games after applying PS2-only visibility filtering."""
+        return [game for game in self._cache.values() if not self._is_hidden_missing_ps2_game(game)]
+
     def get_all_games(self) -> List[Game]:
         """Get all games from cache."""
         self._ensure_initialized()
-        return list(self._cache.values())
+        return self._get_visible_games()
 
     def get_paginated_games(
         self,
@@ -567,7 +593,7 @@ class LaunchBoxParser:
         self._ensure_initialized()
         
         # Start with all games
-        results = list(self._cache.values())
+        results = self._get_visible_games()
 
         # Apply filters
         if platform:
@@ -630,7 +656,10 @@ class LaunchBoxParser:
     def get_game_by_id(self, game_id: str) -> Optional[Game]:
         """Get single game by ID."""
         self._ensure_initialized()
-        return self._cache.get(game_id)
+        game = self._cache.get(game_id)
+        if game and self._is_hidden_missing_ps2_game(game):
+            return None
+        return game
 
     def get_platforms(self) -> List[str]:
         """Get list of all platforms."""
@@ -709,7 +738,8 @@ class LaunchBoxParser:
             cache_file_info = {"cache_file_exists": False}
 
         return {
-            "total_games": len(self._cache),
+            "total_games": len(self._get_visible_games()),
+            "hidden_missing_ps2_games": sum(1 for game in self._cache.values() if self._is_hidden_missing_ps2_game(game)),
             "platforms_count": len(self._platforms),
             "genres_count": len(self._genres),
             "xml_files_parsed": self._xml_files_parsed,

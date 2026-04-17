@@ -70,7 +70,7 @@ export async function executeToolCallingLoop(systemPrompt, messages, toolEnv = {
     // Telemetry tracking
     const startTime = Date.now();
     let lastProvider = 'gemini';
-    let lastModel = 'gemini-2.0-flash';
+    let lastModel = 'gemini-2.5-flash';
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
@@ -102,8 +102,14 @@ export async function executeToolCallingLoop(systemPrompt, messages, toolEnv = {
 
         console.log(`[LaunchBox AI] Round ${rounds} stop_reason:`, response.stop_reason);
 
+        const responseContent = Array.isArray(response.content)
+            ? response.content
+            : (typeof response.content === 'string'
+                ? [{ type: 'text', text: response.content }]
+                : []);
+
         // Extract text content from this response
-        const textBlocks = response.content.filter(b => b.type === 'text');
+        const textBlocks = responseContent.filter(b => b.type === 'text');
         const currentText = textBlocks.map(b => b.text).join('\n');
         if (currentText) {
             finalText = currentText; // Keep the latest text
@@ -112,14 +118,14 @@ export async function executeToolCallingLoop(systemPrompt, messages, toolEnv = {
         // Check if AI wants to use tools
         if (response.stop_reason === 'tool_use') {
             // Extract tool use blocks
-            const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+            const toolUseBlocks = responseContent.filter(b => b.type === 'tool_use');
 
             console.log(`[LaunchBox AI] Round ${rounds}: ${toolUseBlocks.length} tool(s) requested`);
 
             // Add assistant's response to conversation (must include ALL content blocks)
             messages.push({
                 role: 'assistant',
-                content: response.content
+                content: responseContent
             });
             try { console.log('[LoRa Debug] After assistant tool_use, history length:', messages.length); } catch (_) { }
 

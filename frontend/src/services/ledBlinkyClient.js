@@ -1,4 +1,5 @@
-import { getGatewayUrl } from './gateway'
+import { buildStandardHeaders, resolveDeviceId } from '../utils/identity'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../utils/network'
 /**
  * ledBlinkyClient: API client for LED Blinky operations
  * Routes: /led/*
@@ -7,42 +8,14 @@ import { getGatewayUrl } from './gateway'
 const BASE = '/api/local/led'
 const PANEL_KEY = 'led-blinky'
 
-const generateCorrelationId = () => {
-  try {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID()
-    }
-  } catch { }
-  return `corr-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
-}
-
-export const resolveDeviceId = () => {
-  if (typeof window === 'undefined') {
-    return 'CAB-0001'
-  }
-  return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
-}
-
-const resolveOrigin = () => {
-  if (typeof window === 'undefined' || !window.location) {
-    return getGatewayUrl()
-  }
-  if (window.location.port === '5173') {
-    return getGatewayUrl()
-  }
-  return window.location.origin
-}
-
 const commonHeaders = ({ panel = PANEL_KEY, scope, json = true, corrId } = {}) => {
-  const headers = {
-    'x-device-id': resolveDeviceId(),
-    'x-panel': panel,
-    'x-corr-id': corrId || generateCorrelationId()
-  }
-
-  if (scope) {
-    headers['x-scope'] = scope
-  }
+  const headers = buildStandardHeaders({
+    panel,
+    scope,
+    extraHeaders: {
+      'x-corr-id': corrId || generateCorrelationId()
+    }
+  })
 
   if (json) {
     headers['Content-Type'] = 'application/json'
@@ -52,13 +25,11 @@ const commonHeaders = ({ panel = PANEL_KEY, scope, json = true, corrId } = {}) =
 }
 
 export const buildGatewayWebSocketUrl = (path = `${BASE}/ws`) => {
-  const origin = resolveOrigin()
-  const httpUrl = new URL(path, origin)
-  httpUrl.searchParams.set('device', resolveDeviceId())
-  httpUrl.searchParams.set('panel', PANEL_KEY)
-
-  const wsUrl = httpUrl.toString().replace(/^http/, 'ws')
-  return wsUrl
+  return buildGatewayWsIdentityUrl(path, {
+    deviceId: resolveDeviceId(),
+    panel: PANEL_KEY,
+    corrId: generateCorrelationId(PANEL_KEY)
+  })
 }
 
 export async function testLED({ effect, durationMs = 1000, color = '#00E5FF' }) {

@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 
+from backend.constants.drive_root import get_drive_root_or_none
 from backend.services.identity_service import parse_vid_pid, scan_hardware_bio
 from backend.services.system_health import health_service
 
@@ -123,8 +124,9 @@ def _resolve_drive_root(request: Request, errors: List[str]) -> Optional[Path]:
             errors.append(f"drive_root on app.state is invalid: {exc}")
             return None
 
-    env_drive_root = os.getenv("AA_DRIVE_ROOT", "A:/")
-    errors.append(f"drive_root missing on app.state; fallback candidate is {env_drive_root}")
+    env_drive_root = get_drive_root_or_none()
+    fallback_candidate = str(env_drive_root) if env_drive_root is not None else "<AA_DRIVE_ROOT unset>"
+    errors.append(f"drive_root missing on app.state; fallback candidate is {fallback_candidate}")
     return None
 
 

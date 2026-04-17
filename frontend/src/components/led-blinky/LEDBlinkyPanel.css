@@ -6,7 +6,7 @@
     border-radius: 16px;
     border: 1px solid #1e293b;
     padding: 24px;
-    min-height: 100%;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -613,7 +613,54 @@
     }
 }
 
-/* ─── Chat Toggle Button ───────────────────────── */
+/* ─── Tab Bar ──────────────────────────────────── */
+.led-panel__tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+    flex-shrink: 0;
+    overflow-x: auto;
+    border-bottom: 1px solid #1e293b;
+}
+
+.led-panel__tab {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.led-panel__tab:hover {
+    background: rgba(147, 51, 234, 0.08);
+    color: #d1d5db;
+}
+
+.led-panel__tab--active {
+    background: rgba(147, 51, 234, 0.15);
+    border-color: #7c3aed;
+    color: #a78bfa;
+}
+
+/* ─── Tab Content ─────────────────────────────── */
+.led-panel__tab-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* ─── Chat Toggle Button ─────────────────────────
+ * Pinned to the right edge of the (potentially overflowing) tab row via
+ * position: sticky so it remains visible and clickable even when the tab
+ * strip scrolls horizontally. flex: 0 0 auto prevents shrink, the solid
+ * background + z-index keep it readable as tabs scroll underneath. */
 .led-panel__chat-toggle {
     display: flex;
     align-items: center;
@@ -622,12 +669,17 @@
     height: 42px;
     border-radius: 50%;
     border: 2px solid #374151;
-    background: rgba(55, 65, 81, 0.4);
+    background: #0a0c10;
     color: #9ca3af;
     cursor: pointer;
     font-size: 18px;
     transition: all 0.2s;
-    flex-shrink: 0;
+    flex: 0 0 auto;
+    position: sticky;
+    right: 0;
+    margin-left: auto;
+    z-index: 2;
+    box-shadow: -8px 0 12px -8px rgba(10, 12, 16, 0.95);
 }
 
 .led-panel__chat-toggle:hover,
@@ -757,4 +809,355 @@
     gap: 8px;
     padding: 12px 14px;
     border-top: 1px solid #1f2937;
+}
+
+.led-panel__ops-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+    margin-top: 20px;
+}
+
+.led-panel__ops-banner {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(71, 85, 105, 0.7);
+    background: rgba(15, 23, 42, 0.82);
+    color: #e2e8f0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.led-panel__ops-banner--success {
+    border-color: rgba(34, 197, 94, 0.55);
+    background: rgba(20, 83, 45, 0.32);
+}
+
+.led-panel__ops-banner--warning {
+    border-color: rgba(245, 158, 11, 0.55);
+    background: rgba(120, 53, 15, 0.3);
+}
+
+.led-panel__ops-banner--error {
+    border-color: rgba(239, 68, 68, 0.55);
+    background: rgba(127, 29, 29, 0.32);
+}
+
+.led-panel__ops-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(10, 14, 24, 0.96));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.led-panel__ops-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.led-panel__ops-pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.led-panel__ops-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.7);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.led-panel__ops-note {
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.led-panel__ops-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.led-panel__ops-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.led-panel__ops-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.led-panel__ops-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(51, 65, 85, 0.75);
+    background: rgba(15, 23, 42, 0.55);
+    color: #e2e8f0;
+    font-size: 13px;
+}
+
+.led-panel__ops-list-item--button {
+    width: 100%;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.led-panel__ops-list-item--button:hover {
+    border-color: rgba(56, 189, 248, 0.7);
+    background: rgba(30, 41, 59, 0.9);
+    transform: translateY(-1px);
+}
+
+.led-panel__ops-list-item--active {
+    border-color: rgba(34, 197, 94, 0.8);
+    background: rgba(20, 83, 45, 0.35);
+}
+
+.led-panel__ops-empty {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px dashed rgba(71, 85, 105, 0.7);
+    background: rgba(15, 23, 42, 0.45);
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.led-panel__ops-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.led-panel__ops-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.led-panel__ops-inline .led-panel__ops-input,
+.led-panel__ops-inline .led-panel__select {
+    flex: 1 1 220px;
+}
+
+.led-panel__ops-input {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(71, 85, 105, 0.9);
+    background: rgba(15, 23, 42, 0.85);
+    color: #f8fafc;
+    font-size: 14px;
+}
+
+.led-panel__ops-input:focus {
+    outline: none;
+    border-color: rgba(56, 189, 248, 0.9);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+
+.led-panel__ops-label {
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.led-panel__ops-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.72);
+    border: 1px solid rgba(51, 65, 85, 0.78);
+}
+
+.led-panel__ops-diff {
+    margin: 0;
+    max-height: 220px;
+    overflow: auto;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.92);
+    color: #cbd5e1;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ─── Tab Bar (restored tab architecture) ─────── */
+/* Duplicate .led-panel__tab-bar block removed — the canonical rule at the
+ * top of this file already defines display/gap/overflow/border and (critically)
+ * align-items: center, which the duplicate was clobbering. The scrollbar
+ * pseudo-rules below are additive and still apply to the canonical rule. */
+
+.led-panel__tab-bar::-webkit-scrollbar {
+    height: 4px;
+}
+
+.led-panel__tab-bar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.led-panel__tab-bar::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 2px;
+}
+
+.led-panel__tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 16px;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    border-radius: 0;
+}
+
+.led-panel__tab:hover {
+    color: #c4b5fd;
+    background: rgba(147, 51, 234, 0.05);
+}
+
+.led-panel__tab--active {
+    color: #c4b5fd;
+    border-bottom-color: #9333ea;
+    background: rgba(147, 51, 234, 0.08);
+}
+
+.led-panel__tab-content {
+    min-height: 200px;
+    margin-top: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * BLINKY CHAT DRAWER — wraps EngineeringBaySidebar for slide-in/out behavior
+ * Follows the same pattern as ControllerChuckPanel's chuck-drawer.
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop overlay ──────────────────────────────────────────────────────── */
+.blinky-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 899;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.blinky-sidebar-backdrop--visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Drawer shell ──────────────────────────────────────────────────────────── */
+.blinky-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 340px;
+    min-width: 300px;
+    max-width: 380px;
+    z-index: 900;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    background: #0a0c10;
+    border-left: 3px solid #9333ea;
+    box-shadow:
+        -12px 0 40px rgba(0, 0, 0, 0.9),
+        -3px 0 15px rgba(147, 51, 234, 0.25),
+        inset 2px 0 0 rgba(147, 51, 234, 0.1);
+}
+
+.blinky-drawer--open {
+    transform: translateX(0);
+}
+
+/* Override EngineeringBaySidebar's fixed positioning inside the drawer */
+.blinky-drawer .eb-sidebar {
+    position: relative;
+    top: auto;
+    right: auto;
+    height: 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    border-left: none;
+    box-shadow: none;
+    z-index: auto;
+}
+
+/* ── Drawer close button ──────────────────────────────────────────────────── */
+.blinky-drawer__close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.6);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.blinky-drawer__close:hover {
+    background: rgba(255, 80, 80, 0.2);
+    border-color: rgba(255, 80, 80, 0.4);
+    color: #ff6b6b;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * CUSTOMER-FACING CONTAINMENT — hide the engineering tab content + tab buttons.
+ * The tab-bar container itself is preserved because it hosts the chat toggle
+ * (sticky right). The chat toggle is a sibling, not a .led-panel__tab, so it
+ * remains visible. React state/components for the tab views are left intact;
+ * they simply do not paint to screen.
+ * ══════════════════════════════════════════════════════════════════════════════ */
+.led-panel__tab-content,
+.led-panel__tab-bar > .led-panel__tab {
+    display: none !important;
 }

@@ -5,6 +5,9 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { getGatewayUrl } from '../../services/gateway'
+import { buildStandardHeaders } from '../../utils/identity'
+
+const MARQUEE_PANEL = 'marquee-media'
 
 const API_BASE = window.location.port === '5173'
     ? getGatewayUrl()
@@ -63,11 +66,11 @@ export default function MarqueeMedia() {
         try {
             const res = await fetch(`${API_BASE}/api/local/marquee/resolve`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'state',
-                    'x-panel': 'marquee-media'
-                },
+                headers: buildStandardHeaders({
+                    panel: MARQUEE_PANEL,
+                    scope: 'state',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({
                     game_id: game.game_id,
                     title: game.game_title,
@@ -161,11 +164,11 @@ export default function MarqueeMedia() {
         try {
             const res = await fetch(`${API_BASE}/api/local/marquee/media-settings`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'marquee-media'
-                },
+                headers: buildStandardHeaders({
+                    panel: MARQUEE_PANEL,
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify(newSettings)
             });
             if (res.ok) {
@@ -187,11 +190,11 @@ export default function MarqueeMedia() {
         try {
             const res = await fetch(`${API_BASE}/api/local/marquee/resolve`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'state',
-                    'x-panel': 'marquee-media'
-                },
+                headers: buildStandardHeaders({
+                    panel: MARQUEE_PANEL,
+                    scope: 'state',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({
                     title: testGame,
                     platform: 'Arcade',

@@ -3,81 +3,40 @@ import json
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 
+from backend.constants.drive_root import (
+    DriveRootNotSetError,
+    get_drive_root,
+    get_drive_root_or_none,
+    paths_equivalent,
+    resolve_drive_root_input,
+)
+from backend.constants.sanctioned_paths import DEFAULT_SANCTIONED_PATHS
 from backend.services import audit_log
 from backend.services.cabinet_identity import ensure_local_identity, load_cabinet_identity, provision_device_id
 
 
-DEFAULT_SANCTIONED_PATHS = [
-    ".aa",
-    ".aa/logs",
-    ".aa/state",
-    "config/mappings",
-    "config/retroarch",
-    "config/controllers/autoconfig/staging",
-    "state/controller",
-    "Emulators/RetroArch",
-    "Emulators/MAME",
-    "Emulators/Dolphin Tri-Force",
-    "LaunchBox/Emulators/PPSSPPGold",
-]
-
-
-def _resolve_drive_root(raw: str) -> Path:
-    """Resolve AA_DRIVE_ROOT allowing relative paths from project root."""
-    import platform
-
-    is_wsl = platform.system() == 'Linux' and 'microsoft' in platform.release().lower()
-
-    if is_wsl and raw and len(raw) >= 2 and raw[1] == ':':
-        drive_letter = raw[0].lower()
-        rest = raw[2:].replace('\\', '/').lstrip('/')
-        wsl_path = f"/mnt/{drive_letter}"
-        if rest:
-            wsl_path = f"{wsl_path}/{rest}"
-        return Path(wsl_path)
-
-    p = Path(raw)
-    if p.is_absolute():
-        return p
-    project_root = Path(__file__).resolve().parents[1]
-    return (project_root / p).resolve()
-
-
-def _normalize_drive_like(p: Path) -> Path:
-    """Attempt to swap between Windows A:\ and WSL /mnt/a path styles."""
-    s = str(p)
-    if not s:
-        return p
-    if len(s) > 1 and s[1] == ':' and s[0].isalpha():
-        drive = s[0].lower()
-        s2 = s.replace('\\', '/').replace(f"{s[0]}:", f"/mnt/{drive}", 1)
-        return Path(s2)
-    if s.lower().startswith('/mnt/') and len(s) > 6 and s[6] == '/':
-        drive = s[5].upper()
-        s2 = s.replace(f"/mnt/{s[5]}", f"{drive}:", 1).replace('/', '\\')
-        return Path(s2)
-    return p
-
-
 async def validate_environment():
     """Validate required environment variables and drive structure"""
-    required_envs = ["AA_DRIVE_ROOT", "AA_BACKUP_ON_WRITE", "AA_DRY_RUN_DEFAULT"]
+    required_envs = ["AA_BACKUP_ON_WRITE", "AA_DRY_RUN_DEFAULT"]
 
     missing = [env for env in required_envs if not os.getenv(env)]
     if missing:
         print(f"ERROR: Missing required environment variable(s): {', '.join(missing)}")
         return
 
-    drive_root = _resolve_drive_root(os.getenv("AA_DRIVE_ROOT"))
+    drive_root = get_drive_root_or_none()
+    if drive_root is None:
+        print("INFO: AA_DRIVE_ROOT is not set; backend will continue in read-only/mock-safe mode until configured")
+        return
 
     if not drive_root.exists():
         os.environ.setdefault("AA_USE_MOCK_DATA", "1")
-        print(f"INFO: Drive root missing ({drive_root}); continuing in development mode using mock LaunchBox data")
+        print(f"INFO: Configured root missing ({drive_root}); continuing in development mode using mock LaunchBox data")
         return
 
     manifest_path = drive_root / ".aa" / "manifest.json"
     if not manifest_path.exists():
-        print(f"WARNING: Manifest missing at {manifest_path} - System will start in READ-ONLY mode")
+        print(f"WARNING: Drive manifest missing at {manifest_path} - system will start in READ-ONLY mode")
         return
 
     try:
@@ -102,9 +61,9 @@ def _bootstrap_manifest(drive_root: Path, drive_root_raw: str) -> dict:
 
     manifest_template = {
         "manifest_version": "1.0",
-        "drive_root": drive_root_raw or "<SET AA_DRIVE_ROOT>",
+        "drive_root": drive_root_raw or str(drive_root),
         "sanctioned_paths": DEFAULT_SANCTIONED_PATHS,
-        "notes": "Golden image assumes emulator installs live under A:\\Emulators. Keep sanctioned_paths aligned to those install locations.",
+        "notes": "Configured cabinet assets are expected to resolve under AA_DRIVE_ROOT. Keep sanctioned_paths aligned to that root contract.",
     }
 
     try:
@@ -137,8 +96,7 @@ def _sync_manifest_drive_root(manifest_path: Path, manifest: dict, drive_root_ra
     needs_update = (
         not current_drive_root
         or current_drive_root.upper() == "<SET AA_DRIVE_ROOT>"
-        or str(Path(current_drive_root)).replace("\\", "/").lower()
-        != str(Path(desired_drive_root)).replace("\\", "/").lower()
+        or not paths_equivalent(current_drive_root, desired_drive_root)
     )
 
     if not needs_update:
@@ -171,17 +129,18 @@ async def initialize_app_state(app: FastAPI):
         writes_allowed = False
         startup_errors.append(write_block_reason)
 
-    drive_root = _resolve_drive_root(drive_root_raw or "AA_DRIVE_ROOT_NOT_SET")
-    if not drive_root.exists():
-        alt = _normalize_drive_like(drive_root)
-        if alt != drive_root and alt.exists():
-            print(f"WARNING: AA_DRIVE_ROOT missing: {drive_root} - using normalized {alt}")
-            drive_root = alt
-        else:
-            if not write_block_reason:
-                write_block_reason = f"AA_DRIVE_ROOT path does not exist: {drive_root}"
-            writes_allowed = False
-            startup_errors.append(f"AA_DRIVE_ROOT path does not exist: {drive_root}")
+    try:
+        drive_root = get_drive_root(context="startup_manager.initialize_app_state")
+    except DriveRootNotSetError:
+        drive_root = Path("<AA_DRIVE_ROOT_UNSET>")
+    except Exception:
+        drive_root = resolve_drive_root_input(drive_root_raw) or Path("<AA_DRIVE_ROOT_UNSET>")
+
+    if drive_root_raw and not drive_root.exists():
+        if not write_block_reason:
+            write_block_reason = f"AA_DRIVE_ROOT path does not exist: {drive_root}"
+        writes_allowed = False
+        startup_errors.append(f"AA_DRIVE_ROOT path does not exist: {drive_root}")
 
     manifest = {"sanctioned_paths": []}
     policies = {}
@@ -189,7 +148,7 @@ async def initialize_app_state(app: FastAPI):
     early_device_id = ""
 
     if not drive_root.exists():
-        print(f"INFO: Development mode - using empty manifest (drive root missing: {drive_root})")
+        print(f"INFO: Development mode - using empty manifest (configured root unavailable: {drive_root})")
     else:
         try:
             early_device_id = provision_device_id(drive_root)
@@ -199,7 +158,7 @@ async def initialize_app_state(app: FastAPI):
             startup_errors.append(f"device ID provisioning failed: {exc}")
             print(f"WARNING: Device ID provisioning failed: {exc}")
 
-        print(f"INFO: Drive detected at {drive_root} - attempting to load manifest.json")
+        print(f"INFO: Configured root resolved to {drive_root} - attempting to load .aa/manifest.json")
         manifest_path = drive_root / ".aa" / "manifest.json"
         policies_path = drive_root / ".aa" / "policies.json"
 
@@ -240,7 +199,7 @@ async def initialize_app_state(app: FastAPI):
                 write_block_reason = "manifest drive_root is not set; set AA_DRIVE_ROOT or edit .aa/manifest.json drive_root."
             startup_errors.append("manifest drive_root is not set; set AA_DRIVE_ROOT or edit .aa/manifest.json drive_root.")
     elif drive_root_raw and manifest_drive:
-        if str(Path(manifest_drive)).replace("\\", "/").lower() != str(drive_root).replace("\\", "/").lower():
+        if not paths_equivalent(manifest_drive, drive_root_raw):
             writes_allowed = False
             if not write_block_reason:
                 write_block_reason = f"manifest drive_root ({manifest_drive}) does not match AA_DRIVE_ROOT ({drive_root_raw})."
@@ -275,7 +234,7 @@ async def initialize_app_state(app: FastAPI):
     app.state.write_block_reason = write_block_reason
     app.state.cabinet_identity = identity.to_dict()
 
-    print(f"Initialized with drive root: {drive_root}")
+    print(f"Initialized with configured root: {drive_root}")
     if startup_errors:
         print(f"STARTUP ERRORS: {startup_errors}")
     print(f"Sanctioned paths: {manifest['sanctioned_paths']}")

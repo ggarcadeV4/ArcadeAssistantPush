@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.constants.drive_root import get_drive_root, get_drive_root_or_none
 from backend.services.drive_a_ai_client import SecureAIClient
 from backend.services.dewey.trivia_generator import generate_collection_trivia
 from backend.services.policies import require_scope
@@ -616,11 +617,11 @@ def _load_static_collection_questions(count: int = 10) -> List[Dict[str, Any]]:
 
 
 def _launchbox_cache_path() -> Optional[Path]:
-    drive_root = os.getenv("AA_DRIVE_ROOT")
-    if not drive_root:
+    drive_root = get_drive_root_or_none()
+    if drive_root is None:
         logger.warning("AA_DRIVE_ROOT is not set; using static fallback for collection trivia")
         return None
-    return Path(drive_root) / ".aa" / "launchbox_games.json"
+    return drive_root / ".aa" / "launchbox_games.json"
 
 
 def _load_launchbox_games() -> List[Dict[str, Any]]:
@@ -701,7 +702,7 @@ def _normalize_collection_questions(items: List[Dict[str, Any]]) -> List[Dict[st
 
 def _candidate_paths(filename: str, extension: str) -> List[Path]:
     prompt_root = _project_root() / "prompts"
-    drive_root = Path(os.getenv("AA_DRIVE_ROOT", str(_project_root())))
+    drive_root = get_drive_root(allow_cwd_fallback=True, context="dewey prompt lookup")
     return [
         prompt_root / f"{filename}.{extension}",
         drive_root / "prompts" / f"{filename}.{extension}",
@@ -993,7 +994,7 @@ def _call_gemini(messages: List[Dict[str, str]]) -> str:
     client = SecureAIClient()
     result = client.call_gemini(
         messages=messages,
-        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.0-flash"),
+        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.5-flash"),
         max_tokens=_dewey_chat_max_tokens(),
         temperature=0.7,
         panel="dewey",
@@ -1013,7 +1014,7 @@ def _call_gemini_custom(
     client = SecureAIClient()
     result = client.call_gemini(
         messages=messages,
-        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.0-flash"),
+        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.5-flash"),
         max_tokens=max_tokens,
         temperature=temperature,
         panel="dewey",
@@ -1031,7 +1032,7 @@ def _call_gemini_with_tools(
     client = SecureAIClient()
     result = client.call_gemini(
         messages=messages,
-        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.0-flash"),
+        model=os.getenv("DEWEY_GEMINI_MODEL", "gemini-2.5-flash"),
         max_tokens=1024,
         temperature=0.7,
         panel="dewey",
@@ -1086,6 +1087,7 @@ async def _stream_sse(
     reply: str,
     chunk_size: int = 160,
     gallery_images: Optional[List[str]] = None,
+    target_gem: Optional[str] = None,
 ):
     for start in range(0, len(reply), chunk_size):
         chunk = reply[start:start + chunk_size]
@@ -1094,6 +1096,8 @@ async def _stream_sse(
     done: Dict[str, Any] = {"done": True}
     if gallery_images:
         done["gallery_images"] = gallery_images
+    if target_gem:
+        done["target_gem"] = target_gem
     yield f"data: {json.dumps(done)}\n\n"
 
 
@@ -1223,6 +1227,14 @@ async def dewey_chat(request: Request, payload: DeweyChatRequest):
         except Exception:
             pass
         # End structured tool-use image enrichment
+
+        # Semantic routing: extract [ROUTE: specialist_id] tag
+        target_gem = None
+        route_match = re.search(r'\[ROUTE:\s*([a-zA-Z0-9_]+)\]', reply)
+        if route_match:
+            target_gem = route_match.group(1)
+            reply = re.sub(r'\[ROUTE:\s*[a-zA-Z0-9_]+\]', '', reply).strip()
+
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except ValueError as exc:
@@ -1231,9 +1243,8 @@ async def dewey_chat(request: Request, payload: DeweyChatRequest):
         logger.exception("Dewey chat failed")
         raise HTTPException(status_code=500, detail=f"Dewey chat failed: {exc}") from exc
 
-
     return StreamingResponse(
-        _stream_sse(reply, gallery_images=gallery_images),
+        _stream_sse(reply, gallery_images=gallery_images, target_gem=target_gem),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

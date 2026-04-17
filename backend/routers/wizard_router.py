@@ -9,6 +9,14 @@ import asyncio
 import logging
 import os
 
+try:
+    import pygame  # optional: only used in /status endpoint
+except ImportError:
+    pygame = None  # type: ignore[assignment]
+
+from backend.constants.drive_root import get_drive_root
+from backend.services.backup import create_backup
+from backend.services import audit_log
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/wizard", tags=["Controller Wizard"])
@@ -16,6 +24,10 @@ router = APIRouter(prefix="/api/wizard", tags=["Controller Wizard"])
 # Import the existing InputDetectionService from chuck
 # This uses pygame for superior Windows XInput support (not the 'inputs' library)
 from backend.services.chuck.input_detector import InputDetectionService, InputEvent
+
+
+def _controls_path() -> Path:
+    return get_drive_root(context="wizard controls path") / "config" / "mappings" / "controls.json"
 
 
 @router.websocket("/listen")
@@ -72,7 +84,7 @@ async def websocket_input_stream(websocket: WebSocket):
         loop.call_soon_threadsafe(queue.put_nowait, data)
     
     # Get drive root from environment (A: Drive Strategy)
-    drive_root = Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local"))
+    drive_root = get_drive_root(context="wizard input stream")
     
     # Create and start detection service in Learn Mode
     # Learn mode captures ALL inputs, not just mapped ones
@@ -110,9 +122,8 @@ async def get_wizard_status():
         Status indicating pygame/input detection availability
     """
     try:
-        import pygame
-        pygame_available = True
-        joystick_count = pygame.joystick.get_count()
+        pygame_available = pygame is not None
+        joystick_count = pygame.joystick.get_count() if pygame_available else 0
     except Exception:
         pygame_available = False
         joystick_count = 0
@@ -147,8 +158,8 @@ from backend.services.mame_config_generator import MameConfigWriter, MAMEConfigE
 # Pydantic Models for Strict Schema Validation
 class BoardInfo(BaseModel):
     """Board/encoder hardware info."""
-    vid: str = Field(..., description="Vendor ID (hex string)")
-    pid: str = Field(..., description="Product ID (hex string)")
+    vid: Optional[str] = Field(default=None, description="Vendor ID (hex string)")
+    pid: Optional[str] = Field(default=None, description="Product ID (hex string)")
     name: str = Field(default="Unknown", description="Human-readable name")
     detected: bool = Field(default=False, description="Whether board was detected at runtime")
     modes: Optional[Dict[str, bool]] = Field(default=None, description="Board mode flags")
@@ -194,8 +205,16 @@ class SaveWizardResponse(BaseModel):
     error: Optional[str] = None
 
 
+def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    os.replace(temp_path, path)
+
+
 @router.post("/save", response_model=SaveWizardResponse)
-async def save_wizard_mappings(request: SaveWizardRequest):
+async def save_wizard_mappings(payload: SaveWizardRequest):
     """
     Save controls.json and optionally generate MAME config.
     
@@ -203,21 +222,23 @@ async def save_wizard_mappings(request: SaveWizardRequest):
     
     Flow:
     1. Validate incoming JSON with Pydantic (strict schema)
-    2. Save to A:\Arcade Assistant Local\config\mappings\controls.json
-    3. Immediately call MameConfigWriter.write() to generate default.cfg
-    4. Return success/fail status
+    2. Backup existing controls.json
+    3. Atomic-write to controls.json
+    4. Audit log entry
+    5. Optionally generate MAME default.cfg
     
     Governance:
-    - Safety First: MameConfigWriter creates backup before writing
-    - A: Drive Strategy: All paths are absolute A: drive paths
+    - Safety First: Backup before write, atomic disk write, audit trail
+    - Drive Root Strategy: All paths resolved via get_drive_root()
     - No OR Logic: MAME config has single bindings per control
     """
-    # Path constants (A: Drive Strategy)
-    controls_path = Path(r"A:\Arcade Assistant Local\config\mappings\controls.json")
+    # Path constants
+    drive_root = get_drive_root(context="wizard save")
+    controls_path = _controls_path()
     
     try:
         # 1. Prepare the controls.json data
-        controls_dict = request.controls.model_dump(exclude_none=True)
+        controls_dict = payload.controls.model_dump(exclude_none=True)
         
         # Add/update metadata
         controls_dict["last_modified"] = datetime.now().isoformat()
@@ -229,16 +250,28 @@ async def save_wizard_mappings(request: SaveWizardRequest):
                 if hasattr(mapping, "model_dump"):
                     controls_dict["mappings"][key] = mapping.model_dump(exclude_none=True)
         
-        # 2. Save controls.json
-        controls_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(controls_path, "w", encoding="utf-8") as f:
-            json.dump(controls_dict, f, indent=2)
+        # 2. Backup existing file before overwrite
+        backup_path = None
+        if controls_path.exists():
+            backup_path = create_backup(controls_path, drive_root)
+        
+        # 3. Atomic write to controls.json
+        _write_json_atomic(controls_path, controls_dict)
+        
+        # 4. Audit log
+        audit_log.append({
+            "scope": "controller",
+            "action": "wizard_save",
+            "target_file": "config/mappings/controls.json",
+            "backup_path": str(backup_path) if backup_path else None,
+            "control_count": len(controls_dict.get("mappings", {})),
+        })
         
         logger.info(f"Saved controls.json: {controls_path}")
         
-        # 3. Generate MAME config if requested
+        # 5. Generate MAME config if requested
         mame_result = None
-        if request.generate_mame_config:
+        if payload.generate_mame_config:
             try:
                 writer = MameConfigWriter(controls_json_path=controls_path)
                 mame_result = writer.write(create_backup=True)
@@ -276,7 +309,7 @@ async def get_current_controls():
     
     Returns the current mappings so the frontend can pre-populate the wizard.
     """
-    controls_path = Path(r"A:\Arcade Assistant Local\config\mappings\controls.json")
+    controls_path = _controls_path()
     
     if not controls_path.exists():
         return {
@@ -300,4 +333,3 @@ async def get_current_controls():
             "controls": None,
             "message": str(e)
         }
-

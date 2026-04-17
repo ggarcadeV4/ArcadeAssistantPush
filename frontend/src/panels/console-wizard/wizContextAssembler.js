@@ -9,24 +9,21 @@
  * Stays under 1500 tokens. Console Wizard domain only — no cross-panel bleed.
  */
 
+import { buildStandardHeaders } from '../../utils/identity';
+
 const ENDPOINTS = {
     health: '/api/local/console_wizard/health',
     emulators: '/api/local/console_wizard/emulators',
     controllers: '/api/local/console/controllers',
     chuckSync: '/api/local/console_wizard/status/chuck',
 };
-const deviceId = window.AA_DEVICE_ID || (() => {
-    console.warn('[Wiz] window.AA_DEVICE_ID not available, ' +
-        'falling back to cabinet-001. Cabinet identity may not be unique.');
-    return 'cabinet-001';
-})();
-
-const PANEL_HEADERS = {
-    'Content-Type': 'application/json',
-    'x-device-id': deviceId,
-    'x-panel': 'console-wizard',
-    'x-scope': 'state',
-};
+const PANEL_HEADERS = buildStandardHeaders({
+    panel: 'console-wizard',
+    scope: 'state',
+    extraHeaders: {
+        'Content-Type': 'application/json',
+    },
+});
 
 async function safeFetch(url) {
     try {

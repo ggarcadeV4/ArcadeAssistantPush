@@ -12,26 +12,18 @@ import { DiagnosisToggle } from '../controller/DiagnosisToggle';
 import { ContextChips } from '../controller/ContextChips';
 import { ExecutionCard } from '../controller/ExecutionCard';
 import { useProfileContext } from '../../context/ProfileContext';
+import { buildStandardHeaders } from '../../utils/identity';
 
 const MAX_VISIBLE_DIAG_CHIPS = 3;
-
-function getEngineeringBayDeviceId(panelLabel = 'Panel') {
-    return window.AA_DEVICE_ID || (() => {
-        console.warn(`[${panelLabel}] window.AA_DEVICE_ID not available, ` +
-            'falling back to cabinet-001. Cabinet identity may not be unique.');
-        return 'cabinet-001';
-    })();
-}
 
 async function engineeringBayChat({ persona, panelLabel, message, history, isDiagnosisMode, extraContext }) {
     const res = await fetch('/api/local/engineering-bay/chat', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-panel': persona,
-            'x-scope': 'state',
-            'x-device-id': getEngineeringBayDeviceId(panelLabel),
-        },
+        headers: buildStandardHeaders({
+            panel: persona,
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' },
+        }),
         body: JSON.stringify({ persona, message, history, isDiagnosisMode, extraContext }),
     });
     if (!res.ok) {
@@ -85,7 +77,7 @@ const MessageBubble = memo(({ msg, persona }) => {
 });
 MessageBubble.displayName = 'EBMessageBubble';
 
-export function EngineeringBaySidebar({ persona, contextAssembler, className = '', isOpen, onClose, onToggle }) {
+export function EngineeringBaySidebar({ persona, contextAssembler, className = '', isOpen, onClose, onToggle, micHandlers, onSendRef, initialMessages = [] }) {
     const { profile } = useProfileContext();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -105,6 +97,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const diagModeRef = useRef(false);
     const pendingAutoListenRef = useRef(false);
     const prevDiagActiveRef = useRef(false);
+    const initialMessagesAppliedRef = useRef(false);
 
     const addMessage = useCallback((content, role = 'assistant') => {
         setMessages(prev => [
@@ -114,6 +107,24 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     }, []);
 
     useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+    useEffect(() => {
+        if (initialMessagesAppliedRef.current || !Array.isArray(initialMessages) || initialMessages.length === 0) {
+            return;
+        }
+
+        setMessages(prev => (
+            prev.length > 0
+                ? prev
+                : initialMessages.map((msg, index) => ({
+                    id: msg.id ?? `${persona.id}-handoff-${index}`,
+                    role: msg.role ?? 'system',
+                    content: msg.content ?? '',
+                    timestamp: msg.timestamp ?? new Date().toISOString(),
+                }))
+        ));
+        initialMessagesAppliedRef.current = true;
+    }, [initialMessages, persona.id]);
 
     useEffect(() => {
         if (typeof isOpen !== 'undefined' && !isOpen) {
@@ -140,6 +151,10 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         ttsSpeak: speak,
         ttsStop: stopSpeaking,
         onTimeout: handleTimeout,
+        // DIAG_GREETING: post the spoken greeting into the visible chat history so
+        // the mode transition is explicit to the user, not just spoken over TTS.
+        // addMessage is stable ([] deps) so this does not cause enterDiagMode churn.
+        onGreeting: addMessage,
         ...(persona.diagPermanent ? { forcedActive: true } : {}),
     });
 
@@ -249,18 +264,21 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     ]);
 
     useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
+    // SEND_BRIDGE: expose sendMessage outward so parent panels can route external
+    // mic transcripts into this sidebar's canonical conversation path.
+    // Only active when the parent passes an onSendRef; other panels are unaffected.
+    useEffect(() => { if (onSendRef) onSendRef.current = sendMessage; }, [sendMessage, onSendRef]);
 
     const handleExecuteAction = useCallback(async (action) => {
         setExecuteLoading(true);
         try {
             const res = await fetch(action.endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-panel': persona.id,
-                    'x-scope': 'config',
-                    'x-device-id': getEngineeringBayDeviceId(persona.name || persona.id),
-                },
+                headers: buildStandardHeaders({
+                    panel: persona.id,
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify(action.payload ?? {}),
             });
             if (!res.ok) {
@@ -346,6 +364,10 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const isActive = diag.diagMode || persona.diagPermanent;
     const isControlled = typeof isOpen !== 'undefined';
     const isVisible = !isControlled || isOpen;
+    // DEDUP_GUARD: extract the external recording flag here so the auto-listen
+    // effect can treat it as a reactive dep. For panels without micHandlers this
+    // is always false, leaving their auto-listen behavior completely unchanged.
+    const externalMicRecording = micHandlers?.isRecording ?? false;
 
     useEffect(() => {
         const becameActive = isActive && !prevDiagActiveRef.current;
@@ -370,12 +392,15 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     useEffect(() => {
         if (!isVisible || !isActive) return;
         if (!pendingAutoListenRef.current) return;
-        if (loading || executeLoading || isSpeaking || isVoiceRecording) return;
+        // Block internal Web Speech auto-listen when external (panel-local) recording
+        // is already active. Without this guard the two capture paths can overlap,
+        // producing duplicate submissions in panels that use micHandlers (e.g. Wizard).
+        if (loading || executeLoading || isSpeaking || isVoiceRecording || externalMicRecording) return;
         if (recognitionRef.current) return;
 
         pendingAutoListenRef.current = false;
         startListeningRef.current?.();
-    }, [isVisible, isActive, loading, executeLoading, isSpeaking, isVoiceRecording]);
+    }, [isVisible, isActive, loading, executeLoading, isSpeaking, isVoiceRecording, externalMicRecording]);
 
     const toggleVoiceInput = useCallback(() => {
         if (isVoiceRecording) {
@@ -389,6 +414,13 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         pendingAutoListenRef.current = false;
         startListening();
     }, [isVoiceRecording, startListening]);
+
+    // MIC_HANDOFF: if a panel provides its own mic handlers, prefer those over
+    // the shared Web Speech-only path. This allows panels with better capture
+    // paths (getUserMedia + MediaRecorder) to opt in without touching global behavior.
+    // Panels that do NOT pass micHandlers are completely unaffected.
+    const effectiveMicRecording = micHandlers ? micHandlers.isRecording : isVoiceRecording;
+    const effectiveMicToggle = micHandlers ? micHandlers.onToggle : toggleVoiceInput;
 
     const sidebarClass = [
         'eb-sidebar',
@@ -404,10 +436,10 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
         ? `${persona.name} DIAG - what needs fixing?`
         : `Ask ${persona.name}... (Enter to send)`;
 
-    const showScanner = loading || isSpeaking || isVoiceRecording || isActive;
+    const showScanner = loading || isSpeaking || effectiveMicRecording || isActive;
     const scannerLabel = loading
         ? (persona.scannerLabel ?? 'Scanning...')
-        : isVoiceRecording
+        : effectiveMicRecording
             ? 'Listening...'
             : isSpeaking
                 ? 'Speaking...'
@@ -416,7 +448,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const modeLabel = isActive ? `${pillLabel} mode` : 'Chat mode';
     const statusLabel = loading
         ? 'Thinking'
-        : isVoiceRecording
+        : effectiveMicRecording
             ? 'Listening'
             : isSpeaking
                 ? 'Speaking'
@@ -427,8 +459,8 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
     const chipStart = chipPage * MAX_VISIBLE_DIAG_CHIPS;
     const visibleChips = chips.slice(chipStart, chipStart + MAX_VISIBLE_DIAG_CHIPS);
 
-    const showHandsFreeHint = isActive && !loading && !isVoiceRecording && !isSpeaking;
-    const micLabel = isVoiceRecording ? 'Stop' : (isActive ? 'Talk' : 'Mic');
+    const showHandsFreeHint = isActive && !loading && !effectiveMicRecording && !isSpeaking;
+    const micLabel = effectiveMicRecording ? 'Stop' : (isActive ? 'Talk' : 'Mic');
     const showSendButton = !isActive;
 
     return (
@@ -469,7 +501,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
 
             <div className="eb-mode-row">
                 <span className={`eb-mode-row__pill ${isActive ? 'eb-mode-row__pill--diag' : ''}`}>{modeLabel}</span>
-                <span className={`eb-mode-row__status ${(loading || isVoiceRecording || isSpeaking) ? 'eb-mode-row__status--live' : ''}`}>{statusLabel}</span>
+                <span className={`eb-mode-row__status ${(loading || effectiveMicRecording || isSpeaking) ? 'eb-mode-row__status--live' : ''}`}>{statusLabel}</span>
             </div>
 
             {showHandsFreeHint && (
@@ -489,7 +521,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 ))}
 
                 {showScanner && (
-                    <div className={`eb-kitt ${(loading || isVoiceRecording || isSpeaking) ? '' : 'eb-kitt--ambient'}`}
+                    <div className={`eb-kitt ${(loading || effectiveMicRecording || isSpeaking) ? '' : 'eb-kitt--ambient'}`}
                         aria-label={`${persona.name} ${statusLabel.toLowerCase()}`}>
                         <span className="eb-kitt__label">{scannerLabel}</span>
                         <div className="eb-kitt__track">
@@ -510,7 +542,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 />
             )}
 
-            {isActive && chips.length > 0 && !loading && !isVoiceRecording && (
+            {isActive && chips.length > 0 && !loading && !effectiveMicRecording && (
                 <div className="eb-chipbar">
                     <ContextChips chips={visibleChips} onChipClick={sendMessage} disabled={loading || executeLoading} />
                     {chipPageCount > 1 && (
@@ -541,11 +573,11 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 />
                 <button
                     type="button"
-                    className={`eb-mic ${isVoiceRecording ? 'eb-mic--recording' : ''}`}
-                    onClick={toggleVoiceInput}
+                    className={`eb-mic ${effectiveMicRecording ? 'eb-mic--recording' : ''}`}
+                    onClick={effectiveMicToggle}
                     disabled={executeLoading}
-                    title={isVoiceRecording ? 'Stop recording' : 'Voice input'}
-                    aria-label={isVoiceRecording ? 'Stop recording' : 'Voice input'}
+                    title={effectiveMicRecording ? 'Stop recording' : 'Voice input'}
+                    aria-label={effectiveMicRecording ? 'Stop recording' : 'Voice input'}
                 >
                     {micLabel}
                 </button>

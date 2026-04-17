@@ -9,6 +9,8 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import logging
 
+from backend.constants.drive_root import get_drive_root
+
 logger = logging.getLogger(__name__)
 
 # MAME port mapping for arcade controls
@@ -664,10 +666,10 @@ class MameConfigWriter:
     - Trigger Fix: Handles TRIGGER_0→BUTTON7, TRIGGER_1→BUTTON8
     """
     
-    # Default paths (A: Drive Strategy)
-    DEFAULT_CONTROLS_JSON = Path(r"A:\Arcade Assistant Local\config\mappings\controls.json")
-    DEFAULT_MAME_CFG = Path(r"A:\Emulators\MAME Gamepad\cfg\default.cfg")
-    DEFAULT_BACKUP_DIR = Path(r"A:\Arcade Assistant\backups\configs")
+    # Default paths resolved from the canonical drive root contract.
+    DEFAULT_CONTROLS_JSON = get_drive_root(context="mame_config_generator controls") / "config" / "mappings" / "controls.json"
+    DEFAULT_MAME_CFG = get_drive_root(context="mame_config_generator cfg") / "Emulators" / "MAME Gamepad" / "cfg" / "default.cfg"
+    DEFAULT_BACKUP_DIR = get_drive_root(context="mame_config_generator backups") / ".aa" / "backups" / "configs"
     
     def __init__(
         self,

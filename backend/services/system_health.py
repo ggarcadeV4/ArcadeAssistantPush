@@ -44,6 +44,19 @@ def _to_gb(value_bytes: float) -> float:
     return round(value_bytes / (1024**3), 2)
 
 
+def _runtime_drive_root(app_state: Any) -> Optional[Path]:
+    drive_root = getattr(app_state, "drive_root", None)
+    if drive_root is None:
+        return None
+
+    try:
+        candidate = Path(drive_root)
+    except Exception:
+        return None
+
+    return candidate if "<AA_DRIVE_ROOT" not in str(candidate) else None
+
+
 class SystemHealthService:
     def __init__(self) -> None:
         self._lock = Lock()
@@ -65,10 +78,25 @@ class SystemHealthService:
     def collect_performance_snapshot(self, app_state: Any) -> Dict[str, Any]:
         state = app_state or self
         timestamp = _iso_now()
-        fps = 59.7
-        latency_ms = 2.5
-        frame_consistency = 98.1
+        fps = None
+        latency_ms = None
+        frame_consistency = None
         gpu_temp_c = None
+        drive_root = _runtime_drive_root(state)
+        disk = {
+            "path": str(drive_root) if drive_root else None,
+            "percent": None,
+            "total_bytes": None,
+            "used_bytes": None,
+            "free_bytes": None,
+            "io_read": None,
+            "io_write": None,
+        }
+        network = {
+            "latency_ms": None,
+            "bytes_sent": None,
+            "bytes_recv": None,
+        }
 
         if not HAS_PSUTIL:
             snapshot = {
@@ -82,6 +110,8 @@ class SystemHealthService:
                     "used_gb": None,
                     "total_gb": None,
                 },
+                "disk": disk,
+                "network": network,
                 "fps": fps,
                 "latency_ms": latency_ms,
                 "frame_consistency": frame_consistency,
@@ -92,6 +122,31 @@ class SystemHealthService:
 
         cpu_percent = psutil.cpu_percent(interval=None)  # type: ignore[attr-defined]
         memory = psutil.virtual_memory()  # type: ignore[attr-defined]
+        if drive_root is not None and drive_root.exists():
+            try:
+                usage = psutil.disk_usage(str(drive_root))  # type: ignore[attr-defined]
+                disk.update(
+                    {
+                        "percent": usage.percent,
+                        "total_bytes": usage.total,
+                        "used_bytes": usage.used,
+                        "free_bytes": usage.free,
+                    }
+                )
+            except Exception:
+                pass
+
+        try:
+            counters = psutil.net_io_counters()  # type: ignore[attr-defined]
+            network.update(
+                {
+                    "bytes_sent": getattr(counters, "bytes_sent", None),
+                    "bytes_recv": getattr(counters, "bytes_recv", None),
+                }
+            )
+        except Exception:
+            pass
+
         try:
             throughput = psutil.sensors_temperatures()  # type: ignore[attr-defined]
             for entries in throughput.values():
@@ -113,6 +168,8 @@ class SystemHealthService:
                 "used_gb": _to_gb(memory.used),
                 "total_gb": _to_gb(memory.total),
             },
+            "disk": disk,
+            "network": network,
             "uptime_seconds": max(0.0, datetime.now().timestamp() - psutil.boot_time()),  # type: ignore[attr-defined]
             "fps": fps,
             "latency_ms": latency_ms,
@@ -194,7 +251,14 @@ class SystemHealthService:
                 }
             )
 
-        return {"timestamp": timestamp, "psutil_available": True, "groups": list(groups.values())}
+        grouped = list(groups.values())
+        flattened = [proc for group in grouped for proc in group["processes"]]
+        return {
+            "timestamp": timestamp,
+            "psutil_available": True,
+            "groups": grouped,
+            "processes": flattened,
+        }
 
     # ------------------------------------------------------------------
     # Hardware
@@ -247,37 +311,11 @@ class SystemHealthService:
             error = "USB detector unavailable on this platform"
             usb_backend = "unavailable"
 
-        controllers_placeholder = [
-            {
-                "id": "joystick-p1",
-                "name": "Sanwa JLF Joystick P1",
-                "status": "connected",
-                "health": 0.94,
-                "metrics": {"latency_ms": 0.8, "actuations": 2_847_563},
-            },
-            {
-                "id": "trackball",
-                "name": "Arcade Trackball",
-                "status": "warning",
-                "health": 0.78,
-                "metrics": {"accuracy": 0.96, "friction": "medium"},
-            },
-        ]
-        display_placeholder = [
-            {
-                "id": "crt-display",
-                "name": '19" CRT Monitor',
-                "status": "connected",
-                "health": 0.89,
-                "metrics": {"resolution": "640x480", "refresh_hz": 60, "hours": 12847},
-            }
-        ]
-
         categories = [
             {
                 "id": "controllers",
                 "title": "Controllers & Inputs",
-                "devices": controller_devices or controllers_placeholder,
+                "devices": controller_devices,
             },
             {
                 "id": "usb",
@@ -287,7 +325,7 @@ class SystemHealthService:
             {
                 "id": "display",
                 "title": "Display & Visual",
-                "devices": display_placeholder,
+                "devices": [],
             },
         ]
 

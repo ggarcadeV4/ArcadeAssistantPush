@@ -13,11 +13,17 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
+from backend.constants.drive_root import get_drive_root
 
 router = APIRouter()
 
 # Configuration
-PEGASUS_ROOT = Path(os.environ.get("PEGASUS_ROOT", "A:/Tools/Pegasus"))
+_PEGASUS_ROOT_OVERRIDE = os.environ.get("PEGASUS_ROOT", "").strip()
+PEGASUS_ROOT = (
+    Path(_PEGASUS_ROOT_OVERRIDE.rstrip("\\/"))
+    if _PEGASUS_ROOT_OVERRIDE
+    else get_drive_root() / "Tools" / "Pegasus"
+)
 THEMES_DIR = PEGASUS_ROOT / "themes"
 CUSTOM_ASSETS_DIR = PEGASUS_ROOT / "custom_assets"
 CONFIG_FILE = CUSTOM_ASSETS_DIR / "asset_config.json"

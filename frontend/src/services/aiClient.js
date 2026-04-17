@@ -2,6 +2,7 @@
  * aiClient: Unified AI chat client for the gateway
  * Endpoint: POST /api/ai/chat
  */
+import { buildStandardHeaders, resolveDeviceId } from '../utils/identity'
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
@@ -13,7 +14,7 @@ export async function chat({
   timeout_ms,
   metadata,
   scope = 'state',
-  deviceId = 'demo_001',
+  deviceId = resolveDeviceId(),
   panel,
   tools
 } = {}) {
@@ -21,13 +22,15 @@ export async function chat({
     throw new Error('messages[] is required')
   }
 
-  const headers = {
-    'content-type': 'application/json',
-    'x-scope': scope,
-    'x-device-id': deviceId
-  }
-  if (panel) {
-    headers['x-panel'] = panel
+  const headers = buildStandardHeaders({
+    panel: panel || 'ai',
+    scope,
+    extraHeaders: {
+      'content-type': 'application/json'
+    }
+  })
+  if (typeof deviceId === 'string') {
+    headers['x-device-id'] = deviceId
   }
 
   const doPost = async () => {

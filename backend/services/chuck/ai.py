@@ -14,6 +14,7 @@ from datetime import datetime
 from importlib import util as importlib_util
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+from backend.constants.drive_root import get_drive_root
 
 from .detection import (
     get_detection_service,
@@ -29,7 +30,12 @@ from .diagnostics import (
     DiagnosticLevel,
 )
 from ..gamepad_detector import detect_controllers, GamepadDetectionError
-from ..usb_detector import USBPermissionError, USBBackendError
+from ..pacto_identity import (
+    is_spoofed_xinput_vid_pid,
+    looks_like_pacto,
+    normalize_vid_pid,
+)
+from ..usb_detector import USBPermissionError, USBBackendError, detect_arcade_boards
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +87,7 @@ def _load_local_knowledge(persona_key: str) -> str:
     except Exception as exc:
         logger.warning("Failed to load factory knowledge (%s): %s", factory_file.name, exc)
 
-    drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
+    drive_root = get_drive_root(allow_cwd_fallback=True, context="chuck_ai_knowledge")
     patch_dir = drive_root / ".aa" / "state" / "knowledge_base"
     patch_prefix = persona_key.replace("-", "_") + "_patch_"
     try:
@@ -431,7 +437,8 @@ class ControllerAIService:
         """Collect mapping, detection, and diagnostics data for the AI context."""
         mapping_summary = self._summarize_mapping(drive_root)
         board_status, hints = self._collect_board_status(mapping_summary)
-        handheld_devices, handheld_hints = self._collect_handheld_devices()
+        mapping_summary = self._apply_board_context(mapping_summary, board_status)
+        handheld_devices, handheld_hints = self._collect_handheld_devices(board_status)
         diag_summary = self._collect_diagnostics()
         all_hints = hints + handheld_hints
 
@@ -442,6 +449,50 @@ class ControllerAIService:
             diagnostics=diag_summary,
             hints=[h for h in all_hints if h],
         )
+
+    @staticmethod
+    def _apply_board_context(
+        mapping_summary: Dict[str, Any],
+        board_status: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        summary = dict(mapping_summary or {})
+        configured_board = summary.get("board") or {}
+        summary["board_source"] = board_status.get("source") or "none"
+
+        if configured_board:
+            summary["configured_board"] = configured_board
+
+        user_override = (
+            configured_board.get("detected") is False
+            and bool(configured_board.get("name"))
+        )
+
+        live_board = board_status.get("details") or {}
+        if board_status.get("source") == "canonical_board_lane" and live_board:
+            board_name = live_board.get("name")
+            board_source = "canonical_board_lane"
+            if user_override:
+                board_name = configured_board["name"]
+                board_source = "user_override"
+            summary["board"] = {
+                "name": board_name,
+                "vid": live_board.get("vid"),
+                "pid": live_board.get("pid"),
+                "detected": bool(board_status.get("detected")),
+                "source": board_source,
+            }
+        elif user_override:
+            summary["board"] = {
+                "name": configured_board["name"],
+                "vid": configured_board.get("vid"),
+                "pid": configured_board.get("pid"),
+                "detected": False,
+                "source": "user_override",
+            }
+        elif configured_board:
+            summary["board"] = configured_board
+
+        return summary
 
     def health(self) -> Dict[str, Any]:
         """Return AI readiness diagnostics."""
@@ -599,7 +650,35 @@ class ControllerAIService:
             "configured": bool(vid and pid),
             "detected": False,
             "details": {},
+            "source": "none",
+            "configured_board": board_info,
+            "runtime_endpoints": [],
         }
+
+        live_board = self._select_live_encoder_board()
+        if live_board:
+            status["detected"] = bool(live_board.get("detected", True))
+            status["details"] = live_board
+            status["source"] = "canonical_board_lane"
+
+            configured_key = self._normalize_vid_pid_pair(vid, pid)
+            live_key = self._normalize_vid_pid_pair(
+                live_board.get("vid"),
+                live_board.get("pid"),
+            )
+            status["configured_match"] = bool(
+                configured_key and live_key and configured_key == live_key
+            )
+            if board_info.get("name") and board_info.get("name") != live_board.get("name"):
+                hints.append(
+                    f"Saved mapping board '{board_info.get('name')}' does not match the live encoder board "
+                    f"'{live_board.get('name')}'."
+                )
+            if configured_key and live_key and configured_key != live_key:
+                hints.append(
+                    f"Saved mapping VID/PID {configured_key} does not match the live encoder board {live_key}."
+                )
+            return status, hints
 
         service = self._detection_service or get_detection_service()
         self._detection_service = service
@@ -612,6 +691,7 @@ class ControllerAIService:
             board: BoardInfo = service.detect_board(vid, pid, use_cache=True)
             status["detected"] = board.detected
             status["details"] = board.to_dict()
+            status["source"] = "configured_mapping"
             if not board.detected:
                 hints.append(f"Board {vid}:{pid} not currently detected.")
         except BoardNotFoundError:
@@ -624,11 +704,33 @@ class ControllerAIService:
 
         return status, hints
 
-    def _collect_handheld_devices(self) -> tuple[List[Dict[str, Any]], List[str]]:
+    def _collect_handheld_devices(
+        self,
+        board_status: Optional[Dict[str, Any]] = None,
+    ) -> tuple[List[Dict[str, Any]], List[str]]:
         hints: List[str] = []
         try:
             devices = detect_controllers(use_cache=True)
-            return devices or [], hints
+            devices = devices or []
+
+            if board_status and self._is_pacto_board_status(board_status):
+                expected_children = int(
+                    board_status.get("details", {}).get("xinput_nodes")
+                    or board_status.get("details", {}).get("players")
+                    or 0
+                )
+                generic_xinput = [
+                    device for device in devices
+                    if self._is_generic_xinput_controller(device)
+                ]
+                if expected_children and len(devices) == expected_children and len(generic_xinput) == len(devices):
+                    board_status["runtime_endpoints"] = generic_xinput
+                    hints.append(
+                        f"Detected {expected_children} Xbox-style XInput endpoint(s) as child controllers of the encoder board."
+                    )
+                    return [], hints
+
+            return devices, hints
         except USBPermissionError as exc:
             hints.append("USB permission denied. Try running the backend as Administrator or add the user to plugdev.")
             logger.warning("USB permission error while detecting controllers: %s", exc)
@@ -641,6 +743,64 @@ class ControllerAIService:
             hints.append("Handheld detection failed due to an unexpected error.")
             logger.error("Unhandled controller detection error: %s", exc)
         return [], hints
+
+    @staticmethod
+    def _normalize_vid_pid_pair(vid: Any, pid: Any) -> Optional[str]:
+        """Wave 2: delegates to shared ``pacto_identity.normalize_vid_pid``."""
+        return normalize_vid_pid(vid, pid)
+
+    @staticmethod
+    def _normalize_live_board(board: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "name": board.get("name") or board.get("board_name") or "Unknown Board",
+            "vid": board.get("vid"),
+            "pid": board.get("pid"),
+            "vid_pid": normalize_vid_pid(board.get("vid"), board.get("pid")),
+            "manufacturer": board.get("vendor") or board.get("manufacturer"),
+            "board_type": board.get("board_type") or board.get("type"),
+            "players": board.get("players"),
+            "parent_hub": board.get("parent_hub"),
+            "xinput_nodes": board.get("xinput_nodes"),
+            "detected": bool(board.get("detected", False)),
+            "source": board.get("source") or "canonical_board_lane",
+        }
+
+    @staticmethod
+    def _looks_like_pacto_board(board: Dict[str, Any]) -> bool:
+        """Wave 2: delegates to shared ``pacto_identity.looks_like_pacto``."""
+        return looks_like_pacto(board)
+
+    def _select_live_encoder_board(self) -> Optional[Dict[str, Any]]:
+        try:
+            detected_boards = [
+                self._normalize_live_board(board)
+                for board in detect_arcade_boards()
+                if board.get("detected", False)
+            ]
+        except Exception as exc:
+            logger.debug("Canonical live board detection unavailable for Chuck AI: %s", exc)
+            return None
+
+        if not detected_boards:
+            return None
+
+        pacto_board = next(
+            (board for board in detected_boards if looks_like_pacto(board)),
+            None,
+        )
+        return pacto_board or detected_boards[0]
+
+    def _is_pacto_board_status(self, board_status: Dict[str, Any]) -> bool:
+        details = board_status.get("details") or {}
+        return looks_like_pacto(details)
+
+    @staticmethod
+    def _is_generic_xinput_controller(device: Dict[str, Any]) -> bool:
+        if not is_spoofed_xinput_vid_pid(device.get("vid"), device.get("pid")):
+            return False
+        profile_id = str(device.get("profile_id") or "").lower()
+        name = str(device.get("name") or device.get("product") or "").lower()
+        return profile_id == "xbox_360" or "xinput" in name or "xbox" in name
 
     def _collect_diagnostics(self) -> Dict[str, Any]:
         service = self._diagnostics_service or get_diagnostics_service()

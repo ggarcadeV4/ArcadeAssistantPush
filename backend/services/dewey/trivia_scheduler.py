@@ -10,13 +10,19 @@ import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
+from backend.constants.drive_root import get_drive_root
 
 logger = logging.getLogger(__name__)
 
 # Configuration
 DEFAULT_GENERATION_INTERVAL_HOURS = 24  # Generate new trivia daily
 DEFAULT_QUESTIONS_PER_RUN = 10
-SCHEDULER_STATE_PATH = Path(os.getenv("AA_DRIVE_ROOT", ".")) / "state" / "dewey" / "scheduler_state.json"
+SCHEDULER_STATE_PATH = (
+    get_drive_root(allow_cwd_fallback=True, context="trivia_scheduler")
+    / "state"
+    / "dewey"
+    / "scheduler_state.json"
+)
 
 
 class TriviaScheduler:

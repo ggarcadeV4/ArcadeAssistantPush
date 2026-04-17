@@ -22,12 +22,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import platform
-import re
 import os
 import logging
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
+from backend.constants.drive_root import resolve_runtime_path
 
 logger = logging.getLogger(__name__)
 
@@ -51,21 +50,9 @@ class HypseusConfig:
     flags: List[str]
 
 
-def _is_wsl() -> bool:
-    return platform.system() == "Linux" and "microsoft" in platform.release().lower()
-
-
 def _norm_path(p: str) -> Path:
-    """Normalize A:/ style paths to /mnt/a when under WSL; leave Windows paths on Windows."""
-    if not p:
-        return Path("")
-    s = p.replace("\\", "/")
-    if _is_wsl():
-        s = s.replace("A:/", "/mnt/a/")
-        m = re.match(r"^([A-Za-z]):/(.*)$", s)
-        if m:
-            s = f"/mnt/{m.group(1).lower()}/{m.group(2)}"
-    return Path(s)
+    """Normalize paths through the shared runtime root contract."""
+    return resolve_runtime_path(p) or Path("")
 
 
 def _get(obj: Any, key: str) -> Optional[str]:

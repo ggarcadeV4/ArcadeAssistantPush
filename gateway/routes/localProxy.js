@@ -109,10 +109,19 @@ router.use('/', enforceScopeHeader, async (req, res) => {
     const { logBackendError } = await import('../startup_manager.js');
     logBackendError('Local Proxy', err);
 
-    if (err.code === 'ECONNREFUSED') {
+    const errorCode = err?.cause?.code || err?.code;
+    const backendUnavailable = (
+      errorCode === 'ECONNREFUSED'
+      || errorCode === 'ETIMEDOUT'
+      || errorCode === 'UND_ERR_CONNECT_TIMEOUT'
+      || err?.message === 'fetch failed'
+    );
+
+    if (backendUnavailable) {
       res.status(503).json({
         error: 'FastAPI unavailable',
-        message: 'Local operations service is not running'
+        message: 'Local operations service is not running',
+        hint: 'Start the backend service on port 8000 and retry'
       });
     } else {
       res.status(500).json({

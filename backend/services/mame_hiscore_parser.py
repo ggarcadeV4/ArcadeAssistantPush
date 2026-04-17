@@ -19,6 +19,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
+from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 
@@ -383,7 +384,7 @@ def get_default_hiscore_path() -> Path:
     
     Checks common locations and AA_DRIVE_ROOT.
     """
-    drive_root = Path(os.environ.get("AA_DRIVE_ROOT", "A:\\"))
+    drive_root = get_drive_root(context="mame_hiscore_parser")
     
     # Common MAME hiscore locations (all derived from drive_root)
     candidates = [

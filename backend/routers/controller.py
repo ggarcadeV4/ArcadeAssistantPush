@@ -110,6 +110,45 @@ def _ensure_writes_allowed(request: Request) -> None:
         raise HTTPException(status_code=503, detail=reason)
 
 
+def _mapping_paths(drive_root: Path) -> tuple[Path, Path]:
+    mapping_file = drive_root / "config" / "mappings" / "controls.json"
+    factory_file = drive_root / "config" / "mappings" / "factory-default.json"
+    return mapping_file, factory_file
+
+
+def _default_mapping_payload() -> Dict[str, Any]:
+    return {
+        "version": "1.0",
+        "board": {
+            "vid": "unknown",
+            "pid": "unknown",
+            "name": "Unassigned controller board",
+            "detected": False,
+            "status": "missing",
+        },
+        "mappings": {},
+    }
+
+
+def _load_mapping_seed(drive_root: Path) -> tuple[Dict[str, Any], bool, Optional[str]]:
+    mapping_file, factory_file = _mapping_paths(drive_root)
+
+    if mapping_file.exists():
+        with open(mapping_file, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data, True, "config/mappings/controls.json"
+
+    if factory_file.exists():
+        try:
+            with open(factory_file, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            return data, False, "config/mappings/factory-default.json"
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Factory default mapping unreadable at %s: %s", factory_file, exc)
+
+    return _default_mapping_payload(), False, None
+
+
 def _regenerate_mame_default_config(drive_root: Path, mapping_data: Dict[str, Any]) -> Dict[str, Any]:
     """Regenerate MAME default.cfg from mapping data.
 
@@ -465,7 +504,7 @@ async def mapping_override(request: Request, payload: MappingOverrideRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
     # Log to controller audit trail
-    log_controller_change(
+    await log_controller_change(
         request, drive_root,
         action  = "mapping_override",
         details = {
@@ -506,13 +545,33 @@ async def get_controller_mapping(request: Request):
     # Note: This is a read-only endpoint, no scope required
     try:
         drive_root = request.app.state.drive_root
-        mapping_file = drive_root / "config" / "mappings" / "controls.json"
+        mapping_file, factory_file = _mapping_paths(drive_root)
 
         if not mapping_file.exists():
-            raise HTTPException(
-                status_code=404,
-                detail="Mapping file not found at config/mappings/controls.json"
-            )
+            logger.info("Controller mapping missing at %s; returning empty mapping payload", mapping_file)
+            return {
+                "mapping": {
+                    "version": "1.0",
+                    "board": {
+                        "name": "No saved controller mapping",
+                        "detected": False,
+                        "status": "missing",
+                    },
+                    "mappings": {},
+                },
+                "file_path": "config/mappings/controls.json",
+                "status": "missing",
+                "message": (
+                    "No saved controller mapping found yet. "
+                    + (
+                        "Chuck can preview and save from factory-default.json until controls.json exists."
+                        if factory_file.exists()
+                        else "Run Controller Chuck to create controls.json."
+                    )
+                ),
+                "factory_defaults_available": factory_file.exists(),
+                "seed_source": "config/mappings/factory-default.json" if factory_file.exists() else None,
+            }
 
         with open(mapping_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -587,18 +646,16 @@ async def preview_controller_mapping(request: Request, update: MappingUpdate):
     """
     try:
         drive_root = request.app.state.drive_root
-        mapping_file = drive_root / "config" / "mappings" / "controls.json"
-
-        # Read current content
-        current_content = ""
-        current_data = {}
-        if mapping_file.exists():
-            with open(mapping_file, 'r', encoding='utf-8') as f:
-                current_content = f.read()
-                current_data = json.loads(current_content) if current_content else {}
+        mapping_file, _factory_file = _mapping_paths(drive_root)
+        current_data, file_exists, seed_source = _load_mapping_seed(drive_root)
+        current_content = (
+            mapping_file.read_text(encoding="utf-8")
+            if file_exists
+            else json.dumps(current_data, indent=2)
+        )
 
         # Merge with new mappings (deep merge for nested structures)
-        new_data = {**current_data}
+        new_data = json.loads(json.dumps(current_data))
 
         # Update specific mappings if provided
         if "mappings" in update.mappings:
@@ -655,7 +712,8 @@ async def preview_controller_mapping(request: Request, update: MappingUpdate):
                 "warnings": validation.warnings
             },
             "preview_mapping": new_data,
-            "file_exists": mapping_file.exists(),
+            "file_exists": file_exists,
+            "seed_source": seed_source,
             "cascade_preview": cascade_preview,
         }
 
@@ -681,7 +739,7 @@ async def apply_controller_mapping(
 
         drive_root = request.app.state.drive_root
         manifest = request.app.state.manifest
-        mapping_file = drive_root / "config" / "mappings" / "controls.json"
+        mapping_file, _factory_file = _mapping_paths(drive_root)
 
         # Validate path is in sanctioned areas
         if not is_allowed_file(mapping_file, drive_root, manifest["sanctioned_paths"]):
@@ -700,16 +758,15 @@ async def apply_controller_mapping(
         # Ensure directory exists
         mapping_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Read current content
-        current_content = ""
-        current_data = {}
-        if mapping_file.exists():
-            with open(mapping_file, 'r', encoding='utf-8') as f:
-                current_content = f.read()
-                current_data = json.loads(current_content) if current_content else {}
+        current_data, file_exists, seed_source = _load_mapping_seed(drive_root)
+        current_content = (
+            mapping_file.read_text(encoding="utf-8")
+            if file_exists
+            else json.dumps(current_data, indent=2)
+        )
 
         # Merge with new mappings
-        new_data = {**current_data}
+        new_data = json.loads(json.dumps(current_data))
 
         if "mappings" in update.mappings:
             new_data["mappings"] = {**new_data.get("mappings", {}), **update.mappings["mappings"]}
@@ -761,7 +818,7 @@ async def apply_controller_mapping(
         mame_regen_result = _regenerate_mame_default_config(drive_root, new_data)
 
         # Log change
-        log_controller_change(
+        await log_controller_change(
             request, drive_root, "mapping_apply",
             {
                 "keys_updated": list(update.mappings.keys()),
@@ -830,6 +887,8 @@ async def apply_controller_mapping(
             "backup_path": str(backup_path) if backup_path else None,
             "mapping": new_data,
             "changes_count": len(update.mappings),
+            "file_exists_before_apply": file_exists,
+            "seed_source": seed_source,
             "validation": {
                 "warnings": validation.warnings
             },
@@ -916,7 +975,7 @@ async def reset_controller_mapping(request: Request):
         mame_regen_result = _regenerate_mame_default_config(drive_root, factory_data)
 
         # Log reset action
-        log_controller_change(
+        await log_controller_change(
             request, drive_root, "mapping_reset",
             {
                 "action": "factory_reset",
@@ -1041,7 +1100,7 @@ async def golden_drive_reset(request: Request, payload: GoldenResetRequest):
                 results["errors"].append(f"high scores delete failed: {exc}")
 
         # Log the action
-        log_controller_change(
+        await log_controller_change(
             request, drive_root, "golden_reset",
             {
                 "action": "golden_drive_reset",
@@ -1176,6 +1235,51 @@ async def effective_paths(request: Request):
     }
 
 
+@router.post("/cascade/preview")
+async def preview_controller_cascade(
+    request: Request,
+    payload: CascadeApplyRequest,
+):
+    """Preview cascade queue inputs without mutating baseline or enqueuing jobs."""
+    require_scope(request, "config")
+    _ensure_writes_allowed(request)
+
+    drive_root = request.app.state.drive_root
+    baseline_snapshot = load_controller_baseline(drive_root)
+    available_emulators = sorted((baseline_snapshot.get("emulators") or {}).keys())
+    available_set = set(available_emulators)
+    invalid_emulators = [
+        emulator for emulator in payload.skip_emulators if emulator not in available_set
+    ]
+    if invalid_emulators:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown emulators in skip_emulators: {invalid_emulators}"
+        )
+
+    baseline_preview = baseline_snapshot
+    if payload.baseline:
+        baseline_preview = json.loads(json.dumps(baseline_snapshot))
+        for key, value in payload.baseline.items():
+            if isinstance(value, dict) and isinstance(baseline_preview.get(key), dict):
+                baseline_preview[key].update(value)
+            else:
+                baseline_preview[key] = value
+
+    return {
+        "status": "preview",
+        "dry_run": True,
+        "skip_led": payload.skip_led,
+        "skip_emulators": payload.skip_emulators,
+        "metadata": payload.metadata,
+        "available_emulators": available_emulators,
+        "baseline": {
+            "updated_at": baseline_preview.get("updated_at"),
+            "cascade": baseline_preview.get("cascade"),
+        },
+    }
+
+
 @router.post("/cascade/apply")
 async def apply_controller_cascade(
     request: Request,
@@ -1260,15 +1364,30 @@ async def apply_controller_cascade(
         backup=backup_on_write,
     )
 
+    audit_entry = {
+        "job_id": job_record["job_id"],
+        "requested_by": request.headers.get("x-device-id", "unknown"),
+        "panel": request.headers.get("x-panel", "unknown"),
+        "skip_led": payload.skip_led,
+        "skip_emulators": payload.skip_emulators,
+        "metadata": payload.metadata,
+        "baseline_updated": bool(payload.baseline),
+        "available_emulators": available_emulators,
+    }
+
     audit_log.append(
         {
             "scope": "controller",
             "action": "controller_cascade_queued",
-            "job_id": job_record["job_id"],
-            "requested_by": request.headers.get("x-device-id", "unknown"),
-            "skip_led": payload.skip_led,
-            "skip_emulators": payload.skip_emulators,
+            **audit_entry,
         }
+    )
+
+    await log_controller_change(
+        request,
+        drive_root,
+        "controller_cascade_queued",
+        audit_entry,
     )
 
     try:
@@ -1423,7 +1542,7 @@ async def apply_mame_config(request: Request):
         summary = get_mame_config_summary(xml_content)
 
         # Log the change
-        log_controller_change(
+        await log_controller_change(
             request, drive_root, "mame_config_apply",
             {
                 "action": "generate_mame_config",
@@ -1540,7 +1659,7 @@ async def hot_swap_mame_config(request: Request):
         result = write_ephemeral_config(mapping_data, drive_root)
 
         # Log the change
-        log_controller_change(
+        await log_controller_change(
             request, drive_root, "mame_hot_swap_write",
             {
                 "action": "write_ephemeral_config",
@@ -1575,7 +1694,7 @@ async def clear_hot_swap_config(request: Request):
         result = clear_ephemeral_config(drive_root)
 
         if result["was_active"]:
-            log_controller_change(
+            await log_controller_change(
                 request, drive_root, "mame_hot_swap_clear",
                 {"action": "clear_ephemeral_config"},
             )

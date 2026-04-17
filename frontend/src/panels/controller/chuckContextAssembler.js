@@ -10,20 +10,28 @@
  *
  * PANEL ISOLATION RULE: Chuck's world only.
  * No LaunchBox feed, no LED states, no score data, no other panel data.
+ *
+ * TRUTH SOURCE (2026-04-14 reconciliation pass):
+ *   Tier 1 hardware context comes from /api/local/controller/status —
+ *   the Cabinet Control Status endpoint that already reconciles:
+ *     • connected_board  (canonical live board lane)
+ *     • saved_mapping    (controls.json board identity)
+ *     • warnings         (drift between live vs saved)
+ *   This is the same payload CabinetControlStatus.jsx renders.
+ *   Do NOT call /hardware/usb/devices (different router, different field shape).
+ *   Do NOT call /controller/baseline for hardware state
+ *   (baseline is cascade/emulator state, not board identity).
  */
 
-const CONTROLLER_API = '/api/local/controller';
-const HARDWARE_API = '/api/local/hardware';
+import { buildStandardHeaders } from '../../utils/identity';
+
+const STATUS_API = '/api/local/controller/status';
 
 /** Silent fetch — returns null on any error (hardware offline is normal) */
 async function safeFetch(url) {
     try {
         const res = await fetch(url, {
-            headers: {
-                'x-panel': 'controller-chuck',
-                'x-scope': 'state',
-                'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
-            },
+            headers: buildStandardHeaders({ panel: 'controller-chuck', scope: 'state' }),
         });
         if (!res.ok) return null;
         return await res.json();
@@ -37,53 +45,79 @@ async function safeFetch(url) {
  * @returns {Promise<{tier1, tier2, tier3}>}
  */
 export async function chuckContextAssembler() {
-    // ── Tier 1: Always included (every message while diagMode is active) ────────
-    // Parallel fetch — hardware + mapping baseline
-    const [hardware, baseline] = await Promise.all([
-        safeFetch(`${HARDWARE_API}/usb/devices`),
-        safeFetch(`${CONTROLLER_API}/baseline`),
-    ]);
+    // ── Tier 1: Always included ──────────────────────────────────────────────
+    // Pull from the canonical status surface — already reconciled by the backend.
+    const status = await safeFetch(STATUS_API);
+
+    // connected_board: live board from the canonical detection lane
+    const connectedBoard = status?.connected_board ?? {};
+    // saved_mapping: what controls.json says
+    const savedMapping = status?.saved_mapping ?? {};
+    // warnings: backend-computed drift between live and saved
+    const warnings = Array.isArray(status?.warnings) ? status.warnings : [];
+
+    const isLiveBoardPresent = connectedBoard.status === 'connected';
+    const liveBoardName = connectedBoard.name ?? null;
+    const liveBoardStatus = isLiveBoardPresent ? 'connected' : (connectedBoard.status ?? 'not_detected');
 
     const tier1 = {
         diagMode: true,
         timestamp: new Date().toISOString(),
         hardware: {
-            detected: hardware?.devices ?? [],
-            boardStatus: hardware?.status ?? 'unknown',
-            boardName: hardware?.board_name ?? null,
+            // Live board identity — the canonical truth
+            boardStatus: liveBoardStatus,
+            boardName: liveBoardName,
+            boardVid: connectedBoard.vid ?? null,
+            boardPid: connectedBoard.pid ?? null,
+            boardSource: connectedBoard.source ?? null,
+            boardSummary: connectedBoard.summary ?? null,
+            // Saved mapping identity — secondary truth
+            savedBoardName: savedMapping.name ?? null,
+            savedBoardStatus: savedMapping.status ?? null,
+            savedFilePath: savedMapping.file_path ?? 'config/mappings/controls.json',
+            // Runtime child endpoints
+            runtimeEndpointCount: status?.runtime?.endpoints?.length ?? 0,
+            runtimeExplanation: status?.runtime?.explanation ?? null,
         },
+        // Board identity mismatch flags — make Chuck immediately aware
+        driftWarnings: warnings.map((w) => ({
+            code: w.code,
+            severity: w.severity,
+            title: w.title,
+            detail: w.detail,
+        })),
         session: {
             playerMode: window._chuckPlayerMode ?? '4p',
-            mappedButtonCount: Object.keys(baseline?.mapping ?? {}).length,
             profileId: window?.AA_PROFILE_ID ?? 'default',
         },
     };
 
-    // ── Tier 2: Conditional (only included when meaningful data exists) ─────────
+    // ── Tier 2: Conditional ──────────────────────────────────────────────────
     const tier2 = {};
 
-    const mapping = baseline?.mapping ?? {};
-    if (Object.keys(mapping).length > 0) {
-        // Summarise — don't dump the raw object (token budget)
-        const playerSummary = {};
-        Object.entries(mapping).forEach(([key, val]) => {
-            const [player] = key.split('.');
-            if (!playerSummary[player]) playerSummary[player] = 0;
-            if (val?.pin != null) playerSummary[player]++;
-        });
-        tier2.activeMappingSummary = playerSummary;   // e.g. { p1: 12, p2: 10 }
-        tier2.totalMappedInputs = Object.keys(mapping).length;
+    // Include cascade state when available
+    const cascade = status?.cascade ?? {};
+    if (cascade.status) {
+        tier2.cascade = {
+            status: cascade.status,
+            historyCount: cascade.history_count ?? 0,
+            ledStatus: cascade.led?.status ?? null,
+            emulatorCount: Array.isArray(cascade.emulators) ? cascade.emulators.length : 0,
+            summary: cascade.summary ?? null,
+        };
     }
 
-    if (baseline?.lastUpdated) {
-        tier2.lastSaved = baseline.lastUpdated;
+    // Surface the most critical warning at tier-2 for focused AI attention
+    const criticalWarning = warnings.find((w) => w.severity === 'warning');
+    if (criticalWarning) {
+        tier2.primaryWarning = {
+            code: criticalWarning.code,
+            title: criticalWarning.title,
+            detail: criticalWarning.detail,
+        };
     }
 
-    if (baseline?.profileName) {
-        tier2.profileName = baseline.profileName;
-    }
-
-    // ── Tier 3: Static knowledge (always present, never changes at runtime) ─────
+    // ── Tier 3: Static knowledge ─────────────────────────────────────────────
     // Sacred numbering is the Rosetta Stone for all 45+ emulator configs.
     // Hard-coded here so the AI always has it available mid-session.
     const tier3 = {
@@ -93,10 +127,16 @@ export async function chuckContextAssembler() {
             p3p4: { topRow: '1-2', bottomRow: '3-4', note: '4-button only' },
         },
         writeTargets: {
-            profile: 'A:\\.aa\\state\\profiles\\{userId}\\overrides.json',
-            cabinet: 'A:\\.aa\\state\\controller\\cabinet_mapping.json',
+            profile: '${AA_DRIVE_ROOT}/.aa/state/profiles/{userId}/overrides.json',
+            cabinet: '${AA_DRIVE_ROOT}/.aa/state/controller/cabinet_mapping.json',
         },
         aiToolAvailable: 'remediate_controller_config',
+        identityRules: {
+            liveBoard: 'What is physically connected right now — from canonical detection lane.',
+            savedMapping: 'What controls.json says the cabinet is configured as.',
+            runtimeEndpoints: 'Child HID/XInput nodes Windows sees — not separate boards.',
+            precedence: 'Live board > saved mapping. Show both. Do not hide mismatch.',
+        },
     };
 
     return { tier1, tier2, tier3 };
@@ -116,16 +156,20 @@ export function buildChuckGreeting(ctx) {
 
     const { tier1, tier2 } = ctx;
     const board = tier1?.hardware?.boardName ?? 'the encoder';
-    const status = tier1?.hardware?.boardStatus ?? 'unknown';
-    const mapped = tier2?.totalMappedInputs ?? 0;
+    const status = tier1?.hardware?.boardStatus ?? 'not_detected';
+    const primaryWarning = tier2?.primaryWarning;
+
+    if (status === 'not_detected') {
+        return `Yo! Chuck on. No live encoder board on the wire right now. Saved mapping says ${tier1?.hardware?.savedBoardName ?? 'unknown'}. What do ya need?`;
+    }
 
     if (status === 'error' || status === 'offline') {
         return `Yo! Chuck on. ${board} is showing ${status} — let's start there. What happened?`;
     }
 
-    if (mapped === 0) {
-        return `Chuck here. ${board} is up but the mapping's empty. Let's wire this cabinet from scratch. Where ya wanna start?`;
+    if (primaryWarning) {
+        return `Diagnosis Mode live. ${board} is ${status} — but heads up: ${primaryWarning.title}. Let's sort it.`;
     }
 
-    return `Yo! Diagnosis Mode is live. ${board} is ${status}, ${mapped} inputs mapped. What's giving you grief?`;
+    return `Yo! Diagnosis Mode is live. ${board} is connected and looking clean. What's giving you grief?`;
 }

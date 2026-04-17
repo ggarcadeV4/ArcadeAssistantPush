@@ -29,6 +29,8 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+from backend.constants.drive_root import get_drive_root
+
 
 class EscalationPriority(str, Enum):
     """Priority levels for escalations."""
@@ -125,7 +127,7 @@ class EscalationService:
     """
     
     def __init__(self):
-        self._drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
+        self._drive_root = get_drive_root(context="escalation_service")
         self._aa_root = self._drive_root / ".aa"
         self._escalations_dir = self._aa_root / "escalations"
         self._escalations_dir.mkdir(parents=True, exist_ok=True)

@@ -189,7 +189,16 @@ function getHotkeyWsUrl() {
     }
     const parsed = new URL(GATEWAY_URL);
     const wsProto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProto}//${parsed.host}/ws/hotkey`;
+    // Gateway /ws/hotkey now rejects anonymous connections (close code 4401).
+    // Identify this sidecar so the hotkey bridge accepts the socket and
+    // forwards backend hotkey_pressed events for F9 summon.
+    const deviceId =
+        (process.env.AA_DEVICE_ID || '').trim() || 'dewey-overlay';
+    const params = new URLSearchParams({
+        device: deviceId,
+        panel: 'dewey_overlay'
+    });
+    return `${wsProto}//${parsed.host}/ws/hotkey?${params.toString()}`;
 }
 
 function getToggleSourceKind(source) {

@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { fetchWithRetry } from '../lib/http.js';
 import { errors } from '../lib/errors.js';
+import { requireDriveRoot } from '../utils/driveDetection.js';
 
 import fs from 'fs';
 import path from 'path';
@@ -8,11 +9,7 @@ import path from 'path';
 // Helper function to read cabinet ID
 function readCabinetId() {
   try {
-    const driveRoot = process.env.AA_DRIVE_ROOT;
-    if (!driveRoot) {
-      console.warn('[openai] AA_DRIVE_ROOT not set, using cwd');
-    }
-    const deviceIdPath = path.join(driveRoot || process.cwd(), '.aa', 'device_id.txt');
+    const deviceIdPath = path.join(requireDriveRoot(), '.aa', 'device_id.txt');
     return fs.readFileSync(deviceIdPath, 'utf-8').trim();
   } catch (e) {
     console.warn('Warning: Could not read cabinet_id:', e.message);

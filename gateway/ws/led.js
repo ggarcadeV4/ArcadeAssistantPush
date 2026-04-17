@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws'
 import { randomUUID } from 'crypto'
+import { buildIdentityHeaders, ensureDeviceIdentity, extractWebSocketIdentity } from './identity.js'
 
 const LED_PANEL_ID = 'led-blinky'
 const WS_PATH = '/api/local/led/ws'
@@ -105,15 +106,20 @@ export const getLedWebSocketStatus = () => {
 
 export const setupLEDWebSocket = (wss) => {
   wss.on('connection', (client, req) => {
-    const url = new URL(req.url, `http://${req.headers.host}`)
+    const identity = extractWebSocketIdentity(req, {
+      defaultPanel: LED_PANEL_ID,
+      corrPrefix: 'led'
+    })
+    const { url } = identity
     if (url.pathname !== WS_PATH) {
       return
     }
 
-    const deviceId = url.searchParams.get('device') || req.headers['x-device-id'] || 'unknown'
-    const panel = url.searchParams.get('panel') || LED_PANEL_ID
+    if (!ensureDeviceIdentity(client, identity, { channel: 'led websocket' })) {
+      return
+    }
+
     const connectionId = randomUUID()
-    const corrId = url.searchParams.get('corr_id') || randomUUID()
 
     const hardwareTarget = getHardwareTarget()
     const mode = hardwareTarget ? 'proxy' : 'mock'
@@ -122,20 +128,20 @@ export const setupLEDWebSocket = (wss) => {
       id: connectionId,
       client,
       target: null,
-      deviceId,
-      panel,
+      deviceId: identity.deviceId,
+      panel: identity.panel,
       connectedAt: new Date().toISOString(),
       mode,
       status: 'connecting',
-      corrId
+      corrId: identity.corrId
     }
 
     activeConnections.set(connectionId, state)
     recordEvent({
       type: 'connect',
       connectionId,
-      deviceId,
-      panel,
+      deviceId: identity.deviceId,
+      panel: identity.panel,
       mode
     })
 
@@ -143,16 +149,14 @@ export const setupLEDWebSocket = (wss) => {
       type: 'gateway_status',
       connectionId,
       mode,
-      panel
+      device: identity.deviceId,
+      panel: identity.panel,
+      corr_id: identity.corrId
     })
 
     if (hardwareTarget) {
       const target = new WebSocket(hardwareTarget, {
-        headers: {
-          'x-device-id': deviceId,
-          'x-panel': panel,
-          'x-corr-id': corrId
-        }
+        headers: buildIdentityHeaders(identity)
       })
 
       state.target = target
@@ -163,8 +167,8 @@ export const setupLEDWebSocket = (wss) => {
         recordEvent({
           type: 'proxy_connected',
           connectionId,
-          deviceId,
-          panel,
+          deviceId: identity.deviceId,
+          panel: identity.panel,
           target: hardwareTarget
         })
       })

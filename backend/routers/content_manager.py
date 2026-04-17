@@ -31,13 +31,16 @@ except Exception as exc:
     marquee_display = None  # type: ignore[assignment]
     _MARQUEE_DISPLAY_IMPORT_ERROR = exc
 # Import path utilities from existing modules
+from backend.constants.drive_root import get_drive_root
+
 try:
     from backend.constants.a_drive_paths import AA_DRIVE_ROOT, STATE_DIR
 except ImportError:
-    from backend.constants.drive_root import get_drive_root
+    AA_DRIVE_ROOT = get_drive_root(allow_cwd_fallback=True)
+    STATE_DIR = AA_DRIVE_ROOT / ".aa" / "state"
 
-AA_DRIVE_ROOT = get_drive_root(allow_cwd_fallback=True)
-STATE_DIR = AA_DRIVE_ROOT / ".aa" / "state"
+AA_DRIVE_ROOT = Path(AA_DRIVE_ROOT)
+STATE_DIR = Path(STATE_DIR)
 from backend.constants.paths import Paths
 
 logger = logging.getLogger(__name__)

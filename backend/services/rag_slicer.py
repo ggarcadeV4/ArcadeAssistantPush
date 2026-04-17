@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
+from backend.constants.drive_root import get_drive_root
 
 logger = logging.getLogger(__name__)
 PROMPT_ROOT = Path(__file__).resolve().parents[2] / "prompts"
@@ -69,7 +70,7 @@ class RAGSlicer:
             self._kb_dir = knowledge_dir
             self._factory_dir: Optional[Path] = None
         else:
-            drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
+            drive_root = get_drive_root(context="rag_slicer")
             self._kb_dir = drive_root / ".aa" / "state" / "knowledge_base"
             self._factory_dir = PROMPT_ROOT
 

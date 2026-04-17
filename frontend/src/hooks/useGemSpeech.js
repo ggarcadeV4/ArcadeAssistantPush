@@ -8,15 +8,7 @@
  *   const { isRecording, wsConnected, startRecording, stopRecording, transcript, error } = useGemSpeech()
  */
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { getGatewayWsUrl, getGatewayHost } from '../services/gateway'
-
-const resolveWsUrl = () => {
-  if (typeof window === 'undefined') return getGatewayWsUrl('/ws/audio')
-  const isSecure = window.location.protocol === 'https:'
-  const host = getGatewayHost()
-  const scheme = isSecure ? 'wss' : 'ws'
-  return `${scheme}://${host}/ws/audio`
-}
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../utils/network'
 
 const arrayBufferToBase64 = (buffer) => {
   let binary = ''
@@ -36,7 +28,7 @@ const pickRecorderOptions = () => {
   return supported ? { mimeType: supported } : undefined
 }
 
-export default function useGemSpeech({ onTranscript, onError } = {}) {
+export default function useGemSpeech({ onTranscript, onError, panelName = 'voice' } = {}) {
   const [isRecording, setIsRecording] = useState(false)
   const [wsConnected, setWsConnected] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -57,7 +49,10 @@ export default function useGemSpeech({ onTranscript, onError } = {}) {
     if (!aliveRef.current) return
     if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) return
 
-    const url = resolveWsUrl()
+    const url = buildGatewayWsIdentityUrl('/ws/audio', {
+      panel: panelName,
+      corrId: generateCorrelationId(`${panelName}-audio`)
+    })
     console.log('[useGemSpeech] Connecting to:', url)
 
     try {
@@ -103,7 +98,7 @@ export default function useGemSpeech({ onTranscript, onError } = {}) {
       reconnectRef.current = setTimeout(connect, backoffRef.current)
       backoffRef.current = Math.min(backoffRef.current * 2, 30000)
     }
-  }, [onTranscript, onError])
+  }, [onTranscript, onError, panelName])
 
   // Auto-connect on mount
   useEffect(() => {
@@ -253,11 +248,22 @@ export default function useGemSpeech({ onTranscript, onError } = {}) {
     stopRecordingRef.current = stopRecording
   }, [stopRecording])
 
+  const toggleMic = useCallback(() => {
+    if (isRecording) {
+      stopRecording()
+      return
+    }
+    startRecording()
+  }, [isRecording, startRecording, stopRecording])
+
   return {
     isRecording,
     wsConnected,
     transcript,
+    lastTranscript: transcript,
     error,
+    warning: error,
+    toggleMic,
     startRecording,
     stopRecording
   }

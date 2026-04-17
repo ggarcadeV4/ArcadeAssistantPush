@@ -155,6 +155,168 @@ function saveSession(req, sess) {
   });
 }
 
+function extractTextContent(message) {
+  if (!message) return '';
+  if (typeof message === 'string') return message.trim();
+  if (!Array.isArray(message.content)) return '';
+  return message.content
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text)
+    .join('\n')
+    .trim();
+}
+
+function getLastAssistantText(sess) {
+  const history = Array.isArray(sess?.history) ? sess.history : [];
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i]?.role === 'assistant') {
+      return extractTextContent(history[i]);
+    }
+  }
+  return '';
+}
+
+function looksLikeSelectionPrompt(text) {
+  const normalized = normalize(text).toLowerCase();
+  if (!normalized) return false;
+  return (
+    /reply with (?:the )?number/.test(normalized) ||
+    /pick (?:a|the) number/.test(normalized) ||
+    /choose (?:a|the) number/.test(normalized) ||
+    /reply with the one/.test(normalized) ||
+    /number you want/.test(normalized) ||
+    /which one/.test(normalized) ||
+    /which game/.test(normalized) ||
+    /which version/.test(normalized) ||
+    /what version/.test(normalized) ||
+    /which .*version/.test(normalized) ||
+    /what sounds/.test(normalized) ||
+    /pick one/.test(normalized) ||
+    /choose one/.test(normalized)
+  );
+}
+
+function looksLikeLaunchConfirmationPrompt(text) {
+  const normalized = normalize(text).toLowerCase();
+  if (!normalized) return false;
+  return (
+    /want me to (?:launch|fire|start|play)/.test(normalized) ||
+    /want to (?:blast|play|launch|fire)/.test(normalized) ||
+    /should i (?:launch|start|fire)/.test(normalized) ||
+    /ready to (?:launch|play)/.test(normalized) ||
+    /let'?s do this/.test(normalized) ||
+    /want to .*?\?/.test(normalized)
+  );
+}
+
+function hasVisibleNumberedChoices(text) {
+  return /^\s*\d+[.)]\s+/m.test(text || '');
+}
+
+function primePendingSelection(sess, candidates, now, requestedTitle = null) {
+  const pool = Array.isArray(candidates)
+    ? candidates.filter(candidate => candidate && candidate.id)
+    : [];
+  if (pool.length < 2) return false;
+
+  sess.chatState = SessionState.PENDING_SELECTION;
+  sess.pendingLaunch = {
+    requestedTitle: requestedTitle || sess.lastTitle || pool[0]?.title || 'previous results',
+    candidates: pool.slice(0, 5),
+    originalCandidates: pool.slice(0, 10),
+    createdAt: now
+  };
+  return true;
+}
+
+function shouldPromoteSelectionFromReply(replyText, candidates) {
+  return Array.isArray(candidates)
+    && candidates.length > 1
+    && (looksLikeSelectionPrompt(replyText) || hasVisibleNumberedChoices(replyText));
+}
+
+function buildSelectionReply(candidates, requestedTitle = null) {
+  const pool = Array.isArray(candidates) ? candidates : [];
+  const count = pool.length;
+  const label = requestedTitle ? ` for "${requestedTitle}"` : '';
+  return `I found ${count} match${count === 1 ? '' : 'es'}${label}. Reply with the number to launch:\n${formatCandidateList(pool, 5)}`;
+}
+
+function pickExactRequestedTitleCandidate(candidates, requestedTitle) {
+  const target = normalizeTitleForMatch(requestedTitle);
+  if (!target || !Array.isArray(candidates) || candidates.length <= 1) return null;
+  const matches = candidates.filter(candidate => normalizeTitleForMatch(candidate?.title) === target);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function looksLikeFreshLibraryQuery(rawText) {
+  const text = normalize(rawText).toLowerCase();
+  if (!text) return false;
+  const hasDiscoveryIntent = /\b(?:top|best|good|recommend|suggest|favorite)\b/.test(text);
+  const hasQuestionShape = /^(?:what|which|show|give)\b/.test(text);
+  const hasLibraryScope = /\b(?:library|title|titles|game|games|nes|nintendo|snes|genesis|playstation|ps2|ps3|arcade|atari|game boy|gba|wii|dreamcast|xbox|platform)\b/.test(text);
+  return (hasDiscoveryIntent || hasQuestionShape) && hasLibraryScope;
+}
+
+function formatGamePreview(game) {
+  if (!game) return 'Unknown';
+  const title = game.title || 'Unknown';
+  const year = game.year ? ` (${game.year})` : '';
+  const platform = game.platform ? ` - ${game.platform}` : '';
+  return `${title}${year}${platform}`;
+}
+
+function buildToolResultFallback(toolCallsMade, userMessage) {
+  const calls = Array.isArray(toolCallsMade) ? [...toolCallsMade].reverse() : [];
+  const lower = normalize(userMessage).toLowerCase();
+  for (const call of calls) {
+    if ((call?.name === 'filter_games' || call?.name === 'search_games') && Array.isArray(call?.result?.games) && call.result.games.length > 0) {
+      const games = call.result.games;
+      if (/\b(?:top|best|good|recommend|suggest|favorite)\b/.test(lower)) {
+        const preview = games.slice(0, 3).map(formatGamePreview).join('; ');
+        return `A few strong picks: ${preview}. Want me to launch one?`;
+      }
+      return `I found ${games.length} match${games.length === 1 ? '' : 'es'}:\n${formatCandidateList(games, 5)}`;
+    }
+    if (call?.name === 'get_random_game' && call?.result?.game) {
+      return `How about ${formatGamePreview(call.result.game)}? Want me to launch it?`;
+    }
+  }
+  return '';
+}
+
+function looksLikeRefinementOnly(rawText) {
+  const text = normalize(rawText).toLowerCase();
+  if (!text) return false;
+  if (/^\s*(\d{1,2})\s*$/.test(text)) return true;
+  if (/(?:play|launch|start|run)\s+(?:the\s+)?(?:nes|snes|genesis|mega drive|arcade|mame|gamecube|wii|dreamcast|saturn|ps1|ps2|ps3|playstation|xbox|teknoparrot|daphne|hypseus|nintendo entertainment system)\b/.test(text)) {
+    return true;
+  }
+  if (/^(?:the\s+)?(?:nes|snes|genesis|mega drive|arcade|mame|gamecube|wii|dreamcast|saturn|ps1|ps2|ps3|playstation|xbox|teknoparrot|daphne|hypseus)\b/.test(text)) {
+    return true;
+  }
+  if (/\b(?:nes|snes|genesis|mega drive|arcade|mame|gamecube|wii|dreamcast|saturn|ps1|ps2|ps3|playstation|xbox|teknoparrot|daphne|hypseus|nintendo entertainment system)\s+version\b/.test(text)) {
+    return true;
+  }
+  if (/^(?:the\s+)?(?:arcade|original|first|classic)\b/.test(text)) return true;
+  if (/\b(?:original|first|classic)\s+(?:arcade\s+)?version\b/.test(text)) return true;
+  if (/\b(19\d{2}|20\d{2})\b/.test(text)) return true;
+  if (/^(?:how about|what about)\s+the\s+/.test(text)) return true;
+  return false;
+}
+
+function normalizeConversationalUtterance(rawText) {
+  const text = (rawText || '').toString();
+  if (!text) return '';
+
+  return text
+    .replace(/\bverses of\b/gi, 'versions of')
+    .replace(/\bverse of\b/gi, 'version of')
+    .replace(/\bhow many verses\b/gi, 'how many versions')
+    .replace(/\bwhat versions of\b/gi, 'what versions of')
+    .replace(/\bwhich verses\b/gi, 'which versions');
+}
+
 // NOTE: normalize, normalizeTitleForMatch, PLATFORM_ALIASES, parseRequestedGame,
 // stringifyCandidates, formatCandidateList are now imported from '../gems/aa-lora/parsers.js'
 
@@ -182,6 +344,7 @@ router.post('/ai/clear-session', async (req, res) => {
 async function handleLoRaChat(req, res) {
   try {
     const { message, context = {} } = req.body || {};
+    const normalizedIncomingMessage = normalizeConversationalUtterance(message);
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({
@@ -201,14 +364,37 @@ async function handleLoRaChat(req, res) {
     const sess = await getSession(req);
 
     const now = Date.now();
+    const msgRaw = (normalizedIncomingMessage || '').toString();
+    const msg = msgRaw.trim().toLowerCase();
+    const numericChoice = msg.match(/^\s*(\d{1,2})\s*$/);
+
+    if (
+      sess.chatState !== SessionState.PENDING_SELECTION
+      && numericChoice
+      && Array.isArray(sess.lastCandidates)
+      && sess.lastCandidates.length > 1
+    ) {
+      const lastAssistantText = getLastAssistantText(sess);
+      if (looksLikeSelectionPrompt(lastAssistantText) || hasVisibleNumberedChoices(lastAssistantText)) {
+        primePendingSelection(sess, sess.lastCandidates, now);
+      }
+    }
+
+    if (
+      sess.chatState !== SessionState.PENDING_SELECTION
+      && !numericChoice
+      && Array.isArray(sess.lastCandidates)
+      && sess.lastCandidates.length > 1
+      && looksLikeRefinementOnly(msgRaw)
+    ) {
+      primePendingSelection(sess, sess.lastCandidates, now);
+    }
+
     const pendingFresh = sess.chatState === 'PENDING_SELECTION' && sess.pendingLaunch && (now - (sess.pendingLaunch.createdAt || 0)) < PENDING_SELECTION_TTL_MS;
     if (sess.chatState === 'PENDING_SELECTION' && !pendingFresh) {
       sess.chatState = 'IDLE';
       sess.pendingLaunch = null;
     }
-
-    const msgRaw = (message || '').toString();
-    const msg = msgRaw.trim().toLowerCase();
 
     if (sess.chatState === 'PENDING_SELECTION' && sess.pendingLaunch && pendingFresh) {
       sess.pendingLaunch.createdAt = now;
@@ -217,6 +403,7 @@ async function handleLoRaChat(req, res) {
       if (refinement && refinement.cancel) {
         sess.chatState = 'IDLE';
         sess.pendingLaunch = null;
+        saveSession(req, sess);
         return res.json({
           success: true,
           response: 'Okay, cancelled.',
@@ -248,6 +435,7 @@ async function handleLoRaChat(req, res) {
               sess.lastLaunchedGameId = cand.id;
               sess.lastLaunchedTitle = cand.title || launchData.game_title || sess.lastLaunchedTitle;
               sess.lastLaunchedAt = Date.now();
+              saveSession(req, sess);
               return res.json({
                 success: true,
                 response: `🎮 Launching ${cand.title}!`,
@@ -274,6 +462,14 @@ async function handleLoRaChat(req, res) {
         platformAliases
       });
 
+      const exactRequestedCandidate = pickExactRequestedTitleCandidate(
+        applied?.candidates,
+        sess.pendingLaunch?.requestedTitle
+      );
+      if (exactRequestedCandidate) {
+        applied.candidates = [exactRequestedCandidate];
+      }
+
       if (applied && Array.isArray(applied.candidates) && applied.candidates.length === 1) {
         const cand = applied.candidates[0];
         if (cand && cand.id) {
@@ -294,6 +490,7 @@ async function handleLoRaChat(req, res) {
               sess.lastLaunchedGameId = cand.id;
               sess.lastLaunchedTitle = cand.title || launchData.game_title || sess.lastLaunchedTitle;
               sess.lastLaunchedAt = Date.now();
+              saveSession(req, sess);
               return res.json({
                 success: true,
                 response: `🎮 Launching ${cand.title} (${cand.platform || 'Unknown'})...`,
@@ -311,6 +508,7 @@ async function handleLoRaChat(req, res) {
         sess.pendingLaunch.originalCandidates = applied.candidates;
         sess.pendingLaunch.createdAt = now;
         const preview = formatCandidateList(applied.candidates, 5);
+        saveSession(req, sess);
         return res.json({
           success: true,
           response: `Reply with the number to launch:\n${preview}`,
@@ -321,6 +519,7 @@ async function handleLoRaChat(req, res) {
 
       if (applied && Array.isArray(applied.candidates) && applied.candidates.length === 0) {
         const preview = formatCandidateList(originalCandidates, 5);
+        saveSession(req, sess);
         return res.json({
           success: true,
           response: `No matches for that refinement. Here are the original options:\n${preview}`,
@@ -330,6 +529,7 @@ async function handleLoRaChat(req, res) {
       }
 
       const preview = formatCandidateList(originalCandidates, 5);
+      saveSession(req, sess);
       return res.json({
         success: true,
         response: `You have a pending game selection. Pick a number (1-5), refine (e.g., "the arcade version"), or say "cancel" to exit.\n${preview}`,
@@ -708,16 +908,27 @@ async function handleLoRaChat(req, res) {
     const userName = rawUserName ? rawUserName.replace(/\s*\([^)]*\)\s*$/, '').trim() : null;
 
     // Sticky context: rewrite follow-ups for shader workflow and a few common patterns
-    let userMessage = normalize(message);
+    let userMessage = normalize(normalizedIncomingMessage);
     const lower = userMessage.toLowerCase();
     const isAffirm = /^(yes|yeah|yep|sure|please do|go ahead|do it)\b/i.test(userMessage);
     const wantsLaunchNow = /(now\s+launch|launch\s+it|start\s+it)\b/i.test(lower);
     const platformMatch = userMessage.match(/the one from (the )?(.+)/i);
+    const lastAssistantText = getLastAssistantText(sess);
 
     // If a shader preview is pending, treat "yes" as apply+launch for that exact game/emulator
     if (isAffirm && sess.pendingShader && sess.pendingShader.game_id) {
       const p = sess.pendingShader;
       userMessage = `Apply shader ${p.shader_name} using ${p.emulator} to game ${p.game_id} then launch`;
+    } else if (
+      isAffirm &&
+      !sess.pendingShader &&
+      !wantsLaunchNow &&
+      Array.isArray(sess.lastCandidates) &&
+      sess.lastCandidates.length === 1 &&
+      sess.lastCandidates[0]?.id &&
+      looksLikeLaunchConfirmationPrompt(lastAssistantText)
+    ) {
+      userMessage = `Launch game id ${sess.lastCandidates[0].id}`;
     } else if (wantsLaunchNow && sess.readyToLaunchGameId) {
       // If user said "now launch it" after an apply, use the exact game id we just applied to
       userMessage = `Launch game id ${sess.readyToLaunchGameId}`;
@@ -729,10 +940,18 @@ async function handleLoRaChat(req, res) {
     // Build system prompt with context and profile
     const systemPrompt = buildSystemPrompt(context, userName);
 
-    console.log('[LaunchBox AI] User message:', message);
+    console.log('[LaunchBox AI] User message:', normalizedIncomingMessage);
 
     // Seed conversation with prior history for this device
-    const sessHistory = Array.isArray(sess.history) ? [...sess.history] : [];
+    const ignoreHistoryForTurn = looksLikeFreshLibraryQuery(userMessage);
+    if (ignoreHistoryForTurn) {
+      sess.chatState = SessionState.IDLE;
+      sess.pendingLaunch = null;
+      sess.lastCandidates = [];
+      sess.lastTitle = null;
+      sess.lastPlatform = null;
+    }
+    const sessHistory = ignoreHistoryForTurn ? [] : (Array.isArray(sess.history) ? [...sess.history] : []);
     const seedMessages = [
       ...sessHistory,
       { role: 'user', content: [{ type: 'text', text: userMessage }] }
@@ -762,15 +981,19 @@ async function handleLoRaChat(req, res) {
     try {
       if (Array.isArray(result.toolCallsMade)) {
         for (const tc of result.toolCallsMade) {
-          if (tc && tc.name && tc.result) {
-            if (tc.name === 'search_games' || tc.name === 'filter_games') {
-              const games = tc.result.games || [];
-              if (Array.isArray(games) && games.length > 0) {
-                sess.lastCandidates = games;
-                sess.lastTitle = games[0].title || sess.lastTitle;
-                sess.lastPlatform = games[0].platform || sess.lastPlatform;
+            if (tc && tc.name && tc.result) {
+              if (tc.name === 'search_games' || tc.name === 'filter_games') {
+                const games = tc.result.games || [];
+                if (Array.isArray(games) && games.length > 0) {
+                  sess.lastCandidates = games;
+                  const requestedTitle =
+                    tc.name === 'search_games'
+                      ? (tc.input?.query || tc.input?.title || '').toString().trim()
+                      : '';
+                  sess.lastTitle = requestedTitle || games[0].title || sess.lastTitle;
+                  sess.lastPlatform = games[0].platform || sess.lastPlatform;
+                }
               }
-            }
             if (tc.name === 'get_random_game' && tc.result.game) {
               const g = tc.result.game;
               sess.lastCandidates = [g];
@@ -853,6 +1076,40 @@ async function handleLoRaChat(req, res) {
       console.log('[LoRa Debug] Persisted clean history length:', sess.history.length);
     } catch (_) { }
 
+    let finalText = result.finalText;
+    if (
+      !result.gameLaunched
+      && !sess.pendingLaunch
+      && shouldPromoteSelectionFromReply(result.finalText, sess.lastCandidates)
+      && primePendingSelection(sess, sess.lastCandidates, Date.now(), sess.lastTitle)
+    ) {
+      finalText = buildSelectionReply(
+        sess.pendingLaunch.originalCandidates,
+        sess.pendingLaunch.requestedTitle
+      );
+    }
+
+    if (
+      !result.gameLaunched &&
+      Array.isArray(sess.lastCandidates) &&
+      sess.lastCandidates.length === 1 &&
+      sess.lastCandidates[0]?.id &&
+      looksLikeLaunchConfirmationPrompt(finalText)
+    ) {
+      sess.readyToLaunchGameId = sess.lastCandidates[0].id;
+    } else if (!looksLikeLaunchConfirmationPrompt(finalText)) {
+      sess.readyToLaunchGameId = null;
+    }
+
+    if (!finalText || finalText === 'I processed your request.') {
+      const synthesizedReply = buildToolResultFallback(result.toolCallsMade, userMessage);
+      if (synthesizedReply) {
+        finalText = synthesizedReply;
+      }
+    }
+
+    saveSession(req, sess);
+
     // Send AI telemetry to Supabase (fire-and-forget for performance)
     const cabinetId = req.headers['x-device-id'] || process.env.AA_DEVICE_ID;
     if (cabinetId) {
@@ -865,7 +1122,7 @@ async function handleLoRaChat(req, res) {
         {
           panel: 'launchbox',
           provider: result.provider || 'gemini',
-          model: result.model || 'gemini-2.0-flash',
+          model: result.model || 'gemini-2.5-flash',
           rounds: result.rounds,
           tool_calls: toolNames,
           game_launched: result.gameLaunched || false,
@@ -879,7 +1136,7 @@ async function handleLoRaChat(req, res) {
 
     res.json({
       success: true,
-      response: result.finalText,
+      response: finalText,
       tool_calls_made: result.toolCallsMade,
       rounds: result.rounds,
       game_launched: result.gameLaunched
@@ -977,7 +1234,7 @@ async function callClaudeAPI(systemPrompt, messages) {
  * Gemini 2.0 Flash with full function calling support for LoRa tools.
  */
 async function callGeminiAPI(systemPrompt, messages) {
-  const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Gemini requires SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY');

@@ -3,10 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import platform
 import re
 import os
-from backend.constants.a_drive_paths import AA_DRIVE_ROOT, EmulatorPaths
+from backend.constants.a_drive_paths import EmulatorPaths
+from backend.constants.drive_root import (
+    get_emulators_root,
+    get_gun_emulators_root,
+    get_launchbox_root,
+    resolve_runtime_path,
+)
 
 
 @dataclass
@@ -18,24 +23,9 @@ class RAConfig:
     platform: str = ""
 
 
-def _is_wsl() -> bool:
-    return platform.system() == "Linux" and "microsoft" in platform.release().lower()
-
-
 def _norm_path(p: str) -> Path:
-    """Normalize paths across Windows/WSL for A:/ style manifest paths."""
-    if not p:
-        return Path("")
-    if _is_wsl():
-        # Convert drive-letter Windows paths like A:/ or D:\ to /mnt/<drive>/...
-        p = p.replace("\\", "/")
-        # Specific A: fast path
-        p = p.replace("A:/", "/mnt/a/")
-        # Generic X:/ -> /mnt/x/
-        m = re.match(r"^([A-Za-z]):/(.*)$", p)
-        if m:
-            p = f"/mnt/{m.group(1).lower()}/{m.group(2)}"
-    return Path(p)
+    """Normalize paths through the shared runtime root contract."""
+    return resolve_runtime_path(p) or Path("")
 
 
 def _get(obj: Any, key: str) -> Optional[str]:
@@ -80,7 +70,6 @@ DEFAULT_PLATFORM_OVERLAY_MAP: Dict[str, str] = {
     "Neo Geo Pocket Color": "overlays/SNK-Neo-Geo-Pocket-Color.cfg",
     "WonderSwan": "overlays/Bandai-WonderSwan-Horizontal.cfg",
     "WonderSwan Color": "overlays/Bandai-WonderSwan-Color-Horizontal.cfg",
-    "Sega Dreamcast": "overlays/Dreamcast.cfg",
     "Sega Naomi": "overlays/Naomi.cfg",
     "Sammy Atomiswave": "overlays/Atomiswave.cfg",
 }
@@ -99,13 +88,10 @@ INSTANCE_REGISTRY: Dict[str, Dict[str, str]] = {
     "Sega 32X": {"instance": "retroarch", "core": "picodrive_libretro.dll"},
     "Sega CD": {"instance": "retroarch", "core": "genesis_plus_gx_libretro.dll"},
     "Sony Playstation": {"instance": "retroarch", "core": "mednafen_psx_hw_libretro.dll"},
-    "Sony PSP": {"instance": "retroarch", "core": "ppsspp_libretro.dll"},
-    "Sony PSP Minis": {"instance": "retroarch", "core": "ppsspp_libretro.dll"},
     "Neo Geo Pocket": {"instance": "retroarch", "core": "mednafen_ngp_libretro.dll"},
     "Neo Geo Pocket Color": {"instance": "retroarch", "core": "mednafen_ngp_libretro.dll"},
     "WonderSwan": {"instance": "retroarch", "core": "mednafen_wswan_libretro.dll"},
     "WonderSwan Color": {"instance": "retroarch", "core": "mednafen_wswan_libretro.dll"},
-    "Sega Dreamcast": {"instance": "retroarch", "core": "flycast_libretro.dll"},
     "Sega Naomi": {"instance": "retroarch", "core": "flycast_libretro.dll"},
     "Sammy Atomiswave": {"instance": "retroarch", "core": "flycast_libretro.dll"},
     # Gamepad instance
@@ -159,6 +145,57 @@ def _safe_slug(value: str) -> str:
     return slug or "platform"
 
 
+def _state_base_dir() -> Path:
+    repo_root = Path(__file__).resolve().parents[3]
+    state_root = os.getenv("AA_RUNTIME_STATE_DIR")
+    return Path(state_root) if state_root else (repo_root / ".aa" / "state")
+
+
+def _upsert_cfg_line(text: str, key: str, value: str) -> str:
+    line = f'{key} = "{value}"'
+    pattern = re.compile(rf"(?m)^{re.escape(key)}\s*=.*$")
+    if pattern.search(text):
+        return pattern.sub(line, text)
+    body = text.rstrip("\n")
+    if body:
+        body += "\n"
+    return f"{body}{line}\n"
+
+
+def _ensure_runtime_base_config(exe: Path) -> Optional[Path]:
+    try:
+        source_cfg = exe.parent / "retroarch.cfg"
+        if not source_cfg.exists():
+            fallback_cfg = get_emulators_root() / exe.parent.name / "retroarch.cfg"
+            if fallback_cfg.exists():
+                source_cfg = fallback_cfg
+            else:
+                return None
+
+        out_dir = _state_base_dir() / "retroarch" / "runtime_configs"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"{_safe_slug(exe.parent.name)}.cfg"
+
+        content = source_cfg.read_text(encoding="utf-8", errors="ignore")
+        for key, value in (
+            ("config_save_on_exit", "false"),
+            ("auto_overrides_enable", "false"),
+            ("auto_remaps_enable", "false"),
+            ("input_overlay", ""),
+            ("input_overlay_enable", "false"),
+        ):
+            content = _upsert_cfg_line(content, key, value)
+
+        current = ""
+        if out_file.exists():
+            current = out_file.read_text(encoding="utf-8", errors="ignore")
+        if current != content:
+            out_file.write_text(content, encoding="utf-8")
+        return out_file
+    except Exception:
+        return None
+
+
 def _resolve_overlay_path(overlay_ref: str, exe: Path) -> Optional[Path]:
     if not overlay_ref:
         return None
@@ -189,14 +226,27 @@ def _get_instance_exe(instance_name: str) -> Path:
         "retroarch_gun": EmulatorPaths.retroarch_gun(),
         "retroarch_gun_win64": EmulatorPaths.retroarch_gun_win64(),
     }
-    return mapping.get(instance_name, EmulatorPaths.retroarch())
+    exe = Path(mapping.get(instance_name, EmulatorPaths.retroarch()))
+    if exe.exists():
+        return exe
+
+    # Some cabinet installs keep auxiliary RetroArch builds under the
+    # AA_DRIVE_ROOT project tree instead of the bare drive root.
+    panel_root = get_emulators_root()
+    gun_root = get_gun_emulators_root()
+    fallback_dirs = {
+        "retroarch": panel_root / "RetroArch",
+        "retroarch_gamepad": panel_root / "RetroArch Gamepad",
+        "retroarch_gun": gun_root / "RetroArch",
+        "retroarch_gun_win64": gun_root / "RetroArch-Win64",
+    }
+    fallback_exe = fallback_dirs.get(instance_name, panel_root / "RetroArch") / "retroarch.exe"
+    return fallback_exe
 
 
 def _ensure_platform_override(platform_name: str, overlay_cfg: Path) -> Optional[Path]:
     try:
-        repo_root = Path(__file__).resolve().parents[3]
-        state_root = os.getenv("AA_RUNTIME_STATE_DIR")
-        base_dir = Path(state_root) if state_root else (repo_root / ".aa" / "state")
+        base_dir = _state_base_dir()
         out_dir = base_dir / "retroarch" / "platform_overrides"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / f"{_safe_slug(platform_name)}.cfg"
@@ -222,14 +272,19 @@ def _ensure_platform_override(platform_name: str, overlay_cfg: Path) -> Optional
 
 def _ensure_platform_launch_override(platform_name: str, *, overlay_cfg: Optional[Path] = None) -> Optional[Path]:
     try:
-        repo_root = Path(__file__).resolve().parents[3]
-        state_root = os.getenv("AA_RUNTIME_STATE_DIR")
-        base_dir = Path(state_root) if state_root else (repo_root / ".aa" / "state")
+        base_dir = _state_base_dir()
         out_dir = base_dir / "retroarch" / "platform_overrides"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / f"{_safe_slug(platform_name)}.cfg"
 
-        lines: List[str] = ['auto_overrides_enable = "false"']
+        # Clear any previously active overlay first, then apply the requested
+        # platform bezel for this launch. This prevents stale carryover from
+        # prior RetroArch sessions or saved overrides.
+        lines: List[str] = [
+            'auto_overrides_enable = "false"',
+            'input_overlay = ""',
+            'input_overlay_enable = "false"',
+        ]
         if overlay_cfg:
             overlay_text = str(overlay_cfg).replace("\\", "/")
             lines.extend([
@@ -311,11 +366,15 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
         core_path = exe.parent / "cores" / registry_entry["core"]
     else:
         manifest_exe = str(emu.get("exe", "") or "").strip()
-        manifest_exe_norm = manifest_exe.replace("\\", "/").lower()
-        if "a:/launchbox" in manifest_exe_norm:
+        manifest_exe_path = _norm_path(manifest_exe)
+        if (
+            manifest_exe_path
+            and manifest_exe_path.is_absolute()
+            and manifest_exe_path.is_relative_to(get_launchbox_root())
+        ):
             exe = EmulatorPaths.retroarch()
         else:
-            exe = _norm_path(manifest_exe)
+            exe = manifest_exe_path
         if not str(exe) or not exe.exists():
             exe = EmulatorPaths.retroarch()
     if not str(exe) or not exe.exists():
@@ -351,13 +410,15 @@ def resolve_config(game: Any, manifest: Dict[str, Any]) -> Optional[RAConfig]:
     if is_abs:
         romfile = _norm_path(rom_str)
     else:
-        launchbox_root = os.getenv("LAUNCHBOX_ROOT", "").strip()
-        base = Path(launchbox_root) if launchbox_root else (Path(AA_DRIVE_ROOT) / "LaunchBox")
-        rom_abs = (base / rom_str).resolve()
+        rom_abs = (get_launchbox_root() / rom_str).resolve()
         romfile = rom_abs
 
     # Flags
-    flags = [str(f) for f in (emu.get("flags") or []) if isinstance(f, str) and f]
+    flags: List[str] = []
+    runtime_cfg = _ensure_runtime_base_config(exe)
+    if runtime_cfg:
+        flags.extend(["--config", str(runtime_cfg)])
+    flags.extend([str(f) for f in (emu.get("flags") or []) if isinstance(f, str) and f])
 
     # Bezel correction layer:
     # 1) pick overlay by platform (manifest overlay_map wins over defaults)
@@ -507,7 +568,6 @@ def propose_mapping_from_installed(cores_listing: List[str]) -> Dict[str, str]:
         "Neo Geo Pocket Color": ["mednafen_ngp_libretro.dll"],
         "WonderSwan": ["mednafen_wswan_libretro.dll"],
         "WonderSwan Color": ["mednafen_wswan_libretro.dll"],
-        "Sega Dreamcast": ["flycast_libretro.dll"],
         "Sega Naomi": ["flycast_libretro.dll"],
         "Sammy Atomiswave": ["flycast_libretro.dll"],
     }

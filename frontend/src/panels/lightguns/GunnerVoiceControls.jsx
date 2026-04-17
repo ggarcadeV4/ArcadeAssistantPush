@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { stopSpeaking } from '../../services/ttsClient'
-import { getGatewayHost } from '../../services/gateway'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../../utils/network'
 
 const MAX_RECORD_MS = 15000
 const SILENCE_THRESHOLD = -50 // dB - audio below this is considered silence
@@ -27,16 +27,11 @@ const pickRecorderOptions = () => {
   return supported ? { mimeType: supported } : undefined
 }
 
-const getWsUrl = () => {
-  if (typeof window === 'undefined') {
-    return null
-  }
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  const port = Number(window.location.port)
-  const isVite = port >= 5173 && port <= 5179
-  const host = getGatewayHost()
-  return `${proto}://${host}/ws/audio`
-}
+const getWsUrl = () =>
+  buildGatewayWsIdentityUrl('/ws/audio', {
+    panel: 'gunner',
+    corrId: generateCorrelationId('gunner-audio')
+  })
 
 export default function GunnerVoiceControls({ onTranscript, disabled = false }) {
   const [isRecording, setIsRecording] = useState(false)

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { chat as aiChat } from '../../services/aiClient'
+import { resolveDeviceId } from '../../utils/identity'
 import './consoleWizard.css'
 
 const STORAGE_KEY = 'console-wizard-mappings'
@@ -207,7 +208,8 @@ export default function ConsoleWizard() {
         ],
         metadata: { panel: 'controller-wizard', action: 'help' },
         scope: 'state',
-        deviceId: 'demo_001'
+        deviceId: resolveDeviceId(),
+        panel: 'controller-wizard'
       })
       const reply = res?.message?.content || '[No response]'
       setMessages(prev => [...prev, { type: 'assistant', content: reply }])

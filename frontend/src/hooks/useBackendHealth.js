@@ -14,6 +14,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
+import { buildStandardHeaders } from '../utils/identity';
 
 export function useBackendHealth() {
   const [retryCount, setRetryCount] = useState(0);
@@ -22,9 +23,7 @@ export function useBackendHealth() {
     queryKey: ['backend-health'],
     queryFn: async () => {
       const res = await fetch('/api/health', {
-        headers: {
-          'x-device-id': localStorage.getItem('device_id') || 'demo_001',
-        },
+        headers: buildStandardHeaders({ panel: 'frontend-health', scope: 'state' }),
       });
 
       if (!res.ok) {
@@ -102,7 +101,11 @@ export function useChat(panel) {
       // Proceed with mutation
       const res = await fetch(`/api/chat/${panel}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildStandardHeaders({
+          panel,
+          scope: 'state',
+          extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify({ message, context }),
       });
 

@@ -14,16 +14,14 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from backend.constants.drive_root import get_drive_root_or_none
 from backend.services.cabinet_identity import ensure_local_identity
 
 logger = logging.getLogger(__name__)
 
 
 def get_drive_root() -> Optional[Path]:
-    raw = os.getenv("AA_DRIVE_ROOT", "")
-    if not raw:
-        return None
-    return Path(raw)
+    return get_drive_root_or_none()
 
 
 def load_device_identity() -> Dict[str, str]:

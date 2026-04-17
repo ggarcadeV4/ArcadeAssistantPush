@@ -15,12 +15,18 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.constants.drive_root import get_drive_root
 from backend.services.drive_a_ai_client import SecureAIClient
 
 logger = logging.getLogger(__name__)
 
 # Path for generated trivia storage
-GENERATED_TRIVIA_PATH = Path(os.getenv("AA_DRIVE_ROOT", ".")) / "state" / "dewey" / "generated_trivia.json"
+GENERATED_TRIVIA_PATH = (
+    get_drive_root(allow_cwd_fallback=True, context="trivia_generator")
+    / "state"
+    / "dewey"
+    / "generated_trivia.json"
+)
 
 # How long generated trivia questions stay valid (days)
 TRIVIA_EXPIRY_DAYS = 30

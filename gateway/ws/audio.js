@@ -1,6 +1,8 @@
 import { Blob } from 'buffer'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { randomUUID } from 'crypto'
+import { attachWebSocketIdentity, ensureDeviceIdentity, extractWebSocketIdentity } from './identity.js'
 
 const WHISPER_API_URL = process.env.WHISPER_API_URL || 'https://api.openai.com/v1/audio/transcriptions'
 const WHISPER_MODEL = process.env.WHISPER_MODEL || 'whisper-1'
@@ -31,15 +33,27 @@ export function setupAudioWebSocket(wss) {
 
     // Wrap entire handler in try-catch to prevent connection failures
     try {
-      const host = req.headers.host || 'localhost'
-      const url = new URL(req.url, `http://${host}`)
+      const identity = extractWebSocketIdentity(req, {
+        defaultPanel: 'audio',
+        corrPrefix: 'audio'
+      })
+      const { url } = identity
 
       if (url.pathname !== '/ws/audio') {
         console.log(`[Audio WS] Ignoring non-audio path: ${url.pathname}`)
         return
       }
 
-      const connectionId = req.headers['sec-websocket-key'] || `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      if (!ensureDeviceIdentity(ws, identity, { channel: 'audio websocket' })) {
+        console.warn('[Audio WS] Rejected anonymous audio websocket')
+        return
+      }
+
+      const connectionMeta = attachWebSocketIdentity(ws, identity, {
+        connectionId: randomUUID(),
+        connectedAt: Date.now()
+      })
+      const connectionId = connectionMeta.connectionId
       console.log(`[Audio WS] ✅ Audio client connected: ${connectionId}`)
 
       ws.on('message', async (raw, isBinary) => {
@@ -56,7 +70,7 @@ export function setupAudioWebSocket(wss) {
 
           const data = JSON.parse(payload)
           console.log('[Audio WS] Successfully parsed JSON, type:', data.type)
-          await handleControlMessage(connectionId, data, ws)
+          await handleControlMessage(connectionMeta, data, ws)
         } catch (err) {
           if (!isBinary) {
             console.error('Audio WebSocket message error:', err)
@@ -81,6 +95,9 @@ export function setupAudioWebSocket(wss) {
       safeSend(ws, {
         type: 'connected',
         message: 'Audio WebSocket ready',
+        device: connectionMeta.deviceId,
+        panel: connectionMeta.panel,
+        corr_id: connectionMeta.corrId,
         supported_formats: ['audio/webm', 'audio/wav'],
         max_chunk_size: 8192
       })
@@ -97,12 +114,13 @@ export function setupAudioWebSocket(wss) {
   console.log('Audio WebSocket server configured')
 }
 
-async function handleControlMessage(connectionId, data, ws) {
+async function handleControlMessage(connectionMeta, data, ws) {
+  const connectionId = connectionMeta.connectionId
   console.log('[Audio WS] Received message type:', data.type)
   switch (data.type) {
     case 'start_recording':
       console.log('[Audio WS] Starting recording for connection:', connectionId)
-      startRecording(connectionId, ws)
+      startRecording(connectionMeta, ws)
       break
     case 'stop_recording':
       console.log('[Audio WS] Stopping recording for connection:', connectionId)
@@ -124,9 +142,14 @@ async function handleControlMessage(connectionId, data, ws) {
   }
 }
 
-function startRecording(connectionId, ws) {
+function startRecording(connectionMeta, ws) {
+  const connectionId = connectionMeta.connectionId
   console.log('[Audio WS] dYY� CREATE SESSION for:', connectionId)
   sessions.set(connectionId, {
+    connectionId,
+    deviceId: connectionMeta.deviceId,
+    panel: connectionMeta.panel,
+    corrId: connectionMeta.corrId,
     chunks: [],
     bytes: 0,
     startedAt: Date.now(),
@@ -138,14 +161,24 @@ function startRecording(connectionId, ws) {
     stopReceivedAt: null
   })
   console.log('[Audio WS] dYY� SESSION CREATED, active sessions:', sessions.size)
-  safeSend(ws, { type: 'recording_started', timestamp: Date.now() })
+  safeSend(ws, {
+    type: 'recording_started',
+    panel: connectionMeta.panel,
+    corr_id: connectionMeta.corrId,
+    timestamp: Date.now()
+  })
 }
 
 function appendChunk(connectionId, chunk, ws, sequence) {
   let session = sessions.get(connectionId)
   if (!session) {
     console.warn('[Audio WS] ⚠️ Session missing for chunk - auto-creating session to recover')
-    startRecording(connectionId, ws)
+    startRecording(ws.aaIdentity || {
+      connectionId,
+      deviceId: '',
+      panel: 'audio',
+      corrId: ''
+    }, ws)
     session = sessions.get(connectionId)
   }
   console.log('[Audio WS] dY"� appendChunk called, session exists:', !!session, 'recording:', session?.recording)
@@ -309,6 +342,9 @@ async function finalizeRecording(connectionId, ws) {
     safeSend(ws, {
       type: 'transcription',
       text: text || '',
+      device: session.deviceId,
+      panel: session.panel,
+      corr_id: session.corrId,
       duration_ms: Date.now() - session.startedAt
     })
   } catch (err) {

@@ -7,17 +7,20 @@ API endpoints for score reset and management.
 @owner: Arcade Assistant / ScoreKeeper Sam
 """
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from typing import Optional
 
 from backend.services.score_service import score_service
 from backend.services.score_service import get_ai_state_file, get_live_score_file
+from backend.services.policies import require_scope
 
 router = APIRouter(prefix="/api/scores", tags=["Scores"])
 
 
 @router.delete("/reset/{rom_name}")
 async def reset_game_score(
+    request: Request,
+    dry_run: bool = Query(default=False, description="Preview score reset without deleting files"),
     rom_name: str = Path(..., title="ROM Name", description="The MAME ROM name (e.g., galaga)")
 ):
     """
@@ -30,7 +33,8 @@ async def reset_game_score(
     ⚠️ **Requires MAME restart to take effect if game is running.**
     """
     try:
-        return score_service.reset_score(rom_name)
+        require_scope(request, "state")
+        return score_service.reset_score(rom_name, request=request, dry_run=dry_run)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset score: {str(e)}")
 

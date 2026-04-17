@@ -4,6 +4,7 @@
  */
 
 import { getGatewayUrl } from './gateway'
+import { buildStandardHeaders } from '../utils/identity'
 const GATEWAY = getGatewayUrl()
 
 export async function searchArcadeLore(query) {
@@ -13,11 +14,11 @@ export async function searchArcadeLore(query) {
 
   const res = await fetch(`${GATEWAY}/api/dewey/search`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-panel': 'dewey',
-      'x-scope': 'state'
-    },
+    headers: buildStandardHeaders({
+      panel: 'dewey',
+      scope: 'state',
+      extraHeaders: { 'content-type': 'application/json' }
+    }),
     body: JSON.stringify({ query: query.trim() })
   })
 

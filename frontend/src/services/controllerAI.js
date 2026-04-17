@@ -1,9 +1,11 @@
+import { buildStandardHeaders, resolveDeviceId } from '../utils/identity';
+
 export async function controllerAIChat(message, panelState = {}, options = {}) {
   if (!message || typeof message !== 'string') {
     throw new Error('message is required');
   }
 
-  const deviceId = options.deviceId || 'demo_001';
+  const deviceId = options.deviceId || resolveDeviceId();
   const panel = options.panel || 'controller';
 
   // Build system prompt based on panel type
@@ -47,8 +49,11 @@ Current panel state: ${JSON.stringify(panelState)}`
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
     headers: {
-      'content-type': 'application/json',
-      'x-scope': 'state',
+      ...buildStandardHeaders({
+        panel,
+        scope: 'state',
+        extraHeaders: { 'content-type': 'application/json' }
+      }),
       'x-device-id': deviceId
     },
     body: JSON.stringify({
@@ -91,15 +96,14 @@ Current panel state: ${JSON.stringify(panelState)}`
 }
 
 export async function controllerAIHealth(options = {}) {
-  const deviceId = options.deviceId || 'demo_001';
+  const deviceId = options.deviceId || resolveDeviceId();
   const panel = options.panel || 'controller';
 
   const res = await fetch('/api/controller/ai/health', {
     method: 'GET',
     headers: {
-      'x-scope': 'state',
-      'x-device-id': deviceId,
-      'x-panel': panel
+      ...buildStandardHeaders({ panel, scope: 'state' }),
+      'x-device-id': deviceId
     }
   });
   const body = await res.json().catch(() => ({}));

@@ -22,26 +22,14 @@ import logging
 from difflib import SequenceMatcher
 
 from backend.constants.a_drive_paths import LaunchBoxPaths
-from backend.constants.drive_root import get_drive_root
+from backend.constants.drive_root import get_tools_root, resolve_runtime_path
 
 logger = logging.getLogger(__name__)
 
 
-def _is_wsl() -> bool:
-    return platform.system() == "Linux" and "microsoft" in platform.release().lower()
-
-
 def _norm_path(p: str) -> Path:
-    """Normalize A:/ style paths to /mnt/a when under WSL; leave Windows paths on Windows."""
-    if not p:
-        return Path("")
-    s = p.replace("\\", "/")
-    if _is_wsl():
-        s = s.replace("A:/", "/mnt/a/")
-        m = re.match(r"^([A-Za-z]):/(.*)$", s)
-        if m:
-            s = f"/mnt/{m.group(1).lower()}/{m.group(2)}"
-    return Path(s)
+    """Normalize paths through the shared runtime root contract."""
+    return resolve_runtime_path(p) or Path("")
 
 
 def _get(obj: Any, key: str) -> Optional[str]:
@@ -369,16 +357,12 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
             if ahk_which:
                 ahk_exe = Path(ahk_which)
         if not ahk_exe:
-            drive_root = get_drive_root(allow_cwd_fallback=True)
-            if drive_root.drive:
-                drive_letter_root = Path(drive_root.drive + "\\")
-            else:
-                drive_letter_root = drive_root
+            tools_root = get_tools_root()
             ahk_candidates = [
-                drive_letter_root / "Tools" / "AutoHotkey" / "AutoHotkey.exe",
-                drive_letter_root / "Tools" / "AutoHotkey" / "AutoHotkeyU64.exe",
-                drive_letter_root / "Tools" / "AutoHotkey" / "AutoHotkeyU32.exe",
-                drive_letter_root / "Tools" / "Teknoparrot Auto Xinput" / "AutoHotkeyU32.exe",
+                tools_root / "AutoHotkey" / "AutoHotkey.exe",
+                tools_root / "AutoHotkey" / "AutoHotkeyU64.exe",
+                tools_root / "AutoHotkey" / "AutoHotkeyU32.exe",
+                tools_root / "Teknoparrot Auto Xinput" / "AutoHotkeyU32.exe",
             ]
             for candidate in ahk_candidates:
                 if candidate.exists():

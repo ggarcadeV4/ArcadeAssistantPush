@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { buildStandardHeaders } from '../utils/identity';
+
+const CAPTURE_PANEL = 'capture-mode';
+const captureJsonHeaders = () => buildStandardHeaders({
+    panel: CAPTURE_PANEL,
+    scope: 'state',
+    extraHeaders: { 'Content-Type': 'application/json' },
+});
+const captureStateHeaders = () => buildStandardHeaders({ panel: CAPTURE_PANEL, scope: 'state' });
 
 /**
  * useCaptureMode - Hook for capturing keyboard and gamepad inputs
@@ -63,7 +72,7 @@ export function useCaptureMode() {
         // Clear any previous backend capture state and start backend detection
         fetch('/api/local/controller/input-detect/start', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: captureJsonHeaders()
         }).then(() => {
             console.log('[CaptureMode] Backend input detection started');
         }).catch((e) => {
@@ -219,7 +228,7 @@ export function useCaptureMode() {
 
             try {
                 const response = await fetch('/api/local/controller/input-detect', {
-                    headers: { 'x-scope': 'state' }
+                    headers: captureStateHeaders()
                 });
 
                 if (response.ok) {
@@ -235,7 +244,7 @@ export function useCaptureMode() {
                         // Clear the backend state after capturing
                         fetch('/api/local/controller/input-detect/clear', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
+                            headers: captureJsonHeaders()
                         }).catch(() => { });
                     }
                 }

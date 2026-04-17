@@ -8,7 +8,7 @@ function rid() {
 
 async function proxy(req, res, path, method = 'GET') {
   try {
-    const backendUrl = req.app.locals.fastapiUrl || process.env.FASTAPI_URL || 'http://127.0.0.1:8888';
+    const backendUrl = req.app.locals.fastapiUrl || process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
     const url = `${backendUrl}${path}`
     const headers = { 'content-type': 'application/json' }
     // Forward scope/panel/device headers for auditing/policy

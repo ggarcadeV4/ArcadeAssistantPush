@@ -6,6 +6,7 @@
  * 
  * ws://localhost:8787/ws/session
  */
+import { attachWebSocketIdentity, ensureDeviceIdentity, extractWebSocketIdentity } from './identity.js'
 
 const clients = new Set();
 
@@ -15,19 +16,31 @@ const clients = new Set();
 export function setupSessionWebSocket(wss) {
     wss.on('connection', (ws, req) => {
         try {
-            const host = req.headers.host || 'localhost';
-            const url = new URL(req.url, `http://${host}`);
+            const identity = extractWebSocketIdentity(req, {
+                defaultPanel: 'session',
+                corrPrefix: 'session'
+            });
+            const { url } = identity;
 
             if (url.pathname !== '/ws/session') {
                 return; // Not for us
             }
 
-            console.log('[Session WS] Client connected');
+            if (!ensureDeviceIdentity(ws, identity, { channel: 'session websocket' })) {
+                console.warn('[Session WS] Rejected anonymous session websocket');
+                return;
+            }
 
-            const client = {
+            const client = attachWebSocketIdentity(ws, identity, {
                 ws,
                 connectedAt: Date.now()
-            };
+            });
+
+            console.log('[Session WS] Client connected', {
+                deviceId: client.deviceId,
+                panel: client.panel,
+                corrId: client.corrId
+            });
 
             clients.add(client);
 
@@ -35,6 +48,9 @@ export function setupSessionWebSocket(wss) {
             safeSend(ws, {
                 type: 'connected',
                 message: 'Session WebSocket connected',
+                device: client.deviceId,
+                panel: client.panel,
+                corr_id: client.corrId,
                 timestamp: new Date().toISOString()
             });
 

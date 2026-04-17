@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { fetchWithRetry } from '../lib/http.js';
 import { errors } from '../lib/errors.js';
+import { requireDriveRoot } from '../utils/driveDetection.js';
 import fs from 'fs';
 import path from 'path';
 import { sendTelemetry } from '../services/supabase_client.js';
@@ -8,11 +9,7 @@ import { sendTelemetry } from '../services/supabase_client.js';
 // Helper function to read cabinet ID
 function readCabinetId() {
     try {
-        const driveRoot = process.env.AA_DRIVE_ROOT;
-        if (!driveRoot) {
-            console.warn('[gemini] AA_DRIVE_ROOT not set, using cwd');
-        }
-        const deviceIdPath = path.join(driveRoot || process.cwd(), '.aa', 'device_id.txt');
+        const deviceIdPath = path.join(requireDriveRoot(), '.aa', 'device_id.txt');
         return fs.readFileSync(deviceIdPath, 'utf-8').trim();
     } catch (e) {
         console.warn('Warning: Could not read cabinet_id:', e.message);
@@ -30,7 +27,7 @@ export default async function geminiChat({ messages, temperature, max_tokens, ti
     }
 
     const body = {
-        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
         messages,
         temperature: temperature ?? 0.7,
         max_tokens: max_tokens ?? env.AI_MAX_TOKENS,
@@ -119,7 +116,7 @@ export async function chatWithGemini({ messages, temperature, max_tokens, timeou
 }
 
 // Minimal streaming shim: emits word chunks via onToken, built on top of non-streaming API.
-export async function chat({ prompt, messages, stream = false, onToken, temperature, max_tokens, timeout_ms, system }) {
+export async function chat({ prompt, messages, stream = false, onToken, temperature, max_tokens, timeout_ms, system, tools }) {
     // Build minimal messages array if only prompt provided
     if (!messages && prompt) {
         messages = [{ role: 'user', content: String(prompt) }];
@@ -134,7 +131,7 @@ export async function chat({ prompt, messages, stream = false, onToken, temperat
             throw errors.notConfigured('Supabase Edge Functions');
         }
         const body = {
-            model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+            model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
             max_tokens: max_tokens ?? env.AI_MAX_TOKENS,
             temperature: temperature ?? 0.7,
             messages,

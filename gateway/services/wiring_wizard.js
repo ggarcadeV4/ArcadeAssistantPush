@@ -18,6 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
 import * as blinky from '../gems/aa-blinky/index.js';
+import { requireDriveRoot } from '../utils/driveDetection.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -29,8 +30,7 @@ const LED_CHANNELS_FILENAME = 'led_channels.json';
  * Get path to led_channels.json (respects AA_DRIVE_ROOT)
  * @returns {string} Absolute path to led_channels.json
  */
-function getLedChannelsPath() {
-    const driveRoot = process.env.AA_DRIVE_ROOT || 'A:\\';
+function getLedChannelsPath(driveRoot = requireDriveRoot()) {
     return path.join(driveRoot, 'configs', 'ledblinky', LED_CHANNELS_FILENAME);
 }
 

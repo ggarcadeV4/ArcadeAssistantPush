@@ -3,6 +3,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from backend.constants.drive_root import get_drive_root
+
 
 def _get_drive_root() -> Path:
     """Get the drive root from AA_DRIVE_ROOT environment variable (required).
@@ -10,11 +12,7 @@ def _get_drive_root() -> Path:
     Golden Drive Contract: AA_DRIVE_ROOT must be set; no fallback to hardcoded A:\\.
     If not set, returns current working directory as last resort (for dev/testing).
     """
-    drive_root = os.getenv("AA_DRIVE_ROOT")
-    if not drive_root:
-        # No hardcoded A:\ fallback - use cwd for dev environments only
-        drive_root = os.getcwd()
-    return Path(drive_root)
+    return get_drive_root(allow_cwd_fallback=True, context="audit_log")
 
 
 def _pause_log_path() -> Path:

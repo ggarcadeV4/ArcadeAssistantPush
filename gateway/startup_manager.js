@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getDriveRoot, getManifestPath, getRuntimePaths, warnIfManifestMissing } from './utils/driveDetection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +27,7 @@ export function logBackendError(context, err) {
   if (inStartupGracePeriod() && isEconnRefused) {
     // During startup, only log the first ECONNREFUSED and then suppress
     if (startupState.backendErrorCount === 0) {
-      console.log(`⏳ [${context}] Waiting for backend to start...`);
+      console.log(`â³ [${context}] Waiting for backend to start...`);
     }
     startupState.backendErrorCount++;
     return; // Suppress the full stack trace
@@ -36,37 +37,10 @@ export function logBackendError(context, err) {
   console.error(`[${context}] Error:`, err?.message || err);
 }
 
-function resolveDriveRoot(input) {
-  // Allow relative AA_DRIVE_ROOT by resolving from project root (gateway/..)
-  const base = path.resolve(__dirname, '..');
-
-  if (!input) return base;
-
-  // Normalize WSL-style paths to Windows when running on Windows
-  // Example: /mnt/c/LaunchBox -> C:\\LaunchBox
-  if (process.platform === 'win32' && input.startsWith('/mnt/')) {
-    const parts = input.split('/');
-    if (parts.length >= 3) {
-      const driveLetter = (parts[2] || '').toUpperCase();
-      const rest = parts.slice(3).join('\\');
-      if (driveLetter && /^[A-Z]$/.test(driveLetter)) {
-        input = `${driveLetter}:\\${rest}`;
-      }
-    }
-  }
-
-  // Handle Windows paths (C:\\...) and absolute POSIX paths
-  const isWinPath = /^[A-Za-z]:[\\\/]/.test(input);
-  const isAbsolute = path.isAbsolute(input) || isWinPath;
-
-  return isAbsolute ? input : path.resolve(base, input);
-}
-
 export async function validateEnvironment() {
   const required = [
     'PORT',
-    'FASTAPI_URL',
-    'AA_DRIVE_ROOT'
+    'FASTAPI_URL'
   ];
 
   const missing = required.filter(env => !process.env[env]);
@@ -79,21 +53,28 @@ export async function validateEnvironment() {
   const optional = ['CLAUDE_API_KEY', 'ANTHROPIC_API_KEY', 'ELEVENLABS_API_KEY', 'OPENAI_API_KEY'];
   const missingOptional = optional.filter(env => !process.env[env]);
   if (missingOptional.length > 0) {
-    console.log(`⚠️  Optional AI provider keys not configured: ${missingOptional.join(', ')}`);
+    console.log(`âš ï¸  Optional AI provider keys not configured: ${missingOptional.join(', ')}`);
     console.log('   AI chat and TTS features will be unavailable until keys are added to .env');
   }
 
   // Validate AA_DRIVE_ROOT exists (warn only, don't block startup)
-  const driveRoot = resolveDriveRoot(process.env.AA_DRIVE_ROOT);
+  const driveRoot = getDriveRoot();
+  if (!driveRoot) {
+    console.warn('⚠️  AA_DRIVE_ROOT is not set; gateway will continue in demo/read-only mode until configured.');
+    return;
+  }
+
   if (!fs.existsSync(driveRoot)) {
-    console.warn(`⚠️  Drive root does not exist: ${driveRoot}`);
+    console.warn(`âš ï¸  Configured root does not exist: ${driveRoot}`);
     console.warn('   Some features may not work correctly without access to the drive.');
+    return;
   }
 
   // Validate manifest.json exists and is valid
-  const manifestPath = path.join(driveRoot, '.aa', 'manifest.json');
+  const manifestPath = getManifestPath(driveRoot);
   if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Missing manifest.json at: ${manifestPath}`);
+    warnIfManifestMissing(driveRoot);
+    return;
   }
 
   try {
@@ -105,17 +86,21 @@ export async function validateEnvironment() {
     throw new Error(`Invalid manifest.json: ${err.message}`);
   }
 
-  console.log('✅ Environment validation passed');
+  console.log('âœ… Environment validation passed');
 }
 
 export async function initializeApp(app) {
   // Store FastAPI URL in app locals
-  app.locals.fastapiUrl = process.env.FASTAPI_URL || 'http://127.0.0.1:8888';
+  app.locals.fastapiUrl = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
   console.log('[DEBUG] Using FastAPI URL:', app.locals.fastapiUrl);
 
   // Store other config
-  app.locals.driveRoot = resolveDriveRoot(process.env.AA_DRIVE_ROOT);
+  app.locals.driveRoot = getDriveRoot();
+  app.locals.runtimePaths = getRuntimePaths(app.locals.driveRoot);
   app.locals.isDevelopment = process.env.NODE_ENV === 'development';
+  if (!app.locals.driveRoot) {
+    console.warn('⚠️  Gateway initialized without AA_DRIVE_ROOT; cabinet file-backed features stay in demo/read-only mode.');
+  }
 
   // Test FastAPI connection
   try {
@@ -124,16 +109,16 @@ export async function initializeApp(app) {
       throw new Error(`FastAPI health check failed: ${response.status}`);
     }
     startupState.backendReady = true;
-    console.log('✅ FastAPI connection verified');
+    console.log('âœ… FastAPI connection verified');
   } catch (err) {
-    console.log(`⚠️ FastAPI not available yet (this is normal during startup)`);
+    console.log(`âš ï¸ FastAPI not available yet (this is normal during startup)`);
     console.log('   Gateway will start anyway and connect when backend is ready');
 
     // Start background polling for backend availability
     pollForBackend(app.locals.fastapiUrl);
   }
 
-  console.log('✅ Gateway app initialized');
+  console.log('âœ… Gateway app initialized');
 }
 
 // Background poll for backend to come online (non-blocking)
@@ -149,7 +134,7 @@ function pollForBackend(fastapiUrl, attempt = 0) {
       if (response.ok) {
         startupState.backendReady = true;
         const suppressedCount = startupState.backendErrorCount;
-        console.log(`✅ Backend connected (suppressed ${suppressedCount} startup errors)`);
+        console.log(`âœ… Backend connected (suppressed ${suppressedCount} startup errors)`);
       } else {
         if (attempt < maxAttempts) pollForBackend(fastapiUrl, attempt + 1);
       }

@@ -10,6 +10,8 @@ function parseRetryAfterMsFromHeaders(headers) {
 }
 
 export async function fetchWithRetry(url, init = {}, { attempts, baseMs, timeoutMs } = {}) {
+  const method = String(init?.method || 'GET').toUpperCase();
+  const idempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
   const max = attempts ?? env.AI_RETRY_MAX_ATTEMPTS;
   const base = baseMs ?? env.AI_RETRY_BASE_MS;
   let lastErr; let retryAfterMs;
@@ -22,7 +24,7 @@ export async function fetchWithRetry(url, init = {}, { attempts, baseMs, timeout
       if (res.status === 429) {
         // Prefer upstream hint if supplied
         retryAfterMs = parseRetryAfterMsFromHeaders(res.headers);
-        if (i < max) {
+        if (idempotent && i < max) {
           await sleep(retryAfterMs ?? backoff(i, base));
           continue;
         }
@@ -31,7 +33,7 @@ export async function fetchWithRetry(url, init = {}, { attempts, baseMs, timeout
     } catch (e) {
       lastErr = e;
       clearTimeout(t);
-      if (i < max) {
+      if (idempotent && i < max) {
         await sleep(backoff(i, base));
         continue;
       }

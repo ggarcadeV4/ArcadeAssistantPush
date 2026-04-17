@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import ControllerSVG from './ControllerSVG';
 import './gamepad-setup.css';
+import { buildStandardHeaders } from '../../utils/identity';
 
 const ENCODER_BOARD_KEYWORDS = [
   'pacdrive', 'pactotech', 'pac-drive',
@@ -50,16 +51,10 @@ const WIZARD_SEQUENCE = [
 ];
 
 const API_BASE = '';
-const deviceId = window.AA_DEVICE_ID || (() => {
-  console.warn('[Wiz] window.AA_DEVICE_ID not available, ' +
-    'falling back to cabinet-001. Cabinet identity may not be unique.');
-  return 'cabinet-001';
-})();
-const HEADERS = (scope = 'state') => ({
-  'Content-Type': 'application/json',
-  'x-device-id': deviceId,
-  'x-panel': 'console-wizard',
-  'x-scope': scope,
+const HEADERS = (scope = 'state') => buildStandardHeaders({
+  panel: 'console-wizard',
+  scope,
+  extraHeaders: { 'Content-Type': 'application/json' },
 });
 
 export default function GamepadSetupOverlay({ onClose, fetchJSON }) {

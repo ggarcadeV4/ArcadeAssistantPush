@@ -285,6 +285,17 @@ main {
   overflow: hidden
 }
 
+/* Global avatar constraint for PanelShell icon images.
+   Panel-specific overrides (e.g. .gunner-retro-shell .panel-avatar)
+   still win via higher specificity. */
+.panel-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .aa-status {
   font-size: 14px;
   padding: 4px 10px;

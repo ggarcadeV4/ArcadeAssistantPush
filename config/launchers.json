@@ -57,37 +57,42 @@
             "flags": ["-f"]
         },
         "mame": {
-            "exe": "A:/Emulators/MAME/mame.exe",
-            "rompath": "A:/Roms/MAME",
+            "exe": "${AA_DRIVE_ROOT}/Emulators/MAME/mame.exe",
+            "rompath": "${AA_DRIVE_ROOT}/Roms/MAME",
             "platforms": ["Arcade", "Arcade MAME", "MAME Gun Games"],
             "flags": ["-skip_gameinfo"]
         },
         "teknoparrot": {
-            "exe": "A:/Emulators/TeknoParrot Latest/TeknoParrotUi.exe",
+            "exe": "${AA_DRIVE_ROOT}/Emulators/TeknoParrot Latest/TeknoParrotUi.exe",
             "platforms": ["TeknoParrot Arcade", "Taito Type X"]
         },
         "pcsx2": {
-            "exe": "A:/LaunchBox/Emulators/PCSX2/pcsx2.exe",
+            "exe": "${AA_DRIVE_ROOT}/LaunchBox/Emulators/PCSX2/pcsx2-qt.exe",
             "platforms": ["Sony Playstation 2", "PS2", "PS2 Gun Games"],
             "flags": []
         },
         "model2": {
-            "exe": "A:/Emulators/Sega Model 2/EMULATOR.EXE",
+            "exe": "${AA_DRIVE_ROOT}/Emulators/Sega Model 2/EMULATOR.EXE",
             "platforms": ["Sega Model 2"],
             "flags": []
         },
         "cemu": {
-            "exe": "A:/LaunchBox/Emulators/cemu_1.26.2/Cemu.exe",
+            "exe": "${AA_DRIVE_ROOT}/LaunchBox/Emulators/cemu_1.26.2/Cemu.exe",
             "platforms": ["Nintendo Wii U"],
             "flags": ["-f", "-g"]
         },
+        "dolphin": {
+            "exe": "${AA_DRIVE_ROOT}/LaunchBox/Emulators/dolphin-2412-x64/Dolphin-x64/Dolphin.exe",
+            "platforms": ["Nintendo GameCube", "Nintendo Wii"],
+            "flags": []
+        },
         "rpcs3": {
-            "exe": "A:/LaunchBox/Emulators/rpcs3/rpcs3.exe",
+            "exe": "${AA_DRIVE_ROOT}/LaunchBox/Emulators/rpcs3/rpcs3.exe",
             "platforms": ["Sony Playstation 3", "PS3"],
             "flags": []
         },
         "hypseus": {
-            "exe": "A:/Emulators/Hypseus/Hypseus Singe/hypseus.exe",
+            "exe": "${AA_DRIVE_ROOT}/Emulators/Hypseus/Hypseus Singe/hypseus.exe",
             "platforms": ["Daphne", "Hypseus", "Laserdisc"],
             "flags": []
         }

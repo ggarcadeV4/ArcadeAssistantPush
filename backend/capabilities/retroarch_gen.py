@@ -3,10 +3,15 @@ import json
 import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from backend.constants.drive_root import get_drive_root
 
 class RetroArchConfigGenerator:
-    def __init__(self, drive_root: str = "A:"):
-        self.drive_root = Path(drive_root)
+    def __init__(self, drive_root: Optional[str | Path] = None):
+        self.drive_root = (
+            Path(drive_root)
+            if drive_root is not None
+            else get_drive_root(context="retroarch_gen")
+        )
         self.config_dir = self.drive_root / "config" / "retroarch" / "config"
         self.sot_path = self.drive_root / "config" / "mappings" / "controls.json"
 

@@ -8,6 +8,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './contentDisplayManager.css';
 import { getGatewayUrl } from '../../services/gateway'
+import { buildStandardHeaders } from '../../utils/identity'
+
+const CDM_PANEL = 'content-display-manager'
 
 const GATEWAY = (typeof window !== 'undefined' && window.location && window.location.port === '5173')
     ? getGatewayUrl()
@@ -100,11 +103,12 @@ const ContentDisplayManager = () => {
     useEffect(() => {
         const loadConfig = async () => {
             setIsLoading(true);
+            const cdmGetHeaders = buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' });
             try {
                 const [pathsRes, marqueeRes, pegasusRes] = await Promise.all([
-                    fetch(`${GATEWAY}/api/content/paths`).catch(() => null),
-                    fetch(`${GATEWAY}/api/local/marquee/config`).catch(() => null),
-                    fetch(`${GATEWAY}/api/pegasus/status`).catch(() => null),
+                    fetch(`${GATEWAY}/api/content/paths`, { headers: cdmGetHeaders }).catch(() => null),
+                    fetch(`${GATEWAY}/api/local/marquee/config`, { headers: cdmGetHeaders }).catch(() => null),
+                    fetch(`${GATEWAY}/api/pegasus/status`, { headers: cdmGetHeaders }).catch(() => null),
                 ]);
 
                 if (pathsRes?.ok) {
@@ -167,7 +171,11 @@ const ContentDisplayManager = () => {
         try {
             const res = await fetch(`${GATEWAY}/api/content/paths/validate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: buildStandardHeaders({
+                    panel: CDM_PANEL,
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({
                     core: corePaths,
                     systems: systemPaths,
@@ -191,9 +199,10 @@ const ContentDisplayManager = () => {
     // Dev-only hook to inspect registries
     const handleShowRegistry = async () => {
         try {
+            const cdmGetHeaders = buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' });
             const [aaRes, rfeRes] = await Promise.all([
-                fetch(`${GATEWAY}/api/local/registry/aa`).catch(() => null),
-                fetch(`${GATEWAY}/api/local/registry/retrofe`).catch(() => null),
+                fetch(`${GATEWAY}/api/local/registry/aa`, { headers: cdmGetHeaders }).catch(() => null),
+                fetch(`${GATEWAY}/api/local/registry/retrofe`, { headers: cdmGetHeaders }).catch(() => null),
             ]);
             const aaData = aaRes && aaRes.ok ? await aaRes.json() : null;
             const rfeData = rfeRes && rfeRes.ok ? await rfeRes.json() : null;
@@ -214,14 +223,16 @@ const ContentDisplayManager = () => {
         try {
             const res = await fetch(`${GATEWAY}/api/pegasus/sync/${encodeURIComponent(platformId)}`, {
                 method: 'POST',
-                headers: { 'x-scope': 'state' },
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
             });
 
             if (res.ok) {
                 const data = await res.json();
                 showToast(`✅ ${data.message}`);
                 // Refresh status
-                const statusRes = await fetch(`${GATEWAY}/api/pegasus/status`);
+                const statusRes = await fetch(`${GATEWAY}/api/pegasus/status`, {
+                    headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
+                });
                 if (statusRes.ok) {
                     setPegasusStatus(await statusRes.json());
                 }
@@ -246,14 +257,16 @@ const ContentDisplayManager = () => {
         try {
             const res = await fetch(`${GATEWAY}/api/pegasus/sync-all`, {
                 method: 'POST',
-                headers: { 'x-scope': 'state' },
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
             });
 
             if (res.ok) {
                 const data = await res.json();
                 showToast(`✅ ${data.message}`);
                 // Refresh status
-                const statusRes = await fetch(`${GATEWAY}/api/pegasus/status`);
+                const statusRes = await fetch(`${GATEWAY}/api/pegasus/status`, {
+                    headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
+                });
                 if (statusRes.ok) {
                     setPegasusStatus(await statusRes.json());
                 }
@@ -274,7 +287,9 @@ const ContentDisplayManager = () => {
     const handleRefreshPegasusStatus = async () => {
         showToast('Refreshing Pegasus status...');
         try {
-            const res = await fetch(`${GATEWAY}/api/pegasus/status`);
+            const res = await fetch(`${GATEWAY}/api/pegasus/status`, {
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
+            });
             if (res.ok) {
                 setPegasusStatus(await res.json());
                 showToast('✅ Status refreshed');
@@ -311,9 +326,7 @@ const ContentDisplayManager = () => {
         try {
             const res = await fetch(`${GATEWAY}/api/content/retrofe/rebuild-meta`, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'state'
-                }
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' })
             });
 
             if (res.ok) {
@@ -336,7 +349,10 @@ const ContentDisplayManager = () => {
     const handleTestImage = async () => {
         showToast('Showing test image...');
         try {
-            await fetch(`${GATEWAY}/api/content/marquee/test/image`, { method: 'POST' });
+            await fetch(`${GATEWAY}/api/content/marquee/test/image`, {
+                method: 'POST',
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
+            });
             showToast('✅ Test image displayed');
         } catch (err) {
             showToast('❌ Test failed');
@@ -346,7 +362,10 @@ const ContentDisplayManager = () => {
     const handleTestVideo = async () => {
         showToast('Showing test video...');
         try {
-            await fetch(`${GATEWAY}/api/content/marquee/test/video`, { method: 'POST' });
+            await fetch(`${GATEWAY}/api/content/marquee/test/video`, {
+                method: 'POST',
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
+            });
             showToast('✅ Test video displayed');
         } catch (err) {
             showToast('❌ Test failed');
@@ -356,7 +375,10 @@ const ContentDisplayManager = () => {
     const handleSimulateBrowse = async () => {
         showToast('Simulating game browse...');
         try {
-            await fetch(`${GATEWAY}/api/content/marquee/test/browse`, { method: 'POST' });
+            await fetch(`${GATEWAY}/api/content/marquee/test/browse`, {
+                method: 'POST',
+                headers: buildStandardHeaders({ panel: CDM_PANEL, scope: 'state' }),
+            });
             showToast('✅ Browse simulation started');
         } catch (err) {
             showToast('❌ Simulation failed');
@@ -371,7 +393,11 @@ const ContentDisplayManager = () => {
             const [pathsRes, marqueeRes] = await Promise.all([
                 fetch(`${GATEWAY}/api/content/paths`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: buildStandardHeaders({
+                        panel: CDM_PANEL,
+                        scope: 'config',
+                        extraHeaders: { 'Content-Type': 'application/json' },
+                    }),
                     body: JSON.stringify({
                         core: corePaths,
                         systems: systemPaths,
@@ -380,7 +406,11 @@ const ContentDisplayManager = () => {
                 }),
                 fetch(`${GATEWAY}/api/local/marquee/config`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: buildStandardHeaders({
+                        panel: CDM_PANEL,
+                        scope: 'config',
+                        extraHeaders: { 'Content-Type': 'application/json' },
+                    }),
                     body: JSON.stringify({
                         version: 1,
                         target_monitor_index: marqueeConfig.target_monitor_index,

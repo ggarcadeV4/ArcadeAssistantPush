@@ -1,5 +1,8 @@
-/* chuck-layout — appended to controller-chuck.css bottom
- * Horizontal flex wrapper: player grid fills full width, sidebar overlays
+/* chuck-layout — horizontal zone inside chuck-body grid column 2.
+ * chuck-body is now display:grid (200px | 1fr).
+ * chuck-layout occupies the 1fr column — the controller stage hero zone.
+ * The chuck-main inside it is the primary work surface.
+ * The drawer/sidebar is an overlay, not part of the flow.
  */
 
 .chuck-layout {
@@ -7,13 +10,15 @@
     flex-direction: row;
     align-items: stretch;
     overflow: hidden;
-    flex: 1;
+    /* Fill grid column 2 completely */
+    min-width: 0;
     min-height: 0;
 }
 
-/* Main grid takes full width — sidebar is now an overlay drawer */
+/* Main grid takes full width — sidebar is now an overlay drawer.
+   Reduced horizontal padding (was 32px) now that the left rail is separate. */
 .chuck-layout .chuck-main {
     flex: 1;
     min-width: 0;
-    padding: 0 32px;
+    padding: 0 16px;
 }

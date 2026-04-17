@@ -29,6 +29,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 
@@ -86,7 +87,7 @@ class UpdateAssistant:
     """
     
     def __init__(self):
-        self._drive_root = Path(os.getenv("AA_DRIVE_ROOT", "."))
+        self._drive_root = get_drive_root(context="update_assistant")
         self._updates_dir = self._drive_root / ".aa" / "updates"
         self._state_dir = self._drive_root / ".aa" / "state"
         self._logs_dir = self._drive_root / ".aa" / "logs" / "updates"

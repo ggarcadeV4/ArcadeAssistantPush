@@ -2,6 +2,7 @@
  * TTS (Text-to-Speech) Client
  * Handles ElevenLabs TTS API calls via gateway
  */
+import { buildStandardHeaders } from '../utils/identity'
 
 const TTS_ENDPOINT = '/api/voice/tts'
 const TTS_DUPLICATE_SUPPRESS_MS = 7000
@@ -24,7 +25,11 @@ let lastSpokenAtMs = 0
 function signalSpeakingMode(enabled) {
   fetch('/api/cabinet/lighting/speaking', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildStandardHeaders({
+      panel: 'voice',
+      scope: 'state',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     body: JSON.stringify({ enabled })
   }).catch(err => {
     console.warn('[TTS] Speaking mode signal failed (non-fatal):', err)
@@ -196,10 +201,11 @@ export async function speak(text, options = {}) {
     console.log('[TTS] Sending request to:', TTS_ENDPOINT)
     const response = await fetch(TTS_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-device-id': getDeviceId()
-      },
+      headers: buildStandardHeaders({
+        panel: 'voice',
+        scope: 'state',
+        extraHeaders: { 'Content-Type': 'application/json' }
+      }),
       body: JSON.stringify({
         text: speechText,
         voice_profile,
@@ -358,18 +364,6 @@ export async function speak(text, options = {}) {
   }
 }
 
-/**
- * Get or create device ID for quota tracking
- */
-function getDeviceId() {
-  let deviceId = localStorage.getItem('aa_device_id')
-  if (!deviceId) {
-    deviceId = `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    localStorage.setItem('aa_device_id', deviceId)
-  }
-  return deviceId
-}
-
 function canUseBrowserSpeech() {
   return typeof window !== 'undefined' &&
     typeof window.speechSynthesis !== 'undefined' &&
@@ -482,7 +476,11 @@ export function speakAsVicky(text) {
  * @param {string} text - Text to speak
  */
 export function speakAsLora(text) {
-  return speak(text, { voice_profile: 'lora' })
+  // Restored from active codebase evidence (.env LORA_VOICE_ID).
+  // Pinned inline to match the existing Dewey override pattern, so the
+  // resolver chain cannot silently fall back to Lily when env loading
+  // misbehaves (see ROLLING_LOG.md 2026-04-12 entry on LoRa voice regression).
+  return speak(text, { voice_id: 'EXAVITQu4vr4xnSDxMaL' })
 }
 
 /**
@@ -530,7 +528,9 @@ export function speakAsBlinky(text) {
  */
 export async function isTTSAvailable() {
   try {
-    const response = await fetch('/api/health')
+    const response = await fetch('/api/health', {
+      headers: buildStandardHeaders({ panel: 'voice', scope: 'state' })
+    })
     if (!response.ok) return false
     const health = await response.json()
     return health.services?.tts?.available || false

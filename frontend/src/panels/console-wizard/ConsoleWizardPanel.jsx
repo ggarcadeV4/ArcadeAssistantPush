@@ -13,6 +13,8 @@ import { ExecutionCard } from '../controller/ExecutionCard';
 import { assembleWizContext } from './wizContextAssembler';
 import { WIZ_CHIPS } from './wizChips';
 import WizNavSidebar from './WizNavSidebar';
+import { buildStandardHeaders } from '../../utils/identity';
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../../utils/network';
 
 /** WIZ persona config for EngineeringBaySidebar */
 const WIZ_PERSONA = {
@@ -173,17 +175,10 @@ const TTS_VOICE_ID = 'CwhRBWXzGAHq8TQ4Fs17';
 const DEFAULT_SCOPE = 'state';
 const PREVIEW_SCOPE = 'state';  // Fixed: backend requires 'state' for dry_run=true
 const MUTATION_SCOPE = 'config';
-const wizDeviceId = window.AA_DEVICE_ID || (() => {
-  console.warn('[Wiz] window.AA_DEVICE_ID not available, ' +
-    'falling back to cabinet-001. Cabinet identity may not be unique.');
-  return 'cabinet-001';
-})();
-
-const panelHeaders = (scope = DEFAULT_SCOPE) => ({
-  'Content-Type': 'application/json',
-  'x-device-id': wizDeviceId,
-  'x-panel': 'console-wizard',
-  'x-scope': scope,
+const panelHeaders = (scope = DEFAULT_SCOPE) => buildStandardHeaders({
+  panel: 'console-wizard',
+  scope,
+  extraHeaders: { 'Content-Type': 'application/json' },
 });
 
 const PANEL_STATUS_META = {
@@ -386,6 +381,11 @@ export default function ConsoleWizardPanel() {
   const mediaStreamRef = useRef(null);
   const wsRef = useRef(null);
   const chunkSequenceRef = useRef(0);
+  const audioContextRef = useRef(null);
+  const silenceCheckIntervalRef = useRef(null);
+  // Bridge to EngineeringBaySidebar.sendMessage so mic transcripts land in the
+  // same visible Wizard sidebar conversation as typed chat.
+  const wizSendRef = useRef(null);
 
   const logEvent = useCallback((event, payload = {}) => {
     console.info('[ConsoleWizard]', event, payload);
@@ -428,7 +428,7 @@ export default function ConsoleWizardPanel() {
     if (!err) return fallback;
     const code = err.status ?? err.code;
     if (code === 0 || code === 502 || code === 503 || code === 504) {
-      return 'Console Wizard backend is not reachable. Start the backend service (`node scripts/dev-backend.cjs` or `npm run dev`) and wait for http://localhost:8888/health to report OK.';
+      return 'Console Wizard backend is not reachable. Start the normal Arcade Assistant stack (`npm run dev`) or bring the backend service up, then retry through the app.';
     }
     if (code === 404) {
       return 'Console Wizard API endpoint was not found. Ensure the gateway is routing /api/local/console_wizard/* requests.';
@@ -1395,12 +1395,11 @@ Current context: ${JSON.stringify(contextInfo)}`;
 
         const response = await fetch('/api/ai/chat', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
-            'x-scope': 'state',
-            'x-panel': 'console-wizard',
-          },
+          headers: buildStandardHeaders({
+            panel: 'console-wizard',
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' },
+          }),
           body: JSON.stringify({
             messages: [
               { role: 'system', content: systemPrompt },
@@ -1446,6 +1445,18 @@ Current context: ${JSON.stringify(contextInfo)}`;
       stopTTS();
     } catch (err) {
       console.warn('[ConsoleWizard] Failed to stop TTS on unmount:', err);
+    }
+    if (silenceCheckIntervalRef.current) {
+      clearInterval(silenceCheckIntervalRef.current);
+      silenceCheckIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch {}
+      audioContextRef.current = null;
+    }
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch {}
+      wsRef.current = null;
     }
   }, []);
 
@@ -1493,43 +1504,36 @@ Current context: ${JSON.stringify(contextInfo)}`;
     const text = payload.text || payload.transcript || payload.message;
     if (typeof text === 'string' && text.trim()) {
       setChatInput('');
-      await sendChat(text);
+      // UNIFIED PATH: route transcript into the canonical Engineering Bay sidebar
+      // so mic chat and typed chat share the same visible Wizard conversation.
+      setChatOpen(true);
+      if (wizSendRef.current) {
+        wizSendRef.current(text);
+      } else {
+        // Fallback: should not be reached in normal flow (sidebar not yet mounted)
+        await sendChat(text);
+      }
     } else {
       addChatMessage('Sorry, no transcription was returned.', 'assistant');
     }
   }, [addChatMessage, sendChat]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return;
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${proto}://${window.location.host}/ws/audio`;
-    const socket = new WebSocket(wsUrl);
-    wsRef.current = socket;
-
-    socket.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg?.type === 'transcription') {
-          handleVoiceTranscript(msg);
-        }
-      } catch (err) {
-        console.error('[ConsoleWizard] Voice socket parse error', err);
-      }
-    };
-
-    socket.onclose = () => {
-      wsRef.current = null;
-      setIsRecording(false);
-    };
-
-    return () => {
-      try { socket.close(); } catch { }
-      wsRef.current = null;
-    };
-  }, [handleVoiceTranscript]);
+  // Keep a stable ref to handleVoiceTranscript so the lazy WS onmessage handler
+  // doesn't need to be rebuilt every time the callback identity changes.
+  const handleVoiceTranscriptRef = useRef(handleVoiceTranscript);
+  useEffect(() => { handleVoiceTranscriptRef.current = handleVoiceTranscript; }, [handleVoiceTranscript]);
 
   const stopVoiceRecording = useCallback((options = {}) => {
     const { skipSignal = false } = options;
+    // Clear silence detector first so it doesn't re-trigger
+    if (silenceCheckIntervalRef.current) {
+      clearInterval(silenceCheckIntervalRef.current);
+      silenceCheckIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch {}
+      audioContextRef.current = null;
+    }
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
       try { recorder.stop(); } catch (e) { console.error(e); }
@@ -1544,94 +1548,184 @@ Current context: ${JSON.stringify(contextInfo)}`;
   }, [cleanupVoiceStream, sendVoiceMessage]);
 
   const startVoiceRecording = useCallback(async () => {
-    // Prefer Web Speech API if available
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-        setListeningLabel(true);
-      };
-      recognition.onresult = async (event) => {
-        if (!event.results[0].isFinal) return;
-        const transcript = event.results[0][0].transcript;
-        await handleVoiceTranscript({ text: transcript });
-      };
-      recognition.onerror = (event) => {
-        console.error('[ConsoleWizard] Speech recognition error:', event.error);
-        addChatMessage(`Speech recognition error: ${event.error}`, 'assistant');
-        setIsRecording(false);
-        setListeningLabel(false);
-      };
-      recognition.onend = () => {
-        setIsRecording(false);
-        setListeningLabel(false);
-      };
-      try {
-        recognition.start();
-        mediaRecorderRef.current = { stop: () => recognition.stop() };
-      } catch (err) {
-        console.error('[ConsoleWizard] Failed to start speech recognition:', err);
-        addChatMessage('Failed to start speech recognition.', 'assistant');
-      }
-      return;
-    }
-
+    // MIC_HARDENING: Skip Web Speech API — it drops immediately in Electron due
+    // to onerror/onend being fired before the user can speak (permission model mismatch).
+    // Go directly to getUserMedia + MediaRecorder + /ws/audio which is stable.
     if (!navigator?.mediaDevices?.getUserMedia || typeof window.MediaRecorder === 'undefined') {
-      addChatMessage('Microphone not supported in this browser', 'system');
+      addChatMessage('⚠️ Microphone capture is not available in this environment. Please check browser permissions.', 'system');
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const options = pickRecorderOptions();
-      const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      chunkSequenceRef.current = 0;
-
-      recorder.ondataavailable = async (event) => {
-        if (!event.data || event.data.size === 0) return;
-        try {
-          const buffer = await event.data.arrayBuffer();
-          const chunk = arrayBufferToBase64(buffer);
-          chunkSequenceRef.current += 1;
-          const ok = sendVoiceMessage({ type: 'audio_chunk', chunk, data: chunk, sequence: chunkSequenceRef.current });
-          if (!ok) {
-            addChatMessage('Voice service unavailable. Refresh and try again.', 'assistant');
-            stopVoiceRecording({ skipSignal: true });
-          }
-        } catch (err) {
-          console.error('[ConsoleWizard] Failed to process audio chunk', err);
-          addChatMessage('Failed to process microphone audio.', 'assistant');
-        }
-      };
-
-      recorder.onerror = (event) => {
-        console.error('[ConsoleWizard] Recorder error:', event);
-        addChatMessage('Microphone error occurred', 'system');
-        stopVoiceRecording({ skipSignal: true });
-      };
-
-      if (!sendVoiceMessage({ type: 'start_recording' })) {
-        addChatMessage('Voice service unavailable. Refresh and try again.', 'assistant');
-        stopVoiceRecording({ skipSignal: true });
+    // LAZY WS: Connect to /ws/audio only when the user presses the mic — not on
+    // mount. This prevents early rejection by the gateway when device identity is
+    // absent during local Vite/dev startup.
+    const existingWs = wsRef.current;
+    if (!existingWs || existingWs.readyState === WebSocket.CLOSED || existingWs.readyState === WebSocket.CLOSING) {
+      if (typeof WebSocket === 'undefined') {
+        addChatMessage('⚠️ WebSocket is not available in this environment.', 'system');
+        return;
+      }
+      let socket;
+      try {
+        const wsUrl = buildGatewayWsIdentityUrl('/ws/audio', {
+          panel: 'console-wizard',
+          corrId: generateCorrelationId('console-wizard-audio'),
+        });
+        socket = new WebSocket(wsUrl);
+      } catch (err) {
+        console.error('[ConsoleWizard] Failed to build voice WebSocket URL:', err);
+        addChatMessage('⚠️ Voice service is not available. Check that Arcade Assistant is running.', 'assistant');
         return;
       }
 
-      recorder.start(250);
-      setIsRecording(true);
-      setListeningLabel(true);
-    } catch (err) {
-      console.error('[ConsoleWizard] Microphone access denied:', err);
-      addChatMessage('Microphone permission denied', 'system');
+      wsRef.current = socket;
+
+      socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg?.type === 'transcription') {
+            handleVoiceTranscriptRef.current?.(msg);
+          } else if (msg?.type === 'error') {
+            // Gateway reported a failure — surface it and unstick recording state
+            console.error('[ConsoleWizard] Voice service error:', msg);
+            addChatMessage(
+              `⚠️ Voice error: ${msg.message || msg.detail || 'Transcription failed. Try again.'}`,
+              'system',
+            );
+            if (silenceCheckIntervalRef.current) {
+              clearInterval(silenceCheckIntervalRef.current);
+              silenceCheckIntervalRef.current = null;
+            }
+            setIsRecording(false);
+            setListeningLabel(false);
+          }
+          // connected / recording_started / chunk_received are informational — console only
+        } catch (err) {
+          console.error('[ConsoleWizard] Voice socket parse error', err);
+        }
+      };
+
+      socket.onclose = () => {
+        if (wsRef.current === socket) wsRef.current = null;
+        setIsRecording(false);
+        setListeningLabel(false);
+      };
+
+      // Wait up to 3 s for the connection to open.
+      const wsReady = await new Promise((resolve) => {
+        if (socket.readyState === WebSocket.OPEN) { resolve(true); return; }
+        const timer = setTimeout(() => resolve(false), 3000);
+        socket.addEventListener('open', () => { clearTimeout(timer); resolve(true); }, { once: true });
+        socket.addEventListener('error', () => { clearTimeout(timer); resolve(false); }, { once: true });
+      });
+
+      if (!wsReady || socket.readyState !== WebSocket.OPEN) {
+        addChatMessage('⚠️ Voice service is not available. Ensure Arcade Assistant is running and try again.', 'assistant');
+        try { socket.close(); } catch {}
+        if (wsRef.current === socket) wsRef.current = null;
+        return;
+      }
     }
-  }, [addChatMessage, handleVoiceTranscript, sendVoiceMessage, stopVoiceRecording]);
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      const reason = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+        ? 'Microphone permission was denied. Please allow microphone access in your system or browser settings.'
+        : `Microphone could not start: ${err?.message ?? 'Unknown error'}`;
+      console.error('[ConsoleWizard] getUserMedia failed:', err);
+      addChatMessage(`⚠️ ${reason}`, 'system');
+      return;
+    }
+
+    mediaStreamRef.current = stream;
+    const options = pickRecorderOptions();
+    const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+    chunkSequenceRef.current = 0;
+
+    recorder.ondataavailable = async (event) => {
+      if (!event.data || event.data.size === 0) return;
+      try {
+        const buffer = await event.data.arrayBuffer();
+        const chunk = arrayBufferToBase64(buffer);
+        chunkSequenceRef.current += 1;
+        const ok = sendVoiceMessage({ type: 'audio_chunk', chunk, data: chunk, sequence: chunkSequenceRef.current });
+        if (!ok) {
+          addChatMessage('⚠️ Voice service unavailable. Refresh and try again.', 'assistant');
+          stopVoiceRecording({ skipSignal: true });
+        }
+      } catch (err) {
+        console.error('[ConsoleWizard] Failed to process audio chunk', err);
+        addChatMessage('⚠️ Failed to process microphone audio.', 'assistant');
+      }
+    };
+
+    recorder.onerror = (event) => {
+      console.error('[ConsoleWizard] Recorder error:', event);
+      addChatMessage('⚠️ Microphone error occurred. Recording stopped.', 'system');
+      stopVoiceRecording({ skipSignal: true });
+    };
+
+    if (!sendVoiceMessage({ type: 'start_recording' })) {
+      addChatMessage('⚠️ Voice service unavailable. Refresh and try again.', 'assistant');
+      stopVoiceRecording({ skipSignal: true });
+      return;
+    }
+
+    recorder.start(250);
+    setIsRecording(true);
+    setListeningLabel(true);
+
+    // AUTO-STOP: Silence detection via Web Audio API.
+    // Polls RMS every 200ms. After a 1.5s lead-in, if silence persists for
+    // 1.5s, auto-calls stopVoiceRecording() so the user only has to speak once
+    // (no second mic press required for the normal happy path).
+    try {
+      const AudioCtxCtor = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxCtor) {
+        const audioCtx = new AudioCtxCtor();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        audioCtx.createMediaStreamSource(stream).connect(analyser);
+        audioContextRef.current = audioCtx;
+
+        const dataArray = new Float32Array(analyser.frequencyBinCount);
+        const SILENCE_THRESHOLD = 0.01; // RMS below this = silence
+        const LEAD_IN_MS = 1500;        // don't auto-stop during first 1.5s
+        const SILENCE_DURATION_MS = 1500; // stop after 1.5s of silence
+        const recordingStart = Date.now();
+        let lastActivityTime = Date.now();
+
+        silenceCheckIntervalRef.current = setInterval(() => {
+          // If the recorder was already stopped (manual press or error), bail out
+          if (!mediaRecorderRef.current) {
+            clearInterval(silenceCheckIntervalRef.current);
+            silenceCheckIntervalRef.current = null;
+            return;
+          }
+          analyser.getFloatTimeDomainData(dataArray);
+          const rms = Math.sqrt(
+            dataArray.reduce((sum, v) => sum + v * v, 0) / dataArray.length
+          );
+          if (rms > SILENCE_THRESHOLD) {
+            lastActivityTime = Date.now();
+          }
+          const elapsed = Date.now() - recordingStart;
+          const silenceMs = Date.now() - lastActivityTime;
+          if (elapsed > LEAD_IN_MS && silenceMs > SILENCE_DURATION_MS) {
+            clearInterval(silenceCheckIntervalRef.current);
+            silenceCheckIntervalRef.current = null;
+            stopVoiceRecording();
+          }
+        }, 200);
+      }
+    } catch (silenceErr) {
+      // Non-fatal: if Web Audio API is unavailable, user presses mic again to stop
+      console.warn('[ConsoleWizard] Silence detection unavailable:', silenceErr);
+    }
+  }, [addChatMessage, sendVoiceMessage, stopVoiceRecording]);
 
   const toggleMic = useCallback(() => {
     // If assistant is speaking, stop TTS immediately to prioritize user voice
@@ -2104,7 +2198,12 @@ Current context: ${JSON.stringify(contextInfo)}`;
       <div className={`eb-chat-backdrop ${chatOpen ? 'eb-chat-backdrop--visible' : ''}`} onClick={() => setChatOpen(false)} />
       <div className={`eb-chat-drawer ${chatOpen ? 'eb-chat-drawer--open' : ''}`}>
         <button type='button' className='eb-chat-drawer__close' onClick={() => setChatOpen(false)} aria-label='Close sidebar'>X</button>
-        <EngineeringBaySidebar persona={WIZ_PERSONA} contextAssembler={assembleWizContext} />
+        <EngineeringBaySidebar
+          persona={WIZ_PERSONA}
+          contextAssembler={assembleWizContext}
+          micHandlers={{ isRecording, onToggle: toggleMic }}
+          onSendRef={wizSendRef}
+        />
       </div>
     </div>
   );

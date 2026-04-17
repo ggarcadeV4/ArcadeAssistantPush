@@ -8,7 +8,7 @@ import { subscribeToScores } from '../../services/supabaseClient'
 import { speakAsSam, stopSpeaking, isSpeaking } from '../../services/ttsClient'
 import LiveScoreWidget from './LiveScoreWidget'
 import './scorekeeper.css'
-import { getGatewayWsUrl } from '../../services/gateway'
+
 
 // Constants
 const PLAYER_COUNTS = [4, 8, 16, 32]
@@ -593,78 +593,43 @@ export default function ScoreKeeperPanel() {
 
   // WebSocket subscription for live score updates
   useEffect(() => {
-    const isDev = window.location.port === '5173'
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const wsUrl = isDev
-      ? getGatewayWsUrl('/scorekeeper/ws')
-      : `${proto}://${window.location.host}/scorekeeper/ws`
+    let refreshTimer = null
 
-    let ws
-    try {
-      ws = new WebSocket(wsUrl)
-    } catch (err) {
-      console.warn('[ScoreKeeper] WebSocket unavailable:', err)
-    }
-
-    const refreshLeaderboard = async () => {
-      try {
-        const result = await getLeaderboard({ limit: 10 })
-        setLeaderboardData(result.scores || [])
-        setScoresCached(!!result.cached)
-        setPluginPaused(!!result.cached)
-        await refreshTrackingDashboard()
-      } catch {
-        // Ignore refresh errors
-      }
-    }
-
-    if (ws) {
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data)
-          if (msg?.type === 'score_record' || msg?.type === 'score_updated') {
-            refreshLeaderboard()
-          }
-        } catch (err) {
-          console.warn('[ScoreKeeper] WebSocket message parse failed:', err)
-        }
-      }
-    }
-
-    // Fallback: poll every 10 seconds
-    const intervalId = setInterval(refreshLeaderboard, 10000)
-
-    return () => {
-      clearInterval(intervalId)
-      if (ws) {
-        try {
-          ws.close()
-        } catch { /* ignore */ }
-      }
-    }
-  }, [])
-
-  // Supabase Realtime subscription for cloud score inserts
-  useEffect(() => {
-    const channel = subscribeToScores((newRow) => {
-      // When a new score lands in Supabase, refresh the local leaderboard
-      (async () => {
+    const deferredRefresh = () => {
+      if (refreshTimer) return
+      refreshTimer = setTimeout(async () => {
+        refreshTimer = null
         try {
           const result = await getLeaderboard({ limit: 10 })
           setLeaderboardData(result.scores || [])
           setScoresCached(!!result.cached)
           setPluginPaused(!!result.cached)
           await refreshTrackingDashboard()
-        } catch { /* ignore */ }
-      })()
+        } catch { /* ignore background refresh errors */ }
+      }, 800)
+    }
+
+    const channel = subscribeToScores((entry) => {
+      if (entry && typeof entry === 'object') {
+        setLeaderboardData(prev => {
+          const next = [entry, ...prev]
+          next.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+          return next.slice(0, 10)
+        })
+      }
+      deferredRefresh()
     })
 
+    const pollId = setInterval(deferredRefresh, 30_000)
+
     return () => {
+      clearInterval(pollId)
+      if (refreshTimer) clearTimeout(refreshTimer)
       if (channel) {
         try { channel.unsubscribe() } catch { /* ignore */ }
       }
     }
-  }, [])
+  }, [refreshTrackingDashboard])
 
   // Initialize Web Speech API recognition
   useEffect(() => {

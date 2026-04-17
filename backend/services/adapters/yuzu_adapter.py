@@ -9,7 +9,7 @@ from .adapter_utils import (
     launch_nogui_enabled,
 )
 from backend.services.platform_names import normalize_key
-from backend.constants.drive_root import get_drive_root
+from backend.constants.drive_root import get_emulators_root, get_launchbox_root
 
 
 def is_enabled(manifest: Dict[str, Any]) -> bool:
@@ -30,18 +30,13 @@ def _find_yuzu_exe() -> Path:
     exe = find_emulator_exe('yuzu')
     if exe:
         return exe
-    
-    # Try drive letter root locations
-    drive_root = get_drive_root(allow_cwd_fallback=True)
-    if drive_root.drive:
-        drive_letter_root = Path(drive_root.drive + "\\")
-    else:
-        drive_letter_root = drive_root
-    
+
+    launchbox_root = get_launchbox_root()
+    emulators_root = get_emulators_root()
     candidates = [
-        drive_letter_root / "LaunchBox" / "Emulators" / "yuzu" / "yuzu.exe",
-        drive_letter_root / "Emulators" / "yuzu" / "yuzu.exe",
-        drive_letter_root / "Emulators" / "Yuzu" / "yuzu.exe",
+        launchbox_root / "Emulators" / "yuzu" / "yuzu.exe",
+        emulators_root / "yuzu" / "yuzu.exe",
+        emulators_root / "Yuzu" / "yuzu.exe",
     ]
     
     for candidate in candidates:
@@ -52,8 +47,6 @@ def _find_yuzu_exe() -> Path:
 
 
 def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
-    from backend.constants.a_drive_paths import LaunchBoxPaths
-    
     exe = _find_yuzu_exe()
     if not exe:
         return {"success": False, "message": "MISSING-EMU: Yuzu not found at LaunchBox/Emulators/yuzu/yuzu.exe"}
@@ -65,8 +58,7 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     
     rom_path = Path(str(rp))
     if not rom_path.is_absolute():
-        # Resolve relative to LaunchBox root
-        rom_path = (LaunchBoxPaths.LAUNCHBOX_ROOT / rom_path).resolve()
+        rom_path = (get_launchbox_root() / rom_path).resolve()
     
     if not rom_path.exists():
         return {

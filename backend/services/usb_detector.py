@@ -119,11 +119,23 @@ KNOWN_BOARDS: Dict[str, BoardConfig] = {
         device_type=DeviceType.GAMEPAD,
         modes={"xinput": True}
     ),
+    # Microsoft Xbox 360 VID/PID — also used by spoofed XInput arcade encoders
+    # (e.g. Pacto 2000T/4000T, Standalone XInput boards). Chuck's input_detector
+    # and device_scanner already classify this VID/PID as an arcade-relevant
+    # encoder, so the canonical board lane must surface it too.
     "045e:028e": BoardConfig(
-        name="Microsoft Xbox 360 Controller",
-        vendor="Microsoft",
-        device_type=DeviceType.GAMEPAD,
-        modes={"xinput": True}
+        name="Xbox 360 / XInput-Spoofed Arcade Encoder",
+        vendor="Microsoft / Pacto",
+        device_type=DeviceType.KEYBOARD_ENCODER,
+        modes={"xinput": True, "arcade_encoder": True, "spoofed": True}
+    ),
+    # Xbox One XInput VID/PID — same arcade-encoder spoofing pattern recognised
+    # by services/device_scanner.py (`0x028e`/`0x02ea` → arcade_encoder role).
+    "045e:02ea": BoardConfig(
+        name="Xbox One / XInput-Spoofed Arcade Encoder",
+        vendor="Microsoft / Pacto",
+        device_type=DeviceType.KEYBOARD_ENCODER,
+        modes={"xinput": True, "arcade_encoder": True, "spoofed": True}
     ),
     "054c:05c4": BoardConfig(
         name="Sony DualShock 4",
@@ -144,6 +156,22 @@ KNOWN_BOARDS: Dict[str, BoardConfig] = {
         modes={"xinput": True, "arcade_encoder": True}
     ),
 }
+
+
+# VID:PID allowlist for arcade-relevant XInput-spoofed encoder boards.
+#
+# These boards (Pacto 2000T/4000T, Standalone XInput arcade encoders, etc.)
+# present as Microsoft Xbox 360/One controllers because Windows binds them
+# to the XUSB driver. libusb on Windows CANNOT enumerate XUSB-owned devices,
+# so the canonical KNOWN_BOARDS-via-libusb path will silently miss them even
+# though they are physically connected and visible to other Chuck subsystems
+# (services/device_scanner._xinput_enumeration and
+# services/chuck/input_detector.detect_pacto_topology).
+#
+# Wave 2: this set lives in services/pacto_identity.py now. Re-exported
+# here as ``ARCADE_XINPUT_VID_PIDS`` only for any legacy import path; do
+# NOT add new entries here — extend ``SPOOFED_XINPUT_VID_PIDS`` instead.
+from .pacto_identity import SPOOFED_XINPUT_VID_PIDS as ARCADE_XINPUT_VID_PIDS
 
 
 class USBDetectionError(Exception):
@@ -308,6 +336,207 @@ def _enumerate_windows_registry_devices(include_unknown: bool = False) -> List[D
     return devices
 
 
+def _apply_chuck_intelligence_supplements(devices: List[Dict[str, Any]]) -> None:
+    """Merge richer Chuck-detection evidence into the canonical device list.
+
+    Both ``detect_usb_devices`` exit paths (libusb success and the no-libusb
+    Windows registry fallback) need to benefit from:
+
+    1. The WMI XInput-spoofed arcade-encoder supplement
+       (``_enumerate_arcade_xinput_via_wmi``) — recovers boards owned by the
+       XUSB driver that libusb cannot see.
+    2. The ``device_scanner`` promotion step
+       (``_promote_arcade_relevant_from_device_scanner``) — surfaces
+       arcade-relevant evidence (HID via hidapi, XInput via pygame) that
+       Chuck's other subsystems already classify but currently leave
+       stranded outside the canonical board lane.
+
+    Mutates ``devices`` in place. Both supplements are wrapped in their own
+    try/except so a failure in one does not break the other or the libusb
+    path that already populated ``devices``.
+    """
+    # Dedupe by composite (vid_pid, parent_hub) so that multiple distinct
+    # physical encoder boards that share the same XInput-spoofed VID/PID
+    # but live on different USB hubs (e.g. a Pacto_2000T and a Pacto_4000T
+    # plugged into the same cabinet) are NOT collapsed into one entry.
+    # For non-topology entries (libusb, device_scanner) parent_hub is None,
+    # which is a stable composite key in its own right.
+    def _dedupe_key(d: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+        return (d.get("vid_pid"), d.get("parent_hub"))
+
+    existing_keys = {_dedupe_key(d) for d in devices}
+
+    if platform.system() == "Windows":
+        try:
+            for supp in _enumerate_arcade_xinput_via_wmi():
+                key = _dedupe_key(supp)
+                if key[0] and key not in existing_keys:
+                    devices.append(supp)
+                    existing_keys.add(key)
+        except Exception as exc:
+            logger.debug("XInput arcade encoder supplement skipped: %s", exc)
+
+    try:
+        for promoted in _promote_arcade_relevant_from_device_scanner():
+            key = _dedupe_key(promoted)
+            if key[0] and key not in existing_keys:
+                devices.append(promoted)
+                existing_keys.add(key)
+    except Exception as exc:
+        logger.debug(
+            "Arcade-relevant promotion from device_scanner skipped: %s", exc
+        )
+
+
+def _promote_arcade_relevant_from_device_scanner() -> List[Dict[str, Any]]:
+    """Promote arcade-relevant evidence from ``device_scanner.scan_devices()``
+    into the canonical board-lane shape.
+
+    The ``services.device_scanner`` module already does richer enumeration
+    than the libusb-only path: HID-class devices via ``hidapi``, XInput
+    gamepads via ``pygame.joystick``, and Ultimarc/LED-Wiz/PactoTech name
+    classification. Anything it considers arcade-relevant is tagged with
+    ``suggested_role == "arcade_encoder"`` (see
+    ``device_scanner._xinput_enumeration`` and the platform-specific
+    classification block at the bottom of ``device_scanner.scan_devices``).
+
+    That signal currently lives only on the ``/api/local/devices`` lane, so
+    Chuck's canonical board lane (``/api/local/hardware/arcade/boards``)
+    cannot see it. This helper bridges them: it consumes the existing
+    ``scan_devices`` output and re-shapes the arcade-relevant entries into
+    the same dict format ``detect_usb_devices`` already returns, so
+    ``detect_arcade_boards`` will pick them up automatically.
+
+    Narrow contract:
+    - Only entries already classified as ``arcade_encoder`` are promoted.
+    - Entries with no resolvable VID/PID are dropped (we cannot key them
+      against ``KNOWN_BOARDS`` or dedupe them against the libusb pass).
+    - This helper never broadens detection to "all gamepads"; it relies
+      entirely on ``device_scanner``'s pre-existing classification.
+
+    Returns:
+        List of canonical board-lane dicts (KEYBOARD_ENCODER type) ready
+        to be merged into ``detect_usb_devices``' return value.
+    """
+    promoted: List[Dict[str, Any]] = []
+
+    # Lazy import: device_scanner pulls in pygame at module load, which has
+    # its own init side effects. Keep the import inside the helper so a
+    # failure to import never breaks the libusb-only path.
+    try:
+        from .device_scanner import scan_devices  # type: ignore
+    except Exception as exc:
+        logger.debug(
+            "device_scanner unavailable for canonical board-lane promotion: %s",
+            exc,
+        )
+        return promoted
+
+    try:
+        scanned = scan_devices()
+    except Exception as exc:
+        logger.debug("device_scanner.scan_devices() failed: %s", exc)
+        return promoted
+
+    for entry in scanned:
+        if entry.get("suggested_role") != "arcade_encoder":
+            continue
+
+        vid_str = entry.get("vid")  # e.g. "0x045e"
+        pid_str = entry.get("pid")  # e.g. "0x028e"
+        if not vid_str or not pid_str:
+            continue
+        try:
+            vid_int = int(str(vid_str).lower().replace("0x", ""), 16)
+            pid_int = int(str(pid_str).lower().replace("0x", ""), 16)
+        except (ValueError, AttributeError):
+            continue
+
+        vid_pid_key = format_vid_pid(vid_int, pid_int)
+        board_config = KNOWN_BOARDS.get(vid_pid_key)
+        manufacturer = entry.get("manufacturer")
+        product = entry.get("product")
+
+        device_data = _build_device_info(
+            vid_int, pid_int, board_config, manufacturer, product
+        )
+
+        # If device_scanner tagged something as arcade_encoder but it's not
+        # in KNOWN_BOARDS, synthesize a KEYBOARD_ENCODER-typed entry so
+        # detect_arcade_boards still surfaces it. This stays narrow: we only
+        # ever do this for entries device_scanner *already* classified.
+        if board_config is None:
+            device_data["type"] = DeviceType.KEYBOARD_ENCODER.value
+            device_data["known"] = True
+            if not device_data.get("name") or device_data["name"] == "Unknown USB Device":
+                device_data["name"] = product or f"Arcade Encoder ({vid_pid_key})"
+
+        # Carry forward the richer device_scanner metadata so the hardware
+        # router's _normalize_board_entry has device_id / interface /
+        # manufacturer fields to surface in the GUI board pill.
+        if entry.get("device_id"):
+            device_data["device_id"] = entry["device_id"]
+        if entry.get("interface"):
+            device_data["interface"] = entry["interface"]
+        if manufacturer:
+            device_data["manufacturer"] = manufacturer
+        device_data["source"] = "device_scanner"
+
+        promoted.append(device_data)
+        logger.info(
+            "Promoted arcade-relevant device %s (%s) from device_scanner "
+            "into canonical board lane",
+            vid_pid_key,
+            device_data.get("name"),
+        )
+
+    return promoted
+
+
+def _enumerate_arcade_xinput_via_wmi() -> List[Dict[str, Any]]:
+    """Windows-only canonical-topology probe for arcade encoder boards.
+
+    Delegates entirely to the side-effect-free topology helper
+    ``services.encoder_detector.detect_encoder_boards``. That helper
+    groups present XInput nodes by USB hub parent and emits real logical
+    board identities — ``Pacto Tech 2000T`` (2 nodes), ``Pacto Tech 4000T``
+    (4+ nodes), or ``Standalone XInput Controller`` (any other count) —
+    instead of a generic VID/PID match. This is the single canonical
+    Chuck topology helper; this wrapper exists only so the existing
+    ``_apply_chuck_intelligence_supplements`` call site does not need
+    to know which module owns the implementation.
+
+    libusb on Windows cannot enumerate devices owned by the XUSB driver
+    (Xbox/XInput controllers and the arcade-encoder boards that spoof
+    them), so this WMI-based supplement is the only way the canonical
+    board lane can see them at all.
+
+    Returns:
+        List of canonical board dictionaries with topology-enriched
+        identity fields (``board_type``, ``players``, ``parent_hub``,
+        ``xinput_nodes``). Returns ``[]`` on non-Windows platforms, when
+        ``wmi`` is unavailable, or if the WMI query fails — in any of
+        those cases the canonical lane falls back to the libusb pass and
+        the device_scanner promotion supplement.
+    """
+    if platform.system() != "Windows":
+        return []
+
+    try:
+        from .encoder_detector import detect_encoder_boards
+    except Exception as exc:
+        logger.debug(
+            "encoder_detector unavailable for canonical topology probe: %s", exc
+        )
+        return []
+
+    try:
+        return detect_encoder_boards()
+    except Exception as exc:
+        logger.debug("encoder_detector.detect_encoder_boards() failed: %s", exc)
+        return []
+
+
 def _enumerate_lsusb(include_unknown: bool = False) -> List[Dict[str, Any]]:
     """Enumerate USB devices by parsing `lsusb` output (Linux fallback).
 
@@ -449,7 +678,40 @@ def _build_device_info(
     if product:
         device_data["product_string"] = product
 
+    _apply_arcade_identity_hints(device_data)
+
     return device_data
+
+
+def _apply_arcade_identity_hints(device_data: Dict[str, Any]) -> None:
+    """Promote richer board identity from descriptors when topology is unavailable.
+
+    On systems where the WMI topology probe is unavailable, spoofed XInput
+    encoder boards still surface through ``device_scanner`` with useful product
+    strings such as ``Controller (PactoTech-2000T-FW 20250112)``. Without this
+    pass the canonical board lane only exposes the generic
+    ``Xbox 360 / XInput-Spoofed Arcade Encoder`` name, which makes the wizard
+    look like it found a handheld gamepad instead of the cabinet encoder.
+
+    Wave 2: model identification delegates to the shared
+    ``services/pacto_identity`` module so all Pacto rules live in one place.
+    """
+    from .pacto_identity import detect_pacto_model
+
+    promoted = detect_pacto_model(device_data)
+    if not promoted:
+        return
+
+    device_data["name"] = promoted["name"]
+    device_data["vendor"] = promoted["vendor"]
+    if "board_type" in promoted:
+        # Standalone XInput uses setdefault to preserve any prior board_type.
+        if promoted["board_type"] == "Standalone_XInput":
+            device_data.setdefault("board_type", promoted["board_type"])
+        else:
+            device_data["board_type"] = promoted["board_type"]
+    if "players" in promoted:
+        device_data["players"] = promoted["players"]
 
 
 def detect_usb_devices(include_unknown: bool = False, use_cache: bool = True) -> List[Dict[str, Any]]:
@@ -489,20 +751,22 @@ def detect_usb_devices(include_unknown: bool = False, use_cache: bool = True) ->
         if platform.system() == "Windows":
             logger.info("libusb backend not found; attempting Windows registry fallback for USB enumeration")
             devices = _enumerate_windows_registry_devices(include_unknown=include_unknown)
-            if devices:
-                _device_cache = (time.time(), devices)
-                if not include_unknown:
-                    return [d for d in devices if d.get("known", False)]
-                return devices
         else:
             # On Linux/WSL, try lsusb if available
             logger.info("libusb backend not found; attempting lsusb fallback enumeration")
             devices = _enumerate_lsusb(include_unknown=include_unknown)
-            if devices:
-                _device_cache = (time.time(), devices)
-                if not include_unknown:
-                    return [d for d in devices if d.get("known", False)]
-                return devices
+
+        # Even if the registry/lsusb fallback found nothing, still apply the
+        # Chuck-intelligence supplements (WMI XInput probe + device_scanner
+        # promotion) so the canonical board lane benefits from the richer
+        # detection that lives in neighbouring subsystems.
+        _apply_chuck_intelligence_supplements(devices)
+
+        if devices:
+            _device_cache = (time.time(), devices)
+            if not include_unknown:
+                return [d for d in devices if d.get("known", False)]
+            return devices
 
         error_msg = (
             "USB backend not available. "
@@ -529,10 +793,12 @@ def detect_usb_devices(include_unknown: bool = False, use_cache: bool = True) ->
         detected_devices = list(usb_devices) if usb_devices is not None else []  # type: ignore[arg-type]
 
         if not detected_devices:
-            logger.info("No USB devices detected")
-            return []
-
-        logger.debug(f"Found {len(detected_devices)} USB devices")
+            # Don't early-return here: we still want the Windows WMI XInput
+            # supplement below to run, since libusb cannot enumerate XUSB-owned
+            # arcade encoder boards even when libusb itself succeeds.
+            logger.info("No USB devices detected via libusb")
+        else:
+            logger.debug(f"Found {len(detected_devices)} USB devices")
 
         # Process each device
         for dev in detected_devices:
@@ -591,6 +857,11 @@ def detect_usb_devices(include_unknown: bool = False, use_cache: bool = True) ->
             except Exception:
                 pass  # Best effort cleanup
 
+    # Apply Chuck-intelligence supplements (WMI XInput probe + device_scanner
+    # promotion) so the canonical board lane benefits from richer detection
+    # that already exists in neighbouring Chuck subsystems.
+    _apply_chuck_intelligence_supplements(devices)
+
     # Update cache
     _device_cache = (time.time(), devices)
 
@@ -613,10 +884,56 @@ def detect_arcade_boards() -> List[Dict[str, Any]]:
                 DeviceType.LED_CONTROLLER.value
             ]
         ]
-        return arcade_boards
+        return _coalesce_arcade_boards(arcade_boards)
     except USBDetectionError as e:
         logger.warning(f"Failed to detect arcade boards: {e}")
         return []
+
+
+def _coalesce_arcade_boards(boards: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Collapse raw XInput child endpoints when a topology board is available.
+
+    The canonical USB/device lanes can legitimately see both:
+    1. raw spoofed XInput endpoints (one entry per child controller), and
+    2. a topology-enriched logical board entry from ``encoder_detector``.
+
+    For controller setup flows we want the logical board to be the source of
+    truth, not the child endpoints. When topology entries are present for the
+    known arcade XInput VID/PIDs, suppress the raw child nodes and return the
+    logical board list instead.
+    """
+    if not boards:
+        return []
+
+    has_topology_xinput_board = any(
+        board.get("vid_pid") in ARCADE_XINPUT_VID_PIDS
+        and board.get("parent_hub")
+        and board.get("board_type")
+        for board in boards
+    )
+
+    coalesced: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    for board in boards:
+        vid_pid = board.get("vid_pid")
+        parent_hub = board.get("parent_hub")
+        is_raw_xinput_child = vid_pid in ARCADE_XINPUT_VID_PIDS and not parent_hub
+
+        if has_topology_xinput_board and is_raw_xinput_child:
+            continue
+
+        dedupe_key = (
+            vid_pid,
+            parent_hub or board.get("device_id") or board.get("name"),
+        )
+        if dedupe_key in seen_keys:
+            continue
+
+        seen_keys.add(dedupe_key)
+        coalesced.append(board)
+
+    return coalesced
 
 
 def get_board_by_vid_pid(vid: str, pid: str) -> Optional[Dict[str, Any]]:

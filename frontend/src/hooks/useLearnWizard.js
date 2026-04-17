@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { speak, stopSpeaking } from '../services/ttsClient';
+import { buildStandardHeaders } from '../utils/identity';
 
 const CONTROLLER_BASE = '/api/local/controller';
 const CHUCK_VOICE_ID = 'vDchjyOZZytffNeZXfZK';
@@ -30,6 +31,10 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
     const speakTimeoutRef = useRef(null);
     const pollIntervalRef = useRef(null);
     const lastIndexRef = useRef(-1);
+    const wizardHeaders = useCallback(
+        (scope = 'state') => buildStandardHeaders({ panel: 'controller', scope }),
+        []
+    );
 
     useEffect(() => {
         mountedRef.current = true;
@@ -63,11 +68,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
 
         try {
             const res = await fetch(`${CONTROLLER_BASE}/learn-wizard/status`, {
-                headers: {
-                    'x-scope': 'state',
-                    'x-panel': 'controller',
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
-                }
+                headers: wizardHeaders('state')
             });
 
             if (!res.ok) return;
@@ -122,11 +123,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         try {
             const res = await fetch(`${CONTROLLER_BASE}/learn-wizard/confirm`, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'state',
-                    'x-panel': 'controller',
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
-                }
+                headers: wizardHeaders('state')
             });
 
             if (!res.ok) return;
@@ -152,7 +149,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         } catch (err) {
             console.error('[LearnWizard] Confirm failed:', err);
         }
-    }, [speakOnce]);
+    }, [speakOnce, wizardHeaders]);
 
     // Start polling when wizard is active
     useEffect(() => {
@@ -188,11 +185,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
             const url = `${CONTROLLER_BASE}/learn-wizard/start?${params.toString()}`;
             const res = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'x-scope': 'state',
-                    'x-panel': 'controller',
-                    'x-device-id': window.AA_DEVICE_ID || 'CAB-0001'
-                }
+                headers: wizardHeaders('state')
             });
 
             if (!res.ok) {
@@ -222,13 +215,13 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         } finally {
             if (mountedRef.current) setIsLoading(false);
         }
-    }, [speakOnce]);
+    }, [speakOnce, wizardHeaders]);
 
     const stopWizard = useCallback(async () => {
         try {
             await fetch(`${CONTROLLER_BASE}/learn-wizard/stop`, {
                 method: 'POST',
-                headers: { 'x-scope': 'state', 'x-panel': 'controller' }
+                headers: wizardHeaders('state')
             });
         } catch (err) { console.warn('[LearnWizard]', err) }
 
@@ -241,13 +234,13 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         setError(null);
         setLastDetectedKey(null);
         setDetectedMode(null);
-    }, []);
+    }, [wizardHeaders]);
 
     const skipControl = useCallback(async () => {
         try {
             const res = await fetch(`${CONTROLLER_BASE}/learn-wizard/skip`, {
                 method: 'POST',
-                headers: { 'x-scope': 'state', 'x-panel': 'controller' }
+                headers: wizardHeaders('state')
             });
 
             const data = await res.json();
@@ -268,13 +261,13 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         } catch (err) {
             setError(err.message);
         }
-    }, [speakOnce]);
+    }, [speakOnce, wizardHeaders]);
 
     const undoCapture = useCallback(async () => {
         try {
             const res = await fetch(`${CONTROLLER_BASE}/learn-wizard/undo`, {
                 method: 'POST',
-                headers: { 'x-scope': 'state', 'x-panel': 'controller' }
+                headers: wizardHeaders('state')
             });
 
             const data = await res.json();
@@ -293,14 +286,14 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         } catch (err) {
             setError(err.message);
         }
-    }, [speakOnce]);
+    }, [speakOnce, wizardHeaders]);
 
     const saveWizard = useCallback(async () => {
         setIsLoading(true);
         try {
             const res = await fetch(`${CONTROLLER_BASE}/learn-wizard/save`, {
                 method: 'POST',
-                headers: { 'x-scope': 'config', 'x-panel': 'controller' }
+                headers: wizardHeaders('config')
             });
 
             const data = await res.json();
@@ -316,7 +309,7 @@ export function useLearnWizard({ voiceEnabled = true } = {}) {
         } finally {
             setIsLoading(false);
         }
-    }, [speakOnce]);
+    }, [speakOnce, wizardHeaders]);
 
     const progressPercent = totalControls > 0 ? Math.round((currentIndex / totalControls) * 100) : 0;
 

@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 import httpx
 
+from backend.constants.drive_root import get_drive_root
 from backend.services.led_priority_arbiter import get_led_arbiter, LEDPriority
 from backend.services.led_blinky_translator import resolve_animation_code
 from backend.services.blinky_service import BlinkyProcessManager
@@ -156,7 +157,7 @@ class GameLifecycleService:
         )
 
         try:
-            tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+            tracking_service = get_score_tracking_service(get_drive_root(context="game_lifecycle track_game"))
             session = tracking_service.record_launch(
                 CanonicalGameEvent(
                     session_id=session_id,
@@ -295,7 +296,7 @@ class GameLifecycleService:
         play_duration = (datetime.now(timezone.utc) - tracked.started_at).total_seconds()
         tracking_service = None
         try:
-            tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+            tracking_service = get_score_tracking_service(get_drive_root(context="game_lifecycle on_game_exit"))
         except Exception as tracking_error:
             logger.warning(f"Score tracking service unavailable during exit handling: {tracking_error}")
 

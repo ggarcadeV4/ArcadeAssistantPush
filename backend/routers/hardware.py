@@ -3,10 +3,15 @@
 REST endpoints for USB device and arcade board detection.
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+import asyncio
+import json
 import logging
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
+
+from fastapi import APIRouter, HTTPException, Request, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from ..services.usb_detector import (
     detect_usb_devices,
@@ -22,6 +27,59 @@ from ..services.usb_detector import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+ENCODER_EVENTS_WS_PATH = "/ws/encoder-events"
+ENCODER_POLL_INTERVAL_SECONDS = 2.0
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_board_entry(board: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "name": board.get("name") or board.get("board_name") or "Unknown Board",
+        "vid": board.get("vid"),
+        "pid": board.get("pid"),
+        "detected": bool(board.get("detected", False)),
+        "status": board.get("status") or ("connected" if board.get("detected") else "offline"),
+        "manufacturer": board.get("manufacturer"),
+        "board_type": board.get("board_type") or board.get("type"),
+        "device_id": board.get("device_id"),
+        "interface": board.get("interface"),
+        # Additive topology pass-through (populated when encoder_detector's
+        # canonical topology helper inferred a Pacto_2000T / Pacto_4000T /
+        # Standalone_XInput identity). All None for non-topology entries —
+        # frontend consumers that don't read them ignore them.
+        "players": board.get("players"),
+        "parent_hub": board.get("parent_hub"),
+        "xinput_nodes": board.get("xinput_nodes"),
+    }
+
+
+def _build_encoder_snapshot() -> Dict[str, Any]:
+    boards = detect_arcade_boards()
+    normalized_boards = [_normalize_board_entry(board) for board in boards]
+    detected_boards = [board for board in normalized_boards if board.get("detected")]
+    primary_board = detected_boards[0] if detected_boards else (normalized_boards[0] if normalized_boards else None)
+
+    return {
+        "timestamp": _utc_now(),
+        "source": "usb_poll",
+        "boards": normalized_boards,
+        "count": len(normalized_boards),
+        "detected_count": len(detected_boards),
+        "primary_board": primary_board,
+    }
+
+
+def _snapshot_signature(snapshot: Dict[str, Any]) -> str:
+    stable_payload = {
+        "boards": snapshot.get("boards", []),
+        "count": snapshot.get("count", 0),
+        "detected_count": snapshot.get("detected_count", 0),
+        "primary_board": snapshot.get("primary_board"),
+    }
+    return json.dumps(stable_payload, sort_keys=True)
 
 
 class USBDeviceResponse(BaseModel):
@@ -43,6 +101,84 @@ class TroubleshootingResponse(BaseModel):
     hints: List[str]
     board_type: str
     os_type: str
+
+
+@router.websocket(ENCODER_EVENTS_WS_PATH)
+async def encoder_events_stream(websocket: WebSocket):
+    """Small, real websocket termination for encoder/USB board state.
+
+    There is no push-native hardware event bus in the current USB detection layer,
+    so this endpoint truthfully polls the existing detector and emits:
+    - `HARDWARE_STATE_UPDATE` on connect and whenever the snapshot changes
+    - `HARDWARE_HEARTBEAT` while the connection is idle
+    - `HARDWARE_ERROR` if polling fails
+    """
+    await websocket.accept()
+    await websocket.send_json({
+        "event": "HARDWARE_CONNECTED",
+        "data": {
+            "timestamp": _utc_now(),
+            "path": ENCODER_EVENTS_WS_PATH,
+            "source": "usb_poll",
+        },
+    })
+
+    last_signature = None
+    last_error = None
+
+    try:
+        while True:
+            try:
+                snapshot = await run_in_threadpool(_build_encoder_snapshot)
+                signature = _snapshot_signature(snapshot)
+                if signature != last_signature:
+                    await websocket.send_json({
+                        "event": "HARDWARE_STATE_UPDATE",
+                        "data": snapshot,
+                    })
+                    last_signature = signature
+                    last_error = None
+                else:
+                    await websocket.send_json({
+                        "event": "HARDWARE_HEARTBEAT",
+                        "data": {
+                            "timestamp": snapshot["timestamp"],
+                            "source": snapshot["source"],
+                            "count": snapshot["count"],
+                            "detected_count": snapshot["detected_count"],
+                        },
+                    })
+            except USBDetectionError as exc:
+                error_message = str(exc)
+                logger.warning("Encoder websocket poll failed: %s", error_message)
+                if error_message != last_error:
+                    await websocket.send_json({
+                        "event": "HARDWARE_ERROR",
+                        "message": error_message,
+                        "data": {
+                            "timestamp": _utc_now(),
+                            "source": "usb_poll",
+                        },
+                    })
+                    last_error = error_message
+
+            try:
+                message = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=ENCODER_POLL_INTERVAL_SECONDS,
+                )
+                if message == "ping":
+                    await websocket.send_json({
+                        "event": "HARDWARE_HEARTBEAT",
+                        "data": {
+                            "timestamp": _utc_now(),
+                            "source": "ping",
+                        },
+                    })
+            except asyncio.TimeoutError:
+                continue
+    except WebSocketDisconnect:
+        logger.info("Encoder events websocket disconnected")
 
 
 @router.get("/usb/devices", response_model=USBDeviceResponse)

@@ -9,6 +9,7 @@
  */
 
 import { getGatewayUrl } from './gateway'
+import { buildStandardHeaders } from '../utils/identity'
 
 const GATEWAY = getGatewayUrl()
 
@@ -46,11 +47,11 @@ export async function resolveGameMedia(input) {
   try {
     const res = await fetch(`${GATEWAY}/api/dewey/resolve`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-panel': 'dewey',
-        'x-scope': 'state'
-      },
+      headers: buildStandardHeaders({
+        panel: 'dewey',
+        scope: 'state',
+        extraHeaders: { 'content-type': 'application/json' }
+      }),
       body: JSON.stringify(payload)
     })
 

@@ -1,4 +1,4 @@
-import { getGatewayHost } from './gateway'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../utils/network'
 // Frontend Hotkey WebSocket client (singleton)
 // Connects via gateway to backend hotkey stream and notifies listeners
 
@@ -9,13 +9,13 @@ class HotkeyWebSocketClient {
     this._reconnectTimer = null
     this._backoff = 2000
     this._maxBackoff = 30000
-    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
-    // Dynamic URL: use window.location.host to avoid 127.0.0.1 vs localhost mismatch
-    const host = typeof window !== 'undefined'
-      ? getGatewayHost()
-      : getGatewayHost()
-    const scheme = isSecure ? 'wss' : 'ws'
-    this._url = `${scheme}://${host}/ws/hotkey`
+  }
+
+  _buildUrl() {
+    return buildGatewayWsIdentityUrl('/ws/hotkey', {
+      panel: 'hotkey',
+      corrId: generateCorrelationId('hotkey')
+    })
   }
 
   connect() {
@@ -23,7 +23,7 @@ class HotkeyWebSocketClient {
       return
     }
     try {
-      this.ws = new WebSocket(this._url)
+      this.ws = new WebSocket(this._buildUrl())
     } catch (err) {
       console.warn('[Hotkey WS] Connection failed, retrying...')
       this._scheduleReconnect()

@@ -1,5 +1,5 @@
 # Arcade Assistant Ã¢â‚¬â€ Project README
-**Last Updated:** 2026-03-20 | **Build:** Multi-panel profile/consent fixes + Dewey backend migration + Wiz/Chuck wizard wiring + launcher/marquee polish | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+**Last Updated:** 2026-04-13 NIGHT | **Build:** Console Wizard mic hardening + Controller Chuck status semantics pass | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -46,6 +46,100 @@ cd frontend && npm run dev
 | Supabase | Cloud | Ã¢â‚¬â€ | Ref: `zlkhsxacfyxsctqpvbsh` (**Arcade Assistant only**) |
 
 > Ã¢Å¡Â Ã¯Â¸Â **NEVER** use Supabase ref `hjxzbicsjzyzalwilmlj` Ã¢â‚¬â€ that is the G&G Website project.
+
+---
+
+---
+
+## Daily Slice — 2026-04-13 NIGHT
+
+### Console Wizard — Functional Milestone ✅
+
+Console Wizard now behaves like a real product surface. Work completed today:
+
+- **Diagnostic Mode** — Felt excellent in live runtime. DIAG integrity and voice de-dupe were improved. A DIAG greeting is now posted into the visible chat history so mode transitions are explicit to the user.
+- **Unified chat path** — Typed and mic flows now land in the same visible sidebar conversation via a `wizSendRef` bridge from `EngineeringBaySidebar.sendMessage`. Previously mic transcripts routed to a separate, hidden path.
+- **Mic capture hardened** — `EngineeringBaySidebar` now accepts an optional `micHandlers` prop (`{ isRecording, onToggle }`). When present, the sidebar mic button delegates entirely to the panel's own capture stack. Console Wizard uses this to bypass the brittle shared Web Speech path and route directly through `getUserMedia` + `MediaRecorder` + `/ws/audio`.
+- **WS lazy connect** — The `/ws/audio` WebSocket now opens on first mic press, not on panel mount. Prevents early gateway rejection during dev startup.
+- **Silence detection** — Web Audio API `AnalyserNode` RMS polling auto-stops recording after 1.5s of silence (with a 1.5s lead-in), so the user only presses mic once per utterance.
+- **Visible failure feedback** — All mic/WS failure modes surface an explicit `⚠️` message in chat instead of silently resetting state.
+
+**Remaining Wizard work (polish, not rescue):**
+- Controller-configuration UI edge cases need sharpening
+- Speech/transcript latency could be tightened
+
+**Files touched:** `EngineeringBaySidebar.jsx`, `ConsoleWizardPanel.jsx`
+
+---
+
+### Controller Chuck — Major Progress, Not Yet Finished
+
+Chuck made significant gains today but requires one final reconciliation pass before it can be declared done.
+
+**What landed:**
+- Status semantics improved — "NO BOARD" / "NO SIGNAL" replace misleading "OFFLINE" labels
+- SCAN now refreshes backend detection before refetch
+- Focused PlayerCard overflow is substantially better (minor tuning may remain)
+- Canonical board lane progressively hardened:
+  - XInput-spoofed arcade-encoder detection cases added
+  - Discovery widened with WMI / device-scanner supplementation
+  - Existing Pacto-style grouped XInput topology logic wired into the canonical lane
+
+**What remains:**
+- GUI truth vs AI truth are not yet fully reconciled around logical board identity
+- Chuck still needs one final pass to unify board identity across: visible GUI card, AI response, and DIAG entry sequencing
+- Prior Chuck logic was not wasted — the issue is that fragmented/backend intelligence is not fully surfacing in the live panel
+
+**Status: Close but not finished. Truth-surface reconciliation pass is the next and final Chuck task.**
+
+---
+
+### Session Doctrine (Carry Forward)
+
+- One panel at a time
+- Codex pre-audit first → narrow implementation → runtime verification
+- Finish by panel promise and canonical path, not by random symptom chasing
+
+### Tomorrow's First Move
+
+1. Fresh thread
+2. Focus only on Controller Chuck
+3. Task: final truth-surface reconciliation pass
+   - Logical board identity unified across GUI card + AI response + DIAG sequencing
+   - Slight focused-card tuning only if still needed after identity is resolved
+
+---
+
+## Daily Slice — 2026-04-12 NIGHT
+
+### What landed tonight
+
+Narrow transport-layer recovery for the F9 / Dewey summon path. No architectural changes, no new features, no panel rewrites.
+
+#### F9 Hotkey WebSocket Path Repaired
+- Root cause: the Electron-side WebSocket client in `frontend/electron/main.cjs` was broken. The client connecting `main.cjs` to the backend `/ws/hotkey` endpoint was not attaching with a valid device identity.
+- Fix: corrected the connection path and device identity handshake in `main.cjs`.
+- Result: Electron now connects successfully and the backend hotkey manager receives F9 events from the Electron process.
+
+#### Dewey Overlay Routing Validated
+- After the transport fix, Dewey overlay connected and summoned on F9 press.
+- User told Dewey the controller was not working → Dewey routed correctly to Controller Wizard.
+
+#### Live Launch Confirmed
+- User launched a game from the recovered Dewey summon flow.
+- Launch succeeded.
+
+### Scope discipline
+- This was a **narrow** fix — only the WebSocket client in `frontend/electron/main.cjs`.
+- Backend hotkey router, hotkey manager, frontend panel logic, and LaunchBox plumbing were **not changed**.
+
+### Known remaining follow-ups
+| Item | Notes |
+|------|-------|
+| Shift+F9 global shortcut registration | ⚠️ OS-level shortcut conflict still unresolved |
+| Electron console window polish | 🔶 Deferred — not customer-ready |
+| PS3 multi-launch cascade | 🔶 Separate backend fix, not tonight |
+| LaunchBox duplicate PS3 record cleanup | 🔶 LaunchBox data hygiene, separate task |
 
 ---
 

@@ -13,6 +13,7 @@ let fastapiUrl = null;
 let clientContext = { deviceId: 'unknown', panel: 'launchbox' };
 import fs from 'fs';
 import path from 'path';
+import { getDriveRoot } from '../utils/driveDetection.js';
 
 // Simple circuit breaker for plugin-backed calls
 const pluginBreaker = {
@@ -89,7 +90,11 @@ let aliasCache = null;
 function loadTitleAliases() {
   if (aliasCache) return aliasCache;
   try {
-    const drive = process.env.AA_DRIVE_ROOT || process.cwd();
+    const drive = getDriveRoot();
+    if (!drive) {
+      aliasCache = {};
+      return aliasCache;
+    }
     const p = path.join(drive, 'configs', 'title_aliases.json');
     if (fs.existsSync(p)) {
       const data = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -107,6 +112,13 @@ function extractGamesList(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && Array.isArray(payload.games)) return payload.games;
   return [];
+}
+
+function appendDecadeRange(queryParams, decade) {
+  const parsed = Number.parseInt(decade, 10);
+  if (!Number.isFinite(parsed)) return;
+  queryParams.append('year_min', String(parsed));
+  queryParams.append('year_max', String(parsed + 9));
 }
 
 function applyTitleAlias(title) {
@@ -331,7 +343,7 @@ export const launchboxTools = {
 
     const queryParams = new URLSearchParams();
     if (genre) queryParams.append('genre', genre);
-    if (decade) queryParams.append('decade', decade);
+    if (decade) appendDecadeRange(queryParams, decade);
     if (platform) queryParams.append('platform', platform);
     if (params.search) queryParams.append('search', params.search);
     queryParams.append('limit', limit);

@@ -8,6 +8,7 @@ from .adapter_utils import (
     launch_nogui_enabled,
 )
 from backend.constants.a_drive_paths import EmulatorPaths
+from backend.constants.drive_root import resolve_runtime_path
 from backend.services.platform_names import normalize_key
 
 
@@ -23,7 +24,14 @@ def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False)
     return ok
 
 
-def _resolve_exe(platform_key: str) -> Optional[Path]:
+def _resolve_exe(platform_key: str, manifest: Dict[str, Any]) -> Optional[Path]:
+    # Priority 1: launchers.json manifest
+    manifest_exe = manifest.get("emulators", {}).get("dolphin", {}).get("exe", "")
+    if manifest_exe:
+        resolved = resolve_runtime_path(manifest_exe)
+        if resolved and resolved.exists():
+            return resolved
+
     exe = EmulatorPaths.dolphin_joystick()
     if exe.exists():
         return exe
@@ -37,7 +45,7 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     platform_key = normalize_key(
         (getattr(game, 'platform', None) or (game.get('platform') if isinstance(game, dict) else '') or '')
     )
-    exe = _resolve_exe(platform_key)
+    exe = _resolve_exe(platform_key, manifest)
     if not exe:
         return {
             "success": False,
@@ -56,6 +64,11 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
             "success": False,
             "message": f"MISSING-ROM: stem='{stem}', tried_exts={tried}"
         }
+    if not resolved.is_absolute():
+        repo_root = Path(__file__).resolve().parents[3]
+        rebased = (repo_root / resolved).resolve()
+        if rebased.exists():
+            resolved = rebased
     args = []
     if launch_nogui_enabled():
         args.append('-b')

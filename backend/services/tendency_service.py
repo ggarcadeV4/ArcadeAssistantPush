@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from collections import Counter
 
+from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 # Default tendency file structure (v2 - human-readable)
@@ -156,8 +157,7 @@ class TendencyService:
         if profiles_root:
             self.profiles_root = Path(profiles_root)
         else:
-            drive_root = os.getenv("AA_DRIVE_ROOT", "A:")
-            self.profiles_root = Path(drive_root) / "Arcade Assistant" / "profiles"
+            self.profiles_root = get_drive_root(context="tendency_service") / "Arcade Assistant" / "profiles"
         
         self.profiles_root.mkdir(parents=True, exist_ok=True)
     

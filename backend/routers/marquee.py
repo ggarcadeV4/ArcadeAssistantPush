@@ -17,6 +17,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.constants.drive_root import get_drive_root
 from backend.models.marquee_config import MarqueeConfig, MarqueeState
 from backend.routers.content_manager import _load_content_paths  # reuse existing path loader
 from backend.services.launchbox_parser import parser
@@ -26,10 +27,7 @@ router = APIRouter(prefix="/api/local/marquee", tags=["marquee"])
 # State file location for external marquee apps (Python watcher, etc.)
 def _state_file_path() -> Path:
     """Get state file path. Requires AA_DRIVE_ROOT (no hardcoded fallback)."""
-    drive_root = os.environ.get("AA_DRIVE_ROOT")
-    if not drive_root:
-        drive_root = os.getcwd()  # Dev fallback only
-    return Path(drive_root) / ".aa" / "state" / "marquee_current.json"
+    return get_drive_root(allow_cwd_fallback=True, context="marquee current state") / ".aa" / "state" / "marquee_current.json"
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -43,7 +41,7 @@ def _drive_root(request: Optional[Request]) -> Path:
             return Path(root)
     except Exception:
         pass
-    return Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd())) / "Arcade Assistant"
+    return get_drive_root(allow_cwd_fallback=True, context="marquee router")
 
 
 def _config_path(request: Optional[Request]) -> Path:
@@ -249,7 +247,7 @@ def _trigger_led_profile_for_game(game_id: Optional[str]) -> None:
     try:
         from backend.services.led_game_profiles import LEDGameProfileStore
         
-        drive_root = Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd()))
+        drive_root = get_drive_root(allow_cwd_fallback=True, context="marquee LED profile binding")
         store = LEDGameProfileStore(drive_root)
         binding = store.get_binding(game_id)
         
@@ -287,8 +285,7 @@ _preview_mode: str = "image"  # "image" for scroll preview, "video" for launched
 
 def _preview_state_file_path() -> Path:
     """Get preview state file path for external marquee apps."""
-    drive_root = os.environ.get("AA_DRIVE_ROOT", os.getcwd())
-    return Path(drive_root) / ".aa" / "state" / "marquee_preview.json"
+    return get_drive_root(allow_cwd_fallback=True, context="marquee preview state") / ".aa" / "state" / "marquee_preview.json"
 
 
 def reset_marquee_to_idle(source: str = "system") -> Dict[str, Any]:
@@ -492,8 +489,7 @@ class QueuePayload(BaseModel):
 
 def _queue_state_file_path() -> Path:
     """Get queue state file path for external marquee apps."""
-    drive_root = os.environ.get("AA_DRIVE_ROOT", os.getcwd())
-    return Path(drive_root) / ".aa" / "state" / "marquee_queue.json"
+    return get_drive_root(allow_cwd_fallback=True, context="marquee queue state") / ".aa" / "state" / "marquee_queue.json"
 
 
 def _persist_queue() -> None:
@@ -903,7 +899,7 @@ async def serve_media(path: str):
     from fastapi.responses import FileResponse
     
     # Security: only allow files under LaunchBox directory
-    launchbox_root = Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd())) / "LaunchBox"
+    launchbox_root = get_drive_root(allow_cwd_fallback=True, context="marquee media root") / "LaunchBox"
     
     # Convert path back to Path object
     file_path = Path(path)
@@ -975,7 +971,7 @@ def _find_default_idle_art(launchbox_root: Path) -> Optional[Path]:
         launchbox_root / "Images" / "Idle" / "default.png",
         launchbox_root / "Images" / "Idle" / "idle.png",
         launchbox_root / "Images" / "Marquee" / "default.png",
-        Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd())) / "Arcade Assistant Local" / "assets" / "marquee_idle.png",
+        get_drive_root(allow_cwd_fallback=True, context="marquee idle asset") / "Arcade Assistant Local" / "assets" / "marquee_idle.png",
     ]
     
     for path in candidates:
@@ -1033,8 +1029,7 @@ _msg_logger = logging.getLogger(__name__ + ".messages")
 
 def _get_aa_root() -> Path:
     """Get the .aa directory path from drive root. No hardcoded A:\\ fallback."""
-    drive_root = Path(os.environ.get("AA_DRIVE_ROOT", os.getcwd()))
-    return drive_root / ".aa"
+    return get_drive_root(allow_cwd_fallback=True, context="marquee aa root") / ".aa"
 
 
 def _messages_file_path() -> Path:

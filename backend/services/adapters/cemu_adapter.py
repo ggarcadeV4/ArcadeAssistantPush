@@ -14,6 +14,7 @@ from .adapter_utils import (
     success_with_command,
     get_game_rom_path,
 )
+from backend.constants.drive_root import resolve_runtime_path
 from backend.services.platform_names import normalize_key
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,16 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         Dict with exe, args, cwd keys for launching
     """
     # Find Cemu executable
-    exe = find_emulator_exe('cemu')
+    exe = None
+    # Read from launchers.json manifest
+    manifest_exe = manifest.get("emulators", {}).get("cemu", {}).get("exe", "")
+    if manifest_exe:
+        resolved = resolve_runtime_path(manifest_exe)
+        if resolved and resolved.exists():
+            exe = resolved
+
+    if not exe:
+        exe = find_emulator_exe('cemu')
     if not exe:
         return {"success": False, "message": "MISSING-EMU: emulators.cemu.exe - Cemu not found"}
     

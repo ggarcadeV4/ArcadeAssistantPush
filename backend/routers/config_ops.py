@@ -270,17 +270,27 @@ async def restore_config(request: Request, restore_req: RestoreRequest):
                 detail="Backup path must be within .aa/backups directory"
             )
 
+        pre_restore_backup_path = None
+        if target_path.exists() and request.app.state.backup_on_write:
+            pre_restore_backup_path = create_backup(target_path, drive_root)
+
         # Perform restore
         restore_from_backup(backup_path, target_path)
 
         # Log restore
         await log_change(request, drive_root, restore_req.target_file, "restore",
-                  {"backup_path": str(backup_path)}, None, result="restored")
+                  {
+                      "backup_path": str(backup_path),
+                      "pre_restore_backup_path": str(pre_restore_backup_path) if pre_restore_backup_path else None,
+                  },
+                  pre_restore_backup_path,
+                  result="restored")
 
         return {
             "status": "restored",
             "target_file": restore_req.target_file,
-            "backup_path": str(backup_path)
+            "backup_path": str(backup_path),
+            "pre_restore_backup_path": str(pre_restore_backup_path) if pre_restore_backup_path else None,
         }
 
     except HTTPException:

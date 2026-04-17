@@ -6,6 +6,7 @@
  * Client connects to: ws://localhost:8787/scorekeeper/ws
  * Backend POSTs to: POST /api/scorekeeper/broadcast to push events
  */
+import { attachWebSocketIdentity, extractWebSocketIdentity } from './identity.js'
 
 // Track connected clients
 const clients = new Set();
@@ -18,27 +19,37 @@ export function setupScorekeeperWebSocket(wss) {
 
     wss.on('connection', (ws, req) => {
         try {
-            const host = req.headers.host || 'localhost';
-            const url = new URL(req.url, `http://${host}`);
+            const identity = extractWebSocketIdentity(req, {
+                defaultPanel: 'scorekeeper',
+                corrPrefix: 'scorekeeper'
+            });
+            const { url } = identity;
 
             if (url.pathname !== '/scorekeeper/ws') {
                 return; // Not our path, let other handlers deal with it
             }
 
-            const connectionId = req.headers['sec-websocket-key'] ||
-                `sk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            // Cabinet scoreboards remain anonymous-compatible, but identity-bearing callers are preserved.
+            const connectionId = identity.corrId;
 
             console.log(`[ScoreKeeper WS] ✅ Client connected: ${connectionId}`);
 
             // Track this client
-            const client = { ws, id: connectionId, connectedAt: Date.now() };
+            const client = attachWebSocketIdentity(ws, identity, {
+                ws,
+                id: connectionId,
+                connectedAt: Date.now()
+            });
             clients.add(client);
 
             // Send welcome message
             safeSend(ws, {
                 type: 'connected',
                 message: 'ScoreKeeper WebSocket ready',
-                clientId: connectionId
+                clientId: connectionId,
+                device: client.deviceId || '',
+                panel: client.panel,
+                corr_id: client.corrId
             });
 
             // Handle incoming messages from clients

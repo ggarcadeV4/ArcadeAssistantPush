@@ -2,8 +2,15 @@
  * Dewey Trivia Client
  * API client for Dewey trivia features
  */
+import { buildStandardHeaders } from '../utils/identity'
 
 const API_BASE = '/api/local/dewey'
+const DEWEY_HEADERS = (scope = 'state', json = true) =>
+  buildStandardHeaders({
+    panel: 'dewey',
+    scope,
+    extraHeaders: json ? { 'Content-Type': 'application/json' } : {}
+  })
 
 /**
  * Get trivia questions filtered by category and difficulty
@@ -24,9 +31,7 @@ export async function getQuestions(category = 'mixed', difficulty = null, limit 
 
   const response = await fetch(`${API_BASE}/trivia/questions?${params}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: DEWEY_HEADERS()
   })
 
   if (!response.ok) {
@@ -45,9 +50,7 @@ export async function getQuestions(category = 'mixed', difficulty = null, limit 
 export async function getCollectionQuestions(limit = 10) {
   const response = await fetch(`${API_BASE}/trivia/collection-questions?limit=${limit}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: DEWEY_HEADERS()
   })
 
   if (!response.ok) {
@@ -66,9 +69,7 @@ export async function getCollectionQuestions(limit = 10) {
 export async function getStats(profileId) {
   const response = await fetch(`${API_BASE}/trivia/stats/${profileId}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: DEWEY_HEADERS()
   })
 
   if (!response.ok) {
@@ -92,14 +93,9 @@ export async function getStats(profileId) {
  * @returns {Promise<{success: boolean, profile_id: string, updated_stats: Object}>}
  */
 export async function saveStats(profileId, sessionData) {
-  const deviceId = localStorage.getItem('device-id') || 'unknown-device'
-
   const response = await fetch(`${API_BASE}/trivia/save-stats`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-device-id': deviceId
-    },
+    headers: DEWEY_HEADERS('state'),
     body: JSON.stringify({
       profile_id: profileId,
       session_data: sessionData

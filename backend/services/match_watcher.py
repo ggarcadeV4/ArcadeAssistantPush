@@ -12,6 +12,8 @@ from typing import Dict, Optional, Callable
 from threading import Thread, Event
 import structlog
 
+from backend.constants.drive_root import get_drive_root
+
 logger = structlog.get_logger(__name__)
 
 
@@ -24,8 +26,8 @@ class MatchResultWatcher:
     up the result and can notify ScoreKeeper Sam to update the bracket.
     """
     
-    def __init__(self, drive_root: str = "A:"):
-        self.drive_root = Path(drive_root)
+    def __init__(self, drive_root: Optional[str] = None):
+        self.drive_root = Path(drive_root) if drive_root else get_drive_root(context="match_watcher")
         self.results_path = self.drive_root / ".aa" / "state" / "scorekeeper" / "match_results.json"
         self.current_match_path = self.drive_root / ".aa" / "state" / "scorekeeper" / "current_match.json"
         
@@ -163,7 +165,7 @@ class MatchResultWatcher:
 _match_watcher: Optional[MatchResultWatcher] = None
 
 
-def get_match_watcher(drive_root: str = "A:") -> MatchResultWatcher:
+def get_match_watcher(drive_root: Optional[str] = None) -> MatchResultWatcher:
     """Get or create the match watcher instance."""
     global _match_watcher
     if _match_watcher is None:
@@ -171,7 +173,7 @@ def get_match_watcher(drive_root: str = "A:") -> MatchResultWatcher:
     return _match_watcher
 
 
-def start_match_watcher(drive_root: str = "A:") -> MatchResultWatcher:
+def start_match_watcher(drive_root: Optional[str] = None) -> MatchResultWatcher:
     """Start the match watcher."""
     watcher = get_match_watcher(drive_root)
     watcher.start()

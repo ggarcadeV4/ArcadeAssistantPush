@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Request
+from backend.constants.drive_root import get_drive_root
 from backend.services.score_tracking import CanonicalGameEvent, get_score_tracking_service
 from backend.services.led_blinky_translator import resolve_animation_code, resolve_genre_key
 from pydantic import BaseModel, Field
@@ -68,8 +69,8 @@ class GameLifecycleResponse(BaseModel):
 # ============================================================================
 
 # Dynamically resolve LEDBlinky path from drive root
-_DRIVE_ROOT = os.getenv("AA_DRIVE_ROOT", "A:\\")
-LEDBLINKY_EXE = Path(_DRIVE_ROOT) / "LEDBlinky" / "LEDBlinky.exe"
+_DRIVE_ROOT = get_drive_root()
+LEDBLINKY_EXE = _DRIVE_ROOT / "LEDBlinky" / "LEDBlinky.exe"
 
 
 def _extract_cinema_tag(tags: List[str]) -> Optional[str]:
@@ -265,7 +266,7 @@ def _bridge_track_game(
     """Register the game with score tracking and lifecycle monitoring."""
     global _active_game
 
-    tracking_service = get_score_tracking_service(Path(_DRIVE_ROOT))
+    tracking_service = get_score_tracking_service(_DRIVE_ROOT)
     session = tracking_service.record_launch(
         CanonicalGameEvent(
             source=source,
@@ -338,7 +339,7 @@ async def _bridge_on_game_stop() -> str:
 
     logger.info(f"[Bridge] Game stopped: {game_name} - evaluating score capture")
 
-    tracking_service = get_score_tracking_service(Path(_DRIVE_ROOT))
+    tracking_service = get_score_tracking_service(_DRIVE_ROOT)
     session = tracking_service.close_session(
         session_id=game_info.get("session_id"),
         game_id=game_id,
@@ -690,7 +691,7 @@ async def game_lifecycle_status():
         "status": "operational",
         "ledblinky_path": str(LEDBLINKY_EXE),
         "ledblinky_found": ledblinky_found,
-        "drive_root": _DRIVE_ROOT,
+        "drive_root": str(_DRIVE_ROOT),
         "active_game": _active_game if _active_game else None,
         "service_tracked_games": service_games,
         "endpoints": ["/api/game/start", "/api/game/stop", "/api/game/status"],

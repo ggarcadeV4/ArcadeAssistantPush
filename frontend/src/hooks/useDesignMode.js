@@ -84,6 +84,16 @@ export default function useDesignMode({ showToast }) {
         showToast('Design cleared', 'success')
     }, [showToast])
 
+    const replaceCustomColors = useCallback((colors, name = null) => {
+        const nextColors = colors && typeof colors === 'object' ? { ...colors } : {}
+        setCustomColors(nextColors)
+        setActiveProfileName(name)
+        showToast(
+            name ? `Loaded backend profile "${name}" into the designer` : 'Designer colors updated',
+            'success'
+        )
+    }, [showToast])
+
     // ─── Fill all buttons with selected color ────────────────────────
     const fillAll = useCallback((playerCount = 4) => {
         const filled = {}
@@ -109,7 +119,7 @@ export default function useDesignMode({ showToast }) {
         setSavedProfiles(profiles)
         persistProfiles(profiles)
         setActiveProfileName(name)
-        showToast(`Profile "${name}" saved`, 'success')
+        showToast(`Local draft "${name}" saved`, 'success')
     }, [customColors, savedProfiles, showToast])
 
     // ─── Load a saved profile ────────────────────────────────────────
@@ -121,7 +131,7 @@ export default function useDesignMode({ showToast }) {
         }
         setCustomColors({ ...profile })
         setActiveProfileName(name)
-        showToast(`Loaded "${name}"`, 'success')
+        showToast(`Loaded local draft "${name}"`, 'success')
     }, [savedProfiles, showToast])
 
     // ─── Delete a saved profile ──────────────────────────────────────
@@ -131,7 +141,7 @@ export default function useDesignMode({ showToast }) {
         setSavedProfiles(profiles)
         persistProfiles(profiles)
         if (activeProfileName === name) setActiveProfileName(null)
-        showToast(`Profile "${name}" deleted`, 'success')
+        showToast(`Deleted local draft "${name}"`, 'success')
     }, [savedProfiles, activeProfileName, showToast])
 
     // ─── Profile names list ──────────────────────────────────────────
@@ -150,6 +160,7 @@ export default function useDesignMode({ showToast }) {
         paintButton,
         clearAll,
         fillAll,
+        replaceCustomColors,
         hasChanges,
 
         // Profiles

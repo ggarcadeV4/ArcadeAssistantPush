@@ -1,16 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { resolveDriveRoot } from './driveDetection.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export function resolveDriveRoot(input) {
-  const base = path.resolve(__dirname, '..', '..');
-  if (!input) return base;
-  const isWinPath = /^[A-Za-z]:[\\/]/.test(input);
-  if (path.isAbsolute(input) || isWinPath) return input;
-  return path.resolve(base, input);
+export function resolveDriveRootInput(input) {
+  return resolveDriveRoot(input, { allowProjectFallback: false });
 }
 
 function readJson(filePath) {
@@ -22,19 +15,19 @@ function readJson(filePath) {
 }
 
 export function loadCabinetIdentity(driveRootInput = process.env.AA_DRIVE_ROOT, env = process.env) {
-  const driveRoot = resolveDriveRoot(driveRootInput);
-  const deviceIdPath = path.join(driveRoot, '.aa', 'device_id.txt');
-  const cabinetManifestPath = path.join(driveRoot, '.aa', 'cabinet_manifest.json');
+  const driveRoot = resolveDriveRootInput(driveRootInput);
+  const deviceIdPath = driveRoot ? path.join(driveRoot, '.aa', 'device_id.txt') : null;
+  const cabinetManifestPath = driveRoot ? path.join(driveRoot, '.aa', 'cabinet_manifest.json') : null;
 
   let deviceId = '';
   let source = 'unresolved';
 
-  if (fs.existsSync(deviceIdPath)) {
+  if (deviceIdPath && fs.existsSync(deviceIdPath)) {
     deviceId = (fs.readFileSync(deviceIdPath, 'utf8') || '').trim();
     if (deviceId) source = 'device_id_txt';
   }
 
-  const manifest = fs.existsSync(cabinetManifestPath) ? readJson(cabinetManifestPath) : {};
+  const manifest = cabinetManifestPath && fs.existsSync(cabinetManifestPath) ? readJson(cabinetManifestPath) : {};
   if (!deviceId) {
     deviceId = String(manifest.device_id || manifest.id || '').trim();
     if (deviceId) source = 'cabinet_manifest';
@@ -56,8 +49,8 @@ export function loadCabinetIdentity(driveRootInput = process.env.AA_DRIVE_ROOT, 
     source,
     driveRoot,
     filesPresent: {
-      device_id_txt: fs.existsSync(deviceIdPath),
-      cabinet_manifest_json: fs.existsSync(cabinetManifestPath),
+      device_id_txt: Boolean(deviceIdPath && fs.existsSync(deviceIdPath)),
+      cabinet_manifest_json: Boolean(cabinetManifestPath && fs.existsSync(cabinetManifestPath)),
     },
   };
 }

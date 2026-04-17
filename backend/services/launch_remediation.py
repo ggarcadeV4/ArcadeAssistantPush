@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -41,7 +42,7 @@ GEMINI_PROXY_URL = f"{SUPABASE_URL}/functions/v1/gemini-proxy" if SUPABASE_URL e
 MAX_REMEDIATION_ATTEMPTS = 2
 CRASH_THRESHOLD_SECONDS = 10.0  # Exit faster than this = probable crash
 
-REMEDIATION_LOG_PATH = Path(os.getenv("AA_DRIVE_ROOT", "A:\\")) / ".aa" / "logs" / "remediation.jsonl"
+REMEDIATION_LOG_PATH = get_drive_root(context="launch_remediation") / ".aa" / "logs" / "remediation.jsonl"
 
 
 def _log_remediation_result(

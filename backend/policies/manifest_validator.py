@@ -4,6 +4,9 @@ from typing import Any, Dict, List
 from datetime import datetime, timezone
 import os
 
+from backend.constants.sanctioned_paths import DEFAULT_SANCTIONED_PATHS
+from backend.constants.drive_root import get_drive_root_or_none, get_manifest_path, paths_equivalent
+
 try:
     import yaml
 except Exception as e:  # pragma: no cover
@@ -78,17 +81,29 @@ def validate_manifest(data: Dict[str, Any]) -> List[str]:
 
     # Semantic checks: AA_DRIVE_ROOT existence and /.aa/manifest.json presence
     # These are warnings, not fatal errors - startup_manager.py handles them by blocking writes
-    aa_root = os.getenv("AA_DRIVE_ROOT")
-    if not aa_root:
+    configured_root = get_drive_root_or_none()
+    if configured_root is None:
         # Don't add to errors - allow startup with writes disabled (handled by startup_manager)
         print("WARNING: AA_DRIVE_ROOT environment variable is not set")
     else:
-        root_path = Path(aa_root)
+        root_path = Path(configured_root)
         if not root_path.exists() or not root_path.is_dir():
-            print(f"WARNING: AA_DRIVE_ROOT does not exist or is not a directory: {root_path}")
-        manifest_json = root_path / ".aa" / "manifest.json"
+            print(f"WARNING: Configured root does not exist or is not a directory: {root_path}")
+        manifest_json = get_manifest_path(root_path)
         if not manifest_json.exists():
             print(f"WARNING: .aa/manifest.json not found at {manifest_json}")
+        else:
+            manifest_root = ""
+            try:
+                import json as _json
+                with open(manifest_json, "r", encoding="utf-8") as handle:
+                    manifest_payload = _json.load(handle)
+                if isinstance(manifest_payload, dict):
+                    manifest_root = str(manifest_payload.get("drive_root") or "").strip()
+            except Exception:
+                manifest_root = ""
+            if manifest_root and not paths_equivalent(manifest_root, root_path):
+                print(f"WARNING: manifest drive_root ({manifest_root}) does not match configured root ({root_path})")
 
     # Invariant presence checks (string match)
     required_invariants = [
@@ -112,7 +127,7 @@ def validate_manifest(data: Dict[str, Any]) -> List[str]:
 
 
 def _bootstrap_manifest_if_allowed(errors: List[str]) -> bool:
-    """Create or repair A:\\.aa\\manifest.json when AA_DEV_ALLOW_BOOTSTRAP=1.
+    """Create or repair <AA_DRIVE_ROOT>/.aa/manifest.json when AA_DEV_ALLOW_BOOTSTRAP=1.
 
     Returns True if a bootstrap/repair occurred and errors can be ignored.
     """
@@ -123,14 +138,10 @@ def _bootstrap_manifest_if_allowed(errors: List[str]) -> bool:
     if not allow:
         return False
 
-    from backend.constants.drive_root import get_drive_root
-    try:
-        aa_root = str(get_drive_root(allow_cwd_fallback=True))
-    except Exception:
-        # Cannot bootstrap if we don't know where the drive is/should be
+    root = get_drive_root_or_none()
+    if root is None:
+        # Cannot bootstrap if AA_DRIVE_ROOT is not configured.
         return False
-
-    root = Path(aa_root)
     target = root / ".aa" / "manifest.json"
 
     # Missing AA_DRIVE_ROOT entirely? Nothing to bootstrap.
@@ -152,7 +163,7 @@ def _bootstrap_manifest_if_allowed(errors: List[str]) -> bool:
                 "tmp_dir": str(root / "ArcadeAssistant" / "_tmp"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 # Minimal sanctioned_paths to satisfy downstream checks
-                "sanctioned_paths": ["configs", "state", "backups", "logs", "emulators"],
+                "sanctioned_paths": DEFAULT_SANCTIONED_PATHS,
             }
             with open(target, "w", encoding="utf-8") as f:
                 import json as _json
@@ -184,7 +195,7 @@ def _bootstrap_manifest_if_allowed(errors: List[str]) -> bool:
                 "overrides_dir": str(root / "configs" / "overrides"),
                 "tmp_dir": str(root / "ArcadeAssistant" / "_tmp"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "sanctioned_paths": ["configs", "state", "backups", "logs", "emulators"],
+                "sanctioned_paths": DEFAULT_SANCTIONED_PATHS,
             }
             with open(target, "w", encoding="utf-8") as f:
                 import json as _json

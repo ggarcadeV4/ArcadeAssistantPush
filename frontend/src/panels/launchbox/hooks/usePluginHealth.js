@@ -1,4 +1,5 @@
-﻿import { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { buildStandardHeaders } from '../../../utils/identity'
 
 const DEFAULT_PLUGIN_STATUS = {
   available: false,
@@ -23,10 +24,11 @@ export default function usePluginHealth({ gateway = '', cacheMs = 30000 } = {}) 
     try {
       const response = await fetch(`${gateway}/api/launchbox/plugin-status`, {
         method: 'GET',
-        headers: {
-          'x-panel': 'launchbox',
-          'Cache-Control': 'no-cache'
-        },
+        headers: buildStandardHeaders({
+          panel: 'launchbox',
+          scope: 'state',
+          extraHeaders: { 'Cache-Control': 'no-cache' }
+        }),
         signal: AbortSignal.timeout(3000)
       })
 

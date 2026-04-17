@@ -11,6 +11,7 @@ import EngineeringBaySidebar from '../_kit/EngineeringBaySidebar'
 import { stopSpeaking } from '../../services/ttsClient'
 import {
   fetchHealthSummary,
+  fetchGatewayHealth,
   fetchHealthPerformance,
   fetchHealthProcesses,
   fetchHealthHardware,
@@ -130,6 +131,7 @@ export default function SystemHealthPanel() {
 
   // Summary
   const [summaryState, setSummaryState] = useState({ data: null, loading: false, error: null })
+  const [gatewayState, setGatewayState] = useState({ data: null, loading: false, error: null })
 
   // Performance
   const [performanceState, setPerformanceState] = useState({ data: null, loading: false, error: null })
@@ -172,11 +174,23 @@ export default function SystemHealthPanel() {
   /* ── Data loaders ─────────────────────────────────────────────────── */
   const loadSummary = useCallback(async () => {
     setSummaryState(s => ({ ...s, loading: true, error: null }))
-    try {
-      const data = await fetchHealthSummary()
-      setSummaryState({ data, loading: false, error: null })
-    } catch (err) {
-      setSummaryState(s => ({ ...s, loading: false, error: err.message || 'Failed' }))
+    setGatewayState(s => ({ ...s, loading: true, error: null }))
+
+    const [summaryResult, gatewayResult] = await Promise.allSettled([
+      fetchHealthSummary(),
+      fetchGatewayHealth()
+    ])
+
+    if (summaryResult.status === 'fulfilled') {
+      setSummaryState({ data: summaryResult.value, loading: false, error: null })
+    } else {
+      setSummaryState(s => ({ ...s, loading: false, error: summaryResult.reason?.message || 'Failed' }))
+    }
+
+    if (gatewayResult.status === 'fulfilled') {
+      setGatewayState({ data: gatewayResult.value, loading: false, error: null })
+    } else {
+      setGatewayState(s => ({ ...s, loading: false, error: gatewayResult.reason?.message || 'Failed' }))
     }
   }, [])
 
@@ -317,16 +331,8 @@ export default function SystemHealthPanel() {
   const summaryData = summaryState.data || {}
   const timeseriesSamples = timeseriesState.data || []
 
-  // Summary cards
-  const summaryCards = useMemo(() => {
-    const sd = summaryState.data || {}
-    return [
-      { label: 'Manifest', value: sd.manifest_exists ? 'Present' : 'Missing', meta: sd.sanctioned_paths_count != null ? `Sanctioned paths: ${sd.sanctioned_paths_count}` : null },
-      { label: 'USB Backend', value: sd.usb_backend || sd.hardware_status?.usb_backend || 'n/a' },
-      { label: 'LLM Provider', value: sd.llm_provider || 'n/a' },
-      { label: 'STT Provider', value: sd.stt_provider || 'n/a' }
-    ]
-  }, [summaryState.data])
+  // Truth cards
+  const truthCards = useMemo(() => buildTruthCards(summaryState.data, gatewayState.data, gatewayState.error), [summaryState.data, gatewayState.data, gatewayState.error])
 
   // Quick diagnosis
   const docQuickDiagnosis = useMemo(() => {
@@ -334,9 +340,11 @@ export default function SystemHealthPanel() {
       summary: summaryState.data,
       performance: performanceState.data,
       hardware: hardwareData,
-      alerts: activeAlertsList
+      alerts: activeAlertsList,
+      gateway: gatewayState.data,
+      gatewayError: gatewayState.error
     })
-  }, [summaryState.data, performanceState.data, hardwareData, activeAlertsList])
+  }, [summaryState.data, performanceState.data, hardwareData, activeAlertsList, gatewayState.data, gatewayState.error])
 
   // Performance metrics
   const performanceMetrics = useMemo(() => {
@@ -347,7 +355,7 @@ export default function SystemHealthPanel() {
       { label: 'Memory', value: formatMemory(p.memory), sublabel: p.memory?.percent != null ? `${p.memory.percent.toFixed(0)}% used` : '' },
       { label: 'FPS', value: p.fps != null ? p.fps.toFixed(1) : '--', sublabel: 'Average' },
       { label: 'Latency', value: p.latency_ms != null ? `${p.latency_ms.toFixed(1)} ms` : '--', sublabel: 'Input' },
-      { label: 'Disk', value: p.disk?.percent != null ? formatPercent(p.disk.percent) : '--', sublabel: p.disk?.io_read ? 'Active' : 'Idle' },
+      { label: 'Disk', value: p.disk?.percent != null ? formatPercent(p.disk.percent) : '--', sublabel: p.disk?.percent != null ? (p.disk?.io_read ? 'Active' : 'Ready') : 'Unavailable' },
       { label: 'Network', value: p.network?.latency_ms != null ? `${p.network.latency_ms.toFixed(0)} ms` : '--', sublabel: 'Round-trip' }
     ]
   }, [performanceState.data])
@@ -369,6 +377,9 @@ export default function SystemHealthPanel() {
     if (p.fps != null && p.fps < 30) {
       insights.push({ title: 'Low Frame Rate', description: `Average FPS is ${p.fps.toFixed(1)}. Check GPU utilization.` })
     }
+    if (p.fps == null && p.latency_ms == null) {
+      insights.push({ title: 'Gameplay Telemetry Limited', description: 'CPU, memory, and disk checks are live, but frame-rate and input-latency probes are not currently wired on this cabinet.' })
+    }
     if (!insights.length) {
       insights.push({ title: 'All Systems Nominal', description: 'Performance metrics are within healthy ranges.' })
     }
@@ -377,32 +388,23 @@ export default function SystemHealthPanel() {
 
   // Process groups
   const processGroups = useMemo(() => {
-    const rawProcesses = processState.data?.processes || processState.data || []
-    if (!Array.isArray(rawProcesses)) return []
-    const assistantProcs = []
-    const systemProcs = []
-    rawProcesses.forEach(proc => {
-      const name = (proc.name || '').toLowerCase()
-      const path = (proc.path || '').toLowerCase()
-      if (name.includes('assistant') || name.includes('doc') || name.includes('gunner') ||
-          name.includes('vicky') || name.includes('chuck') || name.includes('blinky') ||
-          name.includes('wiz') || name.includes('arcade') || name.includes('emulat') ||
-          path.includes('/opt/doc') || path.includes('/opt/games')) {
-        assistantProcs.push(proc)
-      } else {
-        systemProcs.push(proc)
-      }
-    })
+    const rawGroups = Array.isArray(processState.data?.groups)
+      ? processState.data.groups
+      : Array.isArray(processState.data)
+        ? processState.data
+        : []
+    if (!rawGroups.length) return []
     const sortFn = processSortBy === 'memory'
       ? (a, b) => (b.memory_bytes || 0) - (a.memory_bytes || 0)
       : (a, b) => (b.cpu_percent || 0) - (a.cpu_percent || 0)
-    return [
-      { id: 'assistant', title: 'Assistant Services', processes: assistantProcs.sort(sortFn) },
-      { id: 'system', title: 'System', processes: systemProcs.sort(sortFn) }
-    ]
+    return rawGroups.map(group => ({
+      id: group.id || group.title || 'group',
+      title: group.title || 'Processes',
+      processes: [...(group.processes || [])].sort(sortFn)
+    }))
   }, [processState.data, processSortBy])
 
-  const processesUnavailable = processState.data?.unavailable === true
+  const processesUnavailable = processState.data?.unavailable === true || processState.data?.psutil_available === false
 
   const filteredProcessGroups = useMemo(() => {
     const filterLower = processFilter.toLowerCase()
@@ -468,6 +470,7 @@ export default function SystemHealthPanel() {
   const hardwareStatus = (hardwareData?.status || 'healthy').toLowerCase()
   const hardwareStatusLabel = formatMetricLabel(hardwareStatus)
   const hardwareUsbBackend = hardwareData?.usb_backend
+  const hardwareOperatorMessage = formatOperatorMessage(hardwareData?.error)
 
   /* ═══════════════════════════════════════════════════════════════════
      RENDER
@@ -501,9 +504,9 @@ export default function SystemHealthPanel() {
 
         {/* Status Cards */}
         <section className="doc-status-grid">
-          {summaryCards.map(card => (
+          {truthCards.map(card => (
             <div key={card.label} className="doc-status-card">
-              <div className="doc-status-card__dot" />
+              <div className={`doc-status-card__dot ${card.tone === 'warning' ? 'doc-status-card__dot--warn' : card.tone === 'error' ? 'doc-status-card__dot--error' : ''}`} />
               <div className="doc-status-card__label">{card.label}</div>
               <div className="doc-status-card__value">{card.value}</div>
               {card.meta && <div className="doc-status-card__meta">{card.meta}</div>}
@@ -754,9 +757,9 @@ export default function SystemHealthPanel() {
               </button>
             </div>
 
-            {hardwareData?.error && !hardwareErrorDismissed && (
+            {hardwareOperatorMessage && !hardwareErrorDismissed && (
               <div className="doc-banner-warn">
-                <span>Hardware subsystem reported: {hardwareData.error}</span>
+                <span>Hardware checks are limited: {hardwareOperatorMessage}</span>
                 <button onClick={() => setHardwareErrorDismissed(true)}>Dismiss</button>
               </div>
             )}
@@ -1027,27 +1030,33 @@ function formatMetricLabel(label) {
 function formatDiagnosisLine(line) {
   // Bold labels and highlight "warning" / "critical" keywords
   return line
-    .replace(/^(Overall|Performance|Alerts|USB backend|CPU|Memory|Hardware):?/i, '<strong>$1:</strong>')
+    .replace(/^(Overall|Gateway|Configured Root|Manifest|LaunchBox|Plugin|Emulators|ROM Folders|BIOS|Performance|Alerts|USB backend|CPU|Memory|Hardware):?/i, '<strong>$1:</strong>')
     .replace(/\bwarning\b/gi, '<span class="text-warn">warning</span>')
     .replace(/\bcritical\b/gi, '<span style="color:var(--doc-red)">critical</span>')
 }
 
-function buildDocQuickDiagnosis({ summary = {}, performance = {}, hardware = {}, alerts = [] } = {}) {
+function buildDocQuickDiagnosis({ summary = {}, performance = {}, hardware = {}, alerts = [], gateway = null, gatewayError = null } = {}) {
   const summaryData = summary || {}
   const performanceData = performance || {}
   const hardwareData = hardware || {}
   const alertsList = Array.isArray(alerts) ? alerts : []
+  const dependencies = summaryData.dependencies || {}
+  const dependencyOverview = summaryData.dependency_overview || {}
+  const gatewayStatus = resolveGatewayStatus(gateway, gatewayError)
   const lines = []
-  const hardwareStatus =
-    (hardwareData.status || summaryData?.hardware_status?.status || 'healthy').toLowerCase()
-  let overallStatus = 'healthy'
-  if (hardwareStatus === 'degraded') overallStatus = 'degraded'
-  if (hardwareStatus === 'critical' || alertsList.length > 0) overallStatus = 'attention'
+  const overallSeverity = worstStatusLabel([
+    dependencyOverview.status,
+    gatewayStatus.status,
+    hardwareData.status === 'degraded' ? 'warning' : 'ok',
+    alertsList.length > 0 ? 'warning' : 'ok'
+  ])
+  const overallStatus = overallSeverity === 'error' ? 'attention' : overallSeverity === 'warning' ? 'degraded' : 'healthy'
 
   const hasTelemetry =
     (summaryData && Object.keys(summaryData).length > 0) ||
     (performanceData && Object.keys(performanceData).length > 0) ||
-    (hardwareData && Object.keys(hardwareData).length > 0)
+    (hardwareData && Object.keys(hardwareData).length > 0) ||
+    gateway != null
   if (!hasTelemetry && alertsList.length === 0) {
     return { overallStatus, lines: [] }
   }
@@ -1075,18 +1084,160 @@ function buildDocQuickDiagnosis({ summary = {}, performance = {}, hardware = {},
   const usbBackend =
     hardwareData.usb_backend || summaryData?.hardware_status?.usb_backend || summaryData?.usb_backend
 
-  lines.push(
-    `Overall: ${hardwareStatus ? formatMetricLabel(hardwareStatus) : 'Unknown'} hardware, ${alertCount} active alert${alertCount === 1 ? '' : 's'}.`
-  )
-  lines.push(
-    `Performance: CPU load ${cpuBucket}${typeof cpuPercent === 'number' ? ` (${cpuPercent.toFixed(0)}%)` : ''}, memory ${memoryDescriptor}.`
-  )
+  lines.push(`Overall: ${formatOverallSummary(dependencyOverview, alertCount)}.`)
+  lines.push(`Gateway: ${gatewayStatus.summary}.`)
+  if (dependencies.configured_root?.summary) lines.push(`Configured Root: ${dependencies.configured_root.summary}.`)
+  if (dependencies.manifest?.summary) lines.push(`Manifest: ${dependencies.manifest.summary}.`)
+  if (dependencies.launchbox?.summary) lines.push(`LaunchBox: ${dependencies.launchbox.summary}.`)
+  if (dependencies.plugin?.summary) lines.push(`Plugin: ${dependencies.plugin.summary}.`)
+  if (dependencies.emulators?.summary) lines.push(`Emulators: ${dependencies.emulators.summary}.`)
+  if (dependencies.roms?.summary) lines.push(`ROM Folders: ${dependencies.roms.summary}.`)
+  if (dependencies.bios?.summary) lines.push(`BIOS: ${dependencies.bios.summary}.`)
+  lines.push(`Performance: CPU load ${cpuBucket}${typeof cpuPercent === 'number' ? ` (${cpuPercent.toFixed(0)}%)` : ''}, memory ${memoryDescriptor}.`)
   lines.push(
     alertCount
       ? `Alerts: ${severeAlert?.title || 'Review active alerts'}${severeAlert?.message ? ` – ${severeAlert.message}` : ''}`
       : 'Alerts: No active alerts detected.'
   )
-  lines.push(`USB backend: ${usbBackend ? formatMetricLabel(usbBackend) : 'Unknown state'}.`)
+  if (usbBackend) {
+    lines.push(`USB backend: ${formatMetricLabel(usbBackend)}.`)
+  }
 
   return { overallStatus, lines }
+}
+
+function buildTruthCards(summary, gateway, gatewayError) {
+  const dependencyChecks = summary?.dependencies || {}
+  const cards = [
+    buildCardFromCheck('Gateway / Backend', resolveGatewayStatus(gateway, gatewayError)),
+    buildCardFromCheck('Configured Root', dependencyChecks.configured_root),
+    buildCardFromCheck('Manifest', dependencyChecks.manifest),
+    buildCardFromCheck('LaunchBox', dependencyChecks.launchbox),
+    buildCardFromCheck('Plugin Bridge', dependencyChecks.plugin),
+    buildCardFromCheck('Emulator Paths', dependencyChecks.emulators),
+    buildCardFromCheck('ROM Folders', dependencyChecks.roms),
+    buildCardFromCheck('BIOS', dependencyChecks.bios)
+  ]
+
+  return cards.filter(Boolean)
+}
+
+function buildCardFromCheck(label, check) {
+  if (!check) {
+    return {
+      label,
+      value: 'Checking',
+      meta: 'Waiting for live status...',
+      tone: 'warning'
+    }
+  }
+
+  return {
+    label,
+    value: formatCheckValue(check.status),
+    meta: check.summary || check.detail || null,
+    tone: normalizeTone(check.status)
+  }
+}
+
+function resolveGatewayStatus(gateway, gatewayError) {
+  if (gatewayError) {
+    return {
+      status: 'error',
+      summary: 'Gateway health could not be loaded',
+      detail: formatOperatorMessage(gatewayError)
+    }
+  }
+
+  if (!gateway) {
+    return {
+      status: 'warning',
+      summary: 'Checking gateway to backend link',
+      detail: null
+    }
+  }
+
+  if (gateway.fastapi?.connected) {
+    return {
+      status: 'ok',
+      summary: 'Gateway is online and backend communication is healthy',
+      detail: gateway.fastapi?.url || null
+    }
+  }
+
+  return {
+    status: 'error',
+    summary: 'Gateway is online, but the backend is unreachable',
+    detail: formatOperatorMessage(gateway.fastapi?.error) || gateway.fastapi?.url || null
+  }
+}
+
+function formatCheckValue(status) {
+  switch ((status || '').toLowerCase()) {
+    case 'ok':
+      return 'Healthy'
+    case 'error':
+      return 'Action Needed'
+    case 'warning':
+    default:
+      return 'Attention'
+  }
+}
+
+function normalizeTone(status) {
+  const normalized = (status || '').toLowerCase()
+  if (normalized === 'ok') return 'ok'
+  if (normalized === 'error') return 'error'
+  return 'warning'
+}
+
+function worstStatusLabel(statuses = []) {
+  const rank = value => {
+    if (value === 'error') return 2
+    if (value === 'warning') return 1
+    return 0
+  }
+
+  return statuses.reduce((current, candidate) => (rank(candidate) > rank(current) ? candidate : current), 'ok') || 'ok'
+}
+
+function formatOverallSummary(overview = {}, alertCount = 0) {
+  const okCount = overview.ok_count || 0
+  const warningCount = overview.warning_count || 0
+  const errorCount = overview.error_count || 0
+
+  if (errorCount > 0) {
+    return `${errorCount} cabinet dependencies need operator attention${alertCount ? `, plus ${alertCount} active alert${alertCount === 1 ? '' : 's'}` : ''}`
+  }
+  if (warningCount > 0) {
+    return `${warningCount} cabinet dependencies are degraded${alertCount ? `, plus ${alertCount} active alert${alertCount === 1 ? '' : 's'}` : ''}`
+  }
+  if (okCount > 0) {
+    return `All ${okCount} cabinet dependency checks are healthy${alertCount ? `, with ${alertCount} active alert${alertCount === 1 ? '' : 's'}` : ''}`
+  }
+  return 'Cabinet dependency status is still loading'
+}
+
+function formatOperatorMessage(message) {
+  const text = String(message || '').trim()
+  if (!text) return ''
+
+  const lower = text.toLowerCase()
+  if (lower.includes('usb backend unavailable')) {
+    return 'USB scanning is unavailable in this runtime, so controller detection is limited.'
+  }
+  if (lower.includes('permission denied')) {
+    return 'USB scanning does not currently have permission to inspect attached devices.'
+  }
+  if (lower.includes('detector unavailable')) {
+    return 'Hardware detection is not available in this runtime.'
+  }
+  if (lower.includes('fastapi url not configured')) {
+    return 'The gateway is missing its backend target configuration.'
+  }
+  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+    return 'The gateway could not reach the backend health endpoint.'
+  }
+
+  return text
 }

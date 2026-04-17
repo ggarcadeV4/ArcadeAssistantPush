@@ -20,6 +20,7 @@ from threading import Thread, Event
 import structlog
 import httpx
 from .player_tendencies import get_active_session
+from backend.constants.drive_root import get_drive_root
 
 logger = structlog.get_logger(__name__)
 
@@ -37,7 +38,7 @@ class HiscoreWatcher:
     
     def __init__(self, drive_root: Optional[str] = None):
         if not drive_root:
-            drive_root = os.getenv("AA_DRIVE_ROOT", r"A:\\")
+            drive_root = str(get_drive_root(context="hiscore_watcher"))
         self.drive_root = Path(drive_root)
         self.running = False
         self.stop_event = Event()

@@ -1,23 +1,6 @@
 import { useState, useCallback } from 'react'
 import { chat } from '../../services/aiClient'
-
-let hasWarnedAboutFallbackDeviceId = false
-
-function resolveDeviceId(): string {
-  if (typeof window !== 'undefined') {
-    const aaDeviceId = typeof window.AA_DEVICE_ID === 'string' ? window.AA_DEVICE_ID.trim() : ''
-    if (aaDeviceId) {
-      return aaDeviceId
-    }
-  }
-
-  if (!hasWarnedAboutFallbackDeviceId) {
-    console.warn('[useAIAction] window.AA_DEVICE_ID not available, falling back to demo_001. Cabinet identity may not be unique.')
-    hasWarnedAboutFallbackDeviceId = true
-  }
-
-  return 'demo_001'
-}
+import { buildStandardHeaders, resolveDeviceId } from '../../utils/identity'
 
 interface AIActionHookResult {
   // Primary AI execution - flexible signature for panel usage
@@ -39,6 +22,11 @@ interface AIActionHookResult {
 export function useAIAction(panel: string = 'default', deviceId = resolveDeviceId()): AIActionHookResult {
   const [isLoading, setIsLoading] = useState(false)
 
+  // If a caller explicitly overrides the device id (non-default), forward it
+  // through extraHeaders so buildStandardHeaders still owns the base contract.
+  const deviceIdOverride =
+    deviceId && deviceId !== resolveDeviceId() ? { 'x-device-id': deviceId } : {}
+
   const askClaude = useCallback(async (envelope: any, messages: any[]) => {
     setIsLoading(true)
     try {
@@ -47,7 +35,8 @@ export function useAIAction(panel: string = 'default', deviceId = resolveDeviceI
         messages,
         metadata: { panel, envelope },
         scope: 'state',
-        deviceId
+        deviceId,
+        panel
       })
       return result
     } finally {
@@ -86,6 +75,7 @@ export function useAIAction(panel: string = 'default', deviceId = resolveDeviceI
         },
         scope: 'state',
         deviceId,
+        panel,
         tools: data?.tools  // Pass tools through if provided
       })
       return result
@@ -99,7 +89,11 @@ export function useAIAction(panel: string = 'default', deviceId = resolveDeviceI
     try {
       const r = await fetch('/api/local/config/preview', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-scope': 'config', 'x-device-id': deviceId },
+        headers: buildStandardHeaders({
+          panel,
+          scope: 'config',
+          extraHeaders: { 'content-type': 'application/json', ...deviceIdOverride }
+        }),
         body: JSON.stringify({ panel, filePath, diff })
       })
       const body = await r.json()
@@ -115,7 +109,11 @@ export function useAIAction(panel: string = 'default', deviceId = resolveDeviceI
     try {
       const r = await fetch('/api/local/config/apply', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-scope': 'config', 'x-device-id': deviceId },
+        headers: buildStandardHeaders({
+          panel,
+          scope: 'config',
+          extraHeaders: { 'content-type': 'application/json', ...deviceIdOverride }
+        }),
         body: JSON.stringify({ panel, filePath, diff })
       })
       const body = await r.json()
@@ -132,7 +130,13 @@ export function useAIAction(panel: string = 'default', deviceId = resolveDeviceI
       const u = new URL('/api/local/config/backups', location.origin)
       u.searchParams.set('panel', panel)
       u.searchParams.set('filePath', filePath)
-      const r = await fetch(u.toString(), { headers: { 'x-scope': 'config', 'x-device-id': deviceId } })
+      const r = await fetch(u.toString(), {
+        headers: buildStandardHeaders({
+          panel,
+          scope: 'config',
+          extraHeaders: deviceIdOverride,
+        })
+      })
       const body = await r.json()
       if (!r.ok) throw body
       return body
@@ -146,7 +150,11 @@ export function useAIAction(panel: string = 'default', deviceId = resolveDeviceI
     try {
       const r = await fetch('/api/local/config/revert', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-scope': 'config', 'x-device-id': deviceId },
+        headers: buildStandardHeaders({
+          panel,
+          scope: 'config',
+          extraHeaders: { 'content-type': 'application/json', ...deviceIdOverride }
+        }),
         body: JSON.stringify({ panel, filePath })
       })
       const body = await r.json()

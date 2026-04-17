@@ -3,6 +3,7 @@
  * @role: Wrapper for Claude API calls via Gateway
  * @depends_on: Gateway /api/local/claude endpoints
  */
+import { buildStandardHeaders } from '../utils/identity'
 
 const API_BASE = '/api/local';
 
@@ -15,10 +16,11 @@ export async function call_claude(prompt, system) {
 
   const response = await fetch(`${API_BASE}/claude/chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-scope': 'state'
-    },
+    headers: buildStandardHeaders({
+      panel: 'claude',
+      scope: 'state',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     body: JSON.stringify({ messages })
   });
 
@@ -42,9 +44,11 @@ export async function test_claude_connection() {
   try {
     const response = await fetch(`${API_BASE}/claude/test`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: buildStandardHeaders({
+        panel: 'claude',
+        scope: 'state',
+        extraHeaders: { 'Content-Type': 'application/json' }
+      })
     });
 
     if (!response.ok) {

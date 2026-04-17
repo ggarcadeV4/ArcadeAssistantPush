@@ -1,24 +1,25 @@
 import React, { useEffect, useState, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import LEDBlinkyPanel from './led-blinky/LEDBlinkyPanelWrapper'
 import ErrorBoundary from './ErrorBoundary'
-// Old monolithic panel (preserved for rollback):
-// import LightGunsPanel from '../panels/lightguns/LightGunsPanel'
-import GunnerPanel from './gunner/GunnerPanel'
-import ControllerPanel from '../panels/controller/ControllerPanel'
-import ControllerChuckPanel from './ControllerChuckPanel'
-import ControllerChuckPanelRedesign from '../panels/controller/ControllerChuckPanel'
-import ConsoleWizardPanel from '../panels/console-wizard/ConsoleWizardPanel'
-import VoicePanel from '../panels/voice/VoicePanel'
-import SystemHealthPanel from '../panels/system-health/SystemHealthPanel'
-// CIRCULAR DEPENDENCY FIX: Use React.lazy to break TDZ error
-const LaunchBoxPanel = React.lazy(() => import('../panels/launchbox/LaunchBoxPanel'))
-import ContentDisplayManager from '../panels/launchbox/ContentDisplayManager'
-import DiagnosticsPanel from '../panels/diagnostics/DiagnosticsPanel'
-import DeweyPanel from '../panels/dewey/DeweyPanel'
-import ScoreKeeperPanel from '../panels/scorekeeper/ScoreKeeperPanel'
-import CabinetHighScoresPanel from '../panels/scorekeeper/CabinetHighScoresPanel'
 import { stopSpeaking } from '../services/ttsClient'
+
+// ── Lazy-loaded Gem Panels ────────────────────────────────────────────────────
+// Every panel is dynamically imported so Vite can code-split them into
+// separate chunks. Only the active panel's JS is fetched on navigation.
+const LEDBlinkyPanel = React.lazy(() => import('./led-blinky/LEDBlinkyPanelWrapper'))
+const GunnerPanel = React.lazy(() => import('./gunner/GunnerPanel'))
+const ControllerPanel = React.lazy(() => import('../panels/controller/ControllerPanel'))
+const ControllerChuckPanel = React.lazy(() => import('./ControllerChuckPanel'))
+const ControllerChuckPanelRedesign = React.lazy(() => import('../panels/controller/ControllerChuckPanel'))
+const ConsoleWizardPanel = React.lazy(() => import('../panels/console-wizard/ConsoleWizardPanel'))
+const VoicePanel = React.lazy(() => import('../panels/voice/VoicePanel'))
+const SystemHealthPanel = React.lazy(() => import('../panels/system-health/SystemHealthPanel'))
+const LaunchBoxPanel = React.lazy(() => import('../panels/launchbox/LaunchBoxPanel'))
+const ContentDisplayManager = React.lazy(() => import('../panels/launchbox/ContentDisplayManager'))
+const DiagnosticsPanel = React.lazy(() => import('../panels/diagnostics/DiagnosticsPanel'))
+const DeweyPanel = React.lazy(() => import('../panels/dewey/DeweyPanel'))
+const ScoreKeeperPanel = React.lazy(() => import('../panels/scorekeeper/ScoreKeeperPanel'))
+const CabinetHighScoresPanel = React.lazy(() => import('../panels/scorekeeper/CabinetHighScoresPanel'))
 
 // Dewey is accessed directly via /assistants?agent=dewey, not from the personas grid
 const personas = [
@@ -200,7 +201,7 @@ export default function Assistants() {
   if (agent === 'led' || agent === 'led-blinky') {
     return <>
       {Badge}
-      <ErrorBoundary><LEDBlinkyPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading LED Blinky...</div>}><LEDBlinkyPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -208,7 +209,7 @@ export default function Assistants() {
   if (agent === 'lightguns' || agent === 'light-guns' || agent === 'gunner') {
     return <>
       {Badge}
-      <ErrorBoundary><GunnerPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Gunner...</div>}><GunnerPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -221,7 +222,7 @@ export default function Assistants() {
   ) {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerChuckPanelRedesign /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Controller Chuck...</div>}><ControllerChuckPanelRedesign /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -229,7 +230,7 @@ export default function Assistants() {
   if (agent === 'interface' || agent === 'arcade-interface') {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerChuckPanelRedesign /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Controller Chuck...</div>}><ControllerChuckPanelRedesign /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -237,7 +238,7 @@ export default function Assistants() {
   if (agent === 'chuck-legacy' || agent === 'controller-chuck-legacy' || agent === 'chuck-redesign') {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerChuckPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Controller Chuck...</div>}><ControllerChuckPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -245,7 +246,7 @@ export default function Assistants() {
   if (agent === 'controller-panel' || agent === 'controller-legacy' || agent === 'interface-legacy') {
     return <>
       {Badge}
-      <ErrorBoundary><ControllerPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Controller Panel...</div>}><ControllerPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -253,7 +254,7 @@ export default function Assistants() {
   if (agent === 'controller-wizard' || agent === 'console_wizard') {
     return <>
       {Badge}
-      <ErrorBoundary><ConsoleWizardPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Console Wizard...</div>}><ConsoleWizardPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -261,7 +262,7 @@ export default function Assistants() {
   if (agent === 'voice') {
     return <>
       {Badge}
-      <ErrorBoundary><VoicePanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Voice Assistant...</div>}><VoicePanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -273,7 +274,7 @@ export default function Assistants() {
     if (action === 'import') {
       return <>
         {Badge}
-        <ErrorBoundary><ContentDisplayManager /></ErrorBoundary>
+        <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Content Manager...</div>}><ContentDisplayManager /></Suspense></ErrorBoundary>
       </>
     }
 
@@ -292,7 +293,7 @@ export default function Assistants() {
   if (agent === 'health' || agent === 'system-health' || agent === 'doc' || agent === 'diagnostics' || agent === 'diag') {
     return <>
       {Badge}
-      <ErrorBoundary><SystemHealthPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading System Health...</div>}><SystemHealthPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -300,7 +301,7 @@ export default function Assistants() {
   if (agent === 'dewey') {
     return <>
       {Badge}
-      <ErrorBoundary><DeweyPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading Dewey...</div>}><DeweyPanel /></Suspense></ErrorBoundary>
     </>
   }
 
@@ -312,14 +313,14 @@ export default function Assistants() {
     if (action === 'highscores') {
       return <>
         {Badge}
-        <ErrorBoundary><CabinetHighScoresPanel /></ErrorBoundary>
+        <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading High Scores...</div>}><CabinetHighScoresPanel /></Suspense></ErrorBoundary>
       </>
     }
 
     // Default: show the ScoreKeeper panel
     return <>
       {Badge}
-      <ErrorBoundary><ScoreKeeperPanel /></ErrorBoundary>
+      <ErrorBoundary><Suspense fallback={<div className="loading-panel">Loading ScoreKeeper...</div>}><ScoreKeeperPanel /></Suspense></ErrorBoundary>
     </>
   }
 

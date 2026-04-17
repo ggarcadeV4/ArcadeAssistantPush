@@ -5,6 +5,7 @@
 
 import WebSocket from 'ws';
 import { startupState, inStartupGracePeriod } from '../startup_manager.js';
+import { attachWebSocketIdentity, ensureDeviceIdentity, extractWebSocketIdentity } from './identity.js';
 
 class HotkeyWebSocketBridge {
   constructor() {
@@ -28,18 +29,35 @@ class HotkeyWebSocketBridge {
     }
 
     wss.on('connection', (ws, req) => {
+      const identity = extractWebSocketIdentity(req, {
+        defaultPanel: 'hotkey',
+        corrPrefix: 'hotkey'
+      });
+
       // Only handle /ws/hotkey path
-      if (!req.url.startsWith('/ws/hotkey')) {
+      if (identity.url.pathname !== '/ws/hotkey') {
         return;
       }
 
-      console.log('[HotkeyBridge] Frontend client connected');
-      this.frontendClients.push(ws);
+      if (!ensureDeviceIdentity(ws, identity, { channel: 'hotkey websocket' })) {
+        return;
+      }
+
+      const client = attachWebSocketIdentity(ws, identity, { ws });
+      console.log('[HotkeyBridge] Frontend client connected', {
+        deviceId: client.deviceId,
+        panel: client.panel,
+        corrId: client.corrId
+      });
+      this.frontendClients.push(client);
 
       // Send welcome message
       ws.send(JSON.stringify({
         type: 'connected',
         message: 'Hotkey WebSocket bridge ready',
+        device: client.deviceId,
+        panel: client.panel,
+        corr_id: client.corrId,
         timestamp: new Date().toISOString()
       }));
 
@@ -58,7 +76,7 @@ class HotkeyWebSocketBridge {
       // Handle disconnect
       ws.on('close', () => {
         console.log('[HotkeyBridge] Frontend client disconnected');
-        this.frontendClients = this.frontendClients.filter(client => client !== ws);
+        this.frontendClients = this.frontendClients.filter(clientEntry => clientEntry.ws !== ws);
       });
     });
 
@@ -205,10 +223,10 @@ class HotkeyWebSocketBridge {
     const message = JSON.stringify(event);
     let sentCount = 0;
 
-    this.frontendClients = this.frontendClients.filter(client => client.readyState === WebSocket.OPEN);
+    this.frontendClients = this.frontendClients.filter(client => client.ws.readyState === WebSocket.OPEN);
 
     this.frontendClients.forEach(client => {
-      client.send(message);
+      client.ws.send(message);
       sentCount++;
     });
 
@@ -231,7 +249,7 @@ class HotkeyWebSocketBridge {
       this.backendConnection.close();
     }
 
-    this.frontendClients.forEach(client => client.close());
+    this.frontendClients.forEach(client => client.ws.close());
     this.frontendClients = [];
   }
 }

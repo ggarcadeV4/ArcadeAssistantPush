@@ -13,6 +13,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from backend.constants.drive_root import get_drive_root
 
 try:
     import httpx
@@ -21,6 +22,7 @@ except ImportError:
     HTTPX_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+_CANONICAL_DRIVE_ROOT = get_drive_root(context="engineering_bay")
 
 _DIAGNOSIS_DELIMITER = "---DIAGNOSIS---"
 _prompt_cache: Dict[str, Dict[str, str]] = {}  # {persona: {"chat": ..., "diagnosis": ...}}
@@ -67,7 +69,7 @@ def _load_knowledge(persona: str) -> None:
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     candidates = [
         project_root / "prompts" / f"{filename}.md",
-        Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local")) / "prompts" / f"{filename}.md",
+        _CANONICAL_DRIVE_ROOT / "prompts" / f"{filename}.md",
     ]
 
     for candidate in candidates:
@@ -97,7 +99,7 @@ def _load_prompt(persona: str) -> None:
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     candidates = [
         project_root / "prompts" / f"{filename}.prompt",
-        Path(os.getenv("AA_DRIVE_ROOT", r"A:\Arcade Assistant Local")) / "prompts" / f"{filename}.prompt",
+        _CANONICAL_DRIVE_ROOT / "prompts" / f"{filename}.prompt",
     ]
 
     prompt_file = None

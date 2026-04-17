@@ -17,6 +17,7 @@ from typing import Any, Deque, DefaultDict, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, Field
 
+from backend.constants.drive_root import get_drive_root
 from backend.services.dewey.service import (
     DeweyService,
     ProfileCreate,
@@ -101,7 +102,7 @@ def _extract_gemini_text(result: Dict[str, Any]) -> str:
 def _call_gemini(
     messages: List[Dict[str, str]],
     *,
-    model: str = "gemini-2.0-flash",
+    model: str = "gemini-2.5-flash",
     max_tokens: int = 260,
     temperature: float = 0.4,
     panel: str = "dewey",
@@ -154,7 +155,7 @@ async def update_profile(
 
 # Paths
 TRIVIA_DB_PATH = os.path.join(os.path.dirname(__file__), "../../frontend/src/panels/dewey/trivia/triviaDatabase.json")
-PROFILES_ROOT = os.getenv("AA_DRIVE_ROOT", "A:") + "/Arcade Assistant/profiles"
+PROFILES_ROOT = str(get_drive_root() / "Arcade Assistant" / "profiles")
 
 
 # Models

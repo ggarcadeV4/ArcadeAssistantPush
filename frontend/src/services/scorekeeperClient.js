@@ -4,33 +4,16 @@
  */
 
 import { getGatewayUrl, getGatewayWsUrl } from './gateway'
+import { buildStandardHeaders, resolveDeviceId } from '../utils/identity'
 const GATEWAY_URL = getGatewayUrl()
 
 const BASE = '/api/local/scorekeeper'
-let hasWarnedAboutFallbackDeviceId = false
-
-const resolveDeviceId = () => {
-  if (typeof window !== 'undefined') {
-    const aaDeviceId = typeof window.AA_DEVICE_ID === 'string' ? window.AA_DEVICE_ID.trim() : ''
-    if (aaDeviceId) {
-      return aaDeviceId
-    }
-  }
-
-  if (!hasWarnedAboutFallbackDeviceId) {
-    console.warn('[scorekeeperClient] window.AA_DEVICE_ID not available, falling back to demo_001. Cabinet identity may not be unique.')
-    hasWarnedAboutFallbackDeviceId = true
-  }
-
-  return 'demo_001'
-}
-
-const commonHeaders = (panel = 'scorekeeper', scope = 'local') => ({
-  'Content-Type': 'application/json',
-  'x-device-id': resolveDeviceId(),
-  'x-panel': panel,
-  'x-scope': scope
-})
+const commonHeaders = (panel = 'scorekeeper', scope = 'local') =>
+  buildStandardHeaders({
+    panel,
+    scope,
+    extraHeaders: { 'Content-Type': 'application/json' }
+  })
 
 export async function getLeaderboard({ game = null, limit = 10 } = {}) {
   // Gateway proxy to plugin-first leaderboard (read-only)
@@ -39,7 +22,11 @@ export async function getLeaderboard({ game = null, limit = 10 } = {}) {
 
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/scores/leaderboard?${params.toString()}`, {
     method: 'GET',
-    headers: { 'content-type': 'application/json', 'x-panel': 'launchbox' }
+    headers: buildStandardHeaders({
+      panel: 'launchbox',
+      scope: 'state',
+      extraHeaders: { 'content-type': 'application/json' }
+    })
   })
 
   if (res.status === 503) {
@@ -70,7 +57,11 @@ export async function getByGame({ gameId }) {
   const params = new URLSearchParams({ gameId })
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/scores/by-game?${params.toString()}`, {
     method: 'GET',
-    headers: { 'content-type': 'application/json', 'x-panel': 'launchbox' }
+    headers: buildStandardHeaders({
+      panel: 'launchbox',
+      scope: 'state',
+      extraHeaders: { 'content-type': 'application/json' }
+    })
   })
   if (res.status === 503) {
     const body = await res.json().catch(() => ({ success: false, error: 'plugin_unavailable' }))
@@ -166,7 +157,11 @@ export async function submitScoreViaPlugin({ gameId, player, score }) {
   const GATEWAY_URL = getGatewayUrl()
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/scores/submit`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-panel': 'scorekeeper' },
+    headers: buildStandardHeaders({
+      panel: 'scorekeeper',
+      scope: 'state',
+      extraHeaders: { 'content-type': 'application/json' }
+    }),
     body: JSON.stringify({ gameId, player, score })
   })
   // Plugin proxy returns 503 with {error:'plugin_unavailable'} if offline
@@ -178,7 +173,11 @@ export async function resolveGameByTitle(title) {
   const GATEWAY_URL = getGatewayUrl()
   const res = await fetch(`${GATEWAY_URL}/api/launchbox/resolve`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-panel': 'scorekeeper' },
+    headers: buildStandardHeaders({
+      panel: 'scorekeeper',
+      scope: 'state',
+      extraHeaders: { 'content-type': 'application/json' }
+    }),
     body: JSON.stringify({ game_name: title, limit: 5 })
   })
   const body = await res.json().catch(() => ({}))
@@ -296,7 +295,11 @@ export async function getMameScores() {
   try {
     const res = await fetch(`${GATEWAY_URL}/api/scores/mame`, {
       method: 'GET',
-      headers: { 'content-type': 'application/json', 'x-panel': 'scorekeeper' }
+      headers: buildStandardHeaders({
+        panel: 'scorekeeper',
+        scope: 'state',
+        extraHeaders: { 'content-type': 'application/json' }
+      })
     })
 
     if (!res.ok) {
@@ -321,7 +324,11 @@ export async function getMameScores() {
 export async function resetMameScore(romName) {
   const res = await fetch(`${GATEWAY_URL}/api/scores/reset/${romName}`, {
     method: 'DELETE',
-    headers: { 'content-type': 'application/json', 'x-panel': 'scorekeeper' }
+    headers: buildStandardHeaders({
+      panel: 'scorekeeper',
+      scope: 'state',
+      extraHeaders: { 'content-type': 'application/json' }
+    })
   })
 
   if (!res.ok) {

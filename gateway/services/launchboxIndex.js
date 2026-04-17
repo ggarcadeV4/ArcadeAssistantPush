@@ -13,15 +13,13 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { requireDriveRoot } from '../utils/driveDetection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ── Configuration ──────────────────────────────────────────────────────────
-const LAUNCHBOX_ROOT = path.join(
-  process.env.AA_DRIVE_ROOT || 'W:\\Arcade Assistant Master Build',
-  'LaunchBox'
-);
+const LAUNCHBOX_ROOT = path.join(requireDriveRoot(), 'LaunchBox');
 const APP_ROOT = path.resolve(__dirname, '..', '..');
 const PLATFORMS_DIR = path.join(LAUNCHBOX_ROOT, 'Data', 'Platforms');
 const IMAGES_ROOT = path.join(LAUNCHBOX_ROOT, 'Images');

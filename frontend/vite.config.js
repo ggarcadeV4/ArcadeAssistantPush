@@ -79,6 +79,9 @@ export default defineConfig({
           ) {
             return 'arcade-visualizer'
           }
+          if (id.includes('@supabase') || id.includes('supabase-js')) {
+            return 'supabase-vendor'
+          }
         }
       }
     }

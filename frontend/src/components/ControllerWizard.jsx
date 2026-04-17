@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { chat } from '../services/aiClient';
+import { resolveDeviceId } from '../utils/identity';
 
 const MOCK_DEVICES = [
   { id: 1, name: 'Xbox 360 Controller', vendor: 'Microsoft', connected: true },
@@ -125,7 +126,8 @@ export default function ControllerWizard() {
         ],
         metadata: { panel: 'controller-wizard', action: 'mapping_help' },
         scope: 'state',
-        deviceId: 'demo_001',
+        deviceId: resolveDeviceId(),
+        panel: 'controller-wizard',
       });
 
       const reply = response?.message?.content || '[No response]';

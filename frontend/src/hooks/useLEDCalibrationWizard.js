@@ -12,6 +12,7 @@
  */
 import { useState, useCallback, useRef } from 'react'
 import { getGatewayUrl } from '../services/gateway'
+import { buildStandardHeaders } from '../utils/identity'
 
 // API base URL helper
 const getApiBase = () => {
@@ -22,13 +23,6 @@ const getApiBase = () => {
         return getGatewayUrl()
     }
     return window.location.origin
-}
-
-const resolveDeviceId = () => {
-    if (typeof window === 'undefined') {
-        return 'CAB-0001'
-    }
-    return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
 }
 
 // Button layout definition for 4-player cabinet
@@ -94,12 +88,11 @@ export function useLEDCalibrationWizard({ onToast = () => { } } = {}) {
         try {
             const response = await fetch(`${getApiBase()}/api/local/led/calibrate/wizard/start`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                },
+                headers: buildStandardHeaders({
+                    panel: 'led-blinky',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' }
+                }),
                 body: JSON.stringify({
                     total_ports: config.totalPorts || TOTAL_CABINET_BUTTONS,
                     player_count: 4
@@ -148,12 +141,11 @@ export function useLEDCalibrationWizard({ onToast = () => { } } = {}) {
         try {
             const response = await fetch(`${getApiBase()}/api/local/led/calibrate/wizard/confirm`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                },
+                headers: buildStandardHeaders({
+                    panel: 'led-blinky',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' }
+                }),
                 body: JSON.stringify({
                     logical_id: logicalId,
                     description: `Port ${currentPort} mapped via wizard`
@@ -200,12 +192,11 @@ export function useLEDCalibrationWizard({ onToast = () => { } } = {}) {
         try {
             const response = await fetch(`${getApiBase()}/api/local/led/calibrate/wizard/skip`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({
+                    panel: 'led-blinky',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' }
+                })
             })
 
             if (!response.ok) {
@@ -244,12 +235,11 @@ export function useLEDCalibrationWizard({ onToast = () => { } } = {}) {
         try {
             const response = await fetch(`${getApiBase()}/api/local/led/calibrate/wizard/finish`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({
+                    panel: 'led-blinky',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' }
+                })
             })
 
             if (!response.ok) {
@@ -289,12 +279,11 @@ export function useLEDCalibrationWizard({ onToast = () => { } } = {}) {
         try {
             const response = await fetch(`${getApiBase()}/api/local/led/calibrate/wizard/cancel`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({
+                    panel: 'led-blinky',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' }
+                })
             })
 
             if (!response.ok) {
@@ -325,11 +314,7 @@ export function useLEDCalibrationWizard({ onToast = () => { } } = {}) {
     const refreshStatus = useCallback(async () => {
         try {
             const response = await fetch(`${getApiBase()}/api/local/led/calibrate/wizard/status`, {
-                headers: {
-                    'x-scope': 'state',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({ panel: 'led-blinky', scope: 'state' })
             })
 
             if (!response.ok) {

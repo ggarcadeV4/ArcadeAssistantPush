@@ -16,6 +16,7 @@
 import { getActivePlayer, setActivePlayer } from '../aa-lora/session_store.js';
 import { isDuplicate, recordScoreHash } from './dedup.js';
 import { hydratePlayerFromSession } from './identity.js';
+import { requireDriveRoot } from '../../utils/driveDetection.js';
 
 // Re-export for convenience
 export { getActivePlayer, setActivePlayer };
@@ -93,7 +94,7 @@ const matchResultCallbacks = [];
  * @returns {string} Path to match_results.json
  */
 function getMatchResultsPath() {
-    const driveRoot = process.env.AA_DRIVE_ROOT || 'A:\\';
+    const driveRoot = requireDriveRoot();
     return path.join(driveRoot, '.aa', 'state', 'scorekeeper', 'match_results.json');
 }
 
@@ -106,17 +107,30 @@ export function onMatchResult(callback) {
 }
 
 /**
+ * Resolve the cabinet device id for background monitors.
+ * Uses the same env contract as the rest of the gateway
+ * (AA_DEVICE_ID, populated at cabinet boot). No synthetic fallback —
+ * returns '' if unprovisioned, and callers must treat that as "unknown".
+ */
+function resolveMonitorDeviceId(explicit) {
+    const fromArg = (explicit || '').toString().trim();
+    if (fromArg) return fromArg;
+    return (process.env.AA_DEVICE_ID || '').trim();
+}
+
+/**
  * Correlate match result with active player from Supabase session
  * Ensures the win is attributed to the correct player
- * 
+ *
  * @param {Object} matchResult - Raw match result from MAME plugin
- * @param {string} deviceId - Device identifier
+ * @param {string} [deviceId] - Device identifier. Falls back to AA_DEVICE_ID env.
  * @returns {Promise<Object>} Enriched match result with player identity
  */
-// TODO: Replace CAB-0001 with cabinet UUID from env or request context
-// before enabling this monitor in production fleet deployment.
-export async function correlateMatchWithPlayer(matchResult, deviceId = 'CAB-0001') {
-    const activePlayer = await getActivePlayer(deviceId);
+export async function correlateMatchWithPlayer(matchResult, deviceId) {
+    const resolvedDeviceId = resolveMonitorDeviceId(deviceId);
+    const activePlayer = resolvedDeviceId
+        ? await getActivePlayer(resolvedDeviceId)
+        : null;
 
     return {
         ...matchResult,
@@ -130,13 +144,13 @@ export async function correlateMatchWithPlayer(matchResult, deviceId = 'CAB-0001
 /**
  * Start the tournament monitor - watches match_results.json for changes
  * When a match result is detected, correlates with active player and notifies callbacks
- * 
- * @param {string} [deviceId='CAB-0001'] - Device identifier for player correlation
+ *
+ * @param {string} [deviceId] - Device identifier for player correlation.
+ *        Defaults to AA_DEVICE_ID env var at call time.
  * @returns {Object} Monitor status { running, path }
  */
-// TODO: Replace CAB-0001 with cabinet UUID from env or request context
-// before enabling this monitor in production fleet deployment.
-export function startTournamentMonitor(deviceId = 'CAB-0001') {
+export function startTournamentMonitor(deviceId) {
+    const resolvedDeviceId = resolveMonitorDeviceId(deviceId);
     if (tournamentWatcher) {
         console.log('[Sam Tournament] Monitor already running');
         return { running: true, path: getMatchResultsPath() };
@@ -174,7 +188,7 @@ export function startTournamentMonitor(deviceId = 'CAB-0001') {
                 console.log(`[Sam Tournament] Match detected: ${matchResult.winner_name} wins!`);
 
                 // Correlate with active player
-                const enrichedResult = await correlateMatchWithPlayer(matchResult, deviceId);
+                const enrichedResult = await correlateMatchWithPlayer(matchResult, resolvedDeviceId);
 
                 // Notify all callbacks (for Big Board, WebSocket broadcast, etc.)
                 for (const callback of matchResultCallbacks) {

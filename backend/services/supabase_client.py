@@ -33,6 +33,8 @@ from datetime import datetime, timezone
 from functools import wraps, lru_cache
 from threading import Lock
 
+from backend.constants.drive_root import get_drive_root
+
 # Import supabase client
 try:
     from supabase import create_client, Client
@@ -214,7 +216,7 @@ class SupabaseClient:
         self._telemetry_lock = Lock()
 
         # Outbox (offline spooling) directory
-        self._outbox_dir = Path(os.getenv('AA_DRIVE_ROOT', os.getcwd())) / 'state' / 'outbox'
+        self._outbox_dir = get_drive_root(allow_cwd_fallback=True, context="supabase_client outbox") / 'state' / 'outbox'
         try:
             self._outbox_dir.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -417,7 +419,7 @@ class SupabaseClient:
                 except Exception:
                     pass
                 try:
-                    root = os.getenv('AA_DRIVE_ROOT', os.getcwd())
+                    root = get_drive_root(allow_cwd_fallback=True, context="supabase_client heartbeat")
                     du = shutil.disk_usage(root)
                     diskp = round((du.used / du.total) * 100, 2)
                 except Exception:

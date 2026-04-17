@@ -8,6 +8,8 @@ import time
 import requests
 from typing import List, Dict, Optional, Any
 
+from backend.constants.drive_root import get_drive_root
+
 # Import telemetry function (try-except for standalone usage)
 try:
     from backend.services.supabase_client import SupabaseClient
@@ -54,8 +56,8 @@ class SecureAIClient:
         
         Golden Drive Contract: Uses AA_DRIVE_ROOT, no hardcoded A:\\.
         """
-        drive_root = os.environ.get("AA_DRIVE_ROOT", os.getcwd())
-        device_id_path = os.path.join(drive_root, ".aa", "device_id.txt")
+        drive_root = get_drive_root(allow_cwd_fallback=True, context="drive_a_ai_client cabinet id")
+        device_id_path = os.path.join(str(drive_root), ".aa", "device_id.txt")
         try:
             with open(device_id_path, "r") as f:
                 return f.read().strip()
@@ -134,7 +136,7 @@ class SecureAIClient:
     def call_gemini(
         self,
         messages: List[Dict[str, str]],
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-2.5-flash",
         max_tokens: int = 4096,
         temperature: float = 0.4,
         panel: Optional[str] = None,
@@ -368,7 +370,7 @@ if __name__ == "__main__":
             text="Welcome to the arcade!",
             panel="test"
         )
-        output_path = os.path.join(os.environ.get("AA_DRIVE_ROOT", os.getcwd()), "state", "audio", "welcome.mp3")
+        output_path = os.path.join(str(get_drive_root(allow_cwd_fallback=True, context="drive_a_ai_client TTS output")), "state", "audio", "welcome.mp3")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "wb") as f:
             f.write(audio_data)

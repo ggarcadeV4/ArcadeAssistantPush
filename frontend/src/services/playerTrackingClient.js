@@ -4,6 +4,7 @@
  * Provides functions to interact with player session management
  * and tendency tracking endpoints.
  */
+import { buildStandardHeaders } from '../utils/identity'
 
 const BASE_URL = '/api/local/scorekeeper'
 
@@ -25,11 +26,11 @@ export async function startPlayerSession(playerNameOrPayload, voiceId = null, op
 
     const res = await fetch(`${BASE_URL}/session/start`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-scope': 'state',
-            'x-panel': panel
-        },
+        headers: buildStandardHeaders({
+            panel,
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify({
             player_name: playerName,
             voice_id: resolvedVoiceId,
@@ -51,11 +52,11 @@ export async function startPlayerSession(playerNameOrPayload, voiceId = null, op
 export async function endPlayerSession({ panel = 'voice' } = {}) {
     const res = await fetch(`${BASE_URL}/session/end`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-scope': 'state',
-            'x-panel': panel
-        }
+        headers: buildStandardHeaders({
+            panel,
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' }
+        })
     })
 
     if (!res.ok) {
@@ -71,10 +72,7 @@ export async function endPlayerSession({ panel = 'voice' } = {}) {
 export async function getCurrentSession({ panel = 'voice' } = {}) {
     const res = await fetch(`${BASE_URL}/session/current`, {
         method: 'GET',
-        headers: {
-            'x-scope': 'local',
-            'x-panel': panel
-        }
+        headers: buildStandardHeaders({ panel, scope: 'local' })
     })
 
     if (!res.ok) {
@@ -90,11 +88,11 @@ export async function getCurrentSession({ panel = 'voice' } = {}) {
 export async function trackGameLaunch(gameId, gameTitle, platform, genre = null, { panel = 'voice' } = {}) {
     const res = await fetch(`${BASE_URL}/events/launch-start`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-scope': 'state',
-            'x-panel': panel
-        },
+        headers: buildStandardHeaders({
+            panel,
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify({
             game_id: gameId,
             game_title: gameTitle,
@@ -116,11 +114,11 @@ export async function trackGameLaunch(gameId, gameTitle, platform, genre = null,
 export async function trackGameCompletion(gameId, durationSeconds, score = null, { panel = 'voice' } = {}) {
     const res = await fetch(`${BASE_URL}/events/launch-end`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-scope': 'state',
-            'x-panel': panel
-        },
+        headers: buildStandardHeaders({
+            panel,
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify({
             game_id: gameId,
             duration_seconds: durationSeconds,
@@ -141,10 +139,7 @@ export async function trackGameCompletion(gameId, durationSeconds, score = null,
 export async function getPlayerTendencies(playerName, { panel = 'voice' } = {}) {
     const res = await fetch(`${BASE_URL}/tendencies/${encodeURIComponent(playerName)}`, {
         method: 'GET',
-        headers: {
-            'x-scope': 'local',
-            'x-panel': panel
-        }
+        headers: buildStandardHeaders({ panel, scope: 'local' })
     })
 
     if (!res.ok) {
@@ -160,10 +155,7 @@ export async function getPlayerTendencies(playerName, { panel = 'voice' } = {}) 
 export async function getCurrentPlayerTendencies({ panel = 'voice' } = {}) {
     const res = await fetch(`${BASE_URL}/tendencies/current`, {
         method: 'GET',
-        headers: {
-            'x-scope': 'local',
-            'x-panel': panel
-        }
+        headers: buildStandardHeaders({ panel, scope: 'local' })
     })
 
     if (!res.ok) {

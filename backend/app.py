@@ -10,6 +10,7 @@ import asyncio
 from pathlib import Path
 import time
 import json
+import logging as _logging
 from datetime import datetime
 import threading
 from glob import glob as _glob
@@ -40,17 +41,15 @@ load_env_file()
 if _VAULT_AVAILABLE:
     _vault_loaded = _load_vault_secrets()
     if not _vault_loaded:
-        import logging as _logging
         _logging.getLogger("aa.startup").warning(
             "DPAPI vault not loaded — Supabase/fleet operations will use "
             ".env values only. Run 'python encrypt_secrets.py' to initialize "
             "the vault on this machine."
         )
 else:
-    import logging as _logging
     _logging.getLogger("aa.startup").warning(
         "secrets_loader not found — running without DPAPI vault. "
-        "Expected at: A:\\Arcade Assistant Local\\secrets_loader.py"
+        "Expected at: <AA_DRIVE_ROOT>/Arcade Assistant Local/secrets_loader.py"
     )
 
 logger = _logging.getLogger("aa.startup")
@@ -61,6 +60,22 @@ print("DEBUG: .env file loaded")
 from backend.constants.a_drive_paths import LaunchBoxPaths
 
 LB_PLATFORMS_GLOB = str(LaunchBoxPaths.PLATFORMS_DIR / "*.xml")
+
+
+def _example_windows_root(raw: str) -> str:
+    if raw.startswith("/mnt/") and len(raw) >= 7:
+        drive = raw[5].upper()
+        rest = raw[6:].replace("/", "\\").lstrip("\\")
+        return f"{drive}:\\{rest}" if rest else f"{drive}:\\"
+    return r"<Windows cabinet root path>"
+
+
+def _example_wsl_root(raw: str) -> str:
+    if len(raw) >= 2 and raw[1] == ":":
+        drive = raw[0].lower()
+        rest = raw[2:].replace("\\", "/").lstrip("/")
+        return f"/mnt/{drive}/{rest}" if rest else f"/mnt/{drive}"
+    return "/mnt/<drive>/arcade-assistant-root"
 
 def _diagnose_path_mismatch():
     """Detect Windows Python + WSL path mismatches early in startup."""
@@ -87,7 +102,7 @@ def _diagnose_path_mismatch():
         print("Solutions:")
         print("1. Run this through WSL: 'wsl python backend/app.py'")
         print("2. Or update AA_DRIVE_ROOT to a Windows path:")
-        print(r"   Example: C:\Users\Dad's PC\Desktop\Arcade Assistant Local")
+        print(f"   Example for this configuration: {_example_windows_root(drive_root)}")
         print("=" * 70)
         sys.exit(1)
 
@@ -100,7 +115,7 @@ def _diagnose_path_mismatch():
         print()
         print("Solutions:")
         print("1. Update AA_DRIVE_ROOT to a WSL path:")
-        print(r"   Example: /mnt/c/Users/Dad's PC/Desktop/Arcade Assistant Local")
+        print(f"   Example for this configuration: {_example_wsl_root(drive_root)}")
         print("2. Or run this with Windows Python directly")
         print("=" * 70)
         sys.exit(1)
@@ -419,8 +434,8 @@ async def lifespan(app: FastAPI):
         # Optional: pre-warm heavy caches asynchronously to avoid first-request penalty
         if os.getenv("AA_PRELOAD_LB_CACHE", "false").lower() in {"1", "true", "yes"}:
             try:
-                from .services.image_scanner import preload_images_async
-                from .services.launchbox_parser import parser as lb_parser
+                from backend.services.image_scanner import preload_images_async
+                from backend.services.launchbox_parser import parser as lb_parser
 
                 # Ensure thread tracking list exists
                 if not hasattr(app.state, 'threads'):
@@ -599,15 +614,10 @@ app.include_router(launchbox.router, tags=["launchbox"])  # ACTIVATED 2025-10-06
 app.include_router(launchbox.local_router, prefix="/api/local")
 app.include_router(launchbox_cache_router.router)
 app.include_router(launchbox_import.router)
-app.include_router(scorekeeper.router, prefix="/scores", tags=["scorekeeper"])
-app.include_router(scorekeeper.router, prefix="/scorekeeper", tags=["scorekeeper"])
-scorekeeper_api_router = APIRouter()
-scorekeeper_api_router.include_router(scorekeeper.router)
-app.include_router(scorekeeper_api_router, prefix="/api/local/scorekeeper", tags=["scorekeeper"])
+app.include_router(scorekeeper.router, prefix="/api/local/scorekeeper", tags=["scorekeeper"])
 app.include_router(sessions.router, tags=["sessions"])  # Session management for ScoreKeeper Sam
 app.include_router(profile_router.router, prefix="/api/local", tags=["profile"])  # /profile and /consent
 app.include_router(devices.router, prefix="/api/local", tags=["devices"])
-app.include_router(led_blinky.router, prefix="/led", tags=["led-blinky"])
 app.include_router(led_blinky.router, prefix="/api/local/led", tags=["led-blinky"])
 app.include_router(led.router, prefix="/api/local/led", tags=["led-profiles"])
 app.include_router(drive_map.router, tags=["drive-map"])  # JSON generator for A: drive mapping
@@ -643,7 +653,6 @@ app.include_router(gunner.router)  # Light gun calibration and profiles
 app.include_router(gunner.router, prefix="/api/local", tags=["gunner"])
 app.include_router(voice.router, prefix="/api", tags=["voice"])  # Voice Vicky lighting commands (basic)
 app.include_router(voice_advanced.router, prefix="/api", tags=["voice-advanced"])  # Voice Vicky advanced NLP
-app.include_router(doc_diagnostics.router, prefix="/api", tags=["doc-diagnostics"])  # Doc: Hardware Bio & Vital Signs
 app.include_router(emulator.router, tags=["emulator"])  # Emulator control (pause/save)
 app.include_router(hotkey.router, tags=["hotkey"])  # V2: Global hotkey detection (A key for overlay)
 app.include_router(emulator_status_router.router)  # /api/local/emulator/status
@@ -657,7 +666,7 @@ app.include_router(runtime_state.state_router)
 # blinky_patterns router — active (aliased from backend.routers.blinky)
 # Endpoints under /api/blinky/* are unavailable until blinky.__init__
 # is converted to lazy exports.
-app.include_router(blinky_patterns.router, tags=["led-blinky-patterns"])
+app.include_router(blinky_patterns.router, prefix="/api/blinky", tags=["led-blinky-patterns"])
 app.include_router(updates_router.router)  # Update plumbing (Phase 0)
 # REMOVED: provisioning router
 app.include_router(tendencies_router.router)  # User tendency/preference tracking

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { getProfile, getPrimaryProfile } from '../services/profileClient'
-import { getGatewayHost } from '../services/gateway'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../utils/network'
 
 const ProfileContext = createContext({
   profile: null,
@@ -75,12 +75,6 @@ export function ProfileProvider({ children }) {
   useEffect(() => {
     if (typeof window === 'undefined') return () => { }
 
-    // Dynamic URL: use window.location.host to avoid 127.0.0.1 vs localhost mismatch
-    const isSecure = window.location.protocol === 'https:'
-    const host = getGatewayHost()
-    const scheme = isSecure ? 'wss' : 'ws'
-    const wsUrl = `${scheme}://${host}/ws/session`
-
     let alive = true
     let backoff = 2000
     const MAX_BACKOFF = 30000
@@ -88,6 +82,10 @@ export function ProfileProvider({ children }) {
     const connect = () => {
       if (!alive) return
       try {
+        const wsUrl = buildGatewayWsIdentityUrl('/ws/session', {
+          panel: 'profile',
+          corrId: generateCorrelationId('profile-session')
+        })
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 

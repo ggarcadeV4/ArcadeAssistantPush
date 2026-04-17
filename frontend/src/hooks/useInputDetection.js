@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { buildStandardHeaders } from '../utils/identity';
 
-const STATE_HEADERS = { 'x-scope': 'state' };
+const STATE_HEADERS = buildStandardHeaders({ panel: 'input-detection', scope: 'state' });
 export function useInputDetection(enabled = false) {
   const [latestInput, setLatestInput] = useState(null);
   const [isActive, setIsActive] = useState(false);

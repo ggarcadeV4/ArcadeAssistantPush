@@ -12,20 +12,18 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PanelShell from '../panels/_kit/PanelShell';
 import './ControllerChuckPanel.css';
+import { buildStandardHeaders } from '../utils/identity';
 
 const CONTROLLER_API_BASE = '/api/local/controller';
-const DEVICE_ID = window?.AA_DEVICE_ID || 'controller_chuck_legacy';
-const STATE_HEADERS = {
-  'x-scope': 'state',
-  'x-panel': 'controller-chuck',
-  'x-device-id': DEVICE_ID,
-};
-const CONFIG_HEADERS = {
-  'Content-Type': 'application/json',
-  'x-scope': 'config',
-  'x-panel': 'controller-chuck',
-  'x-device-id': DEVICE_ID,
-};
+const STATE_HEADERS = buildStandardHeaders({
+  panel: 'controller-chuck',
+  scope: 'state',
+});
+const CONFIG_HEADERS = buildStandardHeaders({
+  panel: 'controller-chuck',
+  scope: 'config',
+  extraHeaders: { 'Content-Type': 'application/json' },
+});
 
 // WebSocket Manager - extracted outside component for performance
 class ControllerWebSocketManager {

@@ -15,6 +15,7 @@ import { MicButton } from '../controller/MicButton';
 import { ExecutionCard } from '../controller/ExecutionCard';
 import { assembleWizContext } from './wizContextAssembler';
 import { WIZ_CHIPS } from './wizChips';
+import { buildStandardHeaders } from '../../utils/identity';
 
 // ── Wiz TTS Voice ─────────────────────────────────────────────────────────────
 const WIZ_VOICE_ID = 'CwhRBWXzGAHq8TQ4Fs17';
@@ -23,12 +24,11 @@ const WIZ_VOICE_ID = 'CwhRBWXzGAHq8TQ4Fs17';
 async function wizardAIChat({ message, history, isDiagnosisMode, extraContext }) {
     const res = await fetch('/api/local/console_wizard/chat', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-panel': 'console-wizard',
-            'x-scope': 'state',
-            'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
-        },
+        headers: buildStandardHeaders({
+            panel: 'console-wizard',
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' },
+        }),
         body: JSON.stringify({ message, history, isDiagnosisMode, extraContext }),
     });
     if (!res.ok) {
@@ -182,12 +182,11 @@ export default function WizSidebar({ className = '' }) {
         try {
             const res = await fetch(action.endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-panel': 'console-wizard',
-                    'x-scope': 'config',
-                    'x-device-id': window?.AA_DEVICE_ID ?? 'cabinet-001',
-                },
+                headers: buildStandardHeaders({
+                    panel: 'console-wizard',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify(action.payload ?? {}),
             });
             if (!res.ok) {

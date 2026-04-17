@@ -18,6 +18,7 @@ from urllib.request import urlopen
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from backend.constants.drive_root import get_drive_root
 from backend.services.update_assistant import get_update_assistant
 
 router = APIRouter(prefix="/api/local/updates", tags=["updates"])
@@ -35,10 +36,7 @@ def _get_drive_root(request: Optional[Request] = None) -> Path:
         root = getattr(request.app.state, "drive_root", None)
         if root:
             return Path(root)
-    drive_root = os.environ.get("AA_DRIVE_ROOT", "").strip()
-    if drive_root:
-        return Path(drive_root)
-    raise RuntimeError("AA_DRIVE_ROOT is not set; cannot resolve path")
+    return get_drive_root(context="updates router")
 
 
 def _get_aa_root(request: Optional[Request] = None) -> Path:

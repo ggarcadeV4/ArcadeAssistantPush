@@ -15,12 +15,20 @@
 import React, {
   useState, useEffect, useCallback, useMemo, useRef, memo
 } from 'react';
-import debounce from 'lodash/debounce';
 import { useInputDetection } from '../../hooks/useInputDetection';
 import { useProfileContext } from '../../context/ProfileContext';
+import { getGatewayWsUrl } from '../../services/gateway';
+import { buildStandardHeaders, resolveDeviceId } from '../../utils/identity';
 import { EngineeringBaySidebar } from '../_kit/EngineeringBaySidebar';
 import { chuckContextAssembler } from './chuckContextAssembler';
 import { chuckChips } from './chuckChips';
+import CabinetControlStatus from './CabinetControlStatus';
+import {
+  fetchBaseline,
+  fetchCascadeStatus,
+  requestCascade,
+} from './apiHelpers';
+import { refreshControllerDevices } from '../../services/deviceClient';
 import './controller-chuck.css';
 import './chuck-layout.css';
 import './chuck-sidebar.css';
@@ -106,12 +114,13 @@ const PLAYERS_2P = [
   { id: 'p2', label: 'PLAYER 2', cls: 'p2', layout: LAYOUT_8BTN },
 ];
 
-function resolveChuckDeviceId() {
-  if (typeof window !== 'undefined' && window.AA_DEVICE_ID) {
-    return window.AA_DEVICE_ID;
-  }
-  return 'controller_chuck';
-}
+const resolveChuckDeviceId = () => resolveDeviceId();
+
+const chuckHeaders = (scope = 'state', json = false) => buildStandardHeaders({
+  panel: 'controller-chuck',
+  scope,
+  extraHeaders: json ? { 'Content-Type': 'application/json' } : {},
+});
 
 function inferControlType(controlKey) {
   if (controlKey?.includes('.button') || controlKey?.endsWith('.coin') || controlKey?.endsWith('.start')) {
@@ -121,6 +130,55 @@ function inferControlType(controlKey) {
     return 'joystick';
   }
   return 'button';
+}
+
+function extractErrorMessage(error, fallback) {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  if (error?.message) return error.message;
+  if (typeof error?.detail === 'string') return error.detail;
+  if (typeof error?.detail?.message === 'string') return error.detail.message;
+  return fallback;
+}
+
+function normalizeBoardStatus(board) {
+  if (!board) return 'offline';
+  const status = String(board.status || '').toLowerCase();
+  if (status === 'ready' || status === 'connected' || board.detected) {
+    return 'ready';
+  }
+  if (status === 'error') {
+    return 'error';
+  }
+  if (status === 'scanning') {
+    return 'scanning';
+  }
+  return 'offline';
+}
+
+function normalizeDeviceScanPayload(payload) {
+  return {
+    status: payload?.status || 'unknown',
+    controllers: Array.isArray(payload?.controllers) ? payload.controllers : [],
+    hints: Array.isArray(payload?.hints) ? payload.hints : [],
+    errors: Array.isArray(payload?.errors) ? payload.errors : [],
+  };
+}
+
+function formatControlLabel(controlKey) {
+  if (!controlKey) return 'No control captured';
+  return controlKey
+    .replace(/\./g, ' ')
+    .replace(/\bbutton(\d+)\b/gi, 'Button $1')
+    .replace(/\bcoin\b/gi, 'Coin')
+    .replace(/\bstart\b/gi, 'Start')
+    .replace(/\bup\b/gi, 'Up')
+    .replace(/\bdown\b/gi, 'Down')
+    .replace(/\bleft\b/gi, 'Left')
+    .replace(/\bright\b/gi, 'Right')
+    .replace(/\bp(\d)\b/gi, 'P$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -434,6 +492,8 @@ PlayerCard.displayName = 'PlayerCard';
 // ── Main Panel Component ─────────────────────────────────────────────────────
 export default function ControllerChuckPanel() {
   const { currentUser } = useProfileContext();
+  const deviceId = resolveChuckDeviceId();
+  const handoffProcessedRef = useRef(null);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [mapping, setMapping] = useState({});
@@ -445,17 +505,31 @@ export default function ControllerChuckPanel() {
   // Board / device scan
   const [board, setBoard] = useState(null);
   const [scanLoading, setScanLoading] = useState(false);
+  const [deviceScan, setDeviceScan] = useState({ status: 'idle', controllers: [], hints: [], errors: [] });
+  const [mappingMeta, setMappingMeta] = useState({
+    status: 'unknown',
+    message: '',
+    filePath: 'config/mappings/controls.json',
+    factoryDefaultsAvailable: false,
+    seedSource: null,
+  });
 
   // Input detection
   const [detectionMode, setDetectionMode] = useState(false);
   const [pressedKeys, setPressedKeys] = useState(new Set());
-  const { latestInput } = useInputDetection(detectionMode);
+  const {
+    latestInput,
+    isActive: detectionActive,
+    error: detectionError,
+  } = useInputDetection(detectionMode);
 
   // Player mode: '2p' or '4p'
   const [playerMode, setPlayerMode] = useState('4p');
 
   // Chat drawer
   const [chatOpen, setChatOpen] = useState(false);
+  const [initialChatMessages, setInitialChatMessages] = useState([]);
+  // Diagnostics panel — collapsed by default so the controller stage is the hero
 
 
   // Focus mode: which player card is active for mapping (null = all equal)
@@ -471,6 +545,9 @@ export default function ControllerChuckPanel() {
       // Dismiss: hand off to return animation — keep focusOrigin until animation ends
       setReturningPlayer(prev => prev ?? activePlayer);
       setActivePlayer(null);
+      return;
+    }
+    if (playerId === activePlayer) {
       return;
     }
     // Cancel any in-flight return animation
@@ -495,6 +572,45 @@ export default function ControllerChuckPanel() {
     setFocusOrigin(null);
   }, []);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const handoffParam = url.searchParams.get('context');
+    const noHandoff = url.searchParams.has('nohandoff');
+    let handoffContext = '';
+
+    try {
+      handoffContext = decodeURIComponent(handoffParam || '').trim();
+    } catch {
+      handoffContext = (handoffParam || '').trim();
+    }
+
+    const shouldHandoff = Boolean(handoffContext) && !noHandoff;
+    if (!shouldHandoff || handoffContext === handoffProcessedRef.current) {
+      return;
+    }
+
+    handoffProcessedRef.current = handoffContext;
+    setInitialChatMessages([
+      {
+        id: 'chuck-handoff-user',
+        role: 'user',
+        content: `Dewey handoff context: ${handoffContext}`,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: 'chuck-handoff-assistant',
+        role: 'assistant',
+        content: `I see Dewey sent you here for: "${handoffContext}"\n\nI'm Chuck. I can help with arcade controls, encoder wiring, and pin mapping. Tell me what you want to fix.`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    setChatOpen(true);
+
+    url.searchParams.delete('context');
+    const nextSearch = url.searchParams.toString();
+    window.history.replaceState({}, '', `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`);
+  }, []);
+
   // Logo image — auto-loads from /gg-logo.png, falls back to text badge
   const [logoLoaded, setLogoLoaded] = useState(true);
   const logoPath = '/gg-logo.png';
@@ -503,6 +619,14 @@ export default function ControllerChuckPanel() {
   const [flashMsg, setFlashMsg] = useState(null);
   const [hardwareState, setHardwareState] = useState(null);
   const [hardwareReconnecting, setHardwareReconnecting] = useState(false);
+  const [hardwareError, setHardwareError] = useState(null);
+  const [previewState, setPreviewState] = useState(null);
+  const [baselineState, setBaselineState] = useState(null);
+  const [cascadeState, setCascadeState] = useState(null);
+  const [cascadeSubmitting, setCascadeSubmitting] = useState(false);
+  const [statusRefreshKey, setStatusRefreshKey] = useState(0);
+  const bumpStatusRefresh = useCallback(() => setStatusRefreshKey((n) => n + 1), []);
+  const statusHeaders = useMemo(() => chuckHeaders('state'), []);
 
 
   // Scroll to top on mount — prevents stale scroll offset from previous panel
@@ -517,20 +641,51 @@ export default function ControllerChuckPanel() {
   const loadMapping = useCallback(async ({ showFlash = true } = {}) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/mapping`);
+      const res = await fetch(`${API_BASE}/mapping`, {
+        headers: chuckHeaders('state'),
+      });
       if (!res.ok) {
         throw new Error(`Mapping load failed (${res.status})`);
       }
       const data = await res.json();
+      const mappingStatus = data?.status || 'success';
+      const factoryDefaultsAvailable = Boolean(data?.factory_defaults_available);
+      setMappingMeta({
+        status: mappingStatus,
+        message: data?.message || '',
+        filePath: data?.file_path || 'config/mappings/controls.json',
+        factoryDefaultsAvailable,
+        seedSource: data?.seed_source || null,
+      });
       setMapping(data?.mapping?.mappings || data?.mappings || {});
       setPendingMappings({});
       setHasPending(false);
+      setPreviewState(null);
+      // TRUTH-LANE: Do NOT seed board state from saved mapping data.
+      // saved-mapping board identity (data?.mapping?.board || data?.board) tells us
+      // what controls.json is configured as — not what is live on the wire.
+      // Board state is owned exclusively by scanDevices() via the canonical
+      // hardware lane. loadMapping is mapping-dictionary state only.
       if (showFlash) {
-        setFlashMsg({ msg: 'Mappings loaded.', type: 'success' });
+        setFlashMsg({
+          msg: mappingStatus === 'missing'
+            ? (
+              factoryDefaultsAvailable
+                ? 'No saved mapping yet. Chuck will start from factory defaults until you save controls.json.'
+                : (data?.message || 'No saved mapping yet.')
+            )
+            : 'Mappings loaded.',
+          type: mappingStatus === 'missing' ? 'info' : 'success',
+        });
         setTimeout(() => setFlashMsg(null), 3000);
       }
     } catch (err) {
       console.error('[Chuck] mapping load error:', err);
+      setMappingMeta((prev) => ({
+        ...prev,
+        status: 'error',
+        message: extractErrorMessage(err, 'Could not load mappings.'),
+      }));
       setFlashMsg({ msg: 'Could not load mappings.', type: 'error' });
       setTimeout(() => setFlashMsg(null), 3000);
     } finally {
@@ -542,33 +697,74 @@ export default function ControllerChuckPanel() {
     loadMapping();
   }, [loadMapping]);
 
+  const refreshControllerState = useCallback(async () => {
+    const [baselineResult, cascadeResult] = await Promise.allSettled([
+      fetchBaseline(),
+      fetchCascadeStatus(),
+    ]);
+
+    if (baselineResult.status === 'fulfilled') {
+      setBaselineState(baselineResult.value);
+    }
+    if (cascadeResult.status === 'fulfilled') {
+      setCascadeState(cascadeResult.value);
+    }
+    bumpStatusRefresh();
+  }, [bumpStatusRefresh]);
+
+  useEffect(() => {
+    refreshControllerState();
+  }, [refreshControllerState]);
+
   // ── Scan connected encoder board ────────────────────────────────────────────
   const scanDevices = useCallback(async () => {
     setScanLoading(true);
     try {
-      const res = await fetch(`${HARDWARE_API}/arcade/boards`);
-      if (res.ok) {
-        const data = await res.json();
-        const boards = Array.isArray(data?.boards) ? data.boards : [];
-        if (boards.length > 0) {
-          const boardNames = boards.map((entry) => entry.name || entry.board_name || 'Unknown Board');
-          const primaryBoard = boards[0] || {};
-          setBoard({
-            name: boardNames.join(', '),
-            vid: boards.length === 1 ? (primaryBoard.vid || '—') : `${boards.length} boards`,
-            pid: boards.length === 1 ? (primaryBoard.pid || '—') : 'detected',
-            detected: true,
-            status: 'ready',
-          });
-        } else {
-          setBoard({
-            name: 'No encoder boards detected.',
-            vid: '—',
-            pid: '—',
-            detected: false,
-            status: 'offline',
-          });
-        }
+      // Force a backend hot-plug refresh BEFORE re-fetching board status so a
+      // physically reconnected board can actually appear in Chuck's canonical
+      // board lane. Failure here must not block the rest of the scan — the
+      // refresh route is best-effort and older backends may not expose it.
+      try {
+        await refreshControllerDevices();
+      } catch (refreshErr) {
+        console.warn('[Chuck] controller refresh failed (continuing):', refreshErr);
+      }
+      const [boardRes, deviceRes] = await Promise.all([
+        fetch(`${HARDWARE_API}/arcade/boards`, {
+          headers: chuckHeaders('state'),
+        }),
+        fetch(`${API_BASE}/devices`, {
+          headers: chuckHeaders('state'),
+        }),
+      ]);
+      const boardData = await boardRes.json().catch(() => ({}));
+      const deviceData = await deviceRes.json().catch(() => ({}));
+      setDeviceScan(
+        deviceRes.ok
+          ? normalizeDeviceScanPayload(deviceData)
+          : {
+            status: 'error',
+            controllers: [],
+            hints: [],
+            errors: [{ message: extractErrorMessage(deviceData, `Device scan failed (${deviceRes.status})`) }],
+          }
+      );
+      const boards = Array.isArray(boardData?.boards) ? boardData.boards : [];
+      if (!boardRes.ok) {
+        throw new Error(extractErrorMessage(boardData, `Board scan failed (${boardRes.status})`));
+      }
+      if (boards.length > 0) {
+        const boardNames = boards.map((entry) => entry.name || entry.board_name || 'Unknown Board');
+        const primaryBoard = boards[0] || {};
+        setBoard({
+          ...primaryBoard,
+          name: boardNames.join(', '),
+          vid: boards.length === 1 ? (primaryBoard.vid || '—') : `${boards.length} boards`,
+          pid: boards.length === 1 ? (primaryBoard.pid || '—') : 'detected',
+          detected: true,
+          status: normalizeBoardStatus(primaryBoard),
+        });
+        setHardwareError(null);
       } else {
         setBoard({
           name: 'No encoder boards detected.',
@@ -587,10 +783,12 @@ export default function ControllerChuckPanel() {
         detected: false,
         status: 'offline',
       });
+      setHardwareError(extractErrorMessage(err, 'Board scan failed.'));
     } finally {
       setScanLoading(false);
+      bumpStatusRefresh();
     }
-  }, []);
+  }, [bumpStatusRefresh]);
 
   // Run scan on mount
   useEffect(() => { scanDevices(); }, [scanDevices]);
@@ -611,25 +809,46 @@ export default function ControllerChuckPanel() {
   }, [latestInput]);
 
   useEffect(() => {
+    const params = new URLSearchParams({
+      device: deviceId,
+      panel: 'controller-chuck',
+      corr_id: `controller-chuck-${Date.now()}`,
+    });
     const ws = new WebSocket(
-      'ws://127.0.0.1:8000/api/local/hardware/ws/encoder-events'
+      getGatewayWsUrl(`/api/local/hardware/ws/encoder-events?${params.toString()}`)
     );
 
-    const debouncedSetHardware = debounce((data) => {
-      setHardwareState(data);
+    ws.onopen = () => {
       setHardwareReconnecting(false);
-    }, 800);
+      setHardwareError(null);
+    };
 
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.event === 'HARDWARE_STATE_UPDATE') {
-          setHardwareReconnecting(true);
-          debouncedSetHardware(payload.data);
+          setHardwareState(payload.data);
+          setHardwareReconnecting(false);
+          setHardwareError(null);
+          return;
+        }
+        if (payload.event === 'HARDWARE_HEARTBEAT') {
+          setHardwareReconnecting(false);
+          return;
         }
         if (payload.event === 'HARDWARE_ERROR') {
           console.warn('Chuck hardware error:', payload.message);
+          setHardwareError(payload.message || 'Hardware feed reported an error.');
           setHardwareReconnecting(false);
+          return;
+        }
+        if (payload.type === 'gateway_error') {
+          setHardwareError(payload.message || 'Gateway could not proxy the hardware feed.');
+          setHardwareReconnecting(true);
+          return;
+        }
+        if (payload.type === 'gateway_notice' && payload.status === 'proxy_closed') {
+          setHardwareReconnecting(true);
         }
       } catch (e) {
         console.error('Chuck WS parse error:', e);
@@ -637,13 +856,15 @@ export default function ControllerChuckPanel() {
     };
 
     ws.onclose = () => setHardwareReconnecting(true);
-    ws.onerror = () => setHardwareReconnecting(true);
+    ws.onerror = () => {
+      setHardwareReconnecting(true);
+      setHardwareError('Live hardware feed dropped. Trying to reconnect.');
+    };
 
     return () => {
-      debouncedSetHardware.cancel();
       ws.close();
     };
-  }, []);
+  }, [deviceId]);
 
   // ── Flash message ───────────────────────────────────────────────────────────
   const flash = useCallback((msg, type = 'info') => {
@@ -677,73 +898,206 @@ export default function ControllerChuckPanel() {
       },
     }));
     setHasPending(true);
+    setPreviewState(null);
   }, [mapping]);
 
   const handlePreview = useCallback(async () => {
+    if (!hasPending) {
+      flash('No pending mapping changes to preview.', 'info');
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/mapping/preview`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-scope': 'state',
-          'x-panel': 'controller-chuck',
-          'x-device-id': resolveChuckDeviceId(),
-        },
+        headers: chuckHeaders('state', true),
         body: JSON.stringify({ mappings: pendingMappings }),
       });
-      const data = await res.json();
-      flash(`Preview: ${data.summary || 'Changes ready.'}`, 'info');
-    } catch { flash('Preview failed.', 'error'); }
-  }, [flash, pendingMappings]);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(extractErrorMessage(data, `Preview failed (${res.status})`));
+      }
+      setPreviewState(data);
+      const changeCount = Array.isArray(data?.cascade_preview?.changed_controls)
+        ? data.cascade_preview.changed_controls.length
+        : Object.keys(pendingMappings).length;
+      const errorCount = data?.validation?.errors?.length || 0;
+      const warningCount = data?.validation?.warnings?.length || 0;
+      if (errorCount > 0) {
+        flash(`Preview blocked: ${errorCount} validation issue(s) found.`, 'error');
+        return;
+      }
+      flash(
+        `Preview ready: ${changeCount} control change(s)${warningCount ? `, ${warningCount} warning(s)` : ''}.`,
+        'info'
+      );
+    } catch (err) {
+      flash(extractErrorMessage(err, 'Preview failed.'), 'error');
+    }
+  }, [flash, hasPending, pendingMappings]);
 
   const handleApply = useCallback(async () => {
     setSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/mapping/apply`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-scope': 'config',
-          'x-panel': 'controller-chuck',
-          'x-device-id': resolveChuckDeviceId(),
-        },
+        headers: chuckHeaders('config', true),
         body: JSON.stringify({ mappings: pendingMappings }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        setMapping(data?.mapping?.mappings || data?.mapping || mapping);
         setPendingMappings({});
         setHasPending(false);
-        flash('Boom! Mappings applied.', 'success');
+        setPreviewState(null);
+        setMappingMeta({
+          status: 'success',
+          message: '',
+          filePath: data?.target_file || 'config/mappings/controls.json',
+          factoryDefaultsAvailable: false,
+          seedSource: data?.seed_source || null,
+        });
+        await refreshControllerState();
+        const cascadeCallout = data?.cascade_callout ? ` ${data.cascade_callout}` : '';
+        flash(
+          `Mappings applied to controls.json.${cascadeCallout}`,
+          data?.cascade_prompt ? 'info' : 'success'
+        );
       } else {
-        flash('Apply failed. Check backend.', 'error');
+        flash(extractErrorMessage(data, `Apply failed (${res.status}).`), 'error');
       }
-    } catch { flash('Apply failed.', 'error'); }
+    } catch (err) {
+      flash(extractErrorMessage(err, 'Apply failed.'), 'error');
+    }
     finally { setSubmitting(false); }
-  }, [flash, pendingMappings]);
+  }, [flash, mapping, pendingMappings, refreshControllerState]);
+
+  const handleRestoreSaved = useCallback(async () => {
+    await loadMapping({ showFlash: false });
+    flash('Restored the last saved mapping from controls.json.', 'info');
+  }, [flash, loadMapping]);
 
   const handleReset = useCallback(async () => {
-    if (!window.confirm("You sure? This'll restore factory defaults.")) return;
+    if (!window.confirm('Restore controller mappings from factory-default.json and overwrite current saved mappings?')) return;
     try {
       const res = await fetch(`${API_BASE}/mapping/reset`, {
         method: 'POST',
-        headers: {
-          'x-scope': 'config',
-          'x-panel': 'controller-chuck',
-          'x-device-id': resolveChuckDeviceId(),
-        },
+        headers: chuckHeaders('config'),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setMapping(data?.mapping?.mappings || data?.mappings || {});
         setPendingMappings({});
         setHasPending(false);
-        flash('Reset to factory defaults.', 'success');
+        setPreviewState(null);
+        setMappingMeta({
+          status: 'success',
+          message: data?.message || '',
+          filePath: data?.target_file || 'config/mappings/controls.json',
+          factoryDefaultsAvailable: true,
+          seedSource: data?.restored_from || 'config/mappings/factory-default.json',
+        });
+        await refreshControllerState();
+        flash(data?.message || 'Mappings reset to factory defaults.', 'success');
+      } else {
+        flash(extractErrorMessage(data, `Factory reset failed (${res.status}).`), 'error');
       }
-    } catch { flash('Reset failed.', 'error'); }
-  }, [flash]);
+    } catch (err) {
+      flash(extractErrorMessage(err, 'Factory reset failed.'), 'error');
+    }
+  }, [flash, refreshControllerState]);
+
+  const handleCascadeApply = useCallback(async () => {
+    setCascadeSubmitting(true);
+    try {
+      const response = await requestCascade({
+        metadata: {
+          source: 'controller-chuck',
+          requested_from: 'panel',
+        },
+      });
+      await refreshControllerState();
+      flash(
+        response?.job?.job_id
+          ? `Cascade queued. Job ${response.job.job_id} is now syncing controller changes.`
+          : 'Cascade queued.',
+        'success'
+      );
+    } catch (err) {
+      flash(extractErrorMessage(err, 'Cascade apply failed.'), 'error');
+    } finally {
+      setCascadeSubmitting(false);
+    }
+  }, [flash, refreshControllerState]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const boardStatus = scanLoading ? 'scanning' : board?.detected ? 'ready' : 'offline';
-  const boardName = board?.name || (scanLoading ? 'Scanning...' : 'No device');
+  const detectedArcadeBoard = useMemo(() => {
+    const controllers = Array.isArray(deviceScan.controllers) ? deviceScan.controllers : [];
+    return controllers.find((entry) => entry?.type === 'arcade_board' && entry?.detected !== false) || null;
+  }, [deviceScan]);
+  const liveBoard = useMemo(() => {
+    // Priority: WS live state > canonical scan result (board?.detected=true) > USB scan result
+    // Do NOT fall back to bare `board` when board.detected is false — that would be stale
+    // saved-mapping identity masquerading as a live board.
+    if (hardwareState?.primary_board) return hardwareState.primary_board;
+    if (board?.detected) return board;
+    if (detectedArcadeBoard) return detectedArcadeBoard;
+    return null;  // No live board confirmed. Return null, not the stale board object.
+  }, [board, detectedArcadeBoard, hardwareState]);
+  const boardStatus = scanLoading
+    ? 'scanning'
+    : hardwareReconnecting
+      ? 'scanning'
+      : normalizeBoardStatus(liveBoard);
+  const boardName = liveBoard?.name || board?.name || (scanLoading ? 'Scanning...' : 'No device');
+  // TRUTH-LANE: Distinguish "no encoder board found" from a genuine signal-loss
+  // so the header pill accurately reflects hardware state, not a panel-offline message.
+  const boardStatusLabel = (() => {
+    if (boardStatus === 'scanning') return 'SCANNING';
+    if (boardStatus === 'ready') return 'READY';
+    if (boardStatus === 'error') return 'ERROR';
+    // boardStatus is 'offline' — "not detected" vs "detected but lost signal"
+    const notDetected = liveBoard ? liveBoard.detected === false : true;
+    return notDetected ? 'NO BOARD' : 'NO SIGNAL';
+  })();
+  const pendingCount = Object.keys(pendingMappings).length;
+  const latestInputLabel = detectionError
+    ? 'Detection unavailable'
+    : latestInput?.control_key
+      ? `${formatControlLabel(latestInput.control_key)} • GPIO ${latestInput.pin ?? '?'}`
+      : detectionMode
+        ? (detectionActive ? 'Listening for live input…' : 'Starting live listener…')
+        : 'Detection idle';
+  const cascadeJob = cascadeState?.job;
+  const cascadeHistoryCount = Array.isArray(cascadeState?.history) ? cascadeState.history.length : 0;
+  const previewWarnings = previewState?.validation?.warnings || [];
+  const previewErrors = previewState?.validation?.errors || [];
+  const previewChangedControls = previewState?.cascade_preview?.changed_controls || [];
+  const emulatorStates = baselineState?.emulators ? Object.entries(baselineState.emulators) : [];
+  const detectedControllers = Array.isArray(deviceScan.controllers) ? deviceScan.controllers : [];
+  const arcadeDevices = detectedControllers.filter((entry) => entry.type === 'arcade_board');
+  const nonArcadeDevices = detectedControllers.filter((entry) => entry.type !== 'arcade_board');
+  const deviceInventoryLabel = detectedControllers.length
+    ? `${arcadeDevices.length} arcade board(s), ${nonArcadeDevices.length} other device(s)`
+    : 'No devices reported';
+  const deviceInventoryHelp = deviceScan.errors?.[0]?.message
+    || deviceScan.hints?.[0]
+    || (
+      detectedControllers.length
+        ? detectedControllers
+          .slice(0, 3)
+          .map((entry) => `${entry.name || 'Unknown device'} (${entry.status || 'unknown'})`)
+          .join(' • ')
+        : 'Scan to list encoder boards, configured hardware, and any secondary controllers.'
+    );
+  const mappingDictionaryLabel = mappingMeta.status === 'missing'
+    ? 'No saved controls.json yet'
+    : mappingMeta.filePath;
+  const mappingDictionaryHelp = mappingMeta.message
+    || (
+      mappingMeta.status === 'missing' && mappingMeta.factoryDefaultsAvailable
+        ? 'Preview and apply will start from factory-default.json until the first save.'
+        : 'Chuck is using the saved mapping dictionary.'
+    );
 
   // Active player set based on mode
   const activePlayers4P = playerMode === '4p' ? PLAYERS_4P : null;
@@ -770,7 +1124,7 @@ export default function ControllerChuckPanel() {
         <div className="chuck-header-left">
           <div
             className={`chuck-status-dot ${boardStatus !== 'ready' ? 'offline' : ''}`}
-            title={boardStatus}
+            title={boardStatusLabel.toLowerCase()}
           />
           <div>
             <h1 className="chuck-title">CONTROLLER CHUCK</h1>
@@ -796,21 +1150,72 @@ export default function ControllerChuckPanel() {
           </button>
         </div>
 
-        <div className="chuck-board-pill">
-          <span className="chuck-board-pill-name">{boardName}</span>
-          <span className={`chuck-board-pill-status ${boardStatus}`}>
-            {boardStatus.toUpperCase()}
-          </span>
-          {board?.vid && board?.pid && (
-            <span style={{ color: 'var(--chuck-text-dim)', fontSize: '8px' }}>
-              {board.vid} | {board.pid}
-            </span>
-          )}
+        {/* ── Header action bar — all controls surface here, one bar to rule them ── */}
+        <div className="chuck-header-actions">
+          <button
+            className="chuck-strip-btn"
+            onClick={scanDevices}
+            disabled={scanLoading}
+            title="Scan for connected encoder boards"
+          >
+            {scanLoading ? '⏳' : '🔍'} SCAN
+          </button>
+          <button
+            className={`chuck-strip-btn detect ${detectionMode ? 'active' : ''}`}
+            onClick={() => setDetectionMode(v => !v)}
+            title="Input Learn: arm the encoder listener to watch for the next physical button press."
+          >
+            <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
+            {detectionMode ? 'LEARNING…' : 'INPUT LEARN'}
+          </button>
+          <button
+            className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
+            onClick={() => setChatOpen(v => !v)}
+            title="Chat with Chuck"
+          >
+            💬 CHUCK
+          </button>
+          <button
+            className="chuck-strip-btn"
+            onClick={handlePreview}
+            disabled={!hasPending}
+            title="Preview pending changes"
+          >
+            PREVIEW
+          </button>
+          <button
+            className="chuck-strip-btn apply"
+            onClick={handleApply}
+            disabled={!hasPending || submitting}
+            title="Apply mapping changes"
+          >
+            {submitting ? 'APPLYING...' : 'APPLY'}
+          </button>
+          <button
+            className="chuck-strip-btn"
+            onClick={handleRestoreSaved}
+            disabled={!hasPending || submitting}
+            title="Discard pending edits and reload the saved mapping"
+          >
+            RESTORE
+          </button>
+          <button
+            className="chuck-strip-btn reset"
+            onClick={handleReset}
+            title="Restore factory-default.json into controls.json"
+          >
+            FACTORY
+          </button>
         </div>
       </header>
 
       {/* ── Body ── */}
       <div className="chuck-body">
+        {/* Cabinet Control Status — single coherent truth surface */}
+        <CabinetControlStatus
+          headers={statusHeaders}
+          refreshKey={statusRefreshKey}
+        />
         {/* ── Horizontal layout: main grid + AI sidebar ── */}
         <div className="chuck-layout">
 
@@ -818,81 +1223,12 @@ export default function ControllerChuckPanel() {
           <main ref={mainRef} className="chuck-main" data-mode={playerMode}>
             <FlameSVG />
 
-            {/* ── Top Strip: Logo + Board Status + Quick Actions ── */}
-            <div className="chuck-top-strip">
-              {/* Logo */}
-              <div className="chuck-top-strip-logo">
-                {logoLoaded ? (
-                  <img
-                    src={logoPath}
-                    alt="G&G Arcade"
-                    onError={() => setLogoLoaded(false)}
-                  />
-                ) : (
-                  <span className="chuck-logo-text">GG</span>
-                )}
+            {flashMsg && (
+              <div className={`chuck-flash-banner ${flashMsg.type || 'info'}`}>
+                {flashMsg.msg}
               </div>
+            )}
 
-              {/* Board status */}
-              <div className="chuck-top-strip-status">
-                <span className={`chuck-top-strip-dot ${boardStatus}`} />
-                <span className="chuck-top-strip-board">{boardName}</span>
-                <span className={`chuck-top-strip-state ${boardStatus}`}>
-                  {boardStatus.toUpperCase()}
-                </span>
-              </div>
-
-              {/* Quick actions */}
-              <div className="chuck-top-strip-actions">
-                <button
-                  className="chuck-strip-btn"
-                  onClick={scanDevices}
-                  disabled={scanLoading}
-                  title="Scan for connected encoder boards"
-                >
-                  {scanLoading ? '⏳' : '🔍'} SCAN
-                </button>
-                <button
-                  className={`chuck-strip-btn detect ${detectionMode ? 'active' : ''}`}
-                  onClick={() => setDetectionMode(v => !v)}
-                  title="Toggle live input detection mode"
-                >
-                  <span className={`chuck-strip-detect-dot ${detectionMode ? 'on' : ''}`} />
-                  DETECT
-                </button>
-
-                <button
-                  className={`chuck-strip-btn ${chatOpen ? 'active' : ''}`}
-                  onClick={() => setChatOpen(v => !v)}
-                  title="Chat with Chuck"
-                >
-                  💬 CHUCK
-                </button>
-                <button
-                  className="chuck-strip-btn preview"
-                  onClick={handlePreview}
-                  disabled={!hasPending}
-                  title="Preview pending changes"
-                >
-                  PREVIEW
-                </button>
-                <button
-                  className="chuck-strip-btn apply"
-                  onClick={handleApply}
-                  disabled={!hasPending || submitting}
-                  title="Apply mapping changes"
-                >
-                  {submitting ? 'APPLYING...' : 'APPLY'}
-                </button>
-                <button
-                  className="chuck-strip-btn reset"
-                  onClick={handleReset}
-                  title="Factory reset mappings"
-                >
-                  RESET
-                </button>
-              </div>
-            </div>
 
             {/* Top row — only in 4P mode: P3 | P4 (back players) */}
             {playerMode === '4p' && (
@@ -958,6 +1294,7 @@ export default function ControllerChuckPanel() {
                   />
                 ))}
             </div>
+
           </main>
 
 
@@ -978,6 +1315,7 @@ export default function ControllerChuckPanel() {
             <EngineeringBaySidebar
               persona={CHUCK_PERSONA}
               contextAssembler={chuckContextAssembler}
+              initialMessages={initialChatMessages}
             />
           </div>
 
@@ -990,3 +1328,4 @@ export default function ControllerChuckPanel() {
     </div>
   );
 }
+

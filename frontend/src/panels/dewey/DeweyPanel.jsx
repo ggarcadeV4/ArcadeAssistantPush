@@ -7,7 +7,9 @@ import useGemSpeech from '../../hooks/useGemSpeech'
 import TriviaExperience from './trivia/TriviaExperience'
 import GamingNews from './news/GamingNews'
 import { searchArcadeLore } from '../../services/deweySearchClient'
-import { getGatewayHost, getGatewayUrl } from '../../services/gateway'
+import { getGatewayUrl } from '../../services/gateway'
+import { buildStandardHeaders } from '../../utils/identity'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../../utils/network'
 
 
 const MAX_HISTORY_MESSAGES = 12
@@ -19,197 +21,23 @@ const DEFAULT_PROFILE_OPTIONS = [
   { userId: 'sarah', displayName: 'Sarah', initials: 'SA' }
 ]
 
-const PANEL_CAPABILITIES = [
-  {
-    id: 'controller_chuck',
-    label: 'Control-a-Chuck (Arcade Panel)',
-    keywords: []
-  },
-  {
-    id: 'console_wizard',
-    label: 'Control-a-Wizard (Controllers)',
-    keywords: []
-  },
-  {
-    id: 'interface',
-    label: 'Arcade Interface (Diagnostics)',
-    keywords: []
-  },
-  {
-    id: 'gunner',
-    label: 'Gunner (Lightguns)',
-    keywords: []
-  },
-  {
-    id: 'led-blinky',
-    label: 'LED Blinky',
-    keywords: []
-  },
-  {
-    id: 'launchbox',
-    label: 'LaunchBox LoRa',
-    keywords: []
-  },
-  {
-    id: 'scorekeeper',
-    label: 'ScoreKeeper Sam',
-    keywords: []
-  },
-  {
-    id: 'voice',
-    label: 'Vicky Voice',
-    keywords: []
-  },
-  {
-    id: 'system-health',
-    label: 'Doc (System Health)',
-    keywords: []
-  }
-]
-
-const PANEL_LOOKUP = new Map(PANEL_CAPABILITIES.map(panel => [panel.id, panel]))
-const ROUTING_CHIP_LIMIT = 3
-const ROUTING_PRIMARY_MIN_SCORE = 60
-const ROUTING_SECONDARY_MIN_SCORE = 70
-const ROUTING_SCORE_SPREAD_LIMIT = 28
-
-const includesAny = (text = '', terms = []) => terms.some(term => text.includes(term))
-const countMatches = (text = '', terms = []) => terms.reduce((count, term) => count + (text.includes(term) ? 1 : 0), 0)
-const normalizePanels = (panels = []) => {
-  const deduped = []
-  for (const panel of panels) {
-    if (!panel?.id) continue
-    if (deduped.some(existing => existing.id === panel.id)) continue
-    deduped.push(panel)
-    if (deduped.length >= ROUTING_CHIP_LIMIT) break
-  }
-  return deduped
+// AA_HANDOFF_TRUTH — 2026-04-13
+// Semantic routing: chips are driven by the backend target_gem field,
+// not frontend keyword heuristics.  PANEL_LABEL_MAP maps specialist IDs
+// emitted by the Dewey system prompt to human-readable chip labels.
+const PANEL_LABEL_MAP = {
+  controller_chuck: 'Controller Chuck',
+  console_wizard: 'Control-a-Wizard (Controllers)',
+  gunner: 'Gunner (Light Guns)',
+  led_blinky: 'LED Blinky (Lighting)',
+  launchbox: 'LaunchBox LoRa',
+  voice: 'Vicky Voice',
 }
-const enforceRoutingGuardrailReply = (text = '', recommendations = []) => {
-  const reply = (text || '').trim()
-  if (!reply) return reply
-
-  const primaryPanel = recommendations?.[0]?.id
-  if (primaryPanel !== 'console_wizard' && primaryPanel !== 'controller_chuck') {
-    return reply
-  }
-
-  let normalizedReply = reply
-  if (primaryPanel === 'console_wizard') {
-    normalizedReply = normalizedReply.replace(/control-a-chuck/ig, 'Control-a-Wizard')
-    if (!/control-a-wizard/i.test(normalizedReply)) {
-      normalizedReply = 'I am routing this to Control-a-Wizard for controller setup.\n\n' + normalizedReply
-    }
-  } else {
-    normalizedReply = normalizedReply.replace(/control-a-wizard/ig, 'Control-a-Chuck')
-    if (!/control-a-chuck/i.test(normalizedReply)) {
-      normalizedReply = 'I am routing this to Control-a-Chuck for arcade panel controls.\n\n' + normalizedReply
-    }
-  }
-
-  return normalizedReply
-}
-const getPanelRecommendationsFromText = (text = '') => {
-  const lower = (text || '').toLowerCase()
-  const normalized = lower.replace(/[^a-z0-9\s]/g, ' ')
-  const has = (terms) => includesAny(normalized, terms)
-
-  const controllerTerms = [
-    'controller', 'gamepad', 'xbox', 'playstation', 'ps4', 'ps5',
-    '8bitdo', '8 bitdo', 'xinput', 'dinput', 'retroarch', 'analog stick',
-    'thumbstick', 'deadzone', 'trigger', 'button map', 'controller profile'
-  ]
-
-  const arcadePanelTerms = [
-    'arcade panel', 'control panel', 'cabinet controls', 'arcade button',
-    'arcade joystick', 'joystick', 'stick', 'button stuck', 'button not working',
-    'panel button', 'cabinet button', 'coin button', 'start button'
-  ]
-
-  const pinMappingTerms = [
-    'encoder', 'ipac', 'ultimarc', 'pin mapping', 'pin assignment',
-    'wiring', 'wire', 'harness', 'terminal block', 'remap', 'button mapping'
-  ]
-
-  const lightgunTerms = ['light gun', 'lightgun', 'crosshair', 'aim', 'sinden', 'gun4ir']
-  const ledTerms = ['led', 'lighting', 'button lights', 'blinky', 'rgb', 'marquee lights']
-  const launchboxTerms = ['launchbox', 'rom', 'library', 'launch game', 'platform wheel']
-  const scoreTerms = ['score', 'leaderboard', 'tournament', 'bracket', 'high score', 'rank']
-  const voiceTerms = ['voice', 'mic', 'microphone', 'speech recognition', 'listen mode']
-
-  const interfaceTerms = [
-    'ui', 'user interface', 'menu', 'screen layout', 'panel ui',
-    'hud', 'overlay', 'interface bug', 'button placement'
-  ]
-
-  const systemHealthTerms = [
-    'slow', 'lag', 'stutter', 'freeze', 'crash', 'overheating',
-    'cpu', 'memory', 'ram', 'fps', 'framerate', 'temperature'
-  ]
-
-  const scoredHits = []
-  const add = (id, score) => {
-    const existing = scoredHits.find(hit => hit.id === id)
-    if (existing) {
-      existing.score = Math.max(existing.score, score)
-      return
-    }
-    scoredHits.push({ id, score })
-  }
-
-  const controllerMatchCount = countMatches(normalized, controllerTerms)
-  const arcadePanelMatchCount = countMatches(normalized, arcadePanelTerms)
-  const pinMappingMatchCount = countMatches(normalized, pinMappingTerms)
-  const arcadeMatchCount = arcadePanelMatchCount + pinMappingMatchCount
-
-  if (controllerMatchCount > 0) add('console_wizard', 100 + controllerMatchCount * 6)
-  if (arcadeMatchCount > 0) add('controller_chuck', 95 + arcadeMatchCount * 6)
-  if (has(lightgunTerms)) add('gunner', 90)
-  if (has(ledTerms)) add('led-blinky', 88)
-  if (has(launchboxTerms)) add('launchbox', 75)
-  if (has(scoreTerms)) add('scorekeeper', 72)
-  if (has(voiceTerms)) add('voice', 70)
-  if (has(interfaceTerms)) add('interface', 65)
-  if (has(systemHealthTerms)) add('system-health', 60)
-
-  // Hard guardrail: if intent is clearly one route, suppress the other to avoid mixed signals.
-  if (controllerMatchCount > 0 && arcadeMatchCount === 0) {
-    for (let i = scoredHits.length - 1; i >= 0; i -= 1) {
-      if (scoredHits[i].id === 'controller_chuck') scoredHits.splice(i, 1)
-    }
-  } else if (arcadeMatchCount > 0 && controllerMatchCount === 0) {
-    for (let i = scoredHits.length - 1; i >= 0; i -= 1) {
-      if (scoredHits[i].id === 'console_wizard') scoredHits.splice(i, 1)
-    }
-  }
-
-  const hasControllerSpecific = scoredHits.some(hit => hit.id === 'console_wizard')
-  const hasArcadePanelSpecific = scoredHits.some(hit => hit.id === 'controller_chuck')
-
-  const filtered = (hasControllerSpecific || hasArcadePanelSpecific)
-    ? scoredHits.filter(hit => hit.id !== 'system-health' && hit.id !== 'interface')
-    : scoredHits
-
-  const sorted = filtered.sort((a, b) => b.score - a.score)
-  const topScore = sorted[0]?.score ?? 0
-  const confidenceFiltered = sorted.filter((hit, index) => {
-    if (index === 0) return hit.score >= ROUTING_PRIMARY_MIN_SCORE
-    const withinSpread = (topScore - hit.score) <= ROUTING_SCORE_SPREAD_LIMIT
-    return hit.score >= ROUTING_SECONDARY_MIN_SCORE && withinSpread
-  })
-
-  const selected = confidenceFiltered.length > 0 ? confidenceFiltered : sorted.slice(0, 1)
-  const result = selected
-    .slice(0, ROUTING_CHIP_LIMIT)
-    .map(hit => {
-      const panel = PANEL_LOOKUP.get(hit.id)
-      if (!panel) return null
-      return { ...panel, score: hit.score }
-    })
-    .filter(Boolean)
-
-  console.log('[Dewey] Panel recommendations for:', text, '->', result.map(p => `${p.label} (${p.score || 0})`))
-  return normalizePanels(result)
+const buildSemanticChips = (targetGem) => {
+  if (!targetGem) return []
+  const label = PANEL_LABEL_MAP[targetGem]
+  if (!label) return []
+  return [{ id: targetGem, label }]
 }
 
 const htmlToPlainText = (value = '') => {
@@ -301,20 +129,13 @@ const buildPreferenceSummary = (preferences = {}) => {
 }
 
 const streamDeweyChat = async ({ message, userName, preferenceSummary, conversationHistory }) => {
-  const deviceId = window.AA_DEVICE_ID || (() => {
-    console.warn('[Dewey] window.AA_DEVICE_ID not available, ' +
-      'falling back to cabinet-001. Cabinet identity may not be unique.')
-    return 'cabinet-001'
-  })()
-
   const response = await fetch(`${getGatewayUrl()}/api/local/dewey/chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-panel': 'dewey',
-      'x-scope': 'state',
-      'x-device-id': deviceId
-    },
+    headers: buildStandardHeaders({
+      panel: 'dewey',
+      scope: 'state',
+      extraHeaders: { 'Content-Type': 'application/json' }
+    }),
     body: JSON.stringify({
       message,
       user_name: userName,
@@ -344,7 +165,23 @@ const streamDeweyChat = async ({ message, userName, preferenceSummary, conversat
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let reply = ''
+  let targetGem = null
   let buffer = ''
+
+  const processLine = (line) => {
+    const payload = line.slice(6)
+    try {
+      const parsed = JSON.parse(payload)
+      if (parsed?.delta) {
+        reply += String(parsed.delta)
+      }
+      if (parsed?.done && parsed.target_gem) {
+        targetGem = parsed.target_gem
+      }
+    } catch {
+      reply += payload
+    }
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -356,37 +193,17 @@ const streamDeweyChat = async ({ message, userName, preferenceSummary, conversat
 
     for (const event of events) {
       const lines = event.split('\n').filter(line => line.startsWith('data: '))
-      for (const line of lines) {
-        const payload = line.slice(6)
-        try {
-          const parsed = JSON.parse(payload)
-          if (parsed?.delta) {
-            reply += String(parsed.delta)
-          }
-        } catch {
-          reply += payload
-        }
-      }
+      for (const line of lines) processLine(line)
     }
   }
 
   buffer += decoder.decode()
   if (buffer.trim()) {
     const lines = buffer.split('\n').filter(line => line.startsWith('data: '))
-    for (const line of lines) {
-      const payload = line.slice(6)
-      try {
-        const parsed = JSON.parse(payload)
-        if (parsed?.delta) {
-          reply += String(parsed.delta)
-        }
-      } catch {
-        reply += payload
-      }
-    }
+    for (const line of lines) processLine(line)
   }
 
-  return reply
+  return { reply, targetGem }
 }
 
 export default function DeweyPanel() {
@@ -491,10 +308,11 @@ export default function DeweyPanel() {
     try {
       const response = await fetch('/api/local/profile/primary', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-scope': 'state'
-        },
+        headers: buildStandardHeaders({
+          panel: 'dewey',
+          scope: 'state',
+          extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify({
           user_id: selected.userId,
           display_name: selected.displayName,
@@ -687,7 +505,7 @@ export default function DeweyPanel() {
 
       const conversationHistory = buildConversationHistory(messagesRef.current)
 
-      const rawReply = await streamDeweyChat({
+      const { reply: rawReply, targetGem } = await streamDeweyChat({
         message: trimmed,
         userName: currentUser.name,
         preferenceSummary: buildPreferenceSummary(currentUser.preferences),
@@ -724,18 +542,19 @@ export default function DeweyPanel() {
         setShowGallery(true)
       }
 
-      const nextRecommendations = getPanelRecommendationsFromText(trimmed)
-      const guardedReply = enforceRoutingGuardrailReply(cleanReply, nextRecommendations)
-
-      // Update recommendations and context
-      if (nextRecommendations.length > 0) {
-        setRecommendedPanels(normalizePanels(nextRecommendations))
+      // Semantic routing: build chips from backend target_gem
+      const semanticChips = buildSemanticChips(targetGem)
+      if (semanticChips.length > 0) {
+        setRecommendedPanels(semanticChips)
         const summary = buildHandoffSummary(trimmed, { maxChars: 200, maxSentences: 2 })
         if (summary) setHandoffText(summary)
+      } else {
+        setRecommendedPanels([])
+        setHandoffText('')
       }
 
       const formatted = formatAssistantResponse(
-        guardedReply || "I'm still reaching out to the arcade braintrust. Mind rephrasing that?"
+        cleanReply || "I'm still reaching out to the arcade braintrust. Mind rephrasing that?"
       )
       addMessage(formatted, 'dewey')
 
@@ -809,11 +628,6 @@ export default function DeweyPanel() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const isSecure = window.location.protocol === 'https:'
-    const host = getGatewayHost()
-    const scheme = isSecure ? 'wss' : 'ws'
-    const wsUrl = `${scheme}://${host}/ws/session`
-
     let alive = true
     let ws = null
     let backoff = 2000
@@ -821,6 +635,10 @@ export default function DeweyPanel() {
     const connectVicky = () => {
       if (!alive) return
       try {
+        const wsUrl = buildGatewayWsIdentityUrl('/ws/session', {
+          panel: 'dewey',
+          corrId: generateCorrelationId('dewey-session')
+        })
         ws = new WebSocket(wsUrl)
         ws.onopen = () => {
           console.log('[Dewey] Vicky handoff listener connected')
@@ -942,18 +760,9 @@ export default function DeweyPanel() {
         if (briefingItem.era) setEraTitle(briefingItem.era)
       }
 
-      // HES Integration: if the deep-dive relates to hardware/maintenance, generate Doc chip
-      const hardwareKeywords = ['cpu', 'hardware', 'pcb', 'board', 'chip', 'processor', 'capacitor', 'monitor', 'crt', 'power supply']
-      const isHardwareRelated = statType === 'cpu' || hardwareKeywords.some(kw => query.toLowerCase().includes(kw))
-      if (isHardwareRelated) {
-        setRecommendedPanels(prev => {
-          const hasDoc = prev.some(p => p.id === 'system-health')
-          if (hasDoc) return prev
-          const next = [{ id: 'system-health', label: 'Doc (Hardware Diagnostics)', score: 92 }, ...prev]
-          return normalizePanels(next)
-        })
-        setHandoffText(`Hardware deep-dive on ${game.title}: ${game.cpu || 'arcade PCB'}`)
-      }
+      // AA_HANDOFF_TRUTH: system-health is quarantined — do not inject Doc chip.
+      // When SystemHealthPanel actively consumes ?context, remove this comment
+      // and reinstate the chip injection here.
     } catch (err) {
       console.warn('[Dewey] Tech briefing failed:', err)
       setTechBriefing({ statType, title: 'Briefing Unavailable', content: 'Could not fetch deeper lore at this time.', game: game.title })
@@ -1060,29 +869,16 @@ export default function DeweyPanel() {
     }
   }, [galleryItems.length, showGallery, fetchMoreCarouselItems])
 
-  // HES Drill Down: generate persistent LoRa + Sam chips when gallery is active
+  // HES Drill Down: generate persistent LoRa chip when gallery is active.
   useEffect(() => {
     if (!showGallery || galleryItems.length === 0) return
     const primary = galleryItems[0]
     if (!primary?.title) return
 
-    const hesChips = []
-    // LoRa chip for library management
     if (!recommendedPanels.some(p => p.id === 'launchbox')) {
-      hesChips.push({ id: 'launchbox', label: `LoRa: Find "${primary.title}" in Library` })
-    }
-    // Sam chip for historical high scores
-    if (!recommendedPanels.some(p => p.id === 'scorekeeper')) {
-      hesChips.push({ id: 'scorekeeper', label: `Sam: ${primary.title} High Scores` })
-    }
-
-    if (hesChips.length > 0) {
       setRecommendedPanels(prev => {
-        const merged = [...prev]
-        for (const chip of hesChips) {
-          if (!merged.some(p => p.id === chip.id)) merged.push(chip)
-        }
-        return normalizePanels(merged)
+        if (prev.some(p => p.id === 'launchbox')) return prev
+        return [...prev, { id: 'launchbox', label: `LoRa: Find "${primary.title}" in Library` }]
       })
       setHandoffText(`Exploring ${primary.title} (${primary.year}) - ${primary.publisher}`)
     }
@@ -1115,21 +911,14 @@ export default function DeweyPanel() {
 
   async function sendHandoffToServer(targetPanelId, handoffText) {
     try {
-      const deviceId = window.AA_DEVICE_ID || (() => {
-        console.warn('[Dewey] window.AA_DEVICE_ID not available, ' +
-          'falling back to cabinet-001. Cabinet identity may not be unique.')
-        return 'cabinet-001'
-      })()
-
       console.log('[Dewey] Sending handoff to server:', { target: targetPanelId, summary: handoffText })
       const response = await fetch('/api/local/dewey/handoff', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-panel': 'dewey',
-          'x-device-id': deviceId,
-          'x-scope': 'state'
-        },
+        headers: buildStandardHeaders({
+          panel: 'dewey',
+          scope: 'state',
+          extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify({
           target: targetPanelId,
           summary: handoffText,

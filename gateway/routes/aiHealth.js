@@ -31,7 +31,7 @@ function resolveActiveProvider(defaultProvider, configured) {
 }
 
 function resolveModel(provider) {
-  if (provider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  if (provider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   if (provider === 'gpt') return process.env.OPENAI_MODEL || 'gpt-4o-mini';
   return process.env.ANTHROPIC_MODEL || 'claude-3-7-sonnet-latest';
 }

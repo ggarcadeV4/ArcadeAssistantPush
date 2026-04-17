@@ -11,6 +11,7 @@ import { useProfileContext } from '../../context/ProfileContext'
 import { buildVickySystemPrompt } from './vickyPrompt'
 import useGemSpeech from '../../hooks/useGemSpeech'
 import { getGatewayUrl } from '../../services/gateway'
+import { buildStandardHeaders } from '../../utils/identity'
 
 // Use gateway port 8787 in dev mode, or current origin in production
 const GATEWAY = window.location.port === '5173' ? getGatewayUrl() : window.location.origin
@@ -461,19 +462,13 @@ export default function VoicePanel() {
     // Check for JSON handoff from Dewey (only when arriving via Dewey URL context)
     if (shouldHandoff) (async () => {
       try {
-        const deviceId = window.AA_DEVICE_ID || (() => {
-          console.warn('[Vicky] window.AA_DEVICE_ID not available, ' +
-            'falling back to cabinet-001. Cabinet identity may not be unique.')
-          return 'cabinet-001'
-        })()
         const response = await fetch('/api/local/dewey/handoff/voice', {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-device-id': deviceId,
-            'x-panel': 'voice',
-            'x-scope': 'state'
-          }
+          headers: buildStandardHeaders({
+            panel: 'voice',
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' }
+          })
         })
         const text = await response.text()
         let data = null
@@ -895,11 +890,11 @@ export default function VoicePanel() {
       // Call the new broadcast endpoint
       const response = await fetch(`${GATEWAY}/api/local/profile/primary`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-panel': 'voice',
-          'x-scope': 'state'
-        },
+        headers: buildStandardHeaders({
+          panel: 'voice',
+          scope: 'state',
+          extraHeaders: { 'Content-Type': 'application/json' }
+        }),
         body: JSON.stringify(profilePayload)
       })
 

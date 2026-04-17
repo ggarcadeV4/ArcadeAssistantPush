@@ -1,34 +1,54 @@
 /**
  * LiveScoreWidget — Real-time MAME score display
  *
- * Polls GET /api/scores/live every 3 seconds.
+ * Receives score_updated events via the gateway WebSocket at /scorekeeper/ws.
  * Shows current ROM, live score, and freshness indicator.
  * Collapses to a compact strip when no game is running.
  */
-import { useState, useEffect, useRef } from 'react'
-import { getLiveScore } from '../../services/scorekeeperClient'
+import { useState, useEffect } from 'react'
+import { buildGatewayWsIdentityUrl, generateCorrelationId } from '../../utils/network'
 
 export default function LiveScoreWidget() {
     const [data, setData] = useState(null)
-    const timerRef = useRef(null)
 
     useEffect(() => {
-        let mounted = true
+        const wsUrl = buildGatewayWsIdentityUrl('/scorekeeper/ws', {
+            panel: 'live-score-widget',
+            corrId: generateCorrelationId('live-score-widget')
+        })
 
-        const poll = async () => {
-            try {
-                const result = await getLiveScore()
-                if (mounted) setData(result)
-            } catch {
-                if (mounted) setData(null)
+        let ws
+        try {
+            ws = new WebSocket(wsUrl)
+        } catch (err) {
+            console.warn('[LiveScoreWidget] WebSocket unavailable:', err)
+        }
+
+        if (ws) {
+            ws.onmessage = (ev) => {
+                try {
+                    const msg = JSON.parse(ev.data)
+                    if (msg?.type === 'score_updated') {
+                        // Map backend broadcast shape to the render contract:
+                        // {"type": "score_updated", "game": "...", "entry": {score, player, ...}}
+                        setData({
+                            status: 'live',
+                            score: msg.entry?.score || 0,
+                            player: msg.entry?.player || 'P1',
+                            rom: msg.game || 'Unknown',
+                            age_seconds: 0,
+                        })
+                    }
+                } catch (err) {
+                    console.warn('[LiveScoreWidget] WebSocket message parse failed:', err)
+                }
             }
         }
 
-        poll()
-        timerRef.current = setInterval(poll, 3000)
         return () => {
-            mounted = false
-            clearInterval(timerRef.current)
+            if (ws) {
+                ws.close()
+            }
         }
     }, [])
 

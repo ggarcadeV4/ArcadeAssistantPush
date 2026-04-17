@@ -10,7 +10,7 @@ const router = express.Router();
 
 async function proxyToBackend(req, res, path) {
   try {
-    const fastapiUrl = req.app.locals.fastapiUrl || 'http://127.0.0.1:8888';
+    const fastapiUrl = req.app.locals.fastapiUrl || 'http://127.0.0.1:8000';
     const url = `${fastapiUrl}/api/local/scorekeeper${path}`;
 
     const headers = {

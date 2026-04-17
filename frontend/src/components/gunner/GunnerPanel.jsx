@@ -1,4 +1,5 @@
-﻿import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { listDevices } from '../../services/gunnerClient'
 import GunnerHeader from './GunnerHeader'
 import GunnerNav from './GunnerNav'
@@ -48,6 +49,22 @@ export default function GunnerPanel() {
     const [hasScanned, setHasScanned] = useState(false)
     const [lastSync, setLastSync] = useState(null)
     const [scanning, setScanning] = useState(false)
+
+    // AA_HANDOFF: read Dewey handoff context from URL param.
+    // When a context is present, auto-open the chat drawer so the user
+    // can see their problem statement was carried from Dewey.
+    const location = useLocation()
+    const deweyContext = useMemo(() => {
+      const params = new URLSearchParams(location.search)
+      const raw = params.get('context') || ''
+      return raw.trim() ? decodeURIComponent(raw) : null
+    }, [location.search])
+
+    useEffect(() => {
+      if (deweyContext) {
+        setChatOpen(true)
+      }
+    }, [deweyContext])
 
     const normalizeDeviceType = useCallback((type) => {
         if (!type || type === 'mock') {
@@ -166,6 +183,24 @@ export default function GunnerPanel() {
                 >
                     ✕
                 </button>
+                {/* AA_HANDOFF: show Dewey context at top of drawer */}
+                {deweyContext && (
+                    <div style={{
+                        margin: '0 0 10px 0',
+                        padding: '8px 12px',
+                        background: 'rgba(239,68,68,0.12)',
+                        border: '1px solid rgba(239,68,68,0.35)',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: '#fca5a5',
+                        lineHeight: 1.5
+                    }}>
+                        <strong style={{ display: 'block', color: '#ef4444', marginBottom: 3 }}>
+                            🎯 From Dewey:
+                        </strong>
+                        {deweyContext}
+                    </div>
+                )}
                 <EngineeringBaySidebar persona={GUNNER_PERSONA} />
             </aside>
 

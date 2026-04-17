@@ -8,6 +8,7 @@
  */
 import { useState, useRef, useCallback } from 'react'
 import { getGatewayUrl } from '../services/gateway'
+import { buildStandardHeaders } from '../utils/identity'
 
 const getApiBase = () => {
     if (typeof window === 'undefined' || !window.location) {
@@ -17,13 +18,6 @@ const getApiBase = () => {
         return getGatewayUrl()
     }
     return window.location.origin
-}
-
-const resolveDeviceId = () => {
-    if (typeof window === 'undefined') {
-        return 'CAB-0001'
-    }
-    return window.AA_DEVICE_ID ?? window.__DEVICE_ID__ ?? 'CAB-0001'
 }
 
 const FRONTEND_DEBOUNCE_MS = 100
@@ -75,16 +69,16 @@ export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
     const [isLoading, setIsLoading] = useState(false)
     const [lastSelectedGame, setLastSelectedGame] = useState(null)
     const debounceTimerRef = useRef(null)
+    const blinkyBaseUrl = `${getApiBase()}/api/local/blinky`
 
     const postBlinkyEvent = useCallback(async (eventName, payload) => {
-        const response = await fetch(`${getApiBase()}/api/local/led/blinky/${eventName}`, {
+        const response = await fetch(`${blinkyBaseUrl}/${eventName}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-scope': 'config',
-                'x-panel': 'led-blinky',
-                'x-device-id': resolveDeviceId()
-            },
+            headers: buildStandardHeaders({
+                panel: 'led-blinky',
+                scope: 'config',
+                extraHeaders: { 'Content-Type': 'application/json' }
+            }),
             body: JSON.stringify(payload)
         })
 
@@ -93,7 +87,7 @@ export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
         }
 
         return await response.json().catch(() => ({}))
-    }, [])
+    }, [blinkyBaseUrl])
 
     const gameSelected = useCallback((gameOrRom, emulator = 'MAME') => {
         const payload = toGamePayload(gameOrRom, emulator)
@@ -152,14 +146,13 @@ export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
     const gameStop = useCallback(async () => {
         setIsLoading(true)
         try {
-            const response = await fetch(`${getApiBase()}/api/local/led/blinky/game-stop`, {
+            const response = await fetch(`${blinkyBaseUrl}/game-stop`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'config',
-                    'x-panel': 'led-blinky',
-                    'x-device-id': resolveDeviceId()
-                }
+                headers: buildStandardHeaders({
+                    panel: 'led-blinky',
+                    scope: 'config',
+                    extraHeaders: { 'Content-Type': 'application/json' }
+                })
             })
 
             if (response.ok) {
@@ -170,7 +163,7 @@ export function useBlinkyGameSelection({ onToast = () => { } } = {}) {
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [blinkyBaseUrl])
 
     const cleanup = useCallback(() => {
         if (debounceTimerRef.current) {

@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from backend.constants.drive_root import relativize_runtime_path
+
 def create_backup(target_path: Path, drive_root: Path) -> Path:
     """Create a timestamped backup of the target file
 
@@ -25,17 +27,7 @@ def create_backup(target_path: Path, drive_root: Path) -> Path:
     # Generate unique backup filename with time
     time_suffix = datetime.now().strftime("%H%M%S")
     
-    # Try to get relative path from drive_root, fallback to drive letter root
-    try:
-        relative_path = target_path.relative_to(drive_root)
-    except ValueError:
-        # Path is outside project folder - try drive letter root
-        drive_letter_root = Path(drive_root.drive + "\\") if drive_root.drive else drive_root
-        try:
-            relative_path = target_path.relative_to(drive_letter_root)
-        except ValueError:
-            # Last resort: use just the filename with parent folder
-            relative_path = Path(target_path.parent.name) / target_path.name
+    relative_path = relativize_runtime_path(target_path, drive_root)
 
     # Replace path separators with underscores for filename
     backup_filename = str(relative_path).replace(os.sep, "_").replace("/", "_")

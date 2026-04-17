@@ -18,6 +18,7 @@ import subprocess
 import os
 from pathlib import Path
 
+from backend.constants.drive_root import get_drive_root
 from backend.services.launchbox_parser import parser
 from backend.services.adapters import teknoparrot_universal_adapter
 from backend.routers import marquee as marquee_router
@@ -212,7 +213,9 @@ async def launch_game(request: Request, payload: LaunchRequest) -> LaunchRespons
             session_id = None
             rom_name = _derive_rom_name(game)
             try:
-                tracking_service = get_score_tracking_service(Path(os.getenv("AA_DRIVE_ROOT", "A:\\")))
+                app_drive_root = getattr(request.app.state, "drive_root", None)
+                drive_root = Path(app_drive_root) if app_drive_root else get_drive_root(context="aa_launch")
+                tracking_service = get_score_tracking_service(drive_root)
                 session = tracking_service.record_launch(
                     CanonicalGameEvent(
                         source="aa_direct",

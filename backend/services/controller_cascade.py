@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import json
 import logging
 import os
@@ -36,6 +35,11 @@ except Exception:  # pragma: no cover
     tomli_w = None
 
 from .backup import create_backup
+from .mame_config_generator import (
+    MAMEConfigError,
+    generate_mame_config,
+    validate_mame_config,
+)
 from .controller_baseline import (
     ControllerBaselineError,
     DEFAULT_EMULATORS,
@@ -61,7 +65,7 @@ DEFAULT_CONFIG_PATHS: Dict[str, Path] = {
     "retroarch": Path("Emulators") / "RetroArch" / "retroarch.cfg",
     "dolphin": Path("Emulators") / "Dolphin Tri-Force" / "User" / "Config" / "Dolphin.ini",
     "pcsx2": Path("~") / "Documents" / "PCSX2" / "inis" / "PCSX2.ini",  # PCSX2-qt uses PCSX2.ini
-    "mame": Path("Emulators") / "MAME" / "mame.ini",
+    "mame": Path("Emulators") / "MAME" / "cfg" / "default.cfg",
     "teknoparrot": Path("Emulators") / "TeknoParrot" / "UserProfiles",
     # Additional emulators
     "rpcs3": Path("LaunchBox") / "Emulators" / "rpcs3" / "config.yml",
@@ -716,42 +720,35 @@ def _update_emulator_baseline(
     return result
 
 
-def _apply_mame_mapping(
+def _apply_mame_xml_config(
     config_path: Path,
-    mapping: Dict[str, Any],
+    controls_json: Dict[str, Any],
     *,
     drive_root: Path,
     backup_on_write: bool,
-) -> None:
-    parser = configparser.ConfigParser(
-        interpolation=None,
-        strict=False,
-        delimiters=("=",),
-        allow_no_value=True,
-    )
-    parser.optionxform = str
+) -> str:
+    """Generate MAME default.cfg XML from controls.json and write it.
 
-    if config_path.exists():
-        parser.read(config_path, encoding="utf-8")
+    Uses the same ``generate_mame_config`` / ``validate_mame_config`` pipeline
+    as the legacy ``/learn-wizard/save`` endpoint so that both code paths
+    produce identical XML output targeting ``Emulators/MAME/cfg/default.cfg``.
+    """
+    xml_content = generate_mame_config(controls_json)
 
-    for section, values in mapping.items():
-        if isinstance(values, dict):
-            target_section = (
-                parser.default_section if not section or section.upper() == "DEFAULT" else section
-            )
-            if target_section != parser.default_section and not parser.has_section(target_section):
-                parser.add_section(target_section)
-            for key, value in values.items():
-                parser.set(target_section, key, str(value))
-        else:
-            parser.set(parser.default_section, section, str(values))
+    validation_errors = validate_mame_config(xml_content)
+    if validation_errors:
+        raise MAMEConfigError(
+            f"Generated MAME XML failed validation: {validation_errors[:3]}"
+        )
 
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     if backup_on_write and config_path.exists():
         create_backup(config_path, drive_root)
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as handle:
-        parser.write(handle)
+        handle.write(xml_content)
+
+    return xml_content
 
 
 def _validate_mame_cli(executable: Path, rom_filter: Iterable[str]) -> Tuple[bool, str]:
@@ -894,12 +891,40 @@ def _run_mame_step(
     *,
     backup: bool,
 ) -> Tuple[str, str]:
-    baseline = load_controller_baseline(drive_root)
-    emulator_state = baseline.get("emulators", {}).get("mame", {}) or {}
-    mapping = emulator_state.get("mapping") or {}
+    controls_path = drive_root / "config" / "mappings" / "controls.json"
+    if not controls_path.exists():
+        message = "controls.json not found; skipping MAME cascade."
+        _update_emulator_baseline(
+            drive_root,
+            "mame",
+            status="skipped",
+            message=message,
+            job_id=job_id,
+            mapping=None,
+            config_path=None,
+            backup=backup,
+        )
+        return "skipped", message
 
-    if not mapping:
-        message = "No MAME mapping provided; skipping."
+    try:
+        with open(controls_path, "r", encoding="utf-8") as fh:
+            controls_json = json.load(fh)
+    except Exception as exc:
+        message = f"Failed to read controls.json: {exc}"
+        _update_emulator_baseline(
+            drive_root,
+            "mame",
+            status="failed",
+            message=message,
+            job_id=job_id,
+            mapping=None,
+            config_path=None,
+            backup=backup,
+        )
+        return "failed", message
+
+    if not controls_json.get("mappings"):
+        message = "controls.json has no mappings; skipping MAME cascade."
         _update_emulator_baseline(
             drive_root,
             "mame",
@@ -913,10 +938,12 @@ def _run_mame_step(
         return "skipped", message
 
     mame_manifest = manifest.get("emulators", {}).get("mame", {}) or {}
+    baseline = load_controller_baseline(drive_root)
+    emulator_state = baseline.get("emulators", {}).get("mame", {}) or {}
     config_override = emulator_state.get("config_path")
     config_hint = (
         config_override
-        or mame_manifest.get("ini")
+        or mame_manifest.get("cfg")
         or mame_manifest.get("config")
         or DEFAULT_CONFIG_PATHS["mame"]
     )
@@ -931,31 +958,31 @@ def _run_mame_step(
             status="failed",
             message=message,
             job_id=job_id,
-            mapping=mapping,
+            mapping=controls_json.get("mappings"),
             config_path=None,
             backup=backup,
         )
         return "failed", message
 
     try:
-        _apply_mame_mapping(
+        _apply_mame_xml_config(
             config_path,
-            mapping,
+            controls_json,
             drive_root=drive_root,
             backup_on_write=backup,
         )
-        write_message = f"MAME config updated at {config_path.name}."
+        write_message = f"MAME XML config written to {config_path.name}."
         status = "completed"
-    except Exception as exc:
-        logger.exception("Failed to update MAME config: %s", exc)
-        message = f"MAME config update failed: {exc}"
+    except (MAMEConfigError, Exception) as exc:
+        logger.exception("Failed to generate/write MAME XML config: %s", exc)
+        message = f"MAME XML config generation failed: {exc}"
         _update_emulator_baseline(
             drive_root,
             "mame",
             status="failed",
             message=message,
             job_id=job_id,
-            mapping=mapping,
+            mapping=controls_json.get("mappings"),
             config_path=config_path,
             backup=backup,
         )
@@ -976,7 +1003,7 @@ def _run_mame_step(
             status="failed",
             message=message,
             job_id=job_id,
-            mapping=mapping,
+            mapping=controls_json.get("mappings"),
             config_path=config_path,
             backup=backup,
         )
@@ -993,7 +1020,7 @@ def _run_mame_step(
         status=final_status,
         message=message,
         job_id=job_id,
-        mapping=mapping,
+        mapping=controls_json.get("mappings"),
         config_path=config_path,
         backup=backup,
     )

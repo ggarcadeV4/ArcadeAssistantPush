@@ -18,7 +18,7 @@ import cors from 'cors';
 
 import { validateEnvironment, initializeApp } from './startup_manager.js';
 import { loadCabinetIdentity } from './utils/cabinetIdentity.js';
-import { warnIfManifestMissing } from './utils/driveDetection.js';
+import { getDriveRoot, warnIfManifestMissing } from './utils/driveDetection.js';
 import { loadManifest, validateManifest, validateCorsOptions, installNoLocalWritesGuard, preflightNoLocalWritesInConfig } from './policies/manifestValidator.js';
 import { setupGracefulShutdown } from './shutdown_manager.js';
 
@@ -35,10 +35,12 @@ import registerFrontendLog from './routes/frontend.js';
 import aiHealthRoutes from './routes/aiHealth.js';
 import ttsRoutes from './routes/tts.js';
 import { setupAudioWebSocket } from './ws/audio.js';
+import { setupControllerHardwareWebSocket } from './ws/controllerHardware.js';
 import { setupLEDWebSocket } from './ws/led.js';
 import { setupGunnerWebSocket } from './ws/gunner.js';
 import { initializeHotkeyBridge } from './ws/hotkey.js';
 import ledRoutes from './routes/led.js';
+import blinkyRoutes from './routes/blinky.js';
 import gunnerRoutes from './routes/gunner.js';
 import healthProxyRoutes from './routes/healthProxy.js';
 import supabaseRoutes from './routes/supabase.js';
@@ -85,14 +87,13 @@ function injectRuntimeBootstrap(indexHtml, identity, buildId) {
 }
 
 async function createServer() {
-  try {
     try {
-      const aaRoot = process.env.AA_DRIVE_ROOT || process.cwd();
-      const manifestPath = path.join(aaRoot, '.aa', 'manifest.json');
-      warnIfManifestMissing(manifestPath);
-    } catch {
-      // best-effort warning only
-    }
+      const configuredRoot = getDriveRoot();
+      if (configuredRoot) {
+        warnIfManifestMissing(configuredRoot);
+      } else {
+        console.warn('[Gateway] AA_DRIVE_ROOT is not set; starting in demo/read-only mode until configured.');
+      }
 
     try {
       try {
@@ -119,7 +120,7 @@ async function createServer() {
 
     const app = express();
     await initializeApp(app);
-    app.locals.cabinetIdentity = loadCabinetIdentity(app.locals.driveRoot);
+    app.locals.cabinetIdentity = loadCabinetIdentity(app.locals.driveRoot || undefined);
 
     app.disable('x-powered-by');
     app.set('trust proxy', 1);
@@ -167,6 +168,7 @@ async function createServer() {
     app.use('/api/ai/health', aiHealthRoutes);
     console.log('[INFO] Using FastAPI for /api/local/* via proxy');
     app.use('/api/local/led', ledRoutes);
+    app.use('/api/local/blinky', blinkyRoutes);
     app.use('/api/local/gunner', gunnerRoutes);
     app.use('/api/local/health', healthProxyRoutes);
     app.use('/api/supabase', supabaseRoutes);
@@ -187,12 +189,8 @@ async function createServer() {
     app.use('/api/cabinet', cabinetRoutes);
     app.use('/api/dewey/search', deweySearchRoutes);
 
-    const launchboxImages = path.join(
-      process.env.AA_DRIVE_ROOT || 'A:\\',
-      'LaunchBox',
-      'Images'
-    );
-    if (fs.existsSync(launchboxImages)) {
+    const launchboxImages = app.locals.runtimePaths?.launchboxImages;
+    if (launchboxImages && fs.existsSync(launchboxImages)) {
       console.log('[INFO] Serving LaunchBox images at /api/launchbox/image from:', launchboxImages);
       app.use('/api/launchbox/image', express.static(launchboxImages, {
         maxAge: '1d',
@@ -215,7 +213,7 @@ async function createServer() {
 
       const indexHtml = fs.readFileSync(indexPath, 'utf8');
       const buildId = extractSpaBuildId(indexHtml);
-      const identity = loadCabinetIdentity(app.locals.driveRoot);
+      const identity = loadCabinetIdentity(app.locals.driveRoot || undefined);
       app.locals.cabinetIdentity = identity;
       const hydratedHtml = injectRuntimeBootstrap(indexHtml, identity, buildId);
       applySpaShellHeaders(res, buildId);
@@ -317,6 +315,7 @@ async function createServer() {
 
     const wss = new WebSocketServer({ server });
     setupAudioWebSocket(wss);
+    setupControllerHardwareWebSocket(wss);
     setupLEDWebSocket(wss);
     setupGunnerWebSocket(wss);
     setupScorekeeperWebSocket(wss);
@@ -326,7 +325,7 @@ async function createServer() {
       try {
         const host = req.headers.host || 'localhost';
         const url = new URL(req.url, `http://${host}`);
-        const allowedPaths = new Set(['/ws/audio', '/api/local/led/ws', '/api/local/gunner/ws', '/ws/hotkey', '/scorekeeper/ws', '/ws/session']);
+        const allowedPaths = new Set(['/ws/audio', '/api/local/hardware/ws/encoder-events', '/api/local/led/ws', '/api/local/gunner/ws', '/ws/hotkey', '/scorekeeper/ws', '/ws/session']);
         if (!allowedPaths.has(url.pathname)) {
           console.log(`[Gateway WS] Rejecting unsupported path: ${url.pathname}`);
           ws.close(4404, 'Unsupported WebSocket path');

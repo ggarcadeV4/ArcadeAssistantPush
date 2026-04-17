@@ -63,6 +63,12 @@ from backend.services.policies import require_scope, is_allowed_file
 from backend.services.led_game_profiles import LEDGameProfileStore
 from backend.services.led_mapping_service import LEDMappingService
 from backend.constants.paths import Paths
+from backend.constants.drive_root import (
+    get_drive_root,
+    get_launchbox_root,
+    get_project_root,
+    resolve_runtime_path,
+)
 from backend.services.runtime_state import update_runtime_state
 import requests
 from pydantic import BaseModel, Field
@@ -111,6 +117,11 @@ _LAUNCHBOX_DIRECT_FIRST_PLATFORM_KEYS = {
     "namco system es3",
     "namco system 357",
     "examu exboard",
+}
+
+_LAUNCHBOX_ONLY_PLATFORM_KEYS = {
+    "daphne",
+    "american laser games",
 }
 
 
@@ -857,38 +868,25 @@ def _start_dewey_overlay_sidecar() -> tuple[bool, str]:
 async def launch_launchbox_app(req: Request):
     """Launch LaunchBox.exe as a detached process."""
     drive_root = getattr(req.app.state, "drive_root", None)
-    drive_letter_root: Optional[Path] = None
     actual_drive_root: Optional[Path] = None
     try:
         if isinstance(drive_root, Path):
             actual_drive_root = drive_root
-            if drive_root.drive:
-                drive_letter_root = Path(f"{drive_root.drive}\\")
         elif isinstance(drive_root, str):
-            p = Path(drive_root)
-            actual_drive_root = p
-            if p.drive:
-                drive_letter_root = Path(f"{p.drive}\\")
+            actual_drive_root = Path(drive_root)
     except Exception:
         actual_drive_root = None
-        drive_letter_root = None
 
     candidates: List[Path] = []
-    dynamic_launchbox_root = LaunchBoxPaths._get_launchbox_root_dynamic()
+    dynamic_launchbox_root = (
+        get_launchbox_root(actual_drive_root)
+        if actual_drive_root is not None
+        else LaunchBoxPaths._get_launchbox_root_dynamic()
+    )
     candidates.extend([
         dynamic_launchbox_root / "LaunchBox.exe",
         dynamic_launchbox_root / "Core" / "LaunchBox.exe",
     ])
-    if actual_drive_root:
-        candidates.extend([
-            actual_drive_root / "LaunchBox" / "LaunchBox.exe",
-            actual_drive_root / "LaunchBox" / "Core" / "LaunchBox.exe",
-        ])
-    if drive_letter_root:
-        candidates.extend([
-            drive_letter_root / "LaunchBox" / "LaunchBox.exe",
-            drive_letter_root / "LaunchBox" / "Core" / "LaunchBox.exe",
-        ])
     candidates.append(Paths.LaunchBox.executable())
 
     # Preserve order and remove duplicates.
@@ -1153,6 +1151,72 @@ def _best_effort_find_pid(exe_path: Optional[str], window_seconds: int = 15) -> 
         return best_pid
     except Exception:
         return None
+
+
+def _confirm_recent_pid(
+    exe_path: Optional[str],
+    *,
+    initial_pid: Optional[int] = None,
+    attempts: int = 6,
+    delay_seconds: float = 0.2,
+) -> Optional[int]:
+    """Poll briefly for a newly started process so launch success reflects reality."""
+    if initial_pid:
+        return initial_pid
+    if not exe_path:
+        return None
+    pid = None
+    tries = max(1, int(attempts))
+    for idx in range(tries):
+        pid = _best_effort_find_pid(exe_path)
+        if pid:
+            return pid
+        if idx < (tries - 1):
+            time.sleep(max(0.0, float(delay_seconds)))
+    return None
+
+
+def _coerce_panel_launch_response(
+    result: LaunchResponse,
+    game: Game,
+    panel: str,
+) -> LaunchResponse:
+    """Only report a launch to panel callers when the backend can verify it."""
+    if not getattr(result, "success", False):
+        return result
+
+    method_used = str(getattr(result, "method_used", "") or "")
+    if method_used == "launchbox_only":
+        result.success = False
+        result.message = (
+            f"{game.platform} titles must be launched from native LaunchBox. "
+            f"LoRa cannot confirm {game.title} from this panel."
+        )
+        return result
+
+    if panel not in {"launchbox", "retrofe", "pegasus"}:
+        return result
+
+    verifiable_methods = {"direct", "detected_emulator", "launchbox"}
+    if method_used not in verifiable_methods:
+        return result
+
+    exe_path, _, _ = _parse_command_info(getattr(result, "command", None))
+    confirmed_pid = _confirm_recent_pid(
+        exe_path,
+        initial_pid=getattr(result, "pid", None),
+    )
+    if confirmed_pid:
+        result.pid = confirmed_pid
+        return result
+
+    prior_message = str(getattr(result, "message", "") or "").strip()
+    result.success = False
+    result.message = (
+        f"Launch command was issued for {game.title}, but the process could not be confirmed."
+        + (f" Last status: {prior_message}" if prior_message else "")
+    )
+    return result
 
 
 def log_decision(entry: Dict[str, Any]) -> None:
@@ -1717,16 +1781,13 @@ async def autofix_retroarch(request: Request) -> Dict[str, Any]:
             continue
 
     # 3) Load config/launchers.json
-    cfg_paths = [
-        Path.cwd() / 'config' / 'launchers.json',
-        Path(__file__).resolve().parents[2] / 'config' / 'launchers.json',
-    ]
+    cfg_paths = [get_project_root() / 'config' / 'launchers.json']
     cfg_path = next((p for p in cfg_paths if p.exists()), None)
     if not cfg_path:
         return {"success": False, "message": "config/launchers.json not found"}
 
     # 4) Backup
-    drive_root = request.app.state.drive_root if hasattr(request, 'app') else Path.cwd()
+    drive_root = request.app.state.drive_root if hasattr(request, 'app') else get_drive_root(allow_cwd_fallback=True)
     try:
         backup_path = create_backup(cfg_path, drive_root)
     except Exception:
@@ -1984,37 +2045,6 @@ async def list_games_legacy(
         logger.error(f"LaunchBox game list error: {e}")
         raise HTTPException(status_code=503, detail="Unable to load games from LaunchBox")
 
-
-@router.get("/random")
-@with_timeout(10.0)
-async def random_game(platform: Optional[str] = Query(None)):
-    """
-    Get a random game, optionally filtered by platform.
-    
-    Uses JSON cache for fast access.
-    Used by LoRa panel for random game selection.
-    """
-    try:
-        # Get filtered games from JSON cache
-        games = await run_in_threadpool(
-            json_cache.filter_games,
-            platform=platform,
-            genre=None,
-            search=None,
-            limit=20000  # Get all matching games for random selection
-        )
-        
-        if not games:
-            raise HTTPException(status_code=503, detail="No games available")
-        
-        return random.choice(games)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"LaunchBox random game error: {e}")
-        raise HTTPException(status_code=503, detail="Unable to load games from LaunchBox")
-
-
 # =============================================================================
 # Shader Management Endpoints (V2)
 # =============================================================================
@@ -2037,7 +2067,7 @@ async def get_shaders_available():
 @router.get("/shaders/game/{game_id}")
 async def get_game_shader(game_id: str, request: Request):
     """Get current shader config for specific game."""
-    drive_root = request.app.state.drive_root if hasattr(request, "app") else Path.cwd()
+    drive_root = request.app.state.drive_root if hasattr(request, "app") else get_drive_root(allow_cwd_fallback=True)
     manifest = getattr(request.app.state, "manifest", {}) if hasattr(request, "app") else {}
     config_path = drive_root / "configs" / "shaders" / "games" / f"{game_id}.json"
 
@@ -2533,21 +2563,37 @@ async def get_game_image(game_id: str):
 
     Also checks region subfolders for localized artwork.
     """
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, Response
     from pathlib import Path
     import os
+
+    def placeholder_image_response(title: str) -> Response:
+        safe_title = (title or "Game").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        initial = (safe_title[:1] or "?").upper()
+        svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
+<defs>
+  <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+    <stop offset="0%" stop-color="#0b1220"/>
+    <stop offset="100%" stop-color="#111827"/>
+  </linearGradient>
+</defs>
+<rect width="400" height="240" rx="18" fill="url(#bg)"/>
+<circle cx="200" cy="96" r="30" fill="#312e81" opacity="0.9"/>
+<text x="200" y="108" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#22d3ee">{initial}</text>
+<text x="200" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#e5e7eb">No artwork</text>
+<text x="200" y="195" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#9ca3af">{safe_title[:42]}</text>
+</svg>"""
+        return Response(
+            content=svg,
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
 
     # Fetch game data (cached, fast lookup)
     game = await run_in_threadpool(parser.get_game_by_id, game_id)
 
     if not game:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "success": False,
-                "message": f"Game not found: {game_id}"
-            }
-        )
+        return placeholder_image_response("Game")
 
     # Image priority (optimized: filter None values upfront)
     image_paths = [p for p in [
@@ -2558,13 +2604,7 @@ async def get_game_image(game_id: str):
 
     if not image_paths:
         logger.debug(f"No image paths configured for '{game.title}'")
-        return JSONResponse(
-            status_code=404,
-            content={
-                "success": False,
-                "message": f"No images configured for: {game.title}"
-            }
-        )
+        return placeholder_image_response(game.title)
 
     # Region priority for international releases
     REGION_PRIORITIES = ["World", "North America", "USA", "Europe", "Japan", "Asia", "Australia"]
@@ -2607,14 +2647,7 @@ async def get_game_image(game_id: str):
 
     # No image found after exhaustive search
     logger.debug(f"No image found for '{game.title}' after checking {len(image_paths)} paths with regions")
-    return JSONResponse(
-        status_code=404,
-        content={
-            "success": False,
-            "message": f"No image available for: {game.title}",
-            "paths_checked": len(image_paths) * (1 + len(REGION_PRIORITIES))
-        }
-    )
+    return placeholder_image_response(game.title)
 
 
 @router.get("/platforms", response_model=List[str])
@@ -2918,7 +2951,7 @@ async def launch_game(
             success=False,
             game_id=game_id,
             method_used="none",
-            message="Cannot launch in mock mode. Set AA_DRIVE_ROOT to A:\\ in .env file",
+            message="Cannot launch while LoRa is using mock library data. Configure AA_DRIVE_ROOT for this cabinet install and reload the LaunchBox library.",
             game_title=None
         )
         try:
@@ -2965,6 +2998,33 @@ async def launch_game(
         except Exception:
             pass
         return resp
+
+    platform_key = normalize_key(getattr(game, "platform", "") or "")
+    if panel == "launchbox" and platform_key in _LAUNCHBOX_ONLY_PLATFORM_KEYS:
+        resp = LaunchResponse(
+            success=False,
+            game_id=game.id,
+            game_title=game.title,
+            method_used="launchbox_only",
+            message=f"{game.platform} titles launch through the native LaunchBox frontend. Use the LaunchBox button to open it, then start {game.title} there.",
+        )
+        try:
+            decision = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "game_id": game.id,
+                "game_title": game.title,
+                "platform": game.platform,
+                "categories": game.categories or [],
+                "panel": panel,
+                "requested_by": "launchbox_lora_excluded",
+                "launch_method": resp.method_used,
+                "reason": resp.message,
+            }
+            log_decision(decision)
+        except Exception:
+            pass
+        return resp
+
     # AHK script safety guard:
     # Some LaunchBox entries use ApplicationPath .ahk launchers.
     # A second launch while the first script is active can trigger AutoHotkey's
@@ -3186,6 +3246,7 @@ async def launch_game(
         if forced_method in {"plugin", "detected_emulator", "direct", "launchbox"}:
             result = await run_in_threadpool(launcher.launch, game, forced_method, profile_hint)
             result.game_title = game.title
+            result = _coerce_panel_launch_response(result, game, panel)
             try:
                 exe_path, emulator_name, profile_used = _parse_command_info(getattr(result, 'command', None))
                 decision = {
@@ -3238,6 +3299,54 @@ async def launch_game(
     if policy_mode == "direct_only":
         try:
             direct_result = await run_in_threadpool(launcher.launch, game, 'direct', profile_hint)
+            # Capture the raw adapter result BEFORE panel coercion. If the
+            # direct adapter reported success, the OS spawn happened. Coercion
+            # may later downgrade success->False purely because PID confirmation
+            # could not match within its short polling window (false negative
+            # for slow-starting emulators like RPCS3). In that case the panel
+            # should be told the launch is unconfirmed — but we must NOT fall
+            # through to detected_emulator/plugin/fallback, because each of
+            # those will spawn the same emulator again and collide with the
+            # first (now-running) instance. See audit: duplicate RPCS3 spawns
+            # on one LoRa click.
+            raw_direct_success = bool(getattr(direct_result, 'success', False)) if direct_result else False
+            direct_result = _coerce_panel_launch_response(direct_result, game, panel)
+
+            # Unconfirmed-but-actually-launched case: stop the cascade here.
+            if (
+                raw_direct_success
+                and direct_result is not None
+                and not getattr(direct_result, 'success', False)
+                and panel != "pegasus"
+            ):
+                direct_result.game_title = game.title
+                logger.info(
+                    "Direct launch issued for '%s' but process could not be confirmed; "
+                    "returning unconfirmed response to panel without falling through "
+                    "to detected_emulator/plugin/fallback (prevents duplicate spawn).",
+                    game.title,
+                )
+                try:
+                    _log_launch_event(http_request, game, direct_result)
+                except Exception:
+                    pass
+                try:
+                    decision = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "game_id": game.id,
+                        "game_title": game.title,
+                        "platform": game.platform,
+                        "categories": game.categories or [],
+                        "panel": panel,
+                        "requested_by": "lora_direct",
+                        "launch_method": getattr(direct_result, "method_used", "direct"),
+                        "reason": "direct spawn issued, PID confirmation failed — cascade suppressed",
+                    }
+                    log_decision(decision)
+                except Exception:
+                    pass
+                return direct_result
+
             if direct_result and getattr(direct_result, 'success', False):
                 direct_result.game_title = game.title
                 logger.info(f"Direct-only launch succeeded for '{game.title}'")
@@ -3247,7 +3356,6 @@ async def launch_game(
                     pass
 
                 # Best-effort PID tracking (enables vision capture on exit for non-MAME)
-                print(f"[Phase0F-diag] Entering PID tracking: result.success={getattr(direct_result, 'success', None)}, result.pid={getattr(direct_result, 'pid', 'NONE')}, type={type(direct_result).__name__}")
                 try:
                     logger.info(f"[Phase0F] PID tracking ENTRY: direct_result.pid={getattr(direct_result, 'pid', 'MISSING')}, type={type(direct_result).__name__}")
                     exe_path, emulator_name, _ = _parse_command_info(getattr(direct_result, 'command', None))
@@ -3301,6 +3409,7 @@ async def launch_game(
                 logger.info(f"Direct-only path did not claim '{game.title}', trying detected_emulator")
                 result = await run_in_threadpool(launcher.launch, game, 'detected_emulator', profile_hint)
                 result.game_title = game.title
+                result = _coerce_panel_launch_response(result, game, panel)
                 try:
                     _log_launch_event(http_request, game, result)
                 except Exception:
@@ -3409,6 +3518,7 @@ async def launch_game(
             force_method,
             profile_hint
         )
+        result = _coerce_panel_launch_response(result, game, panel)
 
         logger.info(
             f"Launch result for '{game.title}': {result.method_used} "
@@ -3613,10 +3723,7 @@ async def get_dry_run_and_direct_status():
             exe = emu.get("exe")
             retroarch["exe"] = exe
             if isinstance(exe, str) and exe:
-                from pathlib import Path
-                p = Path(exe)
-                if not p.exists() and exe.upper().startswith('A:') and os.name != 'nt':
-                    p = Path(exe.replace('\\', '/').replace('A:', '/mnt/a'))
+                p = resolve_runtime_path(exe)
                 retroarch["exe_exists"] = p.exists()
             plat_map = (emu.get("platform_map") or {})
             core_key = plat_map.get("Atari 2600")
@@ -3655,9 +3762,7 @@ async def get_dry_run_and_direct_status():
             exists = False
             resolved = None
             if isinstance(exe_val, str) and exe_val.strip():
-                p = Path(exe_val)
-                if not p.exists() and exe_val.upper().startswith("A:") and os.name != "nt":
-                    p = Path(exe_val.replace("\\", "/").replace("A:", "/mnt/a"))
+                p = resolve_runtime_path(exe_val)
                 exists = p.exists()
                 resolved = str(p)
             emulator_paths[str(emu_name)] = {
@@ -3762,9 +3867,7 @@ async def list_adapters() -> List[Dict[str, Any]]:
         exe_raw = cfg.get("exe")
         if not isinstance(exe_raw, str) or not exe_raw.strip():
             return None, False
-        p = Path(exe_raw)
-        if not p.exists() and exe_raw.upper().startswith("A:") and os.name != "nt":
-            p = Path(exe_raw.replace("\\", "/").replace("A:", "/mnt/a"))
+        p = resolve_runtime_path(exe_raw)
         return exe_raw, p.exists()
 
     items: List[Dict[str, Any]] = []

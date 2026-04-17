@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { buildStandardHeaders } from '../../../utils/identity'
+
+const NEWS_CHAT_PANEL = 'dewey-news-chat'
 
 /**
  * useNewsChat – lightweight hook for chatting with Dewey about gaming news.
@@ -64,11 +67,15 @@ IMPORTANT: Be conversational FIRST. If the user greets you or asks how you're do
 
             const res = await fetch('/api/voice/tts', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: buildStandardHeaders({
+                    panel: NEWS_CHAT_PANEL,
+                    scope: 'state',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({
                     text: text.slice(0, 500),  // Limit TTS length
                     voice_id: 't0A4EWIngExKpUqW6AWI',  // Dewey's voice
-                    panel: 'dewey-news-chat'
+                    panel: NEWS_CHAT_PANEL
                 })
             })
 
@@ -134,17 +141,18 @@ IMPORTANT: Be conversational FIRST. If the user greets you or asks how you're do
 
             const res = await fetch('/api/ai/chat', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-scope': 'state'
-                },
+                headers: buildStandardHeaders({
+                    panel: NEWS_CHAT_PANEL,
+                    scope: 'state',
+                    extraHeaders: { 'Content-Type': 'application/json' },
+                }),
                 body: JSON.stringify({
                     provider: 'gemini',
                     system: buildSystemPrompt(),
                     messages: allMessages,
                     temperature: 0.7,
                     max_tokens: 500,
-                    panel: 'dewey-news-chat'
+                    panel: NEWS_CHAT_PANEL
                 })
             })
 

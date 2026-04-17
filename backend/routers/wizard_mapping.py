@@ -21,6 +21,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..services.backup import create_backup
+from ..services.diffs import compute_diff, has_changes
 from .chuck_hardware import get_input_detection_service, get_latest_event
 from ..services.chuck.input_detector import InputDetectionService, InputEvent, detect_input_mode
 from ..services.chuck.encoder_state import get_encoder_state_manager
@@ -28,6 +29,16 @@ from ..services.console_wizard_manager import ConsoleWizardManager
 from ..services.controller_baseline import get_cascade_preference, update_controller_baseline
 from ..services.gamepad_detector import get_profile_details
 from ..services.controller_cascade import enqueue_cascade_job, run_cascade_job
+from ..services.pacto_identity import (
+    PACTO_XINPUT_BOARD_TYPES,
+    looks_like_pacto,
+)
+from ..services.usb_detector import (
+    USBBackendError,
+    USBDetectionError,
+    USBPermissionError,
+    detect_arcade_boards,
+)
 from ..services.mame_config_generator import (
     MAMEConfigError,
     generate_mame_config,
@@ -119,6 +130,7 @@ class SingleMappingRequest(BaseModel):
     controlKey: str = Field(..., description="Control key, e.g., 'p1.up', 'p2.button3'")
     keycode: str = Field(..., description="Keycode to assign")
     source: Optional[str] = Field(default="keyboard")
+    dry_run: bool = Field(default=False, description="Preview only; do not persist")
 
 
 class ClearMappingRequest(BaseModel):
@@ -232,6 +244,123 @@ def get_control_display_name(control_key: str) -> str:
         btn_num = control_name.replace("button", "")
         return f"{player_num} Button {btn_num}"
     return f"{player_num} {control_name.capitalize()}"
+
+
+def _looks_like_pacto_board(board: Dict[str, Any]) -> bool:
+    """Compatibility wrapper — Pacto identity now lives in pacto_identity.
+
+    Wave 2: the shared ``looks_like_pacto`` recognizes ``pacto``, ``paxco``,
+    ``pactotech``, and ``pacdrive`` as Pacto-family tokens.
+    """
+    return looks_like_pacto(board)
+
+
+def _detect_live_wizard_board() -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Wave 1 #6: return ``(board, reason)`` so the wizard can surface the
+    actual failure class instead of a vague "no board" message.
+
+    ``reason`` is ``None`` when a board is found. When no board is returned,
+    ``reason`` is a short operator-facing string explaining whether detection
+    failed (USB backend down, permissions, exception) or whether the scan
+    simply found no boards.
+    """
+    try:
+        all_boards = detect_arcade_boards()
+    except USBPermissionError as exc:
+        logger.warning("[Wizard] USB permission denied during board detection: %s", exc)
+        return None, (
+            f"USB permission denied while scanning for encoder boards. "
+            f"Run the backend as Administrator (Windows) or fix plugdev membership "
+            f"(Linux). Underlying error: {exc}"
+        )
+    except USBBackendError as exc:
+        logger.warning("[Wizard] USB backend unavailable during board detection: %s", exc)
+        return None, (
+            f"USB backend unavailable. On Windows, start the backend via start-gui.bat. "
+            f"On WSL, attach the device with usbipd and install libusb. "
+            f"Underlying error: {exc}"
+        )
+    except USBDetectionError as exc:
+        logger.warning("[Wizard] USB detection error: %s", exc)
+        return None, f"USB detection error during board scan: {exc}"
+    except Exception as exc:
+        logger.warning("[Wizard] Unexpected error during board detection: %s", exc)
+        return None, f"Detector failed unexpectedly ({type(exc).__name__}): {exc}"
+
+    boards = [board for board in all_boards if board.get("detected", False)]
+    if not boards:
+        return None, (
+            "USB scan succeeded but no arcade encoder board is currently visible. "
+            "Plug in or repower the board, then re-run the wizard."
+        )
+
+    pacto_board = next((board for board in boards if _looks_like_pacto_board(board)), None)
+    return (pacto_board or boards[0]), None
+
+
+def _infer_detected_mode(board: Optional[Dict[str, Any]]) -> str:
+    if not board:
+        return "software"
+
+    modes = board.get("modes") or {}
+    board_type = str(board.get("board_type") or "").lower()
+    interface = str(board.get("interface") or "").lower()
+
+    # Wave 2: Pacto-XInput board types come from the shared identity table.
+    if (
+        modes.get("xinput")
+        or interface == "xinput"
+        or board_type in PACTO_XINPUT_BOARD_TYPES
+    ):
+        return "xinput"
+    if modes.get("dinput"):
+        return "dinput"
+    if board.get("type") in {"keyboard_encoder", "led_controller"}:
+        return "keyboard"
+    return "hardware"
+
+
+def _merge_board_snapshot(
+    existing_board: Optional[Dict[str, Any]],
+    live_board: Optional[Dict[str, Any]],
+    detected_mode: str,
+) -> Dict[str, Any]:
+    snapshot: Dict[str, Any] = dict(existing_board or {})
+
+    if live_board:
+        for key in (
+            "vid",
+            "pid",
+            "vid_pid",
+            "name",
+            "vendor",
+            "manufacturer",
+            "manufacturer_string",
+            "product_string",
+            "type",
+            "modes",
+            "board_type",
+            "players",
+            "parent_hub",
+            "xinput_nodes",
+            "device_id",
+            "interface",
+            "source",
+        ):
+            value = live_board.get(key)
+            if value not in (None, ""):
+                snapshot[key] = value
+
+        snapshot["detected"] = bool(live_board.get("detected", True))
+        snapshot["status"] = live_board.get("status") or (
+            "connected" if snapshot["detected"] else "offline"
+        )
+    else:
+        snapshot["detected"] = False
+        snapshot["status"] = "offline"
+
+    snapshot["detected_mode"] = detected_mode
+    return snapshot
 
 
 GAMEPAD_PREFERENCE_ALIASES: Dict[str, tuple[str, ...]] = {
@@ -499,8 +628,7 @@ async def save_learned_mapping(request: Request, payload: LearnMappingRequest):
     data["mappings"][payload.control_key]["key_name"] = key_name
 
     try:
-        with open(mapping_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        _write_json_atomic(mapping_file, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save mapping: {exc}")
 
@@ -571,23 +699,10 @@ async def start_learn_wizard(
     _learn_mode_latest_key = None
 
     # Auto-detect encoder board
-    detected_board = None
+    detected_board, detection_failure_reason = _detect_live_wizard_board()
     detected_mode = None
-    try:
-        from ..services.usb_detector import detect_arcade_boards
-        boards = detect_arcade_boards()
-        for board in boards:
-            vendor = board.get("vendor", "").lower()
-            if "pacto" in vendor or "paxco" in vendor:
-                detected_board, detected_mode = board, "xinput"
-                break
-            elif "ultimarc" in vendor:
-                detected_board, detected_mode = board, "keyboard"
-                break
-        if not detected_board and boards:
-            detected_board = boards[0]
-    except Exception as e:
-        logger.warning(f"[LearnWizard] Could not auto-detect encoder board: {e}")
+    if detected_board:
+        detected_mode = _infer_detected_mode(detected_board)
 
     service = get_input_detection_service(request)
     service.set_learn_mode(True)
@@ -618,6 +733,7 @@ async def start_learn_wizard(
         "encoder_mode": encoder_state.get("baseline_mode"),
         "detected_board": detected_board.get("name") if detected_board else None,
         "detected_mode": detected_mode, "dual_mode_enabled": True,
+        "detection_failure_reason": detection_failure_reason,
     }
 
 
@@ -817,12 +933,10 @@ async def save_learn_wizard(request: Request, background_tasks: BackgroundTasks)
         controls_mapped.append(control_key)
 
     data["last_modified"] = datetime.now().isoformat()
-    data["modified_by"] = request.headers.get("x-device-id", "learn_wizard")
+    data["modified_by"] = request.headers.get("x-device-id") or "unknown"
 
     try:
-        mapping_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(mapping_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        _write_json_atomic(mapping_file, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save: {exc}")
 
@@ -849,7 +963,7 @@ async def save_learn_wizard(request: Request, background_tasks: BackgroundTasks)
     # Cascade
     cascade_preference = get_cascade_preference(drive_root)
     if cascade_preference == "auto":
-        requested_by = request.headers.get("x-device-id", "learn_wizard")
+        requested_by = request.headers.get("x-device-id") or "unknown"
         backup_on_write = getattr(request.app.state, "backup_on_write", False)
         cascade_job = enqueue_cascade_job(drive_root, requested_by=requested_by,
             metadata={"source": "learn_wizard", "controls_mapped": controls_mapped}, backup=backup_on_write)
@@ -927,20 +1041,16 @@ def _write_teknoparrot_configs(drive_root, manifest, data):
 # Click-to-Map Single Control
 # ============================================================================
 
-@router.post("/mapping/set")
-async def set_single_mapping(request: Request, payload: SingleMappingRequest):
-    require_scope(request, "config")
-    ensure_writes_allowed(request)
+def _prepare_single_mapping_change(
+    request: Request,
+    payload: SingleMappingRequest,
+) -> Dict[str, Any]:
     control_key, keycode, source = payload.controlKey, payload.keycode, payload.source or "keyboard"
     if "." not in control_key:
         raise HTTPException(status_code=400, detail=f"Invalid control key format: {control_key}")
 
     drive_root: Path = request.app.state.drive_root
     mapping_file = drive_root / "config" / "mappings" / "controls.json"
-    backup_path = None
-    if mapping_file.exists() and getattr(request.app.state, "backup_on_write", True):
-        backup_path = create_backup(mapping_file, drive_root)
-
     try:
         data = json.load(open(mapping_file, "r", encoding="utf-8")) if mapping_file.exists() else {"version": 1, "board": {}, "mappings": {}}
     except Exception:
@@ -948,16 +1058,78 @@ async def set_single_mapping(request: Request, payload: SingleMappingRequest):
     if "mappings" not in data:
         data["mappings"] = {}
 
+    current_content = json.dumps(data, indent=2)
     duplicate_control = next((k for k, v in data["mappings"].items() if k != control_key and v.get("keycode") == keycode), None)
-    data["mappings"][control_key] = {"keycode": keycode, "key_name": keycode.replace("KEY_", "").replace("GAMEPAD_", "").lower(),
-                                     "source": source, "mapped_at": datetime.now().isoformat()}
+    data["mappings"][control_key] = {
+        "keycode": keycode,
+        "key_name": keycode.replace("KEY_", "").replace("GAMEPAD_", "").lower(),
+        "source": source,
+        "mapped_at": datetime.now().isoformat(),
+    }
     data["last_modified"] = datetime.now().isoformat()
-    data["modified_by"] = request.headers.get("x-device-id", "click_to_map")
+    data["modified_by"] = request.headers.get("x-device-id") or "unknown"
+    new_content = json.dumps(data, indent=2)
+
+    return {
+        "drive_root": drive_root,
+        "mapping_file": mapping_file,
+        "data": data,
+        "current_content": current_content,
+        "new_content": new_content,
+        "duplicate_control": duplicate_control,
+        "control_key": control_key,
+        "keycode": keycode,
+        "source": source,
+    }
+
+
+@router.post("/mapping/set/preview")
+async def preview_single_mapping(request: Request, payload: SingleMappingRequest):
+    require_scope(request, "config")
+    prepared = _prepare_single_mapping_change(request, payload)
+    diff = compute_diff(prepared["current_content"], prepared["new_content"], "controls.json")
+    return {
+        "target_file": "config/mappings/controls.json",
+        "has_changes": has_changes(prepared["current_content"], prepared["new_content"]),
+        "diff": diff,
+        "controlKey": prepared["control_key"],
+        "keycode": prepared["keycode"],
+        "source": prepared["source"],
+        "duplicate_control": prepared["duplicate_control"],
+        "dry_run": True,
+    }
+
+@router.post("/mapping/set")
+async def set_single_mapping(request: Request, payload: SingleMappingRequest):
+    require_scope(request, "config")
+    ensure_writes_allowed(request)
+    prepared = _prepare_single_mapping_change(request, payload)
+    if payload.dry_run:
+        diff = compute_diff(prepared["current_content"], prepared["new_content"], "controls.json")
+        return {
+            "status": "preview",
+            "target_file": "config/mappings/controls.json",
+            "has_changes": has_changes(prepared["current_content"], prepared["new_content"]),
+            "diff": diff,
+            "controlKey": prepared["control_key"],
+            "keycode": prepared["keycode"],
+            "source": prepared["source"],
+            "duplicate_control": prepared["duplicate_control"],
+        }
+
+    drive_root: Path = prepared["drive_root"]
+    mapping_file = prepared["mapping_file"]
+    control_key = prepared["control_key"]
+    keycode = prepared["keycode"]
+    source = prepared["source"]
+    backup_path = None
+    if mapping_file.exists() and getattr(request.app.state, "backup_on_write", True):
+        backup_path = create_backup(mapping_file, drive_root)
+    data = prepared["data"]
+    duplicate_control = prepared["duplicate_control"]
 
     try:
-        mapping_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(mapping_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        _write_json_atomic(mapping_file, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save mapping: {exc}")
 
@@ -996,11 +1168,23 @@ async def clear_single_mapping(request: Request, payload: ClearMappingRequest):
 
     old_mapping = data["mappings"].pop(control_key, None)
     data["last_modified"] = datetime.now().isoformat()
+    data["modified_by"] = request.headers.get("x-device-id") or "unknown"
     try:
-        with open(mapping_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        _write_json_atomic(mapping_file, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save: {exc}")
+
+    await log_controller_change(
+        request,
+        drive_root,
+        "single_mapping_clear",
+        {
+            "control_key": control_key,
+            "previous_keycode": old_mapping.get("keycode") if old_mapping else None,
+            "previous_source": old_mapping.get("source") if isinstance(old_mapping, dict) else None,
+        },
+        backup_path,
+    )
 
     return {"status": "cleared", "controlKey": control_key,
             "previous_keycode": old_mapping.get("keycode") if old_mapping else None}
@@ -1013,22 +1197,40 @@ async def clear_single_mapping(request: Request, payload: ClearMappingRequest):
 @router.post("/encoder-mode")
 async def set_encoder_mode(request: Request, payload: EncoderModeRequest):
     require_scope(request, "config")
+    ensure_writes_allowed(request)
     mode = payload.mode.lower()
     if mode not in ("keyboard", "xinput", "dinput"):
         raise HTTPException(status_code=400, detail=f"Invalid mode: {mode}")
 
     drive_root: Path = request.app.state.drive_root
     mapping_file = drive_root / "config" / "mappings" / "controls.json"
+    backup_path = None
+    if mapping_file.exists() and getattr(request.app.state, "backup_on_write", True):
+        backup_path = create_backup(mapping_file, drive_root)
+
     try:
         data = json.load(open(mapping_file, "r", encoding="utf-8")) if mapping_file.exists() else {"version": 1, "board": {}, "mappings": {}}
     except Exception:
         data = {"version": 1, "board": {}, "mappings": {}}
 
+    previous_mode = data.get("encoder_mode")
     data["encoder_mode"] = mode
     data["last_modified"] = datetime.now().isoformat()
-    mapping_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(mapping_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    data["modified_by"] = request.headers.get("x-device-id") or "unknown"
+    _write_json_atomic(mapping_file, data)
+
+    await log_controller_change(
+        request,
+        drive_root,
+        "encoder_mode_set",
+        {
+            "encoder_mode": mode,
+            "previous_mode": previous_mode,
+            "target_file": "config/mappings/controls.json",
+        },
+        backup_path,
+    )
+
     return {"status": "saved", "encoder_mode": mode}
 
 
@@ -1127,11 +1329,17 @@ async def start_wiring_wizard(
     except Exception:
         controls_data = {}
 
-    board_info = controls_data.get("board") or {}
-    board_name = board_info.get("name") or "Unknown Board"
-    board_detected = bool(board_info.get("detected"))
-    detected_mode = "hardware" if board_detected else "software"
-    mode_warning = None if board_detected else "No encoder board detected — mapping in software mode."
+    existing_board = controls_data.get("board") or {}
+    live_board, detection_failure_reason = _detect_live_wizard_board()
+    detected_mode = _infer_detected_mode(live_board)
+    board_snapshot = _merge_board_snapshot(existing_board, live_board, detected_mode)
+    board_name = board_snapshot.get("name") or "Unknown Board"
+    if live_board:
+        mode_warning = None
+    elif detection_failure_reason:
+        mode_warning = f"Mapping in software mode — {detection_failure_reason}"
+    else:
+        mode_warning = "No encoder board detected — mapping in software mode."
 
     service = get_input_detection_service(request)
     service.set_learn_mode(True)
@@ -1147,6 +1355,8 @@ async def start_wiring_wizard(
         "identity": existing_identity.get("bindings", {}),
         "identity_status": existing_identity.get("status", "unbound"),
         "identity_pending": None,
+        "detected_board_info": board_snapshot,
+        "detected_mode": detected_mode,
     }
     return {
         "status": "started",
@@ -1160,6 +1370,7 @@ async def start_wiring_wizard(
         "detected_board": board_name,
         "detected_mode": detected_mode,
         "mode_warning": mode_warning,
+        "detection_failure_reason": detection_failure_reason,
         "chuck_prompt": "Let's map your controls. Press the physical button that corresponds to each highlighted control.",
     }
 
@@ -1324,8 +1535,18 @@ async def wizard_apply(
             continue
         data["mappings"][key] = capture
 
+    existing_board = data.get("board") or {}
+    live_board, detection_failure_reason = _detect_live_wizard_board()
+    detected_mode = _infer_detected_mode(live_board)
+    session_board = state.get("detected_board_info") if isinstance(state.get("detected_board_info"), dict) else None
+    data["board"] = _merge_board_snapshot(
+        existing_board,
+        live_board or session_board,
+        detected_mode if live_board else str(state.get("detected_mode") or "software"),
+    )
+
     data["last_modified"] = datetime.now().isoformat()
-    data["modified_by"] = request.headers.get("x-device-id", "wiring_wizard")
+    data["modified_by"] = request.headers.get("x-device-id") or "unknown"
 
     try:
         _write_json_atomic(mapping_file, data)
@@ -1348,7 +1569,7 @@ async def wizard_apply(
         "triggered": False,
     }
     if cascade_preference == "auto":
-        requested_by = request.headers.get("x-device-id", "wiring_wizard")
+        requested_by = request.headers.get("x-device-id") or "unknown"
         backup_on_write = getattr(request.app.state, "backup_on_write", False)
         cascade_job = enqueue_cascade_job(drive_root, requested_by=requested_by,
             metadata={"source": "wiring_wizard"}, backup=backup_on_write)
@@ -1369,6 +1590,8 @@ async def wizard_apply(
             "file": str(mapping_file)}
     if gamepad_sync_result:
         response["gamepad_preferences_sync"] = gamepad_sync_result
+    if not live_board and detection_failure_reason:
+        response["detection_failure_reason"] = detection_failure_reason
     return response
 
 

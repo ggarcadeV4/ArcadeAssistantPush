@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { streamChat } from '../lib/sseClient'
 import { sentenceBoundaryAccumulator } from '../lib/earlyTts'
+import { buildStandardHeaders } from '../utils/identity'
 
 export default function ChatPanel() {
   const [text, setText] = useState("")
@@ -14,7 +15,11 @@ export default function ChatPanel() {
       try {
         await fetch('/api/voice/tts', {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-device-id': 'CAB-001', 'x-panel': 'voice' },
+          headers: buildStandardHeaders({
+            panel: 'voice',
+            scope: 'state',
+            extraHeaders: { 'Content-Type': 'application/json' },
+          }),
           body: JSON.stringify({ text: first })
         })
       } catch {}

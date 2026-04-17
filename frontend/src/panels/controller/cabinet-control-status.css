@@ -1,0 +1,276 @@
+/* CabinetControlStatus — Chuck Telemetry Rail
+ *
+ * REDESIGN 2026-04-14: Converted from horizontal card grid to a slim left-rail
+ * telemetry module. Width is fixed at 200px. The rail presents the four truth
+ * surfaces as compact stacked rows, not wide cards. Warnings collapse into an
+ * expandable section. The controller stage is now the layout hero.
+ */
+
+/* ── Rail wrapper ─────────────────────────────────────────────────────── */
+.cabinet-status {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 11, 8, 0.9);
+  border-right: 1px solid rgba(0, 255, 65, 0.12);
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: 'Share Tech Mono', 'Segoe UI', monospace;
+  color: #b0c8b8;
+  gap: 0;
+}
+
+/* Custom scrollbar — hairline only */
+.cabinet-status::-webkit-scrollbar { width: 3px; }
+.cabinet-status::-webkit-scrollbar-track { background: transparent; }
+.cabinet-status::-webkit-scrollbar-thumb { background: rgba(0,255,65,0.12); border-radius: 2px; }
+
+/* ── Rail header ──────────────────────────────────────────────────────── */
+.cabinet-status__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.cabinet-status__header h2 {
+  margin: 0;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(0,255,65,0.5);
+  font-family: 'Orbitron', sans-serif;
+  white-space: nowrap;
+}
+
+/* Hide the subtitle paragraph — too verbose for the rail */
+.cabinet-status__header p {
+  display: none;
+}
+
+.cabinet-status__refresh {
+  background: transparent;
+  border: 1px solid rgba(0, 255, 65, 0.22);
+  color: rgba(0,255,65,0.5);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cabinet-status__refresh:hover:not(:disabled) {
+  background: rgba(0, 255, 65, 0.1);
+  color: #00ff41;
+  border-color: rgba(0,255,65,0.5);
+}
+
+.cabinet-status__refresh:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── Loading / error states ───────────────────────────────────────────── */
+.cabinet-status__placeholder,
+.cabinet-status__error {
+  margin: 0;
+  padding: 10px;
+  font-size: 10px;
+  color: #4a6a52;
+}
+
+.cabinet-status__error { color: rgba(255,80,80,0.7); }
+
+/* ── Rail grid — replaced by stacked rows ─────────────────────────────── */
+/* Keep the class but override layout entirely */
+.cabinet-status__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 0;
+}
+
+/* ── Each truth row — compact stacked module ─────────────────────────── */
+.cabinet-status__card {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.07);
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  transition: background 0.15s;
+}
+
+.cabinet-status__card:hover {
+  background: rgba(0, 255, 65, 0.03);
+}
+
+/* Status accent — left border color per state */
+.cabinet-status__card--connected    { border-left-color: rgba(0,255,65,0.6); }
+.cabinet-status__card--not_detected { border-left-color: rgba(245,158,11,0.5); }
+.cabinet-status__card--saved        { border-left-color: rgba(56,189,248,0.5); }
+.cabinet-status__card--missing      { border-left-color: rgba(245,158,11,0.5); }
+.cabinet-status__card--runtime      { border-left-color: rgba(167,139,250,0.4); }
+.cabinet-status__card--idle         { border-left-color: rgba(100,116,139,0.35); }
+.cabinet-status__card--running      { border-left-color: rgba(56,189,248,0.5); }
+.cabinet-status__card--failed,
+.cabinet-status__card--error,
+.cabinet-status__card--stale        { border-left-color: rgba(248,113,113,0.6); }
+.cabinet-status__card--unknown      { border-left-color: rgba(100,116,139,0.25); }
+
+/* ── Label ─────────────────────────────────────────────────────────── */
+.cabinet-status__label {
+  font-size: 7.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(0,255,65,0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Value ──────────────────────────────────────────────────────────── */
+.cabinet-status__value {
+  font-size: 11px;
+  color: #d0e8d8;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* ── Detail / summary ───────────────────────────────────────────────── */
+.cabinet-status__detail {
+  margin: 0;
+  font-size: 9.5px;
+  color: rgba(176,200,184,0.55);
+  line-height: 1.35;
+  /* Clamp to 2 lines to keep rail compact */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Source / metadata row ──────────────────────────────────────────── */
+.cabinet-status__source {
+  font-size: 8.5px;
+  color: rgba(100,116,139,0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── RuntimeEndpoints list — keep super compact ─────────────────────── */
+.cabinet-status__list {
+  margin: 2px 0 0;
+  padding-left: 12px;
+  font-size: 9px;
+  color: rgba(176,200,184,0.55);
+}
+
+.cabinet-status__list li {
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Warnings & Drift section ───────────────────────────────────────── */
+.cabinet-status__warnings {
+  padding: 8px 10px;
+  border-top: 1px solid rgba(0, 255, 65, 0.1);
+  flex-shrink: 0;
+}
+
+.cabinet-status__warnings h3 {
+  margin: 0 0 6px;
+  font-size: 7.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(245,158,11,0.6);
+  font-family: 'Orbitron', sans-serif;
+}
+
+.cabinet-status__warnings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cabinet-status__warning {
+  background: rgba(15, 20, 17, 0.8);
+  border-left: 2px solid rgba(100,116,139,0.4);
+  border-radius: 3px;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cabinet-status__warning strong {
+  font-size: 9.5px;
+  color: #d0e8d8;
+  line-height: 1.2;
+}
+
+.cabinet-status__warning span {
+  font-size: 9px;
+  color: rgba(176,200,184,0.55);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cabinet-status__warning--warning { border-left-color: rgba(245,158,11,0.65); }
+.cabinet-status__warning--error   { border-left-color: rgba(248,113,113,0.65); }
+.cabinet-status__warning--info    { border-left-color: rgba(56,189,248,0.5); }
+
+.cabinet-status__healthy {
+  margin: 0;
+  font-size: 9.5px;
+  color: rgba(0,255,65,0.45);
+}
+
+/* ── Hardware Profile Override Dropdown ───────────────────────────────── */
+.cabinet-status__override {
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.4rem;
+  background-color: #111;
+  color: #00ff00;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.cabinet-status__override:hover,
+.cabinet-status__override:focus {
+  border-color: #00ff00;
+}
+
+.cabinet-status__override option {
+  background-color: #111;
+  color: #fff;
+}

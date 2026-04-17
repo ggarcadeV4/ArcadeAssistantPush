@@ -8,6 +8,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { requireDriveRoot } from '../../utils/driveDetection.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -29,7 +30,7 @@ const CACHE_TTL_MS = 60000;  // 1 minute cache
  * @returns {string}
  */
 function getProfilesPath() {
-    const driveRoot = process.env.AA_DRIVE_ROOT || 'A:\\';
+    const driveRoot = requireDriveRoot();
     return path.join(driveRoot, 'Arcade Assistant Local', 'config', 'mappings', PROFILES_FILENAME);
 }
 

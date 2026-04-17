@@ -15,24 +15,32 @@ from backend.constants.drive_root import get_drive_root
 logger = logging.getLogger(__name__)
 
 
-def _get_supabase_active_player(device_id: str = "CAB-0001") -> Optional[Dict[str, Any]]:
+def _get_supabase_active_player(device_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Check Supabase aa_lora_sessions for active_player field.
     Part of Phase 5 Split-Brain Fix: Supabase is source of truth.
-    
+
     Args:
-        device_id: Device identifier for session lookup
-        
+        device_id: Device identifier for session lookup. If None, resolved
+            from AA_DEVICE_ID env var (populated by cabinet_identity at
+            startup). No synthetic fallback — caller gets None if unresolved.
+
     Returns:
         active_player dict or None if not found/error
     """
     try:
         import os
         import httpx
-        
+
+        if not device_id:
+            device_id = (os.getenv("AA_DEVICE_ID") or "").strip()
+        if not device_id:
+            logger.debug("Supabase active_player lookup skipped: AA_DEVICE_ID unset")
+            return None
+
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
-        
+
         if not supabase_url or not supabase_key:
             return None
         

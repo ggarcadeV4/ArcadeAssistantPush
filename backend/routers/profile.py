@@ -87,6 +87,30 @@ def _read_json(path: Path) -> Optional[Dict[str, Any]]:
         return json.load(f)
 
 
+def _build_primary_profile_object(path: Path, payload: PrimaryProfilePayload) -> Dict[str, Any]:
+    profile_obj = {
+        "user_id": payload.user_id,
+        "display_name": payload.display_name,
+        "initials": payload.initials,
+        "voice_prefs": payload.voice_prefs,
+        "vocabulary": payload.vocabulary,
+        "training_phrases": payload.training_phrases,
+        "player_position": payload.player_position,
+        "controller_assignment": payload.controller_assignment,
+        "custom_vocabulary": payload.custom_vocabulary,
+        "consent": payload.consent,
+        "consent_active": payload.consent_active,
+        "last_updated": datetime.now().isoformat(),
+    }
+
+    existing = _read_json(path) or {}
+    if existing.get("created_at"):
+        profile_obj["created_at"] = existing["created_at"]
+    else:
+        profile_obj["created_at"] = datetime.now().isoformat()
+    return profile_obj
+
+
 def _log_change(request: Request, scope: str, action: str, details: Dict[str, Any], backup_path: Optional[Path] = None):
     log_file = request.app.state.drive_root / ".aa" / "logs" / "changes.jsonl"
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -267,6 +291,33 @@ async def apply_consent(request: Request, payload: ConsentPayload):
 
 
 # Primary Profile Route (for broadcasting)
+@router.post("/profile/primary/preview")
+async def preview_primary_profile(request: Request, payload: PrimaryProfilePayload):
+    """Preview primary profile changes without writing or broadcasting."""
+    try:
+        drive_root = request.app.state.drive_root
+        path = _primary_profile_file(drive_root)
+
+        current = ""
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                current = f.read()
+
+        profile_obj = _build_primary_profile_object(path, payload)
+        new_content = json.dumps(profile_obj, indent=2)
+        diff = compute_diff(current, new_content, "profile/primary_user.json")
+        return {
+            "target_file": "state/profile/primary_user.json",
+            "has_changes": has_changes(current, new_content),
+            "diff": diff,
+            "profile": profile_obj,
+            "file_exists": path.exists(),
+            "dry_run": True,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/profile/primary")
 async def update_primary_profile(request: Request, payload: PrimaryProfilePayload):
     """
@@ -292,28 +343,7 @@ async def update_primary_profile(request: Request, payload: PrimaryProfilePayloa
         if path.exists() and request.app.state.backup_on_write:
             backup_path = create_backup(path, drive_root)
 
-        # Build the profile object
-        profile_obj = {
-            "user_id": payload.user_id,
-            "display_name": payload.display_name,
-            "initials": payload.initials,
-            "voice_prefs": payload.voice_prefs,
-            "vocabulary": payload.vocabulary,
-            "training_phrases": payload.training_phrases,
-            "player_position": payload.player_position,
-            "controller_assignment": payload.controller_assignment,
-            "custom_vocabulary": payload.custom_vocabulary,
-            "consent": payload.consent,
-            "consent_active": payload.consent_active,
-            "last_updated": datetime.now().isoformat(),
-        }
-
-        # Preserve created_at if exists
-        existing = _read_json(path) or {}
-        if existing.get("created_at"):
-            profile_obj["created_at"] = existing["created_at"]
-        else:
-            profile_obj["created_at"] = datetime.now().isoformat()
+        profile_obj = _build_primary_profile_object(path, payload)
 
         # Write to file
         with open(path, "w", encoding="utf-8") as f:

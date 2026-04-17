@@ -13,6 +13,7 @@ import uuid
 import structlog
 import re
 
+from backend.constants.drive_root import get_drive_root
 from ..services.backup import create_backup
 from ..services.diffs import compute_diff, has_changes
 from ..services.policies import require_scope, is_allowed_file
@@ -43,6 +44,13 @@ router = APIRouter()
 
 # Gateway broadcast URL for real-time WebSocket push
 GATEWAY_BROADCAST_URL = "http://localhost:8787/api/scorekeeper/broadcast"
+
+
+def _request_drive_root(request: Request) -> Path:
+    drive_root = getattr(request.app.state, "drive_root", None)
+    if drive_root is not None:
+        return Path(drive_root)
+    return get_drive_root(context="scorekeeper router")
 
 
 def _broadcast_score_update(game: str, entry: dict, source: str = "scorekeeper_submit"):
@@ -603,7 +611,7 @@ def create_bracket(player_count: int, players: List[str] = None) -> List[Dict[st
 def log_scorekeeper_change(request: Request, drive_root: Path, action: str, details: Dict[str, Any], backup_path: Optional[Path] = None):
     """Log scorekeeper action to .aa/logs/scorekeeper_changes.jsonl (Golden Drive contract)."""
     # Use .aa\logs per Golden Drive contract (not drive_root\logs)
-    aa_log_root = Path(os.getenv("AA_DRIVE_ROOT", str(drive_root))) / ".aa" / "logs"
+    aa_log_root = drive_root / ".aa" / "logs"
     try:
         aa_log_root.mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -2026,9 +2034,7 @@ async def get_game_highscores(
     import os
 
     try:
-        drive_root = Path(
-            getattr(request.app.state, "drive_root", os.getenv("AA_DRIVE_ROOT", "A:\\"))
-        )
+        drive_root = _request_drive_root(request)
         scores_file = get_scores_file(drive_root)
 
         game_scores = []
@@ -2126,9 +2132,7 @@ async def game_autosubmit(request: Request, submit_data: GameAutoSubmit):
         }
     """
     try:
-        drive_root = Path(
-            getattr(request.app.state, "drive_root", os.getenv("AA_DRIVE_ROOT", "A:\\"))
-        )
+        drive_root = _request_drive_root(request)
         manifest = getattr(request.app.state, "manifest", {"sanctioned_paths": []})
 
         scores_file = get_scores_file(drive_root)
@@ -3570,9 +3574,7 @@ async def sync_mame_hiscores(request: Request):
         from ..services.hiscore_watcher import get_watcher
         from ..services.mame_hiscore_parser import get_all_mame_scores
 
-        drive_root = Path(
-            getattr(request.app.state, "drive_root", os.getenv("AA_DRIVE_ROOT", "A:\\"))
-        )
+        drive_root = _request_drive_root(request)
         watcher = get_watcher(str(drive_root))
 
         sync_result = watcher.sync_all()
@@ -3692,7 +3694,7 @@ async def get_mame_sync_status(request: Request):
     try:
         from ..services.hiscore_watcher import get_watcher
 
-        watcher = get_watcher(str(getattr(request.app.state, "drive_root", "A:\\")))
+        watcher = get_watcher(str(_request_drive_root(request)))
         status = watcher.get_status()
         scores = watcher.get_scores_snapshot()
 

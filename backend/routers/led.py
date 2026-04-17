@@ -237,6 +237,10 @@ class LEDTestPayload(BaseModel):
     color: Optional[str] = "#00E5FF"
 
 
+class LEDTestAllPayload(BaseModel):
+    duration_ms: Optional[int] = Field(default=2000, ge=100, le=10000)
+
+
 class LEDPatternRequest(BaseModel):
     pattern: str = Field(..., min_length=1)
     params: Dict[str, Any] = Field(default_factory=dict)
@@ -838,7 +842,10 @@ async def trigger_led_test(request: Request, payload: LEDTestPayload) -> Dict[st
 
 
 @router.post("/test/all")
-async def trigger_led_test_all(request: Request) -> Dict[str, Any]:
+async def trigger_led_test_all(
+    request: Request,
+    payload: Optional[LEDTestAllPayload] = None,
+) -> Dict[str, Any]:
     """
     Zero-config quick LED test for clone validation.
     Runs a brief pulse pattern across all detected channels.
@@ -854,13 +861,15 @@ async def trigger_led_test_all(request: Request) -> Dict[str, Any]:
     devices = status.get("devices") or []
     simulation_mode = status.get("registry", {}).get("simulation_mode", True)
     
-    # Run rainbow pattern to cycle all channels (2 seconds)
-    await engine.run_pattern("rainbow", params={"speed": 2}, duration_ms=2000)
+    duration_ms = payload.duration_ms if payload and payload.duration_ms else 2000
+
+    # Run rainbow pattern to cycle all channels for the requested duration.
+    await engine.run_pattern("rainbow", params={"speed": 2}, duration_ms=duration_ms)
     
     return {
         "status": "queued",
         "effect": "rainbow",
-        "duration_ms": 2000,
+        "duration_ms": duration_ms,
         "devices_detected": len(devices),
         "simulation_mode": simulation_mode,
         "timestamp": datetime.now().isoformat(),
@@ -2354,7 +2363,8 @@ async def calibrate_wizard_confirm(request: Request, payload: WizardConfirmPaylo
     try:
         session = await LEDCalibrationService.confirm_mapping(
             logical_id=payload.logical_id,
-            description=payload.description
+            description=payload.description,
+            request=request,
         )
         
         return {
@@ -2376,7 +2386,7 @@ async def calibrate_wizard_skip(request: Request) -> Dict[str, Any]:
     require_scope(request, "config")
     
     try:
-        session = await LEDCalibrationService.skip_port()
+        session = await LEDCalibrationService.skip_port(request=request)
         
         return {
             "status": "skipped" if session.is_active else "complete",
@@ -2395,7 +2405,7 @@ async def calibrate_wizard_finish(request: Request) -> Dict[str, Any]:
     """
     require_scope(request, "config")
     
-    result = await LEDCalibrationService.finish()
+    result = await LEDCalibrationService.finish(request=request)
     logger.info(f"[Calibration] Wizard finished: {result}")
     return result
 

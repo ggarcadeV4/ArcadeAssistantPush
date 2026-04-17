@@ -1,9 +1,22 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { hotkeyClient } from '../services/hotkeyClient'
+import { buildStandardHeaders } from '../utils/identity'
 import './HotkeyOverlay.css'
+
+const HOTKEY_PANEL = 'hotkey-overlay'
+const hotkeyJsonHeaders = () => buildStandardHeaders({
+  panel: HOTKEY_PANEL,
+  scope: 'state',
+  extraHeaders: { 'Content-Type': 'application/json' },
+})
+const hotkeyStateHeaders = () => buildStandardHeaders({ panel: HOTKEY_PANEL, scope: 'state' })
 // import DeweyPanel from '../panels/dewey/DeweyPanel'
 
-// Global overlay that appears when backend hotkey event is received
+// AA_HANDOFF_QUARANTINED — 2026-04-13
+// HotkeyOverlay is NOT mounted in App.jsx or any active component.
+// It is preserved as a reference implementation for emulator save/load and pause.
+// The "Pause Menu" title inside this component does NOT compete with the active
+// Dewey / F9 dispatch path. Do not re-mount without a session decision.
 export default function HotkeyOverlay() {
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState('')
@@ -29,7 +42,7 @@ export default function HotkeyOverlay() {
       try {
         await fetch('/api/local/emulator/pause_toggle', {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-scope': 'state' }
+          headers: hotkeyJsonHeaders()
         })
       } catch (e) {
         // best-effort resume
@@ -62,7 +75,7 @@ export default function HotkeyOverlay() {
     async function maybePause() {
       if (!open) return
       try {
-        const s = await fetch('/api/local/emulator/status')
+        const s = await fetch('/api/local/emulator/status', { headers: hotkeyStateHeaders() })
         const sj = await s.json().catch(() => ({}))
         if (!cancelled) {
           setEmu(sj?.emulator || 'unknown')
@@ -74,7 +87,7 @@ export default function HotkeyOverlay() {
           try {
             const res = await fetch('/api/local/emulator/pause_toggle', {
               method: 'POST',
-              headers: { 'content-type': 'application/json', 'x-scope': 'state' }
+              headers: hotkeyJsonHeaders()
             })
             const data = await res.json().catch(() => ({}))
             if (!cancelled) {
@@ -119,7 +132,7 @@ export default function HotkeyOverlay() {
         const endpoint = action === 'save' ? emulatorEndpoints[emu].save : emulatorEndpoints[emu].load
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-scope': 'state' }
+          headers: hotkeyJsonHeaders()
         })
         const data = await res.json().catch(() => ({}))
         if (data?.ok || data?.status === 'ok') {
@@ -132,14 +145,14 @@ export default function HotkeyOverlay() {
         // Note: RetroArch uses 0-indexed slots internally, but we show 1-10 to users
         await fetch('/api/local/emulator/set_slot', {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-scope': 'state' },
+          headers: hotkeyJsonHeaders(),
           body: JSON.stringify({ slot: saveSlot - 1 })
         })
 
         const endpoint = action === 'save' ? '/api/local/emulator/save_state' : '/api/local/emulator/load_state'
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-scope': 'state' }
+          headers: hotkeyJsonHeaders()
         })
         const data = await res.json().catch(() => ({}))
 
@@ -205,7 +218,7 @@ export default function HotkeyOverlay() {
                 try {
                   await fetch('/api/local/emulator/mame/pause_toggle', {
                     method: 'POST',
-                    headers: { 'x-scope': 'state' }
+                    headers: hotkeyStateHeaders()
                   })
                 } catch { }
                 setStatus('Toggled pause for MAME')
@@ -219,7 +232,7 @@ export default function HotkeyOverlay() {
               try {
                 await fetch('/api/local/emulator/exit', {
                   method: 'POST',
-                  headers: { 'content-type': 'application/json', 'x-scope': 'state' },
+                  headers: hotkeyJsonHeaders(),
                   body: JSON.stringify({ emulator: emu })
                 })
               } catch { }

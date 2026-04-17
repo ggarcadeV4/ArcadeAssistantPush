@@ -21,9 +21,12 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
+
+from fastapi import Request
 from pydantic import BaseModel, Field
 
 from backend.constants.paths import Paths
+from backend.services.backup import create_backup
 from backend.services.blinky_service import BlinkyService
 
 logger = logging.getLogger(__name__)
@@ -80,9 +83,61 @@ class LEDCalibrationService:
     
     # Mapping file path following A: Drive Strategy
     @classmethod
-    def _mapping_file_path(cls) -> Path:
+    def _mapping_file_path(cls, drive_root: Optional[Path] = None) -> Path:
         """Get the path for the LED port mapping JSON file."""
-        return Paths.drive_root() / ".aa" / "config" / "led_port_mapping.json"
+        root = Path(drive_root) if drive_root is not None else Paths.drive_root()
+        return root / ".aa" / "config" / "led_port_mapping.json"
+
+    @classmethod
+    def _log_file_path(cls, drive_root: Optional[Path] = None) -> Path:
+        root = Path(drive_root) if drive_root is not None else Paths.drive_root()
+        return root / ".aa" / "logs" / "changes.jsonl"
+
+    @classmethod
+    def _resolve_drive_root(cls, request: Optional[Request] = None, drive_root: Optional[Path] = None) -> Path:
+        if drive_root is not None:
+            return Path(drive_root)
+        if request is not None and hasattr(request.app.state, "drive_root"):
+            return Path(request.app.state.drive_root)
+        return Paths.drive_root()
+
+    @classmethod
+    def _backup_enabled(cls, request: Optional[Request]) -> bool:
+        if request is None:
+            return True
+        return bool(getattr(request.app.state, "backup_on_write", True))
+
+    @classmethod
+    async def _log_finish_event(
+        cls,
+        *,
+        request: Optional[Request],
+        drive_root: Path,
+        backup_path: Optional[Path],
+        mapped_count: int,
+        skipped_count: int,
+        translation: Optional[dict],
+    ) -> None:
+        log_path = cls._log_file_path(drive_root)
+
+        def _write_log() -> None:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "scope": "led_calibration",
+                "action": "led_calibration_finish",
+                "target_file": str(cls._mapping_file_path(drive_root).relative_to(drive_root)).replace("\\", "/"),
+                "backup_path": str(backup_path.relative_to(drive_root)).replace("\\", "/") if backup_path else None,
+                "mapped_count": mapped_count,
+                "skipped_count": skipped_count,
+                "translation_success": bool((translation or {}).get("success")),
+                "device": request.headers.get("x-device-id", "unknown") if request is not None else "unknown",
+                "panel": request.headers.get("x-panel", "unknown") if request is not None else "unknown",
+            }
+            with open(log_path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry) + "\n")
+
+        await asyncio.to_thread(_write_log)
     
     @classmethod
     def get_status(cls) -> CalibrationStatus:
@@ -129,7 +184,12 @@ class LEDCalibrationService:
         return cls._session
     
     @classmethod
-    async def confirm_mapping(cls, logical_id: str, description: str = "") -> CalibrationSession:
+    async def confirm_mapping(
+        cls,
+        logical_id: str,
+        description: str = "",
+        request: Optional[Request] = None,
+    ) -> CalibrationSession:
         """
         User confirmed which button corresponds to the current blinking port.
         
@@ -157,7 +217,7 @@ class LEDCalibrationService:
         
         # Check if done
         if cls._session.current_port > cls._session.total_ports:
-            await cls.finish()
+            await cls.finish(request=request)
             return cls._session
         
         # Start blinking next port
@@ -166,7 +226,7 @@ class LEDCalibrationService:
         return cls._session
     
     @classmethod
-    async def skip_port(cls) -> CalibrationSession:
+    async def skip_port(cls, request: Optional[Request] = None) -> CalibrationSession:
         """
         Skip the current port (e.g., if no LED visible or broken).
         """
@@ -186,7 +246,7 @@ class LEDCalibrationService:
         
         # Check if done
         if cls._session.current_port > cls._session.total_ports:
-            await cls.finish()
+            await cls.finish(request=request)
             return cls._session
         
         # Start blinking next port
@@ -195,12 +255,17 @@ class LEDCalibrationService:
         return cls._session
     
     @classmethod
-    async def finish(cls) -> dict:
+    async def finish(
+        cls,
+        request: Optional[Request] = None,
+        drive_root: Optional[Path] = None,
+    ) -> dict:
         """
         Finish the calibration wizard and save mappings to JSON.
         """
         await cls._stop_blinking()
         cls._session.is_active = False
+        resolved_drive_root = cls._resolve_drive_root(request=request, drive_root=drive_root)
         
         # Prepare output
         output = {
@@ -216,8 +281,11 @@ class LEDCalibrationService:
         }
         
         # Save to file (atomic write pattern)
-        save_path = cls._mapping_file_path()
+        save_path = cls._mapping_file_path(resolved_drive_root)
         save_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = None
+        if save_path.exists() and cls._backup_enabled(request):
+            backup_path = create_backup(save_path, resolved_drive_root)
         
         # Write to temp file first, then rename (atomic)
         temp_path = save_path.with_suffix(".tmp")
@@ -239,12 +307,22 @@ class LEDCalibrationService:
         except Exception as e:
             logger.error(f"[Calibration] Translation error: {e}")
             translate_result = {"success": False, "error": str(e)}
+
+        await cls._log_finish_event(
+            request=request,
+            drive_root=resolved_drive_root,
+            backup_path=backup_path,
+            mapped_count=len(cls._session.mappings),
+            skipped_count=len(cls._session.skipped_ports),
+            translation=translate_result,
+        )
         
         return {
             "status": "complete",
             "mapped_count": len(cls._session.mappings),
             "skipped_count": len(cls._session.skipped_ports),
             "file_path": str(save_path),
+            "backup_path": str(backup_path) if backup_path else None,
             "translation": translate_result
         }
     

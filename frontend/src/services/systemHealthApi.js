@@ -1,18 +1,10 @@
+import { buildStandardHeaders } from '../utils/identity'
+
 const BASE = '/api/local/health'
 
 function buildDocHeaders(options = {}) {
   const scope = options.scope || 'state'
-  const headers = {
-    'x-scope': scope,
-    'x-panel': 'doc'
-  }
-  const deviceId =
-    (typeof window !== 'undefined' && window.AA_DEVICE_ID) || (() => {
-      console.warn('[Doc] window.AA_DEVICE_ID not available, ' +
-        'falling back to doc-panel. Cabinet identity may not be unique.')
-      return 'doc-panel'
-    })()
-  headers['x-device-id'] = deviceId
+  const headers = buildStandardHeaders({ panel: 'doc', scope })
   const corrId =
     typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
@@ -44,6 +36,11 @@ async function handleResponse(res) {
 
 export async function fetchHealthSummary() {
   const res = await fetch(`${BASE}/summary`, { headers: buildDocHeaders() })
+  return handleResponse(res)
+}
+
+export async function fetchGatewayHealth() {
+  const res = await fetch('/api/health', { headers: buildDocHeaders() })
   return handleResponse(res)
 }
 
@@ -96,6 +93,7 @@ export async function runOptimizeAction() {
 }
 
 export const getHealthSummary = fetchHealthSummary
+export const getGatewayHealth = fetchGatewayHealth
 export const getHealthPerformance = fetchHealthPerformance
 export const getHealthPerformanceTimeseries = fetchHealthPerformanceTimeseries
 export const getHealthProcesses = fetchHealthProcesses

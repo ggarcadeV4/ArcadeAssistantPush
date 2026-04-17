@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter(
-    prefix="/api/blinky",
     tags=["LED Blinky"],
     responses={404: {"description": "Not found"}}
 )
