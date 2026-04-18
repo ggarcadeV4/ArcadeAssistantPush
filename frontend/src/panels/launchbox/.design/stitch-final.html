@@ -1,0 +1,164 @@
+<!-- LaunchBox LoRa Redesign — Stitch Neon Monolith Final Reference -->
+<!-- Source: Stitch Project projects/7252577742218017697 ("LaunchBox LoRa Redesign Contract") -->
+<!-- Committed: 2026-04-18 as the visual design target for the CSS migration -->
+<!-- See: stitch-neon-monolith-design-system.md for the token specification -->
+<!-- See: stitch-mockup.html for the full interactive Stitch export -->
+
+<!-- This file serves as the design reference under version control. -->
+<!-- The actual Stitch mockup HTML is at ../stitch-mockup.html (460 lines) -->
+<!-- Design tokens are documented at ../stitch-neon-monolith-design-system.md -->
+
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>LaunchBox LoRa | The Neon Monolith — Design Reference</title>
+    <style>
+        /* ============================================
+           NEON MONOLITH DESIGN TOKEN REFERENCE
+           ============================================ */
+
+        :root {
+            /* Surface Hierarchy */
+            --nm-bg: #0e0e10;
+            --nm-surface: #0e0e10;
+            --nm-surface-container: #19191c;
+            --nm-surface-container-low: #131315;
+            --nm-surface-container-high: #1f1f22;
+            --nm-surface-container-highest: #262528;
+            --nm-surface-container-lowest: #000000;
+            --nm-surface-bright: #2c2c2f;
+            --nm-surface-variant: #262528;
+
+            /* Primary — Purple (Brand Light) */
+            --nm-primary: #cc97ff;
+            --nm-primary-container: #c284ff;
+            --nm-primary-dim: #9c48ea;
+            --nm-on-primary: #47007c;
+            --nm-on-primary-container: #360061;
+
+            /* Secondary — Cyan (Action Light) */
+            --nm-secondary: #3adffa;
+            --nm-secondary-container: #006877;
+            --nm-secondary-dim: #1ad0eb;
+            --nm-on-secondary: #004b56;
+            --nm-on-secondary-container: #eafbff;
+
+            /* Tertiary — Pink (Accent) */
+            --nm-tertiary: #ff96bb;
+            --nm-tertiary-container: #fb81ae;
+            --nm-tertiary-dim: #ee77a3;
+            --nm-on-tertiary: #690939;
+
+            /* Text & Outline */
+            --nm-on-surface: #f6f3f5;
+            --nm-on-surface-variant: #acaaad;
+            --nm-on-background: #f6f3f5;
+            --nm-outline: #767577;
+            --nm-outline-variant: #48474a;
+
+            /* Error */
+            --nm-error: #ff6e84;
+            --nm-error-container: #a70138;
+            --nm-on-error: #490013;
+
+            /* Overrides */
+            --override-primary: #A855F7;
+            --override-secondary: #22D3EE;
+            --override-neutral: #121214;
+
+            /* Typography */
+            --font-display: 'Space Grotesk', system-ui, sans-serif;
+            --font-body: 'Manrope', system-ui, sans-serif;
+            --font-label: 'Inter', system-ui, sans-serif;
+
+            /* Roundness */
+            --radius-sm: 0.25rem;
+            --radius-md: 0.375rem;
+            --radius-lg: 0.75rem;
+            --radius-full: 9999px;
+        }
+
+        /* ============================================
+           KEY DESIGN RULES (from designMd)
+           ============================================
+
+           1. NO-LINE RULE: Never use 1px solid borders for section definition.
+              Use background color shifts instead.
+
+           2. GLASS & GRADIENT: Floating elements use surface-variant at 60% opacity
+              with 20px backdrop-blur.
+
+           3. NEVER USE #FFFFFF: Always use on-surface (#f6f3f5).
+
+           4. NO DIVIDER LINES between chat messages or list items.
+
+           5. ERROR COLOR is #ff6e84 (tuned for charcoal), not standard red.
+
+           6. PRIMARY GRADIENT: primary (#cc97ff) → primary-dim (#9c48ea) at 135°
+              for CTAs and signature buttons.
+
+           7. GAME CARDS: No borders. surface-container-lowest base.
+              Hover: scale 1.02x + primary outer glow (5px blur, 10% opacity).
+
+           8. FILTER CHIPS: surface-container-highest default.
+              Selected: secondary bg + on-secondary text.
+
+           9. TYPOGRAPHY: Space Grotesk (headlines), Manrope (body), Inter (labels).
+        */
+
+        body {
+            margin: 0;
+            padding: 40px;
+            background: var(--nm-bg);
+            color: var(--nm-on-surface);
+            font-family: var(--font-body);
+        }
+
+        h1 { font-family: var(--font-display); color: var(--nm-primary); }
+        h2 { font-family: var(--font-display); color: var(--nm-on-surface); }
+        code { font-family: var(--font-label); color: var(--nm-secondary); }
+
+        .swatch-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+            margin: 24px 0;
+        }
+        .swatch {
+            padding: 16px;
+            border-radius: var(--radius-md);
+            font-family: var(--font-label);
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <h1>NEON MONOLITH</h1>
+    <h2>Design Token Reference — LaunchBox LoRa</h2>
+    <p>This file is the committed design target for the CSS migration.</p>
+    <p>Full Stitch mockup: <code>../stitch-mockup.html</code></p>
+    <p>Token spec: <code>../stitch-neon-monolith-design-system.md</code></p>
+
+    <h2>Surface Palette</h2>
+    <div class="swatch-grid">
+        <div class="swatch" style="background:#0e0e10; color:#f6f3f5;">surface #0e0e10</div>
+        <div class="swatch" style="background:#131315; color:#f6f3f5;">container-low #131315</div>
+        <div class="swatch" style="background:#19191c; color:#f6f3f5;">container #19191c</div>
+        <div class="swatch" style="background:#1f1f22; color:#f6f3f5;">container-high #1f1f22</div>
+        <div class="swatch" style="background:#262528; color:#f6f3f5;">container-highest #262528</div>
+        <div class="swatch" style="background:#2c2c2f; color:#f6f3f5;">surface-bright #2c2c2f</div>
+    </div>
+
+    <h2>Accent Palette</h2>
+    <div class="swatch-grid">
+        <div class="swatch" style="background:#cc97ff; color:#47007c;">primary #cc97ff</div>
+        <div class="swatch" style="background:#9c48ea; color:#fff;">primary-dim #9c48ea</div>
+        <div class="swatch" style="background:#3adffa; color:#004b56;">secondary #3adffa</div>
+        <div class="swatch" style="background:#006877; color:#eafbff;">secondary-ctr #006877</div>
+        <div class="swatch" style="background:#ff96bb; color:#690939;">tertiary #ff96bb</div>
+        <div class="swatch" style="background:#ff6e84; color:#490013;">error #ff6e84</div>
+    </div>
+</body>
+</html>
