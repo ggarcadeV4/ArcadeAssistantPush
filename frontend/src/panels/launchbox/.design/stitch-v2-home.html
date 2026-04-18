@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AETHER LAUNCHER - Cinematic Gaming</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;family=Manrope:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-dim": "#c280ff",
+                        "primary-container": "#e470ff",
+                        "on-primary-fixed": "#000000",
+                        "background": "#0e0e11",
+                        "surface-tint": "#ea88ff",
+                        "on-secondary": "#33005a",
+                        "on-secondary-fixed": "#4f0088",
+                        "on-secondary-container": "#e5c4ff",
+                        "on-primary-container": "#400050",
+                        "on-tertiary": "#680a1e",
+                        "primary-fixed": "#e470ff",
+                        "surface-dim": "#0e0e11",
+                        "tertiary-fixed-dim": "#fb7c87",
+                        "primary-dim": "#c200ee",
+                        "surface": "#0e0e11",
+                        "surface-container": "#19191d",
+                        "surface-container-lowest": "#000000",
+                        "on-secondary-fixed-variant": "#7321b7",
+                        "error-container": "#a70138",
+                        "surface-container-low": "#131316",
+                        "tertiary-fixed": "#ff9198",
+                        "inverse-primary": "#9f00c4",
+                        "on-tertiary-fixed-variant": "#721324",
+                        "secondary-container": "#680eac",
+                        "inverse-surface": "#fcf8fd",
+                        "on-tertiary-container": "#570014",
+                        "outline": "#767579",
+                        "outline-variant": "#48474b",
+                        "on-tertiary-fixed": "#39000a",
+                        "tertiary-container": "#fe7e89",
+                        "tertiary": "#ff959c",
+                        "on-error-container": "#ffb2b9",
+                        "on-primary": "#520066",
+                        "surface-variant": "#25252a",
+                        "surface-container-highest": "#25252a",
+                        "primary-fixed-dim": "#dd56ff",
+                        "secondary-fixed-dim": "#dcb4ff",
+                        "error": "#ff6e84",
+                        "surface-container-high": "#1f1f23",
+                        "on-surface": "#f0edf1",
+                        "primary": "#ea88ff",
+                        "tertiary-dim": "#f47782",
+                        "inverse-on-surface": "#555458",
+                        "on-error": "#490013",
+                        "error-dim": "#d73357",
+                        "secondary-fixed": "#e5c5ff",
+                        "on-background": "#f0edf1",
+                        "on-primary-fixed-variant": "#4f0062",
+                        "on-surface-variant": "#acaaae",
+                        "surface-bright": "#2c2c30",
+                        "secondary": "#c280ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Manrope"],
+                        "label": ["Space Grotesk"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; }
+        .scrim-bottom {
+            background: linear-gradient(to top, rgba(14, 14, 17, 1) 0%, rgba(14, 14, 17, 0.8) 40%, rgba(14, 14, 17, 0) 100%);
+        }
+        .scrim-left {
+            background: linear-gradient(to right, rgba(14, 14, 17, 0.9) 0%, rgba(14, 14, 17, 0) 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- Cinematic Background -->
+<div class="fixed inset-0 z-0">
+<img alt="" class="w-full h-full object-cover scale-110 blur-[2px]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBA3zEJu8UOfYNW-ACfjBondpkBL5WpbD9_X71fQ1MJKKBmrmdW6wKuaVAA83gCjOvXEW_oVYUZunIzQ_F7UVnFnWDulrEA6vYfFhVlTod9c12AMz-zvR4VNQBW-BAU-FakYjzcq2kGWqj4d4k5Zjbf2JishigSRTutDKt7TX4ol9cnoUroo67mzXxGMGrW-XpUXtidElMK2PpfuU4rRX3A4NbqxiINgiLEh4jzcMIUAtpr6HKXcH6_gQhwQ_yjvUdq9UxewRIE5z0"/>
+<div class="absolute inset-0 scrim-bottom"></div>
+<div class="absolute inset-0 scrim-left"></div>
+</div>
+<!-- Main Canvas -->
+<main class="relative z-10 pl-32 pr-12 pt-32 h-screen flex flex-col">
+<!-- Hero Metadata -->
+<section class="mb-12">
+<div class="inline-block px-3 py-1 bg-primary/20 rounded-lg text-primary text-[10px] font-headline font-bold tracking-[0.2em] mb-4 uppercase">
+                Trending: Action RPG
+            </div>
+<h2 class="text-7xl font-headline font-black tracking-tighter mb-4 max-w-2xl leading-none">
+                ETHEREAL <span class="text-primary-container">BOUND</span>
+</h2>
+<p class="text-on-surface-variant font-body max-w-lg text-lg leading-relaxed mb-8 opacity-80">
+                Forge your destiny in the neon-soaked ruins of Aetheria. A soul-like journey through the digital afterlife.
+            </p>
+<div class="flex gap-4">
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary-container px-10 py-4 rounded-full font-headline font-bold text-sm tracking-widest uppercase hover:scale-105 transition-transform shadow-[0_10px_30px_rgba(234,136,255,0.3)]">
+                    Launch Game
+                </button>
+<button class="bg-surface-container-highest/60 backdrop-blur-md border border-outline-variant/30 text-on-surface px-8 py-4 rounded-full font-headline font-bold text-sm tracking-widest uppercase hover:bg-surface-bright transition-colors">
+                    Game Details
+                </button>
+</div>
+</section>
+<!-- Box Art Carousel -->
+<section class="mb-16">
+<h3 class="font-headline text-xs font-bold tracking-[0.3em] uppercase text-on-surface-variant mb-6">Explore Your Library</h3>
+<div class="flex gap-8 items-center overflow-x-hidden">
+<div class="flex-shrink-0 w-64 h-[22rem] rounded-xl overflow-hidden ring-4 ring-primary-container scale-105 shadow-[0_0_50px_rgba(228,112,255,0.4)] transition-all relative">
+<img alt="Ethereal Bound" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqYI1iJm3oWjZWfPdY2gtFLnHpCA9BTbhZf80ukxjMyLTXdYTp9Sl07zZrnROIIku3-_xZBD7zOlwSNRNTCXXwuz-wz0JtgnsZO-hGF7Y4Agh6b_EXqd3KCuiUqA9EU-OD6dT_MH0NknzE5UauY6wehUlSjR1duOH933qhRp4cytKYGLybLWw0aDnhaIzBuojCb99LSvwY1Wx88Wa_jVtwLelcKySK1u8hmuY0xl21OV5AGWbrucjECorMxNh58BbfYoTTXafxauc"/>
+<div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/80 to-transparent">
+<span class="font-headline font-black text-xl">ETHEREAL BOUND</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Stats -->
+<section class="grid grid-cols-12 gap-8 mt-auto pb-12">
+<div class="col-span-8 grid grid-cols-3 gap-6">
+<div class="bg-surface-container-low/40 backdrop-blur-xl rounded-2xl p-6 border border-outline-variant/10">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-primary-container">schedule</span>
+<span class="font-headline text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Time Played</span>
+</div>
+<div class="text-3xl font-headline font-black">124<span class="text-sm font-medium text-on-surface-variant ml-1">HRS</span></div>
+</div>
+</div>
+</section>
+</main>
+<!-- LoRa AI Chat Drawer -->
+<div class="fixed right-6 top-32 bottom-28 w-80 z-50 transition-all duration-500">
+<div class="h-full bg-surface-container/60 backdrop-blur-3xl rounded-3xl border border-outline-variant/20 shadow-[0_40px_60px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></div>
+<span class="font-headline text-xs font-bold tracking-widest uppercase">LoRa AI</span>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant text-sm">unfold_more</button>
+</div>
+<div class="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+<div class="flex flex-col gap-2 max-w-[90%]">
+<div class="bg-surface-bright/20 p-4 rounded-2xl rounded-tl-none border border-outline-variant/10 text-sm leading-relaxed">
+                        Commander, welcome back.
+                    </div>
+<span class="text-[10px] font-headline font-bold text-primary-container uppercase tracking-widest">LoRa • Just Now</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Chat Input Bar -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-[100]">
+<div class="bg-surface-container-highest/80 backdrop-blur-2xl rounded-full p-2 border border-outline-variant/30 flex items-center shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+<button class="w-10 h-10 flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined">auto_awesome</span>
+</button>
+<input class="flex-1 bg-transparent border-none focus:ring-0 px-4 font-headline text-xs tracking-[0.2em] uppercase text-on-surface" placeholder="ASK LORA ANYTHING..." type="text"/>
+<button class="bg-primary text-on-primary-fixed w-10 h-10 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(234,136,255,0.4)]">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</body></html>
