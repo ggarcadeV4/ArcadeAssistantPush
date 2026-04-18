@@ -41,20 +41,26 @@
 /* ── Design Tokens ── */
 :root {
   --nm-bg: #0e0e11;
+  --nm-background: var(--nm-bg);
   --nm-surface: #0e0e11;
   --nm-surface-container: #19191d;
   --nm-surface-container-low: #131316;
   --nm-surface-container-high: #1f1f23;
   --nm-surface-container-highest: #25252a;
+  --nm-surface-container-lowest: #000000;
   --nm-surface-bright: #2c2c30;
+  --nm-surface-variant: #25252a;
   --nm-primary: #ea88ff;
   --nm-primary-container: #e470ff;
   --nm-primary-dim: #c200ee;
   --nm-secondary: #c280ff;
   --nm-secondary-container: #680eac;
+  --nm-secondary-dim: #c280ff;
   --nm-tertiary: #ff959c;
   --nm-tertiary-container: #fe7e89;
+  --nm-tertiary-dim: #f47782;
   --nm-error: #ff6e84;
+  --nm-error-container: #a70138;
   --nm-on-surface: #f0edf1;
   --nm-on-surface-variant: #acaaae;
   --nm-on-primary: #520066;
@@ -63,6 +69,7 @@
   --nm-outline-variant: #48474b;
   --font-display: 'Space Grotesk', system-ui, sans-serif;
   --font-body: 'Manrope', system-ui, sans-serif;
+  --font-label: 'Space Grotesk', system-ui, sans-serif;
   --nm-radius-sm: 0.5rem;
   --nm-radius-md: 0.75rem;
   --nm-radius-lg: 1rem;
@@ -73,6 +80,11 @@
   --nm-glow-primary: rgba(234, 136, 255, 0.3);
   --nm-glow-strong: rgba(228, 112, 255, 0.4);
 }
+
+/* ── Typography Utilities ── */
+.font-headline { font-family: var(--font-display); }
+.font-body { font-family: var(--font-body); }
+.font-label { font-family: var(--font-label); }
 
 /* ── Base ── */
 .lora-cinematic {
