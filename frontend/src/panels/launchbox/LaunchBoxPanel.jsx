@@ -170,7 +170,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
           onError={handleImageError}
         />
         <div className="game-image-placeholder" style={hiddenStyle}>
-          <span className="placeholder-icon">\uD83C\uDFAE</span>
+          <span className="placeholder-icon">🎮</span>
           <span className="placeholder-text">{game.title.substring(0, 1)}</span>
         </div>
       </div>
@@ -186,10 +186,10 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
           <span className="game-year">{game.year}</span>
         </div>
         <div className="game-meta">
-          <span className="meta-item">\uD83C\uDFAE {game.platform}</span>
-          <span className="meta-item">\uD83D\uDD50 {formatRelativeTime(game.lastPlayed)}</span>
-          <span className="meta-item">\u23F1\uFE0F {game.sessionTime}</span>
-          <span className="meta-item">\uD83D\uDD25 {game.playCount} plays</span>
+          <span className="meta-item">🎮 {game.platform}</span>
+          <span className="meta-item">🕐 {formatRelativeTime(game.lastPlayed)}</span>
+          <span className="meta-item">⏱️ {game.sessionTime}</span>
+          <span className="meta-item">🔥 {game.playCount} plays</span>
         </div>
       </div>
       <button
@@ -199,7 +199,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
         title={launchTooltip}
         aria-label={launchTooltip}
       >
-        \u25B6
+        ▶
       </button>
     </div>
   )
@@ -1468,7 +1468,7 @@ export default function LaunchBoxPanel() {
             </>
           ) : isLaunchBoxMissing ? (
             <>
-              <p className="error-message">\uD83D\uDCC2 LaunchBox Not Found</p>
+              <p className="error-message">📂 LaunchBox Not Found</p>
               <p className="error-detail">{error}</p>
               <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
                 LoRa needs LaunchBox to browse your game library. Other panels will still work.
@@ -1476,7 +1476,7 @@ export default function LaunchBoxPanel() {
             </>
           ) : (
             <>
-              <p className="error-message">\u274C Failed to load game library</p>
+              <p className="error-message">❌ Failed to load game library</p>
               <p className="error-detail">{error}</p>
             </>
           )}
@@ -1485,7 +1485,7 @@ export default function LaunchBoxPanel() {
             onClick={handleReload}
             className="error-retry-btn"
           >
-            \uD83D\uDD04 Retry
+            🔄 Retry
           </button>
         </div>
       </PanelShell>
@@ -1510,10 +1510,10 @@ export default function LaunchBoxPanel() {
             className="lora-profile-select"
             style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', minWidth: '170px' }}
           >
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#93c5fd' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--nm-primary)' }}>
               RetroArch
             </span>
-            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', color: '#ffffff' }}>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', color: 'var(--nm-on-surface)' }}>
               <input
                 type="checkbox"
                 checked={allowRetroArch}
@@ -1527,7 +1527,7 @@ export default function LaunchBoxPanel() {
               />
               Allow fallback
             </label>
-            <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+            <span style={{ fontSize: '11px', color: 'var(--nm-on-surface-variant)' }}>
               {directRetroArchEnabled === true ? 'Direct launch enabled' : directRetroArchEnabled === false ? 'Direct launch disabled' : 'Direct launch unknown'}
             </span>
           </div>
@@ -1537,7 +1537,7 @@ export default function LaunchBoxPanel() {
             className="lora-profile-select"
             style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', minWidth: '140px' }}
           >
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#93c5fd' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--nm-primary)' }}>
               Chat Profile
             </span>
             <select
@@ -1546,10 +1546,10 @@ export default function LaunchBoxPanel() {
               className="input"
               style={{
                 padding: '6px 10px',
-                background: '#0a0a0a',
-                border: '1px solid rgba(200, 255, 0, 0.3)',
+                background: 'var(--nm-surface-container-lowest)',
+                border: '1px solid rgba(204, 151, 255, 0.3)',
                 borderRadius: '6px',
-                color: '#ffffff',
+                color: 'var(--nm-on-surface)',
                 fontSize: '13px',
                 cursor: 'pointer'
               }}
@@ -1562,7 +1562,7 @@ export default function LaunchBoxPanel() {
               ))}
             </select>
             {activeProfileDetails?.description && (
-              <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+              <span style={{ fontSize: '11px', color: 'var(--nm-on-surface-variant)' }}>
                 {activeProfileDetails.description}
               </span>
             )}
@@ -1575,7 +1575,7 @@ export default function LaunchBoxPanel() {
             aria-label="Select random game"
             title="Launch random game"
           >
-            <span className="random-icon">\uD83C\uDFB2</span>
+            <span className="random-icon">🎲</span>
           </button>
 
           {/* Pegasus Launch Button */}
@@ -1598,7 +1598,7 @@ export default function LaunchBoxPanel() {
             className="lora-chat-btn"
             aria-label="Toggle chat with LoRa"
           >
-            <span className="chat-icon">\uD83D\uDCAC</span>
+            <span className="chat-icon">💬</span>
             {!chatOpen && <span className="chat-notification">!</span>}
           </button>
 
@@ -1639,7 +1639,7 @@ export default function LaunchBoxPanel() {
               )}
             </div>
             {shaderModal.error && (
-              <div style={{ color: '#ff6b6b', marginBottom: 8 }}>Error: {shaderModal.error}</div>
+              <div style={{ color: 'var(--nm-error)', marginBottom: 8 }}>Error: {shaderModal.error}</div>
             )}
             <div style={{ marginTop: 6 }}>
               <DiffPreview
@@ -1679,14 +1679,14 @@ export default function LaunchBoxPanel() {
                 onClick={setTabRecent}
                 className={`lora-tab ${activeTab === 'recent' ? 'active' : ''}`}
               >
-                <span className="tab-icon">\uD83D\uDD50</span>
+                <span className="tab-icon">🕐</span>
                 Recently Played
               </button>
               <button
                 onClick={setTabStats}
                 className={`lora-tab ${activeTab === 'stats' ? 'active' : ''}`}
               >
-                <span className="tab-icon">\uD83D\uDCCA</span>
+                <span className="tab-icon">📊</span>
                 Quick Stats
               </button>
               <button
@@ -1694,7 +1694,7 @@ export default function LaunchBoxPanel() {
                 className="lora-tab-close"
                 aria-label="Collapse panel"
               >
-                \u00D7
+                ×
               </button>
             </div>
 
@@ -1903,7 +1903,7 @@ export default function LaunchBoxPanel() {
                 <h3>Chat with LoRa</h3>
                 {isRecording && (
                   <div className="voice-active-indicator">
-                    <span className="voice-wave-icon">\u3030\uFE0F</span>
+                    <span className="voice-wave-icon">〰️</span>
                     Voice Active
                   </div>
                 )}
@@ -1913,7 +1913,7 @@ export default function LaunchBoxPanel() {
                 className="chat-close-btn"
                 aria-label="Close chat"
               >
-                \u00D7
+                ×
               </button>
             </div>
 
@@ -1987,7 +1987,7 @@ export default function LaunchBoxPanel() {
       )}
 
       {toastMsg && (
-        <div style={{ position: 'fixed', right: 16, bottom: 16, background: 'rgba(20,20,20,0.9)', color: '#c8ff00', padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(200,255,0,0.4)' }}>
+        <div style={{ position: 'fixed', right: 16, bottom: 16, background: 'rgba(25,25,28,0.95)', color: 'var(--nm-secondary)', padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(58,223,250,0.3)', backdropFilter: 'blur(12px)' }}>
           {toastMsg}
         </div>
       )}
