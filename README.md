@@ -1,5 +1,5 @@
 # Arcade Assistant Ã¢â‚¬â€ Project README
-**Last Updated:** 2026-04-13 NIGHT | **Build:** Console Wizard mic hardening + Controller Chuck status semantics pass | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
+**Last Updated:** 2026-04-19 | **Build:** LaunchBox LoRa redesign stabilization, artwork restoration, and panel cleanup | **Branch:** `master` | **Commit:** `WIP (uncommitted)`
 
 > **For AI Agents:** Read `ROLLING_LOG.md` first for net-progress history. Read `ARCHITECTURE.md` for backend deep-dives. This README is the quick-reference entry point.
 
@@ -12,6 +12,59 @@ A **self-hosted AI control hub** for a physical arcade cabinet. It runs locally 
 - A FastAPI Python backend
 - 9 specialized AI personas, each with their own panel, chat sidebar, and hardware hooks
 - Hardware integrations: LED-Wiz boards (3x), encoder boards, LaunchBox, light guns
+
+---
+
+## Daily Slice - 2026-04-19
+
+### LaunchBox LoRa - Customer-Facing Stabilization
+
+This session brought LaunchBox LoRa back to a fast, usable state without replacing the existing LaunchBox architecture.
+
+**What landed:**
+- Redesign alignment pass so the shipped panel follows the intended cinematic LaunchBox LoRa layout more closely.
+- Search now keeps focus while typing because refetches no longer replace the panel with a blocking loading screen.
+- Platform browsing is practical again: the center library area scrolls correctly and game tiles support double-click launch.
+- Placeholder nav cleanup: removed mock items like `Store`, `Social`, `Cloud`, and later removed the Collections block from the sidebar entirely.
+- Big Box launch replaced the old Pegasus action inside this surface.
+- Left sidebar now shows the full platform list instead of stopping after the first 10 entries.
+- LoRa-specific exclusions were expanded to keep difficult ecosystems out of this frontend: American Laser Games, Daphne, gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Notes - Preserve This Diagnosis
+
+The artwork problem looked like a resolver bug at first, but the final root cause was visual layering in the card UI.
+
+**The architecture that stayed correct:**
+- LaunchBox XML remains the source of truth.
+- `launchbox_parser.py` still builds the in-memory library.
+- `ImageScanner` still resolves media paths.
+- The panel still requests artwork by `game_id` through `/api/launchbox/image/{id}`.
+
+**Fixes that were still necessary along the way:**
+- Image scanner updated to index nested regional folders such as `North America`, `World`, and `Europe`.
+- Safer title-variant matching added in the scanner.
+- Gateway image proxy fixed to forward query params, restoring `variant=card`.
+- Placeholder image responses changed to `no-store`, and the frontend gained a `cache_key` on image URLs to break stale placeholder caching.
+- Card-art selection tightened so LoRa cards prefer `box_front` and `screenshot`, not `clear_logo`.
+
+**Critical final fix:**
+- The card fallback layer was rendering on top of the real image.
+- Fix was to correct z-index order so fallback stays behind the image, while overlay and title stay above it.
+
+**Important carry-forward note:**
+- If artwork disappears again, verify the live image URL first, then inspect the rendered card layer order before rewriting backend resolver logic.
+
+### Layout Notes
+
+- The LoRa chat drawer was changed from `absolute` to `fixed` positioning so it anchors to the visible viewport instead of the full scrolling panel height.
+- The sidebar Collections block was removed to keep the left rail shorter and focused on actual platform selection.
+
+### Verification Used
+
+- Repeated `npm run build:frontend`
+- Full `stop-aa.bat` / `start-aa.bat` recycle when backend and gateway state needed refreshing
+- Direct gateway image URL checks
+- Headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
 
 ---
 

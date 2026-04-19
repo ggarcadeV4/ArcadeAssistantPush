@@ -1134,3 +1134,221 @@ def get_voice_service() -> VoiceService:
 1. Hard-fix GameCube routing so one request cannot fan across multiple launch paths.
 2. Harden `backend/services/hiscore_watcher.py` around file replacement locking.
 3. Continue transcript-driven LoRa polish, especially around rare customer phrasing and disambiguation edge cases.
+## 2026-04-19 (Codex Session â€” LaunchBox LoRa Redesign Stabilization + Artwork Recovery)
+
+**Net Progress**: LaunchBox LoRa was pulled back into a practical customer-facing state. The redesign was stabilized, artwork was restored, the chat drawer and sidebar layout issues were corrected, and several hard-to-support platform families were deliberately removed from the LoRa surface for expediency.
+
+### What Changed
+
+- **Redesign stabilization**: the LaunchBox LoRa panel was reworked so the shipped UI follows the intended cinematic layout more closely.
+- **Search focus fix**: typing into the search field no longer loses focus because refetches do not swap the panel into a blocking loading state.
+- **Library browsing fix**: the main game area now behaves like a real browser surface, with working scroll behavior and double-click launch from game tiles.
+- **UI cleanup**:
+  - removed placeholder nav items (`Store`, `Social`, `Cloud`)
+  - removed the Collections block from the left sidebar
+  - removed the old jump-to-collections rail affordance
+  - kept the sidebar focused on actual platforms
+- **Launcher direction change**: the old Pegasus action in this surface was replaced with Big Box launch behavior.
+- **Platform-scope cleanup**: LoRa exclusions now include American Laser Games, Daphne, all gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Recovery - What Was Tried and What Actually Fixed It
+
+This session is important because the artwork issue had multiple real bugs, but the final failure was not where it first appeared.
+
+**Architecture verified as still correct:**
+- LaunchBox XML remained the source of truth.
+- `backend/services/launchbox_parser.py` still built the game library correctly.
+- `ImageScanner` still owned media-path discovery.
+- The LoRa panel still consumed artwork through `/api/launchbox/image/{game_id}`.
+
+**Real fixes that were required:**
+- `image_scanner.py`
+  - added nested regional folder indexing (`North America`, `World`, `Europe`, etc.)
+  - added conservative title-variant matching
+  - bumped cache versioning so stale scanner results would not persist
+- `gateway/routes/launchboxProxy.js`
+  - fixed proxy forwarding so `variant=card` query params actually reached the backend
+- `backend/routers/launchbox.py`
+  - changed card-art priority so LoRa cards use `box_front` / `screenshot`, not `clear_logo`
+  - set placeholder responses to `no-store`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+  - added `cache_key` to image URLs to break cached placeholder responses
+
+**Critical final root cause:**
+- The card fallback layer was covering the image in CSS.
+- Real artwork was loading, but the fallback sat on top of it.
+- Final fix: corrected z-index ordering in `launchbox.css` so the fallback sits behind the image, while the overlay and title remain above it.
+
+**Lesson to preserve:**
+- If artwork breaks again, do not assume the backend resolver is the primary problem.
+- Verify the live image URL first.
+- Then inspect the rendered card layer stack in the frontend before rewriting artwork-selection logic.
+
+### Layout / Interaction Follow-ups
+
+- **Chat drawer**: changed from `absolute` to `fixed` positioning so it anchors to the viewport rather than the full scrolling panel height.
+- **Platform list**: removed the hard `slice(0, 10)` cap so later systems like Dreamcast, Naomi, and Atomiswave appear in the sidebar.
+- **Collections removal**: deleting the Collections block shortened the sidebar and reduced visual clutter.
+
+### Verification Used
+
+- repeated `npm run build:frontend`
+- multiple full `stop-aa.bat` / `start-aa.bat` recycles
+- direct gateway image URL checks
+- headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
+- live API verification that excluded platforms no longer appeared in `/api/launchbox/platforms?exclude_lora_specialized=1`
+
+### Carry-Forward Rules
+
+1. Keep LoRa practical. Do not put difficult one-off launch ecosystems back into this panel unless there is a clear customer reason.
+2. Preserve the current artwork architecture: LaunchBox XML -> parser -> `ImageScanner` -> `game_id` image route.
+3. For future artwork regressions, verify live route output and frontend layer order before inventing a new media system.
+4. If backend exclusions change, keep frontend `isLoRaExcludedPlatform()` in sync so UI behavior and data behavior do not drift apart.
+
+# ROLLING LOG â€” Arcade Assistant
+
+## 2026-04-19 (Codex Session - LaunchBox LoRa Redesign Stabilization + Artwork Recovery)
+
+**Net Progress**: LaunchBox LoRa was pulled back into a practical customer-facing state. The redesign was stabilized, artwork was restored, the chat drawer and sidebar layout issues were corrected, and several hard-to-support platform families were deliberately removed from the LoRa surface for expediency.
+
+### What Changed
+
+- **Redesign stabilization**: the LaunchBox LoRa panel was reworked so the shipped UI follows the intended cinematic layout more closely.
+- **Search focus fix**: typing into the search field no longer loses focus because refetches do not swap the panel into a blocking loading state.
+- **Library browsing fix**: the main game area now behaves like a real browser surface, with working scroll behavior and double-click launch from game tiles.
+- **UI cleanup**:
+  - removed placeholder nav items (`Store`, `Social`, `Cloud`)
+  - removed the Collections block from the left sidebar
+  - removed the old jump-to-collections rail affordance
+  - kept the sidebar focused on actual platforms
+- **Launcher direction change**: the old Pegasus action in this surface was replaced with Big Box launch behavior.
+- **Platform-scope cleanup**: LoRa exclusions now include American Laser Games, Daphne, all gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Recovery - What Was Tried and What Actually Fixed It
+
+This session is important because the artwork issue had multiple real bugs, but the final failure was not where it first appeared.
+
+**Architecture verified as still correct:**
+- LaunchBox XML remained the source of truth.
+- `backend/services/launchbox_parser.py` still built the game library correctly.
+- `ImageScanner` still owned media-path discovery.
+- The LoRa panel still consumed artwork through `/api/launchbox/image/{game_id}`.
+
+**Real fixes that were required:**
+- `image_scanner.py`
+  - added nested regional folder indexing (`North America`, `World`, `Europe`, etc.)
+  - added conservative title-variant matching
+  - bumped cache versioning so stale scanner results would not persist
+- `gateway/routes/launchboxProxy.js`
+  - fixed proxy forwarding so `variant=card` query params actually reached the backend
+- `backend/routers/launchbox.py`
+  - changed card-art priority so LoRa cards use `box_front` / `screenshot`, not `clear_logo`
+  - set placeholder responses to `no-store`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+  - added `cache_key` to image URLs to break cached placeholder responses
+
+**Critical final root cause:**
+- The card fallback layer was covering the image in CSS.
+- Real artwork was loading, but the fallback sat on top of it.
+- Final fix: corrected z-index ordering in `launchbox.css` so the fallback sits behind the image, while the overlay and title remain above it.
+
+**Lesson to preserve:**
+- If artwork breaks again, do not assume the backend resolver is the primary problem.
+- Verify the live image URL first.
+- Then inspect the rendered card layer stack in the frontend before rewriting artwork-selection logic.
+
+### Layout / Interaction Follow-ups
+
+- **Chat drawer**: changed from `absolute` to `fixed` positioning so it anchors to the viewport rather than the full scrolling panel height.
+- **Platform list**: removed the hard `slice(0, 10)` cap so later systems like Dreamcast, Naomi, and Atomiswave appear in the sidebar.
+- **Collections removal**: deleting the Collections block shortened the sidebar and reduced visual clutter.
+
+### Verification Used
+
+- repeated `npm run build:frontend`
+- multiple full `stop-aa.bat` / `start-aa.bat` recycles
+- direct gateway image URL checks
+- headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
+- live API verification that excluded platforms no longer appeared in `/api/launchbox/platforms?exclude_lora_specialized=1`
+
+### Carry-Forward Rules
+
+1. Keep LoRa practical. Do not put difficult one-off launch ecosystems back into this panel unless there is a clear customer reason.
+2. Preserve the current artwork architecture: LaunchBox XML -> parser -> `ImageScanner` -> `game_id` image route.
+3. For future artwork regressions, verify live route output and frontend layer order before inventing a new media system.
+4. If backend exclusions change, keep frontend `isLoRaExcludedPlatform()` in sync so UI behavior and data behavior do not drift apart.
+
+---
+
+## 2026-04-19 (Codex Session â€” LaunchBox LoRa Redesign Stabilization + Artwork Recovery)
+
+**Net Progress**: LaunchBox LoRa was pulled back into a practical customer-facing state. The redesign was stabilized, artwork was restored, the chat drawer and sidebar layout issues were corrected, and several hard-to-support platform families were deliberately removed from the LoRa surface for expediency.
+
+### What Changed
+
+- **Redesign stabilization**: the LaunchBox LoRa panel was reworked so the shipped UI follows the intended cinematic layout more closely.
+- **Search focus fix**: typing into the search field no longer loses focus because refetches do not swap the panel into a blocking loading state.
+- **Library browsing fix**: the main game area now behaves like a real browser surface, with working scroll behavior and double-click launch from game tiles.
+- **UI cleanup**:
+  - removed placeholder nav items (`Store`, `Social`, `Cloud`)
+  - removed the Collections block from the left sidebar
+  - removed the old jump-to-collections rail affordance
+  - kept the sidebar focused on actual platforms
+- **Launcher direction change**: the old Pegasus action in this surface was replaced with Big Box launch behavior.
+- **Platform-scope cleanup**: LoRa exclusions now include American Laser Games, Daphne, all gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Recovery - What Was Tried and What Actually Fixed It
+
+This session is important because the artwork issue had multiple real bugs, but the final failure was not where it first appeared.
+
+**Architecture verified as still correct:**
+- LaunchBox XML remained the source of truth.
+- `backend/services/launchbox_parser.py` still built the game library correctly.
+- `ImageScanner` still owned media-path discovery.
+- The LoRa panel still consumed artwork through `/api/launchbox/image/{game_id}`.
+
+**Real fixes that were required:**
+- `image_scanner.py`
+  - added nested regional folder indexing (`North America`, `World`, `Europe`, etc.)
+  - added conservative title-variant matching
+  - bumped cache versioning so stale scanner results would not persist
+- `gateway/routes/launchboxProxy.js`
+  - fixed proxy forwarding so `variant=card` query params actually reached the backend
+- `backend/routers/launchbox.py`
+  - changed card-art priority so LoRa cards use `box_front` / `screenshot`, not `clear_logo`
+  - set placeholder responses to `no-store`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+  - added `cache_key` to image URLs to break cached placeholder responses
+
+**Critical final root cause:**
+- The card fallback layer was covering the image in CSS.
+- Real artwork was loading, but the fallback sat on top of it.
+- Final fix: corrected z-index ordering in `launchbox.css` so the fallback sits behind the image, while the overlay and title remain above it.
+
+**Lesson to preserve:**
+- If artwork breaks again, do not assume the backend resolver is the primary problem.
+- Verify the live image URL first.
+- Then inspect the rendered card layer stack in the frontend before rewriting artwork-selection logic.
+
+### Layout / Interaction Follow-ups
+
+- **Chat drawer**: changed from `absolute` to `fixed` positioning so it anchors to the viewport rather than the full scrolling panel height.
+- **Platform list**: removed the hard `slice(0, 10)` cap so later systems like Dreamcast, Naomi, and Atomiswave appear in the sidebar.
+- **Collections removal**: deleting the Collections block shortened the sidebar and reduced visual clutter.
+
+### Verification Used
+
+- repeated `npm run build:frontend`
+- multiple full `stop-aa.bat` / `start-aa.bat` recycles
+- direct gateway image URL checks
+- headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
+- live API verification that excluded platforms no longer appeared in `/api/launchbox/platforms?exclude_lora_specialized=1`
+
+### Carry-Forward Rules
+
+1. Keep LoRa practical. Do not put difficult one-off launch ecosystems back into this panel unless there is a clear customer reason.
+2. Preserve the current artwork architecture: LaunchBox XML -> parser -> `ImageScanner` -> `game_id` image route.
+3. For future artwork regressions, verify live route output and frontend layer order before inventing a new media system.
+4. If backend exclusions change, keep frontend `isLoRaExcludedPlatform()` in sync so UI behavior and data behavior do not drift apart.
+
+---

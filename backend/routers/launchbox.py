@@ -866,7 +866,7 @@ def _start_dewey_overlay_sidecar() -> tuple[bool, str]:
 # -----------------------------------------------------------------------------
 @router.post("/frontend/launchbox/launch")
 async def launch_launchbox_app(req: Request):
-    """Launch LaunchBox.exe as a detached process."""
+    """Launch BigBox.exe as a detached process."""
     drive_root = getattr(req.app.state, "drive_root", None)
     actual_drive_root: Optional[Path] = None
     try:
@@ -884,9 +884,12 @@ async def launch_launchbox_app(req: Request):
         else LaunchBoxPaths._get_launchbox_root_dynamic()
     )
     candidates.extend([
+        dynamic_launchbox_root / "BigBox.exe",
         dynamic_launchbox_root / "LaunchBox.exe",
+        dynamic_launchbox_root / "Core" / "BigBox.exe",
         dynamic_launchbox_root / "Core" / "LaunchBox.exe",
     ])
+    candidates.append(Paths.LaunchBox.bigbox_executable())
     candidates.append(Paths.LaunchBox.executable())
 
     # Preserve order and remove duplicates.
@@ -906,7 +909,7 @@ async def launch_launchbox_app(req: Request):
             status_code=404,
             content={
                 "success": False,
-                "message": f"LaunchBox not found. Searched: {searched}"
+                "message": f"LaunchBox/Big Box not found. Searched: {searched}"
             }
         )
     launchbox_cwd = launchbox_exe.parent
@@ -931,7 +934,7 @@ async def launch_launchbox_app(req: Request):
                 stderr=subprocess.DEVNULL
             )
 
-        logger.info("LaunchBox launched successfully: %s", launchbox_exe)
+        logger.info("LaunchBox frontend launched successfully: %s", launchbox_exe)
 
         # Direct LaunchBox launch should stay focused on LaunchBox itself.
         # Dewey remains an explicit F9 action rather than auto-activating here.
@@ -1211,7 +1214,8 @@ def _coerce_panel_launch_response(
         return result
 
     prior_message = str(getattr(result, "message", "") or "").strip()
-    result.success = False
+    result.success = True
+    result.method_used = f"{method_used}_unconfirmed" if method_used else "direct_unconfirmed"
     result.message = (
         f"Launch command was issued for {game.title}, but the process could not be confirmed."
         + (f" Last status: {prior_message}" if prior_message else "")
@@ -2487,6 +2491,7 @@ async def get_games(
     sort_order: str = Query('asc', description="Sort order ('asc' or 'desc')"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     limit: int = Query(50, ge=1, le=500, description="Number of games per page"),
+    exclude_lora_specialized: bool = Query(False, description="Exclude gun-game, Daphne, and American Laser platforms for LoRa UI"),
     services: LaunchBoxServices = Depends(get_launchbox_services),
 ):
     """
@@ -2514,6 +2519,7 @@ async def get_games(
         sort_order=sort_order,
         page=page,
         limit=limit,
+        exclude_lora_specialized=exclude_lora_specialized,
     )
 
     request_duration = (time.time() - request_start) * 1000
@@ -2552,14 +2558,14 @@ async def get_game(game_id: str):
 
 
 @router.get("/image/{game_id}")
-async def get_game_image(game_id: str):
+async def get_game_image(game_id: str, variant: str = "default"):
     """
     Serve game image with intelligent fallback.
 
-    Priority order:
-    1. Clear logo (best coverage, smaller files, consistent dimensions)
-    2. Box front artwork
-    3. Gameplay screenshot
+    Priority order depends on variant:
+    - default: clear logo, box front, screenshot
+    - card/cover: box front, screenshot, clear logo
+    - background/hero: screenshot, box front, clear logo
 
     Also checks region subfolders for localized artwork.
     """
@@ -2567,7 +2573,7 @@ async def get_game_image(game_id: str):
     from pathlib import Path
     import os
 
-    def placeholder_image_response(title: str) -> Response:
+    def placeholder_image_response(title: str, reason: str = "placeholder") -> Response:
         safe_title = (title or "Game").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         initial = (safe_title[:1] or "?").upper()
         svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
@@ -2586,25 +2592,44 @@ async def get_game_image(game_id: str):
         return Response(
             content=svg,
             media_type="image/svg+xml",
-            headers={"Cache-Control": "public, max-age=86400"}
+            headers={
+                "Cache-Control": "no-store, max-age=0",
+                "X-Game-Title": title or "Game",
+                "X-Image-Reason": reason,
+            }
         )
 
     # Fetch game data (cached, fast lookup)
     game = await run_in_threadpool(parser.get_game_by_id, game_id)
 
     if not game:
-        return placeholder_image_response("Game")
+        return placeholder_image_response("Game", reason="game_not_found")
+
+    variant_key = (variant or "default").strip().lower()
+    if variant_key in {"card", "cover", "box"}:
+        image_priority = [
+            game.box_front_path,
+            game.screenshot_path,
+        ]
+    elif variant_key in {"background", "hero", "backdrop"}:
+        image_priority = [
+            game.screenshot_path,
+            game.box_front_path,
+            game.clear_logo_path,
+        ]
+    else:
+        image_priority = [
+            game.clear_logo_path,
+            game.box_front_path,
+            game.screenshot_path,
+        ]
 
     # Image priority (optimized: filter None values upfront)
-    image_paths = [p for p in [
-        game.clear_logo_path,
-        game.box_front_path,
-        game.screenshot_path
-    ] if p]
+    image_paths = [p for p in image_priority if p]
 
     if not image_paths:
         logger.debug(f"No image paths configured for '{game.title}'")
-        return placeholder_image_response(game.title)
+        return placeholder_image_response(game.title, reason=f"no_image_paths:{variant_key}")
 
     # Region priority for international releases
     REGION_PRIORITIES = ["World", "North America", "USA", "Europe", "Japan", "Asia", "Australia"]
@@ -2621,7 +2646,8 @@ async def get_game_image(game_id: str):
                 media_type=mt or "application/octet-stream",
                 headers={
                     "Cache-Control": "public, max-age=86400",  # 24hr cache
-                    "X-Game-Title": game.title  # Debug header
+                    "X-Game-Title": game.title,  # Debug header
+                    "X-Image-Reason": "primary"
                 }
             )
 
@@ -2641,19 +2667,22 @@ async def get_game_image(game_id: str):
                     headers={
                         "Cache-Control": "public, max-age=86400",
                         "X-Game-Title": game.title,
-                        "X-Region": region
+                        "X-Region": region,
+                        "X-Image-Reason": f"regional:{region}"
                     }
                 )
 
     # No image found after exhaustive search
     logger.debug(f"No image found for '{game.title}' after checking {len(image_paths)} paths with regions")
-    return placeholder_image_response(game.title)
+    return placeholder_image_response(game.title, reason=f"not_found_after_exists_check:{variant_key}")
 
 
 @router.get("/platforms", response_model=List[str])
-async def get_platforms():
+async def get_platforms(
+    exclude_lora_specialized: bool = Query(False, description="Exclude gun-game, Daphne, and American Laser platforms for LoRa UI"),
+):
     """Get list of all available platforms (cached)."""
-    platforms = await run_in_threadpool(parser.get_platforms)
+    platforms = await run_in_threadpool(parser.get_platforms, exclude_lora_specialized)
     logger.debug(f"Returning {len(platforms)} platforms")
     return platforms
 
@@ -2710,9 +2739,11 @@ async def get_platform_aliases() -> Dict[str, List[str]]:
 
 
 @router.get("/genres", response_model=List[str])
-async def get_genres():
+async def get_genres(
+    exclude_lora_specialized: bool = Query(False, description="Exclude genres that only exist on hidden LoRa-specialized platforms"),
+):
     """Get list of all available genres (cached)."""
-    genres = await run_in_threadpool(parser.get_genres)
+    genres = await run_in_threadpool(parser.get_genres, exclude_lora_specialized)
     logger.debug(f"Returning {len(genres)} genres")
     return genres
 
@@ -2722,6 +2753,7 @@ async def get_random_game(
     platform: Optional[str] = Query(None),
     genre: Optional[str] = Query(None),
     decade: Optional[int] = Query(None),
+    exclude_lora_specialized: bool = Query(False, description="Exclude gun-game, Daphne, and American Laser platforms for LoRa UI"),
 ):
     """
     Get random game with optional filters.
@@ -2734,7 +2766,8 @@ async def get_random_game(
         parser.get_random_game,
         platform=platform,
         genre=genre,
-        decade=decade
+        decade=decade,
+        exclude_lora_specialized=exclude_lora_specialized,
     )
 
     if not random_game:
@@ -3811,13 +3844,15 @@ async def redetect_emulators():
         return {"success": False, "message": str(e)}
 
 @router.get("/stats", response_model=GameCacheStats)
-async def get_cache_stats():
+async def get_cache_stats(
+    exclude_lora_specialized: bool = Query(False, description="Exclude gun-game, Daphne, and American Laser platforms for LoRa UI"),
+):
     """
     Get cache statistics for debugging.
 
     Returns: Total games, platforms, genres, last update time, mock data flag.
     """
-    stats = parser.get_cache_stats()
+    stats = parser.get_cache_stats(exclude_lora_specialized=exclude_lora_specialized)
 
     return GameCacheStats(
         total_games=stats["total_games"],

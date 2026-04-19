@@ -28,12 +28,23 @@ function useDebounce(value, delay) {
 
 const DEVICE_ID_STORAGE_KEY = 'launchbox:device-id'
 const LOCAL_LAUNCHBOX_API = '/api/launchbox'
+const LORA_EXCLUDE_SPECIALIZED_PARAM = 'exclude_lora_specialized=1'
 const PROFILE_STORAGE_KEY = 'launchbox:active-profile'
 const RETROARCH_ALLOWED_STORAGE_KEY = 'launchbox:allow-retroarch'
 // Ensure API calls hit the gateway when running under Vite (5173)
 const GATEWAY = (typeof window !== 'undefined' && window.location && window.location.port === '5173')
   ? 'http://localhost:8787'
   : ''
+
+function isLoRaExcludedPlatform(platformName) {
+  const normalized = (platformName || '').trim().toLowerCase()
+  if (!normalized) return false
+  return normalized === 'american laser games'
+    || normalized === 'daphne'
+    || normalized === 'teknoparrot arcade'
+    || normalized === 'taito type x'
+    || normalized.includes('gun games')
+}
 
 const formatProfileLabel = (profile) => {
   if (!profile) return 'Guest'
@@ -49,6 +60,17 @@ const normalizeTitleForMatch = (str) => {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+const buildGameImageUrl = (game, variant = 'card') => {
+  const keySource = [
+    game?.box_front_path || '',
+    game?.screenshot_path || '',
+    game?.clear_logo_path || '',
+  ].join('|')
+
+  const cacheKey = encodeURIComponent(keySource || `${game?.id || 'unknown'}:${variant}:none`)
+  return `${GATEWAY}/api/launchbox/image/${game.id}?variant=${encodeURIComponent(variant)}&cache_key=${cacheKey}`
 }
 
 const generateDeviceId = () => {
@@ -164,7 +186,7 @@ const GameCard = memo(({ game, onLaunch, onGameHover, formatRelativeTime, plugin
       {/* Game Box Art */}
       <div className="game-image-container">
         <img
-          src={`${GATEWAY}/api/launchbox/image/${game.id}`}
+          src={buildGameImageUrl(game, 'card')}
           alt={game.title}
           className="game-image"
           onError={handleImageError}
@@ -219,6 +241,7 @@ export default function LaunchBoxPanel() {
 
   // Panel state
   const [activeTab, setActiveTab] = useState('recent')
+  const [selectedGameIndex, setSelectedGameIndex] = useState(0) // Hero carousel selection
   const [deviceId] = useState(() => resolveLaunchboxDeviceId())
   const [subPanelExpanded, setSubPanelExpanded] = useState(true)
   const [loraState, setLoraState] = useState('idle') // idle, listening, processing, launching
@@ -275,6 +298,7 @@ export default function LaunchBoxPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [perfMetrics, setPerfMetrics] = useState({})
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
 
   // Filter and pagination state
   const [platformFilter, setPlatformFilter] = useState('All')
@@ -353,6 +377,7 @@ export default function LaunchBoxPanel() {
   const resolveAndLaunchRef = useRef(null)
   const handoffProcessedRef = useRef(null)
   const profileTouchedRef = useRef(false)
+  const sidebarRef = useRef(null)
 
   useEffect(() => {
     if (!profileTouchedRef.current && sharedProfile?.userId) {
@@ -397,6 +422,7 @@ export default function LaunchBoxPanel() {
   // Define supported platforms for direct launch in this panel
   const isSupportedPlatform = useCallback((platform) => {
     if (!platform) return false
+    if (isLoRaExcludedPlatform(platform)) return false
     // Allow all platforms - backend will handle launch method selection
     // This includes: MAME (Arcade), RetroArch (NES, SNES, Genesis, etc.), PCSX2 (PS2), and more
     return true
@@ -419,9 +445,9 @@ export default function LaunchBoxPanel() {
     const fetchMetadata = async () => {
       try {
         const [platformsRes, genresRes, statsRes] = await Promise.all([
-          fetch(`${GATEWAY}${API_ENDPOINTS.PLATFORMS}`),
-          fetch(`${GATEWAY}${API_ENDPOINTS.GENRES}`),
-          fetch(`${GATEWAY}${API_ENDPOINTS.STATS}`)
+          fetch(`${GATEWAY}${API_ENDPOINTS.PLATFORMS}?${LORA_EXCLUDE_SPECIALIZED_PARAM}`),
+          fetch(`${GATEWAY}${API_ENDPOINTS.GENRES}?${LORA_EXCLUDE_SPECIALIZED_PARAM}`),
+          fetch(`${GATEWAY}${API_ENDPOINTS.STATS}?${LORA_EXCLUDE_SPECIALIZED_PARAM}`)
         ]);
         if (!platformsRes.ok || !genresRes.ok || !statsRes.ok) {
           throw new Error('Failed to load metadata');
@@ -482,6 +508,7 @@ export default function LaunchBoxPanel() {
         limit: GAMES_PER_PAGE,
         sort_by: serverSortBy,
         sort_order: sortOrder,
+        exclude_lora_specialized: '1',
       });
 
       if (platformFilter && platformFilter !== 'All') {
@@ -516,6 +543,7 @@ export default function LaunchBoxPanel() {
 
         setGames(normalized.games);
         setTotalGames(normalized.total);
+        setHasLoadedOnce(true)
 
       } catch (err) {
         if (err.name !== 'AbortError') {
@@ -561,60 +589,6 @@ export default function LaunchBoxPanel() {
       showToast('Refresh failed')
     }
   }, [fetchCacheStatus, showToast])
-
-  // Mock recent games for display while data loads (TODO: Remove when using real data)
-  const mockGames = [
-    {
-      id: '1e48ac15-55e2-47f7-a33e-486451a16def',
-      title: 'Mortal Kombat II',
-      platform: 'Arcade',
-      year: 1993,
-      genre: 'Fighting',
-      lastPlayed: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      sessionTime: '45 min',
-      playCount: 28
-    },
-    {
-      id: '2f59bc26-66f3-58g8-b44f-597562b27efg',
-      title: 'Street Fighter II',
-      platform: 'Arcade',
-      year: 1991,
-      genre: 'Fighting',
-      lastPlayed: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      sessionTime: '32 min',
-      playCount: 47
-    },
-    {
-      id: '3g60cd37-77g4-69h9-c55g-608673c38fhi',
-      title: 'Metal Slug',
-      platform: 'Arcade',
-      year: 1996,
-      genre: 'Run & Gun',
-      lastPlayed: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      sessionTime: '28 min',
-      playCount: 32
-    },
-    {
-      id: '4h71de48-88h5-70i0-d66h-719784d49gij',
-      title: 'Pac-Man',
-      platform: 'Arcade',
-      year: 1980,
-      genre: 'Maze',
-      lastPlayed: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      sessionTime: '22 min',
-      playCount: 89
-    },
-    {
-      id: '5i82ef59-99i6-81j1-e77i-820895e50hjk',
-      title: 'Galaga',
-      platform: 'Arcade',
-      year: 1981,
-      genre: 'Shooter',
-      lastPlayed: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      sessionTime: '18 min',
-      playCount: 65
-    }
-  ]
 
   // Default stats shown while loading
   const defaultStats = {
@@ -710,8 +684,14 @@ export default function LaunchBoxPanel() {
       const result = await response.json()
 
       if (result.success) {
-        addMessage(`\u2705 ${game.title} launched via ${result.method_used}`, 'assistant')
-        showToast(`Launched via: ${result.method_used}`)
+        const methodUsed = String(result.method_used || '')
+        if (methodUsed.includes('unconfirmed')) {
+          addMessage(`\u2139\uFE0F ${game.title} launch started, but process confirmation timed out. If the game opened, you can ignore this notice.`, 'assistant')
+          showToast('Launch started')
+        } else {
+          addMessage(`\u2705 ${game.title} launched via ${result.method_used}`, 'assistant')
+          showToast(`Launched via: ${result.method_used}`)
+        }
       } else {
         // Backend returns 'message' field, not 'error' field - check message first
         const errorMsg = result.message || result.error || 'Unknown error occurred'
@@ -734,197 +714,115 @@ export default function LaunchBoxPanel() {
 
   // Resolve game title via plugin, then launch
   const resolveAndLaunch = useCallback(async (title, filters = {}) => {
-
     const trimmedTitle = (title || '').trim()
-
     if (!trimmedTitle) {
-
       addMessage('Heads up: provide a game title to resolve.', 'assistant')
-
       return
-
     }
 
     setLoraState('processing')
-
-    addMessage(`dY"? Searching for "${trimmedTitle}"...`, 'assistant')
-
-
+    addMessage(`\uD83D\uDD0D Searching for "${trimmedTitle}"...`, 'assistant')
 
     try {
-
       const response = await fetch(`${GATEWAY}${API_ENDPOINTS.RESOLVE}`, {
-
         method: 'POST',
-
         headers: {
-
           ...apiHeaders,
-
           'Content-Type': 'application/json'
-
         },
-
         body: JSON.stringify({
-
           title: trimmedTitle,
-
           platform: filters.platform || undefined,
-
           year: filters.year || undefined,
-
           limit: 5
-
         })
-
       })
 
       const payload = await response.json().catch(() => ({}))
-
       if (!response.ok) {
-
         throw new Error(payload?.message || 'Failed to resolve game')
-
       }
-
-
 
       const normalizeCandidates = (result) => {
-
         if (Array.isArray(result)) return result
-
         if (result?.status === 'resolved' && result.game) return [result.game]
-
         if (result?.status === 'multiple_matches' && Array.isArray(result.suggestions)) return result.suggestions
-
         return []
-
       }
 
-
-
       if (Array.isArray(payload)) {
-
         if (payload.length === 0) {
-
           addMessage(`Heads up: no games found matching "${trimmedTitle}"`, 'assistant')
-
           return
-
         }
-
         if (payload.length === 1) {
           const only = payload[0]
           const exact = normalizeTitleForMatch(trimmedTitle) === normalizeTitleForMatch(only?.title)
           if (exact) {
-            addMessage(`dYZr Found: ${only.title}. Launching...`, 'assistant')
+            addMessage(`\uD83C\uDFAF Found: ${only.title}. Launching...`, 'assistant')
             await launchGame(only)
             return
           }
         }
-
         const preview = payload.slice(0, 4).map((g, i) => `${i + 1}) ${g.title} (${g.platform || 'Unknown'})`).join(', ')
         addMessage(`Heads up: I found multiple possible matches for "${trimmedTitle}". Please specify platform/year. Top matches: ${preview}`, 'assistant')
         return
-
       }
 
-
-
       if (payload.status === 'resolved' && payload.game) {
-
         const isExact = payload.source === 'cache_exact' ||
           normalizeTitleForMatch(trimmedTitle) === normalizeTitleForMatch(payload.game.title)
-
         const sourceLabel = payload.source === 'cache_fuzzy' ? 'Fuzzy match' : 'Found'
-
         const confidenceSuffix = payload.game.confidence ? ` (${Math.round(payload.game.confidence * 100)}% confidence)` : ''
-
         if (!isExact) {
           addMessage(`Heads up: ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Please confirm by adding platform/year so I don't launch the wrong game.`, 'assistant')
           return
         }
-
-        addMessage(`dYZr ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Launching...`, 'assistant')
-
+        addMessage(`\uD83C\uDFAF ${sourceLabel}: ${payload.game.title}${confidenceSuffix}. Launching...`, 'assistant')
         await launchGame(payload.game)
-
         return
-
       }
-
-
 
       if (payload.status === 'multiple_matches') {
-
         const suggestions = Array.isArray(payload.suggestions) ? payload.suggestions : []
-
         if (suggestions.length === 0) {
-
           addMessage('Heads up: multiple matches returned but none could be displayed.', 'assistant')
-
           return
-
         }
-
         const listPreview = suggestions.slice(0, 4).map((g, i) => `${i + 1}) ${g.title} (${g.platform || 'Unknown'})`).join(', ')
-
         addMessage(`Heads up: I found ${suggestions.length} matches for "${trimmedTitle}". Please specify platform/year so I don't launch the wrong one. Top matches: ${listPreview}`, 'assistant')
-
         return
-
       }
-
-
 
       if (payload.status === 'not_found') {
-
         addMessage(payload.message || `Heads up: no games found matching "${trimmedTitle}"`, 'assistant')
-
         return
-
       }
 
-
-
       const fallbackMatches = normalizeCandidates(payload)
-
       if (fallbackMatches.length) {
-
         if (fallbackMatches.length === 1) {
           const only = fallbackMatches[0]
           const exact = normalizeTitleForMatch(trimmedTitle) === normalizeTitleForMatch(only?.title)
           if (exact) {
-            addMessage(`dYZr Found: ${only.title}. Launching...`, 'assistant')
+            addMessage(`\uD83C\uDFAF Found: ${only.title}. Launching...`, 'assistant')
             await launchGame(only)
             return
           }
         }
-
         const preview = fallbackMatches.slice(0, 4).map((g, i) => `${i + 1}) ${g.title} (${g.platform || 'Unknown'})`).join(', ')
         addMessage(`Heads up: I found multiple possible matches for "${trimmedTitle}". Please specify platform/year. Top matches: ${preview}`, 'assistant')
         return
-
       }
 
-
-
       addMessage(`Heads up: no games found matching "${trimmedTitle}"`, 'assistant')
-
     } catch (err) {
-
       console.error('Resolve failed:', err)
-
       const errorDetail = err?.message || 'Network error'
-
       addMessage(`Heads up: resolution error - ${errorDetail}`, 'assistant')
-
     } finally {
-
       setLoraState('idle')
-
     }
-
   }, [addMessage, launchGame, apiHeaders])
 
   // Assign to ref so voice callbacks can use it
@@ -1003,7 +901,9 @@ export default function LaunchBoxPanel() {
   }, [])
 
   const handleSortByChange = useCallback((e) => {
-    setSortBy(e.target.value)
+    const nextSortBy = e.target.value
+    setSortBy(nextSortBy)
+    setSortOrder(nextSortBy === 'year' ? 'desc' : 'asc')
   }, [])
 
   const handleInputChange = useCallback((e) => {
@@ -1036,6 +936,12 @@ export default function LaunchBoxPanel() {
     setCurrentPage(1)
   }, [platformFilter, genreFilter, yearFilter, sortBy, sortOrder, debouncedSearchQuery])
 
+  useEffect(() => {
+    if (isLoRaExcludedPlatform(platformFilter)) {
+      setPlatformFilter('All')
+    }
+  }, [platformFilter])
+
   // Ctrl+F keyboard shortcut to focus search
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1061,6 +967,7 @@ export default function LaunchBoxPanel() {
 
     try {
       const params = new URLSearchParams()
+      params.set('exclude_lora_specialized', '1')
       if (platformScope !== 'All') {
         params.set('platform', platformScope)
       }
@@ -1102,13 +1009,13 @@ export default function LaunchBoxPanel() {
     }
   }, [platformFilter, visibleGames, games, apiHeaders, addMessage, launchGame, scoreProfileName])
 
-  // Launch Pegasus fullscreen frontend (fire-and-forget for instant UI response)
+  // Launch native LaunchBox/Big Box frontend (fire-and-forget for instant UI response)
   const launchPegasus = useCallback(() => {
     // Immediate UI feedback - don't wait for API
-    addMessage('\uD83C\uDFAE Launching Pegasus...', 'assistant')
+    addMessage('\uD83C\uDFAE Launching Big Box...', 'assistant')
 
     // Fire-and-forget: launch in background, don't block UI
-    fetch(`${GATEWAY}/api/launchbox/pegasus/launch`, {
+    fetch(`${GATEWAY}/api/launchbox/frontend/launchbox/launch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1118,13 +1025,13 @@ export default function LaunchBoxPanel() {
     }).then(response => {
       if (!response.ok) {
         response.json().catch(() => ({})).then(data => {
-          addMessage(`\u274C Failed to launch Pegasus: ${data.message || 'Unknown error'}`, 'assistant')
+          addMessage(`\u274C Failed to launch Big Box: ${data.message || 'Unknown error'}`, 'assistant')
         })
       }
-      // Success case: Pegasus is launching, no need for confirmation message
+      // Success case: Big Box is launching, no need for confirmation message
       // (it takes over the screen anyway)
     }).catch(err => {
-      addMessage(`\u274C Failed to launch Pegasus: ${err.message}`, 'assistant')
+      addMessage(`\u274C Failed to launch Big Box: ${err.message}`, 'assistant')
     })
   }, [addMessage, deviceId])
 
@@ -1427,196 +1334,514 @@ export default function LaunchBoxPanel() {
     launching: 'status-launching'
   }[loraState]), [loraState])
 
+  // Selected game for hero display
+  const selectedGame = useMemo(() => {
+    if (!games || games.length === 0) return null
+    return games[selectedGameIndex % games.length] || games[0]
+  }, [games, selectedGameIndex])
+
+  const cacheLastUpdated = cacheStatus?.last_updated || cacheStatus?.generated_at || cacheStatus?.updated_at || null
+  const cacheIsStale = useMemo(() => {
+    if (!cacheLastUpdated) return false
+    const lastUpdatedTs = new Date(cacheLastUpdated).getTime()
+    if (!Number.isFinite(lastUpdatedTs)) return false
+    return ((Date.now() - lastUpdatedTs) / 1000) > STALE_THRESHOLD_SECS
+  }, [cacheLastUpdated])
+
+  const directLaunchText = useMemo(() => {
+    if (directRetroArchEnabled === null) return 'Direct Launch Unknown'
+    return directRetroArchEnabled ? 'Direct Launch Enabled' : 'Direct Launch Disabled'
+  }, [directRetroArchEnabled])
+
+  const libraryCards = useMemo(() => visibleGames, [visibleGames])
+  const currentRangeStart = totalGames === 0 ? 0 : ((currentPage - 1) * GAMES_PER_PAGE) + 1
+  const currentRangeEnd = totalGames === 0 ? 0 : Math.min(totalGames, currentPage * GAMES_PER_PAGE)
+  const subpanelModeLabel = activeTab === 'stats' ? 'Quick Stats' : 'Recent'
+  const shellStatus = pluginAvailable ? 'online' : 'degraded'
+  const heroTag = selectedGame?.genre || selectedGame?.platform || 'Featured Game'
+  const heroMeta = [
+    selectedGame?.platform,
+    selectedGame?.year,
+    selectedGame?.genre,
+  ].filter(Boolean).join(' • ')
+
+  const shellHeaderActions = (
+    <div className="lora-shell-actions" aria-hidden="true">
+      <span className={`lora-shell-pill ${statusColor}`}>{statusText}</span>
+      <span className={`lora-shell-pill ${cacheIsStale ? 'is-stale' : 'is-fresh'}`}>
+        {cacheIsStale ? 'Cache Stale' : 'Cache Fresh'}
+      </span>
+    </div>
+  )
+
+  const renderPanelFrame = (content) => (
+    <PanelShell
+      title="LaunchBox LoRa"
+      subtitle="Cinematic library and launch surface"
+      status={shellStatus}
+      headerActions={shellHeaderActions}
+      className="lora-panel-shell"
+      bodyClassName="lora-panel-shell-body"
+    >
+      {content}
+    </PanelShell>
+  )
+
+  const showBlockingLoad = loading && !hasLoadedOnce
+
   // Show loading state
-  if (loading) {
-    return (
-      <PanelShell
-        title="LaunchBox LoRa"
-        subtitle="Loading game library..."
-        icon={<img src="/lora-avatar.jpeg" alt="LoRa" className="panel-avatar" />}
-        status="degraded"
-      >
-        <div className="loading-container">
-          <p className="loading-title">Loading games from backend...</p>
-          <p className="loading-subtitle">This may take a few seconds if parsing XML files...</p>
+  if (showBlockingLoad) {
+    return renderPanelFrame(
+      <div className="lora-cinematic">
+        <div className="lora-loading-state">
+          <div className="lora-loading-spinner" />
+          <p className="lora-error-title">Loading game library...</p>
+          <p className="lora-error-msg">This may take a few seconds if parsing XML files...</p>
         </div>
-      </PanelShell>
+      </div>
     )
   }
 
   // Show error state
   if (error) {
-    // Determine if this is a network error (backend not running) vs data error
-    const isBackendStarting = error.includes('backend is starting') || error.includes('Failed to fetch') || error.includes('NetworkError')
-    const isLaunchBoxMissing = error.includes('LaunchBox') || error.includes('503') || error.includes('not configured')
-
-    return (
-      <PanelShell
-        title="LaunchBox LoRa"
-        subtitle={isBackendStarting ? "Connecting..." : "Connection Error"}
-        icon={<img src="/lora-avatar.jpeg" alt="LoRa" className="panel-avatar" />}
-        status="offline"
-      >
-        <div className="error-container">
-          {isBackendStarting ? (
+    return renderPanelFrame(
+      <div className="lora-cinematic">
+        <div className="lora-error-state">
+          {error.includes('ECONNREFUSED') || error.includes('Failed to fetch') ? (
             <>
-              <p className="error-message">\u23F3 Arcade Assistant is starting up...</p>
-              <p className="error-detail">The backend is still loading. This usually takes 10-30 seconds on startup.</p>
-              <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
-                If this persists, make sure the Arcade Assistant launcher is running.
-              </p>
+              <p className="lora-error-title">{'\u23F3'} Arcade Assistant is starting up...</p>
+              <p className="lora-error-msg">The backend is still loading. This usually takes 10-30 seconds on startup.</p>
             </>
-          ) : isLaunchBoxMissing ? (
+          ) : error.includes('LaunchBox path not found') ? (
             <>
-              <p className="error-message">📂 LaunchBox Not Found</p>
-              <p className="error-detail">{error}</p>
-              <p className="error-detail" style={{ marginTop: '8px', fontSize: '14px', opacity: 0.8 }}>
-                LoRa needs LaunchBox to browse your game library. Other panels will still work.
-              </p>
+              <p className="lora-error-title">{'\uD83D\uDCC2'} LaunchBox Not Found</p>
+              <p className="lora-error-msg">{error}</p>
             </>
           ) : (
             <>
-              <p className="error-message">❌ Failed to load game library</p>
-              <p className="error-detail">{error}</p>
+              <p className="lora-error-title">{'\u274C'} Failed to load game library</p>
+              <p className="lora-error-msg">{error}</p>
             </>
           )}
-
-          <button
-            onClick={handleReload}
-            className="error-retry-btn"
-          >
-            🔄 Retry
+          <button className="lora-retry-btn" onClick={handleReload}>
+            Retry
           </button>
         </div>
-      </PanelShell>
+      </div>
     )
   }
 
-  return (
-    <PanelShell
-      title="LaunchBox LoRa"
-      subtitle="Game Library AI Assistant"
-      icon={<img src="/lora-avatar.jpeg" alt="LoRa" className="panel-avatar" />}
-      status="online"
-      headerActions={
-        <div className="lora-header-actions">
-          {/* Status Badge */}
-          <div className={`lora-status-badge ${statusColor}`}>
-            <div className="status-dot" />
-            <span>{statusText}</span>
-          </div>
+  return renderPanelFrame(
+    <div className={`lora-cinematic ${chatOpen ? 'chat-open' : ''}`}>
+      {/* Cinematic Background */}
+      <div className="lora-bg-cinematic">
+        <img src="/lora-hero.png" alt="" />
+        <div className="lora-bg-scrim-bottom" />
+        <div className="lora-bg-scrim-left" />
+      </div>
 
-          <div
-            className="lora-profile-select"
-            style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', minWidth: '170px' }}
-          >
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--nm-primary)' }}>
-              RetroArch
-            </span>
-            <label style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', color: 'var(--nm-on-surface)' }}>
+      {/* Main Canvas */}
+      <div className="lora-canvas">
+        {/* Header Bar */}
+        <div className="lora-header-bar">
+          <div className="lora-brand">
+            <div>
+              <span className="lora-brand-title">LaunchBox LoRa</span>
+              <div className="lora-top-nav">
+                <button type="button" className="lora-top-link active">Library</button>
+              </div>
+            </div>
+          </div>
+          <div className="lora-header-controls">
+            <label className="lora-search-bar">
+              <span className="lora-search-icon">⌕</span>
               <input
-                type="checkbox"
-                checked={allowRetroArch}
-                onChange={(e) => {
-                  const next = Boolean(e.target.checked)
-                  setAllowRetroArch(next)
-                  try {
-                    window.localStorage.setItem(RETROARCH_ALLOWED_STORAGE_KEY, String(next))
-                  } catch { }
-                }}
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchQueryChange}
+                placeholder="SEARCH DATABASE"
+                aria-label="Search LaunchBox library"
               />
-              Allow fallback
             </label>
-            <span style={{ fontSize: '11px', color: 'var(--nm-on-surface-variant)' }}>
-              {directRetroArchEnabled === true ? 'Direct launch enabled' : directRetroArchEnabled === false ? 'Direct launch disabled' : 'Direct launch unknown'}
-            </span>
-          </div>
-
-          {/* Profile Selector */}
-          <div
-            className="lora-profile-select"
-            style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', minWidth: '140px' }}
-          >
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--nm-primary)' }}>
-              Chat Profile
-            </span>
-            <select
-              value={activeProfile}
-              onChange={handleProfileChange}
-              className="input"
-              style={{
-                padding: '6px 10px',
-                background: 'var(--nm-surface-container-lowest)',
-                border: '1px solid rgba(204, 151, 255, 0.3)',
-                borderRadius: '6px',
-                color: 'var(--nm-on-surface)',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-              aria-label="Select chat profile for LaunchBox"
+            <div className={`lora-status-pill ${statusColor}`}>
+              <span className={`lora-status-dot ${loraState === 'idle' ? 'ready' : loraState}`} />
+              {statusText}
+            </div>
+            <button
+              className="lora-header-btn"
+              onClick={refreshLibrary}
+              title="Refresh library"
+              aria-label="Refresh library"
             >
-              {profileOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {activeProfileDetails?.description && (
-              <span style={{ fontSize: '11px', color: 'var(--nm-on-surface-variant)' }}>
-                {activeProfileDetails.description}
-              </span>
-            )}
+              {'\u21BB'}
+            </button>
+            <button
+              className="lora-header-btn"
+              onClick={selectRandomGame}
+              title="Random Game"
+              aria-label="Random game"
+            >
+              {'\uD83C\uDFB2'}
+            </button>
+            <button
+              className="lora-header-btn"
+              onClick={launchPegasus}
+              title="Launch Big Box"
+              aria-label="Launch Big Box"
+            >
+              <span className="lora-header-btn-glyph">LB</span>
+            </button>
+            <button
+              className={`lora-header-btn ${chatOpen ? 'active' : ''}`}
+              onClick={toggleChat}
+              title="Chat with LoRa"
+              aria-label="Toggle chat"
+            >
+              {'\uD83D\uDCAC'}
+              {!chatOpen && <span className="lora-chat-badge">!</span>}
+            </button>
+            <div className="lora-brand-logo-wrap">
+              <img src="/lora-avatar.jpeg" alt={chatProfileName} className="lora-brand-logo" />
+            </div>
+          </div>
+        </div>
+
+        {/* Content Body: Sidebar + Main */}
+        <div className="lora-content-body">
+          <div className="lora-icon-rail">
+            <button type="button" className="lora-rail-btn" aria-label="Home">⌂</button>
+            <button type="button" className="lora-rail-btn active" aria-label="Library">{'\uD83C\uDFAE'}</button>
+            <button type="button" className={`lora-rail-btn ${chatOpen ? 'active' : ''}`} onClick={toggleChat} aria-label="Chat with LoRa">{'\uD83D\uDCAC'}</button>
+            <div className="lora-rail-spacer" />
+            <button type="button" className="lora-rail-btn power" onClick={launchPegasus} aria-label="Launch Big Box">LB</button>
+          </div>
+          {/* Category Sidebar */}
+          <div className="lora-sidebar" ref={sidebarRef} tabIndex={-1}>
+            <div className="lora-sidebar-title">Platforms</div>
+            <button
+              className={`lora-sidebar-item ${(genreFilter === 'All' && platformFilter === 'All') ? 'active' : ''}`}
+              onClick={() => { setPlatformFilter('All'); setGenreFilter('All') }}
+            >
+              <span className="sidebar-icon">{'\uD83C\uDFAE'}</span>
+              All Games
+              <span className="sidebar-count">{totalGames}</span>
+            </button>
+            {(platforms || []).map(plat => (
+              <button
+                key={plat}
+                className={`lora-sidebar-item ${platformFilter === plat ? 'active' : ''}`}
+                onClick={() => setPlatformFilter(plat)}
+              >
+                <span className="sidebar-icon">{'\uD83D\uDCBF'}</span>
+                {plat}
+              </button>
+            ))}
           </div>
 
-          {/* Random Game Button */}
-          <button
-            onClick={selectRandomGame}
-            className="lora-random-btn"
-            aria-label="Select random game"
-            title="Launch random game"
-          >
-            <span className="random-icon">🎲</span>
-          </button>
+          {/* Main Content Area */}
+          <div className="lora-main">
+            {/* Hero Section */}
+            {selectedGame && (
+              <div className="lora-hero">
+                <div className="lora-hero-tag">
+                  {selectedGame.genre || selectedGame.platform || 'Game'}
+                </div>
+                <h2 className="lora-hero-title">
+                  {selectedGame.title.length > 20
+                    ? <>{selectedGame.title.substring(0, Math.ceil(selectedGame.title.length / 2))} <span className="accent">{selectedGame.title.substring(Math.ceil(selectedGame.title.length / 2))}</span></>
+                    : <>{selectedGame.title}</>
+                  }
+                </h2>
+                <p className="lora-hero-meta">{heroMeta || 'Featured game ready to launch'}</p>
+                <div className="lora-hero-actions">
+                  <button
+                    className="lora-btn-launch"
+                    onClick={() => launchGame(selectedGame)}
+                    disabled={!canLaunchHere(selectedGame) || isLockActive}
+                    aria-label={`Launch ${selectedGame.title}`}
+                  >
+                    {'\u25B6'} Launch Game
+                  </button>
+                  <button
+                    className="lora-btn-details"
+                    onClick={() => {
+                      addMessage(`Tell me about ${selectedGame.title}`, 'user')
+                      setChatOpen(true)
+                      sendMessageWithText(`Tell me about ${selectedGame.title} on ${selectedGame.platform}`)
+                    }}
+                  >
+                    Game Details
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Pegasus Launch Button */}
-          <button
-            onClick={launchPegasus}
-            className="lora-pegasus-btn"
-            aria-label="Launch Pegasus fullscreen frontend"
-            title="Switch to Pegasus (fullscreen)"
-          >
-            <img
-              src="/pegasus-button.png"
-              alt="Launch Pegasus"
-              className="pegasus-btn-image"
-            />
-          </button>
+            {/* Box Art Grid */}
+            <div className="lora-carousel-section">
+              <div className="lora-carousel-topline">
+                <div>
+                  <p className="lora-carousel-label">Library Games</p>
+                  <p className="lora-carousel-meta">Showing {currentRangeStart}-{currentRangeEnd} of {totalGames} games</p>
+                </div>
+                <div className="lora-filter-controls">
+                  <select value={platformFilter} onChange={handlePlatformFilterChange} aria-label="Filter by platform">
+                    {platformsForFilter.map((platform) => (
+                      <option key={platform} value={platform}>{platform}</option>
+                    ))}
+                  </select>
+                  <select value={genreFilter} onChange={handleGenreFilterChange} aria-label="Filter by genre">
+                    {genresForFilter.map((genre) => (
+                      <option key={genre} value={genre}>{genre}</option>
+                    ))}
+                  </select>
+                  <select value={yearFilter} onChange={handleYearFilterChange} aria-label="Filter by decade">
+                    {decades.map((decade) => (
+                      <option key={decade} value={decade}>{decade}</option>
+                    ))}
+                  </select>
+                  <select value={sortBy} onChange={handleSortByChange} aria-label="Sort games">
+                    <option value="title">Title A-Z</option>
+                    <option value="year">Year Newest</option>
+                    <option value="lastPlayed">Recently Played</option>
+                  </select>
+                </div>
+              </div>
+              <div className="lora-carousel">
+                {libraryCards.map((game, idx) => (
+                  <button
+                    type="button"
+                    key={game.id}
+                    className={`lora-carousel-card ${idx === selectedGameIndex ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedGameIndex(idx)
+                      blinkySelection.gameSelected(game.title, game.platform || 'MAME')
+                    }}
+                    onDoubleClick={() => {
+                      setSelectedGameIndex(idx)
+                      blinkySelection.gameSelected(game.title, game.platform || 'MAME')
+                      launchGame(game)
+                    }}
+                    onMouseEnter={() => blinkySelection.gameSelected(game.title, game.platform || 'MAME')}
+                    title={`Select ${game.title}. Double-click to launch.`}
+                  >
+                    <img
+                      src={buildGameImageUrl(game, 'card')}
+                      alt={game.title}
+                      onError={(e) => { e.target.style.display = 'none' }}
+                    />
+                    <div className="card-fallback" aria-hidden="true">
+                      <span className="card-fallback-initial">{game.title?.charAt(0) || '?'}</span>
+                      <span className="card-fallback-label">No artwork</span>
+                    </div>
+                    <div className="card-overlay" />
+                    <div className="card-title">
+                      <strong>{game.title}</strong>
+                      <span>{[game.platform, game.year].filter(Boolean).join(' • ')}</span>
+                    </div>
+                  </button>
+                ))}
+                {libraryCards.length === 0 && (
+                  <div className="lora-carousel-placeholder">
+                    <span className="card-icon">{'\uD83C\uDFAE'}</span>
+                    No games match your filters
+                  </div>
+                )}
+              </div>
+              {totalPages > 1 && (
+                <div className="lora-pagination">
+                  <button type="button" onClick={goToPreviousPage} disabled={currentPage === 1}>Previous</button>
+                  <span>Page {currentPage} of {totalPages}</span>
+                  <button type="button" onClick={() => goToNextPage(totalPages)} disabled={currentPage === totalPages}>Next</button>
+                </div>
+              )}
+            </div>
 
-          {/* Chat Button */}
-          <button
-            onClick={toggleChat}
-            className="lora-chat-btn"
-            aria-label="Toggle chat with LoRa"
-          >
-            <span className="chat-icon">💬</span>
-            {!chatOpen && <span className="chat-notification">!</span>}
-          </button>
+            {/* Stats Strip */}
+            <div className={`lora-stats-strip ${subPanelExpanded ? '' : 'collapsed'}`}>
+              <div className="lora-subpanel-header">
+                <div className="lora-subpanel-tabs">
+                  <button type="button" className={activeTab === 'recent' ? 'active' : ''} onClick={setTabRecent}>Recent</button>
+                  <button type="button" className={activeTab === 'stats' ? 'active' : ''} onClick={setTabStats}>Quick Stats</button>
+                </div>
+                <button type="button" className="lora-subpanel-toggle" onClick={toggleSubPanel}>
+                  {subPanelExpanded ? 'Collapse' : `Open ${subpanelModeLabel}`}
+                </button>
+              </div>
 
-          {/* Mic Button */}
+              {subPanelExpanded && activeTab === 'stats' && (
+                <>
+                  <div className="lora-stat-card">
+                    <div className="lora-stat-header">
+                      <span className="lora-stat-icon">{'\uD83C\uDFAE'}</span>
+                      <span className="lora-stat-label">Total Games</span>
+                    </div>
+                    <div className="lora-stat-value">
+                      {displayStats.total_games || displayStats.totalGames || totalGames}
+                      <span className="lora-stat-suffix">GAMES</span>
+                    </div>
+                  </div>
+                  <div className="lora-stat-card">
+                    <div className="lora-stat-header">
+                      <span className="lora-stat-icon">{'\uD83D\uDD79\uFE0F'}</span>
+                      <span className="lora-stat-label">Platforms</span>
+                    </div>
+                    <div className="lora-stat-value">
+                      {displayStats.platforms_count || displayStats.platforms || 0}
+                      <span className="lora-stat-suffix">SYSTEMS</span>
+                    </div>
+                  </div>
+                  <div className="lora-stat-card">
+                    <div className="lora-stat-header">
+                      <span className="lora-stat-icon">{'\uD83C\uDFAF'}</span>
+                      <span className="lora-stat-label">Genres</span>
+                    </div>
+                    <div className="lora-stat-value">
+                      {displayStats.genres_count || 0}
+                      <span className="lora-stat-suffix">TYPES</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {subPanelExpanded && activeTab === 'recent' && (
+                <>
+                  <div className="lora-stat-card recent-card">
+                    <div className="lora-stat-header">
+                      <span className="lora-stat-icon">{'\u2726'}</span>
+                      <span className="lora-stat-label">Selected Game</span>
+                    </div>
+                    <div className="lora-recent-value">{selectedGame?.title || 'No selection'}</div>
+                    <p className="lora-recent-text">{selectedGame ? `${heroMeta} • ${formatRelativeTime(selectedGame.lastPlayed)}` : 'Choose a game from the library shelf to focus it here.'}</p>
+                  </div>
+                  <div className="lora-stat-card recent-card">
+                    <div className="lora-stat-header">
+                      <span className="lora-stat-icon">{'\u21BB'}</span>
+                      <span className="lora-stat-label">Library State</span>
+                    </div>
+                    <div className="lora-recent-value">{cacheIsStale ? 'Refresh Recommended' : 'Synced'}</div>
+                    <p className="lora-recent-text">{cacheLastUpdated ? `Last updated ${formatRelativeTime(cacheLastUpdated)}` : 'No cache timestamp available.'}</p>
+                  </div>
+                  <div className="lora-stat-card recent-card">
+                    <div className="lora-stat-header">
+                      <span className="lora-stat-icon">{'\u2699'}</span>
+                      <span className="lora-stat-label">Launch Status</span>
+                    </div>
+                    <div className="lora-recent-value">{pluginAvailable ? 'Plugin Online' : 'Plugin Offline'}</div>
+                    <p className="lora-recent-text">{directLaunchText}</p>
+                  </div>
+                </>
+              )}
+
+              {subPanelExpanded && (
+                <div className="lora-subpanel-footer">
+                  <label className="lora-toggle-row">
+                    <input
+                      type="checkbox"
+                      checked={allowRetroArch}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                        setAllowRetroArch(next)
+                        try {
+                          window.localStorage.setItem(RETROARCH_ALLOWED_STORAGE_KEY, String(next))
+                        } catch {
+                          // ignore persistence failures
+                        }
+                      }}
+                    />
+                    <span>Allow RetroArch fallback</span>
+                  </label>
+                  <span className={`lora-status-chip ${cacheIsStale ? 'is-stale' : 'is-fresh'}`}>{cacheIsStale ? 'Cache Stale' : 'Cache Fresh'}</span>
+                  <span className="lora-status-chip">{directLaunchText}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {chatOpen && <button type="button" className="lora-chat-scrim" onClick={closeChat} aria-label="Close chat overlay" />}
+
+      {/* LoRa Chat Panel (Fixed Right) */}
+      <div className={`lora-chat-panel ${chatOpen ? '' : 'hidden'}`} role="dialog" aria-label="Chat with LoRa">
+        <div className="lora-chat-header">
+          <div className="lora-chat-title">
+            <div className="pulse-dot" />
+            <span>LoRa AI</span>
+          </div>
+          <button className="lora-chat-close" onClick={closeChat} aria-label="Close chat">{'\u00D7'}</button>
+        </div>
+        <div className="lora-chat-profile">
+          <label htmlFor="launchbox-lora-profile">Profile</label>
+          <select id="launchbox-lora-profile" value={activeProfile} onChange={handleProfileChange}>
+            {profileOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="lora-chat-messages" ref={chatMessagesRef}>
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`lora-chat-msg ${msg.role}`}>
+              <div className="bubble">{msg.text}</div>
+              <span className="msg-meta">
+                {msg.role === 'assistant' ? 'LoRa' : chatProfileName}
+              </span>
+            </div>
+          ))}
+          {isChatLoading && (
+            <div className="lora-chat-msg assistant lora-chat-typing">
+              <div className="bubble">
+                <div className="typing-dots">
+                  <span /><span /><span />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        {isRecording && (
+          <div className="lora-voice-viz">
+            <div className="lora-voice-bars">
+              {voiceBars.map((_, i) => (
+                <div key={i} className="lora-voice-bar" style={memoizedStyles.voiceBarDelays[i]} />
+              ))}
+            </div>
+            <p className="lora-voice-status">Listening...</p>
+          </div>
+        )}
+        <div className="lora-chat-input-area">
           <button
+            className={`lora-chat-mic-btn ${isRecording ? 'recording' : ''}`}
             onClick={toggleMic}
-            className={`lora-mic-btn ${isRecording ? 'recording' : ''}`}
-            aria-label={isRecording ? 'Stop recording' : 'Start voice input'}
+            title={isRecording ? 'Stop voice input' : 'Start voice input'}
+            aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
           >
-            <img
-              src="/lora-microphone.png"
-              alt="Microphone"
-              className="mic-icon"
-            />
+            {isRecording ? (
+              <span style={{ fontSize: '18px' }}>{'\u23F9\uFE0F'}</span>
+            ) : (
+              <img src="/lora-mic.png" alt="Microphone" style={{ width: '22px', height: '22px' }} />
+            )}
+          </button>
+          <input
+            type="text"
+            className="lora-chat-input"
+            value={input}
+            onChange={handleInputChange}
+            onKeyPress={handleInputKeyPress}
+            placeholder="Ask LoRa anything..."
+            aria-label="Chat with LoRa"
+            disabled={isChatLoading}
+          />
+          <button
+            className="lora-chat-send"
+            onClick={sendMessage}
+            disabled={isChatLoading || !input.trim()}
+            aria-label="Send message"
+          >
+            {'\u27A4'}
           </button>
         </div>
-      }
-    >
+      </div>
+
       {/* Shader Preview Modal */}
       {shaderModal.open && (
         <div role="dialog" aria-modal="true" aria-label="Shader preview" className="shader-preview-overlay">
@@ -1624,19 +1849,15 @@ export default function LaunchBoxPanel() {
             <h3 className="shader-preview-title">Shader Configuration for {shaderModal.gameId}</h3>
             <div className="shader-preview-details">
               <div className="shader-detail-item">
-                <span className="shader-detail-label">Shader:</span>
-                <span className="shader-detail-value">{shaderModal.shaderName || 'n/a'}</span>
+                <span className="shader-detail-label">Preset:</span>
+                {shaderModal.newConfig?.shader || 'None'}
               </div>
-              <div className="shader-detail-item">
-                <span className="shader-detail-label">Emulator:</span>
-                <span className="shader-detail-value">{shaderModal.emulator || 'n/a'}</span>
-              </div>
-              {shaderModal.diff && (
-                <div className="shader-detail-item">
-                  <span className="shader-detail-label">Change:</span>
-                  <span className="shader-detail-value">{shaderModal.diff}</span>
+              {shaderModal.newConfig?.params && Object.entries(shaderModal.newConfig.params).map(([k, v]) => (
+                <div key={k} className="shader-detail-item">
+                  <span className="shader-detail-label">{k}:</span>
+                  {String(v)}
                 </div>
-              )}
+              ))}
             </div>
             {shaderModal.error && (
               <div style={{ color: 'var(--nm-error)', marginBottom: 8 }}>Error: {shaderModal.error}</div>
@@ -1649,348 +1870,58 @@ export default function LaunchBoxPanel() {
             </div>
             <div className="shader-preview-actions">
               <button
-                onClick={cancelShaderPreview}
-                disabled={shaderModal.applying}
-                className="shader-btn shader-btn-cancel"
+                className="shader-btn-apply"
+                onClick={applyShaderChange}
+                disabled={pendingShaderApply}
               >
+                {pendingShaderApply ? 'Applying...' : 'Apply'}
+              </button>
+              <button className="shader-btn-cancel" onClick={cancelShaderPreview}>
                 Cancel
               </button>
-              <button onClick={applyShaderChange} disabled={shaderModal.applying} className="shader-btn shader-btn-apply">
-                {shaderModal.applying ? 'Applying\u2026' : 'Apply Shader'}
-              </button>
+              {shaderModal.oldConfig && shaderModal.oldConfig.shader !== 'none' && (
+                <button className="shader-btn-remove" onClick={removeShaderBinding}>
+                  Remove Shader
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
-      {/* Animated Background Grid */}
-      <div className="lora-bg-grid" />
 
-      {/* Plugin offline banner intentionally omitted: Launches do not depend on plugin availability */}
-
-      {/* Main Content Area */}
-      <div className="lora-content">
-        {/* Import UI reverted */}
-        {/* Sub-Panel (Recent Games / Stats) */}
-        {subPanelExpanded && (
-          <div className="lora-subpanel">
-            {/* Tab Navigation */}
-            <div className="lora-tabs">
-              <button
-                onClick={setTabRecent}
-                className={`lora-tab ${activeTab === 'recent' ? 'active' : ''}`}
-              >
-                <span className="tab-icon">🕐</span>
-                Recently Played
-              </button>
-              <button
-                onClick={setTabStats}
-                className={`lora-tab ${activeTab === 'stats' ? 'active' : ''}`}
-              >
-                <span className="tab-icon">📊</span>
-                Quick Stats
-              </button>
-              <button
-                onClick={closeSubPanel}
-                className="lora-tab-close"
-                aria-label="Collapse panel"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="lora-tab-content">
-              {activeTab === 'recent' && (
-                <>
-                  {/* Filter and Sort Controls */}
-                  <div className="filter-controls">
-                    <div className="filter-group filter-search">
-                      <label htmlFor="search-games">Search:</label>
-                      <input
-                        id="search-games"
-                        ref={searchInputRef}
-                        type="text"
-                        value={searchQuery}
-                        onChange={handleSearchQueryChange}
-                        placeholder="Search by title..."
-                        className="filter-input"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="platform-filter">Platform:</label>
-                      <select
-                        id="platform-filter"
-                        value={platformFilter}
-                        onChange={handlePlatformFilterChange}
-                        className="filter-select"
-                      >
-                        {platformsForFilter.map(platform => (
-                          <option key={platform} value={platform}>{platform}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="genre-filter">Genre:</label>
-                      <select
-                        id="genre-filter"
-                        value={genreFilter}
-                        onChange={handleGenreFilterChange}
-                        className="filter-select"
-                      >
-                        {genresForFilter.map(genre => (
-                          <option key={genre} value={genre}>{genre}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="year-filter">Decade:</label>
-                      <select
-                        id="year-filter"
-                        value={yearFilter}
-                        onChange={handleYearFilterChange}
-                        className="filter-select"
-                      >
-                        {decades.map(decade => (
-                          <option key={decade} value={decade}>{decade}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="filter-group">
-                      <label htmlFor="sort-by">Sort by:</label>
-                      <select
-                        id="sort-by"
-                        value={sortBy}
-                        onChange={handleSortByChange}
-                        className="filter-select"
-                      >
-                        <option value="title">Title (A-Z)</option>
-                        <option value="year">Year (Newest)</option>
-                      </select>
-                    </div>
-
-                    <div className="filter-results">
-                      Showing {totalGames} game{totalGames !== 1 ? 's' : ''} total \u2022 {visibleGames.length} on this page
-                    </div>
-                    <div className="filter-actions">
-                      <button className="lb-refresh-btn" onClick={refreshLibrary} title="Revalidate library cache">
-                        Refresh Library
-                      </button>
-                      {cacheStatus && cacheStatus.last_loaded_at && ((Date.now() / 1000 - cacheStatus.last_loaded_at) > STALE_THRESHOLD_SECS) && (
-                        <span className="lb-stale-badge" title="Cache may be stale">stale?</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Games List */}
-                  <div className="recent-games-list">
-                    {visibleGames.map((game) => (
-                      <GameCard
-                        key={game.id}
-                        game={game}
-                        onLaunch={launchGame}
-                        onGameHover={(g) => blinkySelection.gameSelected(g.title, g.platform || 'MAME')}
-                        formatRelativeTime={formatRelativeTime}
-                        pluginAvailable={pluginAvailable}
-                        launchDisabled={!canLaunchHere(game) || isLockActive}
-                      />
-                    ))}
-                    {visibleGames.length === 0 && (
-                      <div className="no-games-message">
-                        No games match your filters. Try adjusting your selection.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="pagination-controls">
-                      <button
-                        onClick={goToPreviousPage}
-                        disabled={currentPage === 1}
-                        className="pagination-btn"
-                      >
-                        \u2190 Previous
-                      </button>
-                      <span className="pagination-info">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <button
-                        onClick={() => goToNextPage(totalPages)}
-                        disabled={currentPage === totalPages}
-                        className="pagination-btn"
-                      >
-                        Next \u2192
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'stats' && (
-                <div className="stats-grid">
-                  <div className="stat-card stat-total">
-                    <div className="stat-label">Total Games</div>
-                    <div className="stat-value">{displayStats.total_games || displayStats.totalGames}</div>
-                    <div className="stat-change">{displayStats.is_mock_data ? 'Mock Data' : displayStats.a_drive_status}</div>
-                  </div>
-                  <div className="stat-card stat-platforms">
-                    <div className="stat-label">Platforms</div>
-                    <div className="stat-value">{displayStats.platforms_count || displayStats.platforms}</div>
-                    <div className="stat-change">{displayStats.platforms_count || displayStats.platforms} platforms</div>
-                  </div>
-                  <div className="stat-card stat-most-played">
-                    <div className="stat-label">Genres</div>
-                    <div className="stat-value">{displayStats.genres_count || 0}</div>
-                    <div className="stat-change">{displayStats.genres_count || 0} genres</div>
-                  </div>
-                  <div className="stat-card stat-playtime">
-                    <div className="stat-label">XML Files Parsed</div>
-                    <div className="stat-value">{displayStats.xml_files_parsed || 0}</div>
-                    <div className="stat-change">{displayStats.is_mock_data ? 'Using mock data' : 'Real A: drive data'}</div>
-                  </div>
-                </div>
-              )}
-            </div>
+      {/* Floating Bottom Input */}
+      {!chatOpen && (
+        <div className="lora-floating-input">
+          <div className="lora-floating-input-inner">
+            <div className="lora-floating-sparkle">{'\u2728'}</div>
+            <input
+              type="text"
+              className="lora-floating-field"
+              value={input}
+              onChange={handleInputChange}
+              onKeyPress={handleInputKeyPress}
+              placeholder="ASK LORA ANYTHING..."
+              disabled={isChatLoading}
+            />
+            <button
+              className="lora-floating-send"
+              onClick={() => {
+                setChatOpen(true)
+                sendMessage()
+              }}
+              disabled={isChatLoading || !input.trim()}
+              aria-label="Send message"
+            >
+              {'\u27A4'}
+            </button>
           </div>
-        )}
-
-        {/* Collapsed Toggle */}
-        {!subPanelExpanded && (
-          <button
-            onClick={toggleSubPanel}
-            className="lora-expand-btn"
-          >
-            Show Recent Games \u25B2
-          </button>
-        )}
-
-        {/* Input Area */}
-        <div className="lora-input-area">
-          <input
-            type="text"
-            value={input}
-            onChange={handleInputChange}
-            onKeyPress={handleInputKeyPress}
-            placeholder="Ask LoRa about your games..."
-            className="lora-input"
-            disabled={isChatLoading}
-          />
-          <button
-            onClick={sendMessage}
-            className="lora-send-btn"
-            disabled={isChatLoading || !input.trim()}
-            aria-label="Send message"
-          >
-            \u27A4
-          </button>
         </div>
-      </div>
-
-      {/* Sliding Chat Panel */}
-      {chatOpen && (
-        <>
-          <div className="panel-chat-overlay" onClick={closeChat} />
-          <div className="panel-chat-sidebar" role="dialog" aria-label="Chat with LoRa">
-            {/* Chat Header */}
-            <div className="chat-header">
-              <img src="/lora-avatar.jpeg" alt="LoRa" className="chat-avatar" />
-              <div className="chat-header-info">
-                <h3>Chat with LoRa</h3>
-                {isRecording && (
-                  <div className="voice-active-indicator">
-                    <span className="voice-wave-icon">〰️</span>
-                    Voice Active
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={closeChat}
-                className="chat-close-btn"
-                aria-label="Close chat"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Chat Messages */}
-            <div className="chat-messages" ref={chatMessagesRef}>
-              {messages.map((msg, idx) => (
-                <ChatMessage
-                  key={idx}
-                  message={msg.text}
-                  role={msg.role}
-                />
-              ))}
-              {isChatLoading && (
-                <div className="chat-message assistant">
-                  <div className="message-bubble">
-                    <span className="typing-indicator">\u25CF\u25CF\u25CF</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Voice Visualization (when mic active) */}
-            {isRecording && (
-              <div className="voice-visualization">
-                <div className="voice-bars">
-                  {voiceBars.map((_, i) => (
-                    <div key={i} className="voice-bar" style={memoizedStyles.voiceBarDelays[i]} />
-                  ))}
-                </div>
-                <p className="voice-status">Listening...</p>
-              </div>
-            )}
-
-            {/* Chat Input Area */}
-            <div className="chat-input-container">
-              <div className="chat-input-row">
-                <input
-                  type="text"
-                  className="chat-input-field"
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyPress={handleInputKeyPress}
-                  placeholder={isRecording ? "Listening..." : "Type your message or use voice input..."}
-                  aria-label="Chat with LoRa"
-                  disabled={isChatLoading}
-                />
-                <button
-                  className={`chat-voice-btn ${isRecording ? 'recording' : ''}`}
-                  onClick={toggleMic}
-                  title={isRecording ? 'Stop voice input' : 'Start voice input'}
-                  aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
-                >
-                  {isRecording ? (
-                    <span style={memoizedStyles.stopIcon}>\u23F9\uFE0F</span>
-                  ) : (
-                    <img src="/lora-mic.png" alt="Microphone" style={memoizedStyles.micIcon} />
-                  )}
-                </button>
-                <button
-                  className="chat-send-btn-sidebar"
-                  onClick={sendMessage}
-                  disabled={isChatLoading || !input.trim()}
-                  aria-label="Send message"
-                >
-                  \u27A4
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
       )}
 
+      {/* Toast */}
       {toastMsg && (
-        <div style={{ position: 'fixed', right: 16, bottom: 16, background: 'rgba(25,25,28,0.95)', color: 'var(--nm-secondary)', padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(58,223,250,0.3)', backdropFilter: 'blur(12px)' }}>
-          {toastMsg}
-        </div>
+        <div className="lora-toast">{toastMsg}</div>
       )}
-    </PanelShell>
+    </div>
   )
 }

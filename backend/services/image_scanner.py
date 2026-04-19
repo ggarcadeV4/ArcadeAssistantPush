@@ -65,6 +65,7 @@ class ImageScanner:
     CACHE_DIR = Path(__file__).parent.parent / "cache"
     CACHE_FILE = CACHE_DIR / "image_cache.json"
     CACHE_MAX_AGE_DAYS = 7
+    CACHE_VERSION = "1.1"
 
     # Image type mappings (directory names in LaunchBox)
     IMAGE_TYPES = {
@@ -114,7 +115,7 @@ class ImageScanner:
 
             # Prepare cache data with metadata
             cache_data = {
-                "version": "1.0",
+                "version": self.CACHE_VERSION,
                 "created_at": datetime.now().isoformat(),
                 "scan_duration_seconds": self._scan_stats.get("scan_duration", 0),
                 "platforms_scanned": self._scan_stats.get("platforms_scanned", 0),
@@ -161,7 +162,7 @@ class ImageScanner:
 
             # Validate cache version (for future compatibility)
             cache_version = cache_data.get("version", "0.0")
-            if cache_version != "1.0":
+            if cache_version != self.CACHE_VERSION:
                 logger.warning(f"Incompatible cache version {cache_version} - will rescan")
                 return False
 
@@ -350,10 +351,16 @@ class ImageScanner:
                             self._image_cache[platform_name][type_key] = {}
                             self._title_lists[platform_name][type_key] = []
 
-                        # Scan for images (*.png, *.jpg, *.jpeg)
+                        # Index both root artwork files and one-level-deep region folders.
+                        # Many LaunchBox installs keep the only usable art under folders
+                        # like "World", "North America", or "United States".
                         image_files = []
                         for ext in ['*.png', '*.jpg', '*.jpeg']:
-                            image_files.extend(type_dir.glob(ext))
+                            image_files.extend(type_dir.rglob(ext))
+
+                        image_files.sort(
+                            key=lambda p: (len(p.relative_to(type_dir).parts), str(p).lower())
+                        )
 
                         # Process each image file
                         for image_path in image_files:
@@ -447,6 +454,41 @@ class ImageScanner:
         """
         return self._sanitize_title(title).lower()
 
+    def _get_lookup_candidates(self, title: str) -> List[str]:
+        """
+        Generate lookup candidates for image matching.
+
+        This keeps the original title as the primary candidate, then adds a few
+        conservative LaunchBox-friendly fallbacks for common naming differences.
+        """
+        raw_title = (title or "").strip()
+        if not raw_title:
+            return []
+
+        candidates: List[str] = []
+
+        def add_candidate(value: str):
+            sanitized = self._sanitize_for_lookup(value)
+            if sanitized and sanitized not in candidates:
+                candidates.append(sanitized)
+
+        add_candidate(raw_title)
+
+        stripped = re.sub(r"\s*[\(\[].*?[\)\]]", "", raw_title).strip()
+        add_candidate(stripped)
+
+        base_for_split = stripped or raw_title
+        for separator in (" - ", ": ", " – ", " — "):
+            if separator in base_for_split:
+                add_candidate(base_for_split.split(separator, 1)[0].strip())
+
+        if "&" in base_for_split:
+            add_candidate(base_for_split.replace("&", "and"))
+        if re.search(r"\band\b", base_for_split, flags=re.IGNORECASE):
+            add_candidate(re.sub(r"\band\b", "&", base_for_split, flags=re.IGNORECASE))
+
+        return candidates
+
     def _fuzzy_match(self, title: str, candidates: List[str], threshold: float = None) -> Optional[str]:
         """
         Find best fuzzy match for title among candidates.
@@ -531,25 +573,26 @@ class ImageScanner:
             logger.debug(f"Image type '{image_type}' not found for platform '{lookup_platform}'")
             return None
 
-        # Sanitize title for lookup
-        sanitized = self._sanitize_for_lookup(title)
+        lookup_candidates = self._get_lookup_candidates(title)
 
-        # Try exact match first
-        exact_match = self._image_cache[lookup_platform][image_type].get(sanitized)
-        if exact_match:
-            return exact_match
+        # Try exact matches first across a small set of title variants.
+        for candidate in lookup_candidates:
+            exact_match = self._image_cache[lookup_platform][image_type].get(candidate)
+            if exact_match:
+                return exact_match
 
         # Fall back to fuzzy matching
         candidates = self._title_lists[lookup_platform][image_type]
-        fuzzy_match = self._fuzzy_match(sanitized, candidates)
-
-        if fuzzy_match:
-            return self._image_cache[lookup_platform][image_type][fuzzy_match]
+        for index, candidate in enumerate(lookup_candidates):
+            threshold = self.FUZZY_THRESHOLD if index == 0 else max(self.FUZZY_THRESHOLD, 0.9)
+            fuzzy_match = self._fuzzy_match(candidate, candidates, threshold=threshold)
+            if fuzzy_match:
+                return self._image_cache[lookup_platform][image_type][fuzzy_match]
 
         # No match found
         logger.debug(
             f"No image found for '{title}' (platform: {lookup_platform}, "
-            f"type: {image_type}, sanitized: '{sanitized}')"
+            f"type: {image_type}, candidates: {lookup_candidates})"
         )
         return None
 
