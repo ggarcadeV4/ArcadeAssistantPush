@@ -184,6 +184,8 @@ print("DEBUG: Importing voice_advanced...")
 from backend.routers import voice_advanced
 print("DEBUG: Importing doc_diagnostics...")
 from backend.routers import doc_diagnostics
+from backend.routers import doc
+from backend.routers import chuck
 print("DEBUG: Importing emulator (pause/save API)...")
 from backend.routers import emulator
 print("DEBUG: Importing hotkey...")
@@ -637,8 +639,6 @@ app.include_router(wizard_mapping.router, prefix="/api/local/controller", tags=[
 app.include_router(hardware.router, prefix="/api/hardware", tags=["hardware"])
 app.include_router(hardware.router, prefix="/api/local/hardware", tags=["hardware"])  # Also mount at /api/local for ControllerChuckPanel
 app.include_router(console.router, prefix="/api/local/console", tags=["console"])
-app.include_router(controller_ai.router, prefix="/api/ai/controller", tags=["controller-ai"])
-app.include_router(controller_ai.router, prefix="/api/controller/ai", tags=["controller-ai"])
 app.include_router(dewey.router)
 app.include_router(dewey_chat.router)
 app.include_router(gaming_news.router, prefix="/api/local/news", tags=["gaming-news"])
@@ -676,6 +676,8 @@ app.include_router(wizard_router.router)  # Controller Wizard real-time input st
 app.include_router(tournament_router.router)  # Tournament mode plugin integration for Sam
 app.include_router(game_lifecycle.router)  # Game lifecycle: Playnite start/stop → LEDBlinky Cinema Logic
 app.include_router(doc_diagnostics.router, prefix="/api/doc", tags=["doc-diagnostics"])  # Phase 4: Doc's Pulse vitals
+app.include_router(doc.router, prefix="/api/local/doc", tags=["doc"])
+app.include_router(chuck.router, prefix="/api/local/chuck", tags=["chuck"])
 app.include_router(engineering_bay.router, prefix="/api", tags=["engineering-bay"])  # Unified EB chat: Vicky/Blinky/Gunner/Doc
 app.include_router(tts_router.router, prefix="/api", tags=["tts"])  # ElevenLabs TTS via Supabase proxy
 

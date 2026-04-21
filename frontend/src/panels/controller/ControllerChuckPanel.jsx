@@ -45,7 +45,7 @@ const CHUCK_PERSONA = {
   agentName: 'Chuck',
   title: 'CONTROLLER CHUCK',
   subtitle: 'Arcade Encoder Board Mapping',
-  chatEndpoint: '/api/local/engineering-bay/chat',
+  chatEndpoint: '/api/local/chuck/chat',
   diagnosisMode: true,
   diagnosisPrompt: 'CHUCK DIAG - what needs fixing?',
   chatPrompt: 'Ask Chuck about controller mappings, GPIO, or arcade setup.',

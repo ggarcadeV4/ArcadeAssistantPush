@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 VIDEO_EXTENSIONS = [".mp4", ".avi", ".mkv", ".webm"]
 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg"]
 MARQUEE_REGIONS = ["North America", "World", "Europe", "Japan", ""]
+LORA_EXCLUDED_PLATFORM_EXACT = {
+    "american laser games",
+    "daphne",
+    "tekoparrot arcade",
+    "teknoparrot arcade",
+    "taito type x",
+}
+LORA_EXCLUDED_PLATFORM_TOKEN = "gun games"
 
 
 def _sanitize_media_title(title: str) -> str:
@@ -565,14 +573,29 @@ class LaunchBoxParser:
         resolved_path = self._resolve_game_application_path(game)
         return resolved_path is None or not resolved_path.exists()
 
-    def _get_visible_games(self) -> List[Game]:
-        """Return cached games after applying PS2-only visibility filtering."""
-        return [game for game in self._cache.values() if not self._is_hidden_missing_ps2_game(game)]
+    @staticmethod
+    def _is_lora_excluded_platform(platform_name: Optional[str]) -> bool:
+        normalized = (platform_name or "").strip().lower()
+        if not normalized:
+            return False
+        if normalized in LORA_EXCLUDED_PLATFORM_EXACT:
+            return True
+        return LORA_EXCLUDED_PLATFORM_TOKEN in normalized
 
-    def get_all_games(self) -> List[Game]:
+    def _get_visible_games(self, exclude_lora_specialized: bool = False) -> List[Game]:
+        """Return cached games after applying panel visibility filtering."""
+        results = [game for game in self._cache.values() if not self._is_hidden_missing_ps2_game(game)]
+        if exclude_lora_specialized:
+            results = [
+                game for game in results
+                if not self._is_lora_excluded_platform(getattr(game, "platform", ""))
+            ]
+        return results
+
+    def get_all_games(self, exclude_lora_specialized: bool = False) -> List[Game]:
         """Get all games from cache."""
         self._ensure_initialized()
-        return self._get_visible_games()
+        return self._get_visible_games(exclude_lora_specialized=exclude_lora_specialized)
 
     def get_paginated_games(
         self,
@@ -585,6 +608,7 @@ class LaunchBoxParser:
         sort_order: str = 'asc',
         page: int = 1,
         limit: int = 50,
+        exclude_lora_specialized: bool = False,
     ) -> Dict[str, any]:
         """
         Filter, sort, and paginate games from the cache.
@@ -593,7 +617,7 @@ class LaunchBoxParser:
         self._ensure_initialized()
         
         # Start with all games
-        results = self._get_visible_games()
+        results = self._get_visible_games(exclude_lora_specialized=exclude_lora_specialized)
 
         # Apply filters
         if platform:
@@ -661,15 +685,27 @@ class LaunchBoxParser:
             return None
         return game
 
-    def get_platforms(self) -> List[str]:
+    def get_platforms(self, exclude_lora_specialized: bool = False) -> List[str]:
         """Get list of all platforms."""
         self._ensure_initialized()
-        return self._platforms
+        if not exclude_lora_specialized:
+            return self._platforms
+        return sorted({
+            game.platform
+            for game in self._get_visible_games(exclude_lora_specialized=True)
+            if getattr(game, "platform", None)
+        })
 
-    def get_genres(self) -> List[str]:
+    def get_genres(self, exclude_lora_specialized: bool = False) -> List[str]:
         """Get list of all genres."""
         self._ensure_initialized()
-        return self._genres
+        if not exclude_lora_specialized:
+            return self._genres
+        return sorted({
+            game.genre
+            for game in self._get_visible_games(exclude_lora_specialized=True)
+            if getattr(game, "genre", None)
+        })
 
     def filter_games(
         self,
@@ -677,6 +713,7 @@ class LaunchBoxParser:
         genre: Optional[str] = None,
         decade: Optional[int] = None,
         search: Optional[str] = None,
+        exclude_lora_specialized: bool = False,
     ) -> List[Game]:
         """
         Filter games by multiple criteria.
@@ -690,7 +727,7 @@ class LaunchBoxParser:
         Returns:
             Filtered list of games
         """
-        results = self.get_all_games()
+        results = self.get_all_games(exclude_lora_specialized=exclude_lora_specialized)
 
         if platform:
             results = [g for g in results if g.platform == platform]
@@ -718,9 +755,20 @@ class LaunchBoxParser:
         filtered = self.filter_games(**filter_kwargs)
         return random.choice(filtered) if filtered else None
 
-    def get_cache_stats(self) -> dict:
+    def get_cache_stats(self, exclude_lora_specialized: bool = False) -> dict:
         """Get cache statistics for debugging."""
         self._ensure_initialized()
+        visible_games = self._get_visible_games(exclude_lora_specialized=exclude_lora_specialized)
+        visible_platforms = {
+            game.platform
+            for game in visible_games
+            if getattr(game, "platform", None)
+        }
+        visible_genres = {
+            game.genre
+            for game in visible_games
+            if getattr(game, "genre", None)
+        }
 
         # Check if cache file exists and get its info
         cache_file_info = {}
@@ -738,10 +786,14 @@ class LaunchBoxParser:
             cache_file_info = {"cache_file_exists": False}
 
         return {
-            "total_games": len(self._get_visible_games()),
+            "total_games": len(visible_games),
             "hidden_missing_ps2_games": sum(1 for game in self._cache.values() if self._is_hidden_missing_ps2_game(game)),
-            "platforms_count": len(self._platforms),
-            "genres_count": len(self._genres),
+            "hidden_lora_specialized_games": sum(
+                1 for game in self._cache.values()
+                if self._is_lora_excluded_platform(getattr(game, "platform", ""))
+            ),
+            "platforms_count": len(visible_platforms),
+            "genres_count": len(visible_genres),
             "xml_files_parsed": self._xml_files_parsed,
             "last_updated": self._last_updated.isoformat() if self._last_updated else None,
             "is_mock_data": not is_on_a_drive() or self._xml_files_parsed == 0,

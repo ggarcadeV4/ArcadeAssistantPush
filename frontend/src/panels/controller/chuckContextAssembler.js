@@ -8,8 +8,8 @@
  *   Q4 — ControllerBridge is sole merge authority; GPIO + Semantic layers
  *   Q6 — Tier 1 always, Tier 2 conditional, Tier 3 static; total < 1500 tokens
  *
- * PANEL ISOLATION RULE: Chuck's world only.
- * No LaunchBox feed, no LED states, no score data, no other panel data.
+ * PANEL SCOPE: Chuck focuses on controller hardware state, mapping identity,
+ * runtime endpoint status, and controller-domain cascade signals.
  *
  * TRUTH SOURCE (2026-04-14 reconciliation pass):
  *   Tier 1 hardware context comes from /api/local/controller/status —
@@ -18,9 +18,8 @@
  *     • saved_mapping    (controls.json board identity)
  *     • warnings         (drift between live vs saved)
  *   This is the same payload CabinetControlStatus.jsx renders.
- *   Do NOT call /hardware/usb/devices (different router, different field shape).
- *   Do NOT call /controller/baseline for hardware state
- *   (baseline is cascade/emulator state, not board identity).
+ *   The assembler uses /api/local/controller/status as the canonical,
+ *   reconciled source for board identity and mapping drift context.
  */
 
 import { buildStandardHeaders } from '../../utils/identity';

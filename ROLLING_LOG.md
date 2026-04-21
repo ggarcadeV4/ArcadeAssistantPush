@@ -6,6 +6,137 @@
 
 ---
 
+## 2026-04-20 (Codex Session - Phase B Engineering Bay Full Architecture Reality Check)
+
+**Net Progress**: Completed a read-only architecture audit of the six Engineering Bay personas to establish the real shared-vs-siloed state before any Phase B migration work begins.
+
+### What Was Confirmed
+
+- **Correct repo / tree**:
+  - Work was performed in `W:\Arcade Assistant Master Build\Arcade Assistant Local`.
+  - The active frontend panel tree is primarily `frontend/src/panels/`.
+  - Two active persona entry points still live under `frontend/src/components/`:
+    - `components/gunner/GunnerPanel.jsx`
+    - `components/led-blinky/LEDBlinkyPanelNew.jsx`
+
+- **Frontend transport is shared**:
+  - `frontend/src/panels/_kit/EngineeringBaySidebar.jsx` is the active shared chat UI for:
+    - Doc
+    - Chuck
+    - Wiz
+    - Blinky
+    - Gunner
+    - Vicky
+  - Shared diagnosis/action infrastructure also includes:
+    - `frontend/src/hooks/useDiagnosisMode.js`
+    - `frontend/src/panels/controller/DiagnosisToggle.jsx`
+    - `frontend/src/panels/controller/ContextChips.jsx`
+    - `frontend/src/panels/controller/ExecutionCard.jsx`
+
+- **Backend transport is only partly shared**:
+  - `backend/routers/engineering_bay.py` is the shared route entry point for all six personas.
+  - But the service layer is not truly unified:
+    - `doc`, `wiz`, `blinky`, `gunner`, `vicky` -> `backend/services/engineering_bay/ai.py`
+    - `chuck` -> `backend/services/chuck/ai.py`
+  - This means Chuck is already partially siloed on the backend.
+
+- **Provider / transport normalization findings**:
+  - The shared Engineering Bay backend still calls Gemini directly through REST in `backend/services/engineering_bay/ai.py`.
+  - It still reads `GEMINI_API_KEY` / `GOOGLE_API_KEY` from environment.
+  - It does not use `SecureAIClient`.
+  - The active frontend shared sidebar does not parse Gemini-native response shapes. It receives normalized `{ reply, persona, isDiagnosisMode }` and works from plain text.
+
+- **Tooling reality**:
+  - No active persona-specific backend function/tool registration was found in `engineering_bay/ai.py`.
+  - The only attached model-side tool in the shared service is Gemini-native `google_search`, used only for uncertainty retry grounding.
+  - The active execution model is prompt-driven fenced action blocks, not registered tool calling.
+  - `EngineeringBaySidebar.jsx` extracts:
+    - assistant text
+    - optional fenced ```action JSON
+  - `ExecutionCard.jsx` then gates the write action behind explicit user confirmation.
+
+- **Legacy / parallel AI paths still exist**:
+  - `frontend/src/panels/led-blinky/useBlinkyChat.js` still contains Gemini-native tool schemas for Blinky.
+  - `frontend/src/hooks/useGunnerChat.js` still contains Gemini-native tool schemas for Gunner.
+  - `frontend/src/panels/console-wizard/WizSidebar.jsx` and `backend/services/wiz/ai.py` remain as a parallel Wiz-specific path.
+  - `frontend/src/panels/voice/VoicePanel.jsx` also contains separate non-Engineering-Bay AI paths for voice transcript chat and lighting-command SSE handling.
+
+### Important Contradictions to Prior Assumptions
+
+- Engineering Bay is **not** a single clean shared backend service. Chuck already diverges.
+- The active shared frontend path is **not** provider-shape-coupled to Gemini. It consumes normalized text.
+- The active shared service does **not** have rich backend function-calling definitions for each persona. Most current "tooling" is prompt-defined action-block behavior instead.
+
+### Prompt / Persona Boundary Evidence
+
+Prompt files contain explicit domain walls that strongly suggest prompt authors have already been compensating for shared-service semantic bleed:
+
+- `prompts/doc.prompt`
+  - "I'm a doctor, not a MAME config expert."
+- `prompts/controller_chuck.prompt`
+  - "GUN WALL"
+  - Chuck does not touch Blinky / Wiz territory
+- `prompts/gunner.prompt`
+  - "CONTROLLER WALL"
+  - explicit refusal of joystick / encoder / button mapping questions
+- `prompts/controller_wizard.prompt`, `prompts/blinky.prompt`, and `prompts/vicky.prompt`
+  - all contain redirect rules that reinforce persona boundaries
+
+This is meaningful architectural evidence, not cosmetic prompt flavor.
+
+### Execution / Action Contract Reality
+
+- The real active execution contract is:
+  - backend returns `reply` text
+  - `EngineeringBaySidebar.jsx` parses optional fenced action JSON from the text
+  - `ExecutionCard.jsx` renders the confirmation gate
+  - the UI posts to `action.endpoint` only after explicit user confirmation
+- This action-block convention is a core part of the current Engineering Bay system and should be treated as such in future refactor estimates.
+
+### Drift Found
+
+- Several prompts declare repair endpoints that were not found as matching backend routes during this audit:
+  - `/api/doc/repair`
+  - `/api/local/led/repair`
+  - `/api/local/lightguns/repair`
+  - `/api/voice/repair`
+- This means there is prompt-contract drift between persona instructions and the backend route surface.
+
+### Files Audited
+
+- `frontend/src/panels/_kit/EngineeringBaySidebar.jsx`
+- `frontend/src/hooks/useDiagnosisMode.js`
+- `frontend/src/panels/system-health/SystemHealthPanel.jsx`
+- `frontend/src/panels/system-health/docContextAssembler.js`
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx`
+- `frontend/src/panels/controller/chuckContextAssembler.js`
+- `frontend/src/panels/console-wizard/ConsoleWizardPanel.jsx`
+- `frontend/src/panels/console-wizard/WizSidebar.jsx`
+- `frontend/src/panels/console-wizard/wizContextAssembler.js`
+- `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx`
+- `frontend/src/components/gunner/GunnerPanel.jsx`
+- `frontend/src/panels/voice/VoicePanel.jsx`
+- `backend/routers/engineering_bay.py`
+- `backend/services/engineering_bay/ai.py`
+- `backend/services/chuck/ai.py`
+- `backend/services/wiz/ai.py`
+- `prompts/doc.prompt`
+- `prompts/controller_chuck.prompt`
+- `prompts/controller_wizard.prompt`
+- `prompts/blinky.prompt`
+- `prompts/gunner.prompt`
+- `prompts/vicky.prompt`
+
+### Carry-Forward Rules
+
+1. Treat shared frontend transport and shared backend service as separate questions. They are not the same thing in the current codebase.
+2. Treat Chuck as already partially siloed when planning Phase B.
+3. Preserve the evidence that the active frontend Engineering Bay UI is already provider-agnostic at the response-shape layer.
+4. Preserve `EngineeringBaySidebar.jsx`, `useDiagnosisMode.js`, and `ExecutionCard.jsx` as major blast-radius files if full siloing is considered.
+5. Before any action-path migration work, reconcile prompt-declared repair endpoints against real backend routes.
+
+---
+
 ### Console Wizard — Accepted as Functional ✅
 
 **What was done:**
@@ -1134,3 +1265,221 @@ def get_voice_service() -> VoiceService:
 1. Hard-fix GameCube routing so one request cannot fan across multiple launch paths.
 2. Harden `backend/services/hiscore_watcher.py` around file replacement locking.
 3. Continue transcript-driven LoRa polish, especially around rare customer phrasing and disambiguation edge cases.
+## 2026-04-19 (Codex Session â€” LaunchBox LoRa Redesign Stabilization + Artwork Recovery)
+
+**Net Progress**: LaunchBox LoRa was pulled back into a practical customer-facing state. The redesign was stabilized, artwork was restored, the chat drawer and sidebar layout issues were corrected, and several hard-to-support platform families were deliberately removed from the LoRa surface for expediency.
+
+### What Changed
+
+- **Redesign stabilization**: the LaunchBox LoRa panel was reworked so the shipped UI follows the intended cinematic layout more closely.
+- **Search focus fix**: typing into the search field no longer loses focus because refetches do not swap the panel into a blocking loading state.
+- **Library browsing fix**: the main game area now behaves like a real browser surface, with working scroll behavior and double-click launch from game tiles.
+- **UI cleanup**:
+  - removed placeholder nav items (`Store`, `Social`, `Cloud`)
+  - removed the Collections block from the left sidebar
+  - removed the old jump-to-collections rail affordance
+  - kept the sidebar focused on actual platforms
+- **Launcher direction change**: the old Pegasus action in this surface was replaced with Big Box launch behavior.
+- **Platform-scope cleanup**: LoRa exclusions now include American Laser Games, Daphne, all gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Recovery - What Was Tried and What Actually Fixed It
+
+This session is important because the artwork issue had multiple real bugs, but the final failure was not where it first appeared.
+
+**Architecture verified as still correct:**
+- LaunchBox XML remained the source of truth.
+- `backend/services/launchbox_parser.py` still built the game library correctly.
+- `ImageScanner` still owned media-path discovery.
+- The LoRa panel still consumed artwork through `/api/launchbox/image/{game_id}`.
+
+**Real fixes that were required:**
+- `image_scanner.py`
+  - added nested regional folder indexing (`North America`, `World`, `Europe`, etc.)
+  - added conservative title-variant matching
+  - bumped cache versioning so stale scanner results would not persist
+- `gateway/routes/launchboxProxy.js`
+  - fixed proxy forwarding so `variant=card` query params actually reached the backend
+- `backend/routers/launchbox.py`
+  - changed card-art priority so LoRa cards use `box_front` / `screenshot`, not `clear_logo`
+  - set placeholder responses to `no-store`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+  - added `cache_key` to image URLs to break cached placeholder responses
+
+**Critical final root cause:**
+- The card fallback layer was covering the image in CSS.
+- Real artwork was loading, but the fallback sat on top of it.
+- Final fix: corrected z-index ordering in `launchbox.css` so the fallback sits behind the image, while the overlay and title remain above it.
+
+**Lesson to preserve:**
+- If artwork breaks again, do not assume the backend resolver is the primary problem.
+- Verify the live image URL first.
+- Then inspect the rendered card layer stack in the frontend before rewriting artwork-selection logic.
+
+### Layout / Interaction Follow-ups
+
+- **Chat drawer**: changed from `absolute` to `fixed` positioning so it anchors to the viewport rather than the full scrolling panel height.
+- **Platform list**: removed the hard `slice(0, 10)` cap so later systems like Dreamcast, Naomi, and Atomiswave appear in the sidebar.
+- **Collections removal**: deleting the Collections block shortened the sidebar and reduced visual clutter.
+
+### Verification Used
+
+- repeated `npm run build:frontend`
+- multiple full `stop-aa.bat` / `start-aa.bat` recycles
+- direct gateway image URL checks
+- headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
+- live API verification that excluded platforms no longer appeared in `/api/launchbox/platforms?exclude_lora_specialized=1`
+
+### Carry-Forward Rules
+
+1. Keep LoRa practical. Do not put difficult one-off launch ecosystems back into this panel unless there is a clear customer reason.
+2. Preserve the current artwork architecture: LaunchBox XML -> parser -> `ImageScanner` -> `game_id` image route.
+3. For future artwork regressions, verify live route output and frontend layer order before inventing a new media system.
+4. If backend exclusions change, keep frontend `isLoRaExcludedPlatform()` in sync so UI behavior and data behavior do not drift apart.
+
+# ROLLING LOG â€” Arcade Assistant
+
+## 2026-04-19 (Codex Session - LaunchBox LoRa Redesign Stabilization + Artwork Recovery)
+
+**Net Progress**: LaunchBox LoRa was pulled back into a practical customer-facing state. The redesign was stabilized, artwork was restored, the chat drawer and sidebar layout issues were corrected, and several hard-to-support platform families were deliberately removed from the LoRa surface for expediency.
+
+### What Changed
+
+- **Redesign stabilization**: the LaunchBox LoRa panel was reworked so the shipped UI follows the intended cinematic layout more closely.
+- **Search focus fix**: typing into the search field no longer loses focus because refetches do not swap the panel into a blocking loading state.
+- **Library browsing fix**: the main game area now behaves like a real browser surface, with working scroll behavior and double-click launch from game tiles.
+- **UI cleanup**:
+  - removed placeholder nav items (`Store`, `Social`, `Cloud`)
+  - removed the Collections block from the left sidebar
+  - removed the old jump-to-collections rail affordance
+  - kept the sidebar focused on actual platforms
+- **Launcher direction change**: the old Pegasus action in this surface was replaced with Big Box launch behavior.
+- **Platform-scope cleanup**: LoRa exclusions now include American Laser Games, Daphne, all gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Recovery - What Was Tried and What Actually Fixed It
+
+This session is important because the artwork issue had multiple real bugs, but the final failure was not where it first appeared.
+
+**Architecture verified as still correct:**
+- LaunchBox XML remained the source of truth.
+- `backend/services/launchbox_parser.py` still built the game library correctly.
+- `ImageScanner` still owned media-path discovery.
+- The LoRa panel still consumed artwork through `/api/launchbox/image/{game_id}`.
+
+**Real fixes that were required:**
+- `image_scanner.py`
+  - added nested regional folder indexing (`North America`, `World`, `Europe`, etc.)
+  - added conservative title-variant matching
+  - bumped cache versioning so stale scanner results would not persist
+- `gateway/routes/launchboxProxy.js`
+  - fixed proxy forwarding so `variant=card` query params actually reached the backend
+- `backend/routers/launchbox.py`
+  - changed card-art priority so LoRa cards use `box_front` / `screenshot`, not `clear_logo`
+  - set placeholder responses to `no-store`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+  - added `cache_key` to image URLs to break cached placeholder responses
+
+**Critical final root cause:**
+- The card fallback layer was covering the image in CSS.
+- Real artwork was loading, but the fallback sat on top of it.
+- Final fix: corrected z-index ordering in `launchbox.css` so the fallback sits behind the image, while the overlay and title remain above it.
+
+**Lesson to preserve:**
+- If artwork breaks again, do not assume the backend resolver is the primary problem.
+- Verify the live image URL first.
+- Then inspect the rendered card layer stack in the frontend before rewriting artwork-selection logic.
+
+### Layout / Interaction Follow-ups
+
+- **Chat drawer**: changed from `absolute` to `fixed` positioning so it anchors to the viewport rather than the full scrolling panel height.
+- **Platform list**: removed the hard `slice(0, 10)` cap so later systems like Dreamcast, Naomi, and Atomiswave appear in the sidebar.
+- **Collections removal**: deleting the Collections block shortened the sidebar and reduced visual clutter.
+
+### Verification Used
+
+- repeated `npm run build:frontend`
+- multiple full `stop-aa.bat` / `start-aa.bat` recycles
+- direct gateway image URL checks
+- headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
+- live API verification that excluded platforms no longer appeared in `/api/launchbox/platforms?exclude_lora_specialized=1`
+
+### Carry-Forward Rules
+
+1. Keep LoRa practical. Do not put difficult one-off launch ecosystems back into this panel unless there is a clear customer reason.
+2. Preserve the current artwork architecture: LaunchBox XML -> parser -> `ImageScanner` -> `game_id` image route.
+3. For future artwork regressions, verify live route output and frontend layer order before inventing a new media system.
+4. If backend exclusions change, keep frontend `isLoRaExcludedPlatform()` in sync so UI behavior and data behavior do not drift apart.
+
+---
+
+## 2026-04-19 (Codex Session â€” LaunchBox LoRa Redesign Stabilization + Artwork Recovery)
+
+**Net Progress**: LaunchBox LoRa was pulled back into a practical customer-facing state. The redesign was stabilized, artwork was restored, the chat drawer and sidebar layout issues were corrected, and several hard-to-support platform families were deliberately removed from the LoRa surface for expediency.
+
+### What Changed
+
+- **Redesign stabilization**: the LaunchBox LoRa panel was reworked so the shipped UI follows the intended cinematic layout more closely.
+- **Search focus fix**: typing into the search field no longer loses focus because refetches do not swap the panel into a blocking loading state.
+- **Library browsing fix**: the main game area now behaves like a real browser surface, with working scroll behavior and double-click launch from game tiles.
+- **UI cleanup**:
+  - removed placeholder nav items (`Store`, `Social`, `Cloud`)
+  - removed the Collections block from the left sidebar
+  - removed the old jump-to-collections rail affordance
+  - kept the sidebar focused on actual platforms
+- **Launcher direction change**: the old Pegasus action in this surface was replaced with Big Box launch behavior.
+- **Platform-scope cleanup**: LoRa exclusions now include American Laser Games, Daphne, all gun-game platforms, TeknoParrot Arcade, and Taito Type X.
+
+### Artwork Recovery - What Was Tried and What Actually Fixed It
+
+This session is important because the artwork issue had multiple real bugs, but the final failure was not where it first appeared.
+
+**Architecture verified as still correct:**
+- LaunchBox XML remained the source of truth.
+- `backend/services/launchbox_parser.py` still built the game library correctly.
+- `ImageScanner` still owned media-path discovery.
+- The LoRa panel still consumed artwork through `/api/launchbox/image/{game_id}`.
+
+**Real fixes that were required:**
+- `image_scanner.py`
+  - added nested regional folder indexing (`North America`, `World`, `Europe`, etc.)
+  - added conservative title-variant matching
+  - bumped cache versioning so stale scanner results would not persist
+- `gateway/routes/launchboxProxy.js`
+  - fixed proxy forwarding so `variant=card` query params actually reached the backend
+- `backend/routers/launchbox.py`
+  - changed card-art priority so LoRa cards use `box_front` / `screenshot`, not `clear_logo`
+  - set placeholder responses to `no-store`
+- `frontend/src/panels/launchbox/LaunchBoxPanel.jsx`
+  - added `cache_key` to image URLs to break cached placeholder responses
+
+**Critical final root cause:**
+- The card fallback layer was covering the image in CSS.
+- Real artwork was loading, but the fallback sat on top of it.
+- Final fix: corrected z-index ordering in `launchbox.css` so the fallback sits behind the image, while the overlay and title remain above it.
+
+**Lesson to preserve:**
+- If artwork breaks again, do not assume the backend resolver is the primary problem.
+- Verify the live image URL first.
+- Then inspect the rendered card layer stack in the frontend before rewriting artwork-selection logic.
+
+### Layout / Interaction Follow-ups
+
+- **Chat drawer**: changed from `absolute` to `fixed` positioning so it anchors to the viewport rather than the full scrolling panel height.
+- **Platform list**: removed the hard `slice(0, 10)` cap so later systems like Dreamcast, Naomi, and Atomiswave appear in the sidebar.
+- **Collections removal**: deleting the Collections block shortened the sidebar and reduced visual clutter.
+
+### Verification Used
+
+- repeated `npm run build:frontend`
+- multiple full `stop-aa.bat` / `start-aa.bat` recycles
+- direct gateway image URL checks
+- headless Chrome screenshots against `http://127.0.0.1:8787/assistants?agent=launchbox`
+- live API verification that excluded platforms no longer appeared in `/api/launchbox/platforms?exclude_lora_specialized=1`
+
+### Carry-Forward Rules
+
+1. Keep LoRa practical. Do not put difficult one-off launch ecosystems back into this panel unless there is a clear customer reason.
+2. Preserve the current artwork architecture: LaunchBox XML -> parser -> `ImageScanner` -> `game_id` image route.
+3. For future artwork regressions, verify live route output and frontend layer order before inventing a new media system.
+4. If backend exclusions change, keep frontend `isLoRaExcludedPlatform()` in sync so UI behavior and data behavior do not drift apart.
+
+---

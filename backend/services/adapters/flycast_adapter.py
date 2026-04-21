@@ -8,11 +8,21 @@ from .adapter_utils import (
     get_game_rom_path,
     launch_fullscreen_enabled,
 )
+from backend.constants.a_drive_paths import EmulatorPaths
+from backend.constants.drive_root import get_launchbox_root
 from backend.services.platform_names import normalize_key
 
 
 def is_enabled(manifest: Dict[str, Any]) -> bool:
     return True
+
+
+def _redream_available() -> bool:
+    candidates = [
+        EmulatorPaths.redream(),
+        get_launchbox_root() / "Emulators" / "redream.x86_64-windows-v1.5.0" / "redream.exe",
+    ]
+    return any(candidate.exists() for candidate in candidates)
 
 
 def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False):
@@ -22,11 +32,10 @@ def can_handle(game: Any, manifest: Dict[str, Any], return_reason: bool = False)
     if key in {'sega naomi', 'sammy atomiswave'}:
         ok = True
     elif key == 'sega dreamcast':
-        # Fallback to Flycast if redream is not present in manifest
+        # Dreamcast should prefer standalone Redream when it exists on disk.
+        # Flycast is only the fallback when Redream is genuinely unavailable.
         try:
-            emus = (manifest.get('emulators') or {}) if isinstance(manifest, dict) else {}
-            has_redream = isinstance(emus.get('redream'), dict)
-            ok = not has_redream
+            ok = not _redream_available()
         except Exception:
             ok = False
     if return_reason:

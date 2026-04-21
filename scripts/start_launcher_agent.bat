@@ -9,11 +9,24 @@ REM run-backend.bat's redirected stdout chain.
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
 
-REM Use pythonw to hide the console window (runs silently in background)
-if exist ".venv\Scripts\pythonw.exe" (
-    start "" /B ".venv\Scripts\pythonw.exe" scripts\arcade_launcher_agent.py
-) else (
-    start "" /B pythonw.exe scripts\arcade_launcher_agent.py
+set "PYTHON_CMD="
+for /f "delims=" %%I in ('where pythonw.exe 2^>nul') do (
+    set "PYTHON_CMD=%%I"
+    goto :launch
 )
+for /f "delims=" %%I in ('where python.exe 2^>nul') do (
+    set "PYTHON_CMD=%%I"
+    goto :launch
+)
+if exist ".venv\Scripts\pythonw.exe" (
+    set "PYTHON_CMD=%ROOT%\.venv\Scripts\pythonw.exe"
+) else if exist ".venv\Scripts\python.exe" (
+    set "PYTHON_CMD=%ROOT%\.venv\Scripts\python.exe"
+) else (
+    set "PYTHON_CMD=pythonw.exe"
+)
+
+:launch
+start "" /B "%PYTHON_CMD%" scripts\arcade_launcher_agent.py
 
 echo Launcher Agent started.

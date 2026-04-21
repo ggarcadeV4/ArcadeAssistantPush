@@ -181,7 +181,16 @@ router.get('/image/:uuid', async (req, res) => {
 
   try {
     const backendUrl = (req.app?.locals?.fastapiUrl) || process.env.FASTAPI_URL || 'http://localhost:8000';
-    const imageResponse = await fetch(`${backendUrl}/api/launchbox/image/${uuid}`, {
+    const backendImageUrl = new URL(`/api/launchbox/image/${uuid}`, backendUrl);
+    for (const [key, value] of Object.entries(req.query || {})) {
+      if (Array.isArray(value)) {
+        value.forEach((item) => backendImageUrl.searchParams.append(key, String(item)));
+      } else if (value !== undefined && value !== null) {
+        backendImageUrl.searchParams.set(key, String(value));
+      }
+    }
+
+    const imageResponse = await fetch(backendImageUrl.toString(), {
       headers: buildForwardHeaders(req, {
         'x-scope': 'state',
         'x-device-id': 'unknown',
