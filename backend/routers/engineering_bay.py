@@ -14,7 +14,7 @@ from backend.services.policies import require_scope
 
 router = APIRouter(prefix="/local/engineering-bay", tags=["engineering-bay"])
 
-VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc", "wiz"}
+VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc"}
 
 
 class ChatTurn(BaseModel):

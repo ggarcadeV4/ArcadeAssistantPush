@@ -26,6 +26,7 @@ const WIZ_PERSONA = {
   accentGlow: 'rgba(167,139,250,0.35)',
   scannerLabel: 'CONJURING...',
   voiceProfile: 'wiz',
+  chatEndpoint: '/api/local/wiz/chat',
   emptyHint: 'Ask WIZ about emulator configs, controller mapping, or RetroArch setup.',
   chips: WIZ_CHIPS,
 };
@@ -345,17 +346,12 @@ export default function ConsoleWizardPanel() {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [activityLogs, setActivityLogs] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const chatMessagesRef = useRef(chatMessages);
+  const [chatInitialMessages, setChatInitialMessages] = useState([]);
   const handoffProcessedRef = useRef(null); // Track last processed handoff context
   const initialGreetingRef = useRef(false);
-  const [chatInput, setChatInput] = useState('');
-  const [chatLoading, setChatLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [listeningLabel, setListeningLabel] = useState(false);
   const [speakReplies, setSpeakReplies] = useState(true);
-  // Pending confirmation tracking: { emulator, controller, action, summary }
-  const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const [backendDisconnected, setBackendDisconnected] = useState(false);
   const [backendDisconnectMessage, setBackendDisconnectMessage] = useState('');
   const [chuckMappingMissing, setChuckMappingMissing] = useState(false);
@@ -452,6 +448,13 @@ export default function ConsoleWizardPanel() {
     },
     [formatDevError, showDevErrorDetails],
   );
+
+  const showVoiceToast = useCallback((text) => {
+    setToast({
+      type: 'error',
+      text,
+    });
+  }, []);
 
   const fetchJSON = useCallback(
     async (path, { method = 'GET', scope = DEFAULT_SCOPE, body } = {}) => {
@@ -1227,218 +1230,37 @@ export default function ConsoleWizardPanel() {
     [speakReplies],
   );
 
-  const addChatMessage = useCallback(
-    (text, sender = 'assistant', options = {}) => {
-      const speak = options.speak ?? true;
-      const newMessage = {
-        id: Date.now(),
-        text,
-        sender,
-        timestamp: new Date().toISOString(),
-      };
-      setChatMessages((prev) => {
-        const updated = [...prev, newMessage];
-        chatMessagesRef.current = updated;
-        return updated;
-      });
-      if (sender === 'assistant' && text && speak) {
+  const seedSidebarMessage = useCallback(
+    (text, options = {}) => {
+      const {
+        role = 'assistant',
+        open = false,
+        speak = false,
+      } = options;
+
+      if (!text) return;
+
+      setChatInitialMessages((prev) => (
+        prev.length > 0
+          ? prev
+          : [{
+              id: `wiz-seed-${Date.now()}`,
+              role,
+              content: text,
+              timestamp: new Date().toISOString(),
+            }]
+      ));
+
+      if (open) {
+        setChatOpen(true);
+      }
+
+      if (role === 'assistant' && speak) {
         speakText(String(text));
       }
     },
     [speakText],
   );
-
-  // Confirmation detection patterns
-  const CONFIRMATION_ASK_PATTERNS = [
-    /is that correct\??$/i,
-    /does that sound right\??$/i,
-    /shall I (proceed|configure|set up|apply)/i,
-    /ready to (apply|proceed|configure)\??$/i,
-    /want me to (proceed|configure|set up|go ahead)/i,
-    /should I (proceed|configure|set up|apply)/i,
-  ];
-
-  const YES_RESPONSE_PATTERNS = [
-    /^yes$/i, /^yep$/i, /^yeah$/i, /^yup$/i, /^correct$/i,
-    /^that'?s? (right|correct)$/i, /^y$/i, /^sure$/i, /^ok$/i, /^okay$/i,
-    /^go ahead$/i, /^do it$/i, /^please$/i, /^affirmative$/i,
-    /^yes[,.]? (that'?s?|it'?s?) (right|correct)/i,
-    /^yes[,.]? please/i, /^yes[,.]? go ahead/i,
-  ];
-
-  const NO_RESPONSE_PATTERNS = [
-    /^no$/i, /^nope$/i, /^nah$/i, /^not (quite|exactly|really)$/i,
-    /^that'?s? (wrong|not right|incorrect)$/i, /^wait$/i, /^hold on$/i,
-    /^actually/i, /^not what I/i, /^I (meant|want)/i,
-  ];
-
-  const detectConfirmationAsk = useCallback((text) => {
-    const trimmed = (text || '').trim();
-    return CONFIRMATION_ASK_PATTERNS.some(p => p.test(trimmed));
-  }, []);
-
-  const isYesResponse = useCallback((text) => {
-    const trimmed = (text || '').trim();
-    return YES_RESPONSE_PATTERNS.some(p => p.test(trimmed));
-  }, []);
-
-  const isNoResponse = useCallback((text) => {
-    const trimmed = (text || '').trim();
-    return NO_RESPONSE_PATTERNS.some(p => p.test(trimmed));
-  }, []);
-
-  // Extract emulator/action context from recent conversation for pendingConfirmation
-  const extractConfirmationContext = useCallback((messages) => {
-    // Look at recent messages to extract what's being discussed
-    const recentText = messages.slice(-6).map(m => m.text).join(' ').toLowerCase();
-    let emulator = 'unknown';
-    let action = 'configuration';
-
-    // Detect emulator from conversation
-    if (recentText.includes('retroarch')) emulator = 'RetroArch';
-    else if (recentText.includes('dolphin')) emulator = 'Dolphin';
-    else if (recentText.includes('pcsx2')) emulator = 'PCSX2';
-    else if (recentText.includes('rpcs3')) emulator = 'RPCS3';
-    else if (recentText.includes('mame')) emulator = 'MAME';
-
-    // Detect action type
-    if (recentText.includes('dual mapping') || (recentText.includes('left stick') && recentText.includes('d-pad'))) {
-      action = 'dual mapping (left stick + d-pad for directions)';
-    } else if (recentText.includes('analog') && recentText.includes('direction')) {
-      action = 'left analog stick directional mapping';
-    } else if (recentText.includes('button') && recentText.includes('map')) {
-      action = 'button mapping';
-    }
-
-    return { emulator, action, summary: `${emulator}: ${action}` };
-  }, []);
-
-  const sendChat = useCallback(
-    async (messageText) => {
-      const userMessage = messageText.trim();
-      if (!userMessage) return;
-      addChatMessage(userMessage, 'user');
-      setChatLoading(true);
-
-      try {
-        // Check if we have a pending confirmation and user is responding to it
-        if (pendingConfirmation) {
-          if (isYesResponse(userMessage)) {
-            // User confirmed! Advance the flow without calling LLM for a generic response
-            const confirmReply = `Great! I'll configure ${pendingConfirmation.emulator} for ${pendingConfirmation.action}. Let me prepare that for you.\n\nTo apply this configuration, go to Generate Configs (Preview) button above, review the changes, and click Apply. I'll make sure the ${pendingConfirmation.emulator} settings include the mapping you requested.`;
-            addChatMessage(confirmReply, 'assistant');
-            setPendingConfirmation(null);
-            setChatLoading(false);
-            return;
-          } else if (isNoResponse(userMessage)) {
-            // User rejected - ask for clarification but keep context
-            const clarifyReply = `I see, that's not quite what you wanted. Can you clarify what you'd like instead? I understood: ${pendingConfirmation.summary}`;
-            addChatMessage(clarifyReply, 'assistant');
-            setPendingConfirmation(null);
-            setChatLoading(false);
-            return;
-          }
-          // If it's not a clear yes/no, clear pending and treat as new input
-          setPendingConfirmation(null);
-        }
-
-        const controllerSummary = detectedControllers
-          .map((c) => `${c.name || c.profile_id || 'Unknown'}${c.profile_id ? ` (${c.profile_id})` : ''}`)
-          .join(', ') || 'none detected';
-        const healthFiles = (health?.emulators || []).map((h) => ({
-          id: h.id,
-          status: h.status,
-          current: h.currentFile,
-          defaults: h.defaultsFile,
-          details: h.details,
-        }));
-        const contextInfo = {
-          panel: 'console-wizard',
-          emulators: emulators.map((e) => ({
-            id: e.id,
-            name: e.displayName,
-            configFormat: e.configFormat,
-            status: e.status,
-            statusReason: e.statusReason,
-          })),
-          health: health?.status,
-          controllers: controllerSummary,
-          controllersCount: detectedControllers.length,
-          healthFiles,
-          tendenciesProfileId,
-          tendencies: tendenciesData,
-        };
-        const systemPrompt = `You are Wiz, the Console Wizard AI assistant. Keep responses concise (1-2 sentences).
-
-CRITICAL INSTRUCTIONS FOR RETROARCH CONFIGURATIONS:
-- When user says "I want left stick AND d-pad to do the same thing" or "both control directions" ? They want DUAL MAPPING (both inputs mapped to same function)
-- When user says "I want left stick to NOT control directions" or "only d-pad" ? They want SEPARATE MAPPING (only d-pad mapped)
-- ALWAYS confirm what the user wants BEFORE generating config
-- Say exactly what you understood: "So you want [LEFT STICK + D-PAD] to both control directions?" OR "So you want [ONLY D-PAD] to control directions?"
-- Wait for user confirmation before proceeding
-- Do NOT contradict yourself - if user says "both do same thing" don't say "separate functions"
-- When user confirms with "yes" or similar, PROCEED with the configuration steps, do NOT ask generic questions
-
-IMPORTANT: The user has already been talking to you. Maintain context from all previous messages. Do not restart the conversation or ask what emulator they want if they already told you.
-
-You may read configs via Console Wizard endpoints (generate, health, config/{emulator}) and suggest applies/restores when needed. Use detected controllers if available; otherwise ask the user what they are holding.
-
-Current context: ${JSON.stringify(contextInfo)}`;
-        const history = [...chatMessagesRef.current, { text: userMessage, sender: 'user' }];
-        // Use 20 messages instead of 8 to maintain context across more turns
-        const historyMessages = history
-          .slice(-20)
-          .map((msg) => ({
-            role: msg.sender === 'assistant' ? 'assistant' : 'user',
-            content: msg.text,
-          }));
-
-        const response = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: buildStandardHeaders({
-            panel: 'console-wizard',
-            scope: 'state',
-            extraHeaders: { 'Content-Type': 'application/json' },
-          }),
-          body: JSON.stringify({
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...historyMessages,
-            ],
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || errorData.detail || `AI chat failed: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const assistantReply = data.message?.content || data.response || 'I encountered an error processing your request.';
-        addChatMessage(assistantReply, 'assistant');
-
-        // Check if the assistant is asking for confirmation - set pending state
-        if (detectConfirmationAsk(assistantReply)) {
-          const context = extractConfirmationContext([...chatMessagesRef.current, { text: userMessage, sender: 'user' }]);
-          setPendingConfirmation(context);
-          console.info('[ConsoleWizard] Pending confirmation set:', context);
-        }
-      } catch (err) {
-        console.error('[ConsoleWizard] Chat error:', err);
-        addChatMessage(`Sorry, I encountered an error: ${err.message}`, 'assistant');
-      } finally {
-        setChatLoading(false);
-      }
-    },
-    [emulators, health, detectedControllers, tendenciesProfileId, tendenciesData, addChatMessage, pendingConfirmation, isYesResponse, isNoResponse, detectConfirmationAsk, extractConfirmationContext],
-  );
-
-  const handleChatSend = useCallback(async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMessage = chatInput.trim();
-    setChatInput('');
-    await sendChat(userMessage);
-  }, [chatInput, chatLoading, sendChat]);
 
   useEffect(() => () => {
     try {
@@ -1459,16 +1281,6 @@ Current context: ${JSON.stringify(contextInfo)}`;
       wsRef.current = null;
     }
   }, []);
-
-  const handleChatKeyPress = useCallback(
-    (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleChatSend();
-      }
-    },
-    [handleChatSend],
-  );
 
   // Voice recording functions
   const cleanupVoiceStream = useCallback(() => {
@@ -1498,25 +1310,22 @@ Current context: ${JSON.stringify(contextInfo)}`;
     setListeningLabel(false);
     if (!payload) return;
     if (payload.code === 'NOT_CONFIGURED') {
-      addChatMessage('Voice transcription is not configured. Add an OpenAI key in settings.', 'assistant');
+      showVoiceToast('Voice transcription is not configured. Add an OpenAI key in settings.');
       return;
     }
     const text = payload.text || payload.transcript || payload.message;
     if (typeof text === 'string' && text.trim()) {
-      setChatInput('');
-      // UNIFIED PATH: route transcript into the canonical Engineering Bay sidebar
-      // so mic chat and typed chat share the same visible Wizard conversation.
       setChatOpen(true);
       if (wizSendRef.current) {
         wizSendRef.current(text);
       } else {
-        // Fallback: should not be reached in normal flow (sidebar not yet mounted)
-        await sendChat(text);
+        console.warn('[ConsoleWizard] Wiz chat send bridge was not ready for transcript delivery.');
+        showVoiceToast('Wiz chat is opening. Try the mic again once the drawer is ready.');
       }
     } else {
-      addChatMessage('Sorry, no transcription was returned.', 'assistant');
+      showVoiceToast('Sorry, no transcription was returned.');
     }
-  }, [addChatMessage, sendChat]);
+  }, [showVoiceToast]);
 
   // Keep a stable ref to handleVoiceTranscript so the lazy WS onmessage handler
   // doesn't need to be rebuilt every time the callback identity changes.
@@ -1552,7 +1361,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
     // to onerror/onend being fired before the user can speak (permission model mismatch).
     // Go directly to getUserMedia + MediaRecorder + /ws/audio which is stable.
     if (!navigator?.mediaDevices?.getUserMedia || typeof window.MediaRecorder === 'undefined') {
-      addChatMessage('⚠️ Microphone capture is not available in this environment. Please check browser permissions.', 'system');
+      showVoiceToast('Microphone capture is not available in this environment. Please check browser permissions.');
       return;
     }
 
@@ -1562,7 +1371,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
     const existingWs = wsRef.current;
     if (!existingWs || existingWs.readyState === WebSocket.CLOSED || existingWs.readyState === WebSocket.CLOSING) {
       if (typeof WebSocket === 'undefined') {
-        addChatMessage('⚠️ WebSocket is not available in this environment.', 'system');
+        showVoiceToast('WebSocket is not available in this environment.');
         return;
       }
       let socket;
@@ -1574,7 +1383,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
         socket = new WebSocket(wsUrl);
       } catch (err) {
         console.error('[ConsoleWizard] Failed to build voice WebSocket URL:', err);
-        addChatMessage('⚠️ Voice service is not available. Check that Arcade Assistant is running.', 'assistant');
+        showVoiceToast('Voice service is not available. Check that Arcade Assistant is running.');
         return;
       }
 
@@ -1588,10 +1397,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
           } else if (msg?.type === 'error') {
             // Gateway reported a failure — surface it and unstick recording state
             console.error('[ConsoleWizard] Voice service error:', msg);
-            addChatMessage(
-              `⚠️ Voice error: ${msg.message || msg.detail || 'Transcription failed. Try again.'}`,
-              'system',
-            );
+            showVoiceToast(`Voice error: ${msg.message || msg.detail || 'Transcription failed. Try again.'}`);
             if (silenceCheckIntervalRef.current) {
               clearInterval(silenceCheckIntervalRef.current);
               silenceCheckIntervalRef.current = null;
@@ -1620,7 +1426,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
       });
 
       if (!wsReady || socket.readyState !== WebSocket.OPEN) {
-        addChatMessage('⚠️ Voice service is not available. Ensure Arcade Assistant is running and try again.', 'assistant');
+        showVoiceToast('Voice service is not available. Ensure Arcade Assistant is running and try again.');
         try { socket.close(); } catch {}
         if (wsRef.current === socket) wsRef.current = null;
         return;
@@ -1635,7 +1441,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
         ? 'Microphone permission was denied. Please allow microphone access in your system or browser settings.'
         : `Microphone could not start: ${err?.message ?? 'Unknown error'}`;
       console.error('[ConsoleWizard] getUserMedia failed:', err);
-      addChatMessage(`⚠️ ${reason}`, 'system');
+      showVoiceToast(reason);
       return;
     }
 
@@ -1653,23 +1459,23 @@ Current context: ${JSON.stringify(contextInfo)}`;
         chunkSequenceRef.current += 1;
         const ok = sendVoiceMessage({ type: 'audio_chunk', chunk, data: chunk, sequence: chunkSequenceRef.current });
         if (!ok) {
-          addChatMessage('⚠️ Voice service unavailable. Refresh and try again.', 'assistant');
+          showVoiceToast('Voice service unavailable. Refresh and try again.');
           stopVoiceRecording({ skipSignal: true });
         }
       } catch (err) {
         console.error('[ConsoleWizard] Failed to process audio chunk', err);
-        addChatMessage('⚠️ Failed to process microphone audio.', 'assistant');
+        showVoiceToast('Failed to process microphone audio.');
       }
     };
 
     recorder.onerror = (event) => {
       console.error('[ConsoleWizard] Recorder error:', event);
-      addChatMessage('⚠️ Microphone error occurred. Recording stopped.', 'system');
+      showVoiceToast('Microphone error occurred. Recording stopped.');
       stopVoiceRecording({ skipSignal: true });
     };
 
     if (!sendVoiceMessage({ type: 'start_recording' })) {
-      addChatMessage('⚠️ Voice service unavailable. Refresh and try again.', 'assistant');
+      showVoiceToast('Voice service unavailable. Refresh and try again.');
       stopVoiceRecording({ skipSignal: true });
       return;
     }
@@ -1725,7 +1531,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
       // Non-fatal: if Web Audio API is unavailable, user presses mic again to stop
       console.warn('[ConsoleWizard] Silence detection unavailable:', silenceErr);
     }
-  }, [addChatMessage, sendVoiceMessage, stopVoiceRecording]);
+  }, [showVoiceToast, sendVoiceMessage, stopVoiceRecording]);
 
   const toggleMic = useCallback(() => {
     // If assistant is speaking, stop TTS immediately to prioritize user voice
@@ -1874,17 +1680,13 @@ Current context: ${JSON.stringify(contextInfo)}`;
       const welcomeMsg = `Hi! Dewey told me you said: "${handoffContext}"\n\nI'm Console Wizard, and I can help you with controller configuration for emulators. What would you like me to do?`;
       handoffProcessedRef.current = handoffContext; // Store the processed context
       initialGreetingRef.current = true;
-      addChatMessage(welcomeMsg, 'assistant', { speak: true }); // Enable voice on handoff
-      setChatOpen(true);
+      seedSidebarMessage(welcomeMsg, { role: 'assistant', open: true, speak: true });
     } else if (!hasHandoff && !initialGreetingRef.current) {
       // Default greeting if no handoff
       const defaultMsg = "Hi, I'm Wiz. I can help you configure your emulators. Just ask!";
-      addChatMessage(defaultMsg, 'assistant', { speak: true });
+      seedSidebarMessage(defaultMsg, { role: 'assistant', speak: true });
       initialGreetingRef.current = true;
-      // Don't auto-open chat for default greeting to be less intrusive? 
-      // User said "The AI would then talk", so speech is key.
-      // Let's NOT auto-open chat window for default, just speak.
-      // But addChatMessage adds to history.
+      // Default greeting speaks without forcing the drawer open.
     }
 
     // Check for JSON handoff from Dewey (only when arriving via Dewey URL context)
@@ -1901,8 +1703,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
             handoffProcessedRef.current = summaryText;
             const welcomeMsg = `Dewey briefed me that you're dealing with: "${summaryText}". Let's tackle it together.`;
             initialGreetingRef.current = true;
-            addChatMessage(welcomeMsg, 'assistant', { speak: true });
-            setChatOpen(true);
+            seedSidebarMessage(welcomeMsg, { role: 'assistant', open: true, speak: true });
           }
         }
       } catch (err) {
@@ -1930,7 +1731,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
     }
     // Stop any ongoing TTS when this panel unmounts
     return () => { try { stopTTS() } catch { } }
-  }, [logEvent, refreshAll, addChatMessage]);
+  }, [logEvent, refreshAll, seedSidebarMessage]);
 
   useEffect(() => {
     if (!emulators.length) {
@@ -2203,6 +2004,7 @@ Current context: ${JSON.stringify(contextInfo)}`;
           contextAssembler={assembleWizContext}
           micHandlers={{ isRecording, onToggle: toggleMic }}
           onSendRef={wizSendRef}
+          initialMessages={chatInitialMessages}
         />
       </div>
     </div>

@@ -4,9 +4,9 @@
  * 3-tier context:
  *   Tier 1 (always):     timestamp, session
  *   Tier 2 (fetched):    emulator health, emulator list, detected controllers
- *   Tier 3 (static):     AI tool availability, domain scope reminder
+ *   Tier 3 (static):     AI tool availability, panel capability summary
  *
- * Stays under 1500 tokens. Console Wizard domain only — no cross-panel bleed.
+ * Stays under 1500 tokens and keeps context focused on current panel state.
  */
 
 import { buildStandardHeaders } from '../../utils/identity';

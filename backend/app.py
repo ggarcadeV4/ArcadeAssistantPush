@@ -176,8 +176,6 @@ print("DEBUG: Importing lightguns...")
 from backend.routers import lightguns
 print("DEBUG: Importing gunner...")
 from backend.routers import gunner
-print("DEBUG: Importing controller_ai...")
-from backend.routers import controller_ai
 print("DEBUG: Importing voice...")
 from backend.routers import voice
 print("DEBUG: Importing voice_advanced...")
@@ -186,6 +184,7 @@ print("DEBUG: Importing doc_diagnostics...")
 from backend.routers import doc_diagnostics
 from backend.routers import doc
 from backend.routers import chuck
+from backend.routers import wiz
 print("DEBUG: Importing emulator (pause/save API)...")
 from backend.routers import emulator
 print("DEBUG: Importing hotkey...")
@@ -678,6 +677,7 @@ app.include_router(game_lifecycle.router)  # Game lifecycle: Playnite start/stop
 app.include_router(doc_diagnostics.router, prefix="/api/doc", tags=["doc-diagnostics"])  # Phase 4: Doc's Pulse vitals
 app.include_router(doc.router, prefix="/api/local/doc", tags=["doc"])
 app.include_router(chuck.router, prefix="/api/local/chuck", tags=["chuck"])
+app.include_router(wiz.router, prefix="/api/local/wiz", tags=["wiz"])
 app.include_router(engineering_bay.router, prefix="/api", tags=["engineering-bay"])  # Unified EB chat: Vicky/Blinky/Gunner/Doc
 app.include_router(tts_router.router, prefix="/api", tags=["tts"])  # ElevenLabs TTS via Supabase proxy
 
