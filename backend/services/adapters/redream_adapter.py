@@ -75,6 +75,8 @@ def resolve(game: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         "args": [str(rom)],
         "cwd": str(exe.parent),
         "romfile": str(rom),
+        # Redream behaves reliably as a detached standalone GUI process.
+        "no_pipe": True,
     }
 
 

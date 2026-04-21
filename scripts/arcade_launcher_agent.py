@@ -26,6 +26,7 @@ import threading
 
 AGENT_PORT = int(os.getenv("AA_LAUNCHER_AGENT_PORT", "9123"))
 AGENT_HOST = "127.0.0.1"
+AGENT_PROTOCOL_VERSION = "detached-v2"
 LOG_FMT = "%(asctime)s [LauncherAgent] %(levelname)s  %(message)s"
 
 logging.basicConfig(level=logging.INFO, format=LOG_FMT)
@@ -49,32 +50,40 @@ def handle_client(conn: socket.socket, addr):
             return
 
         payload = json.loads(data.decode("utf-8").strip())
-        exe = payload["exe"]
-        args = payload.get("args", [])
-        cwd = payload.get("cwd", None)
-        env_override = payload.get("env_override", {})
+        op = payload.get("op")
+        if op == "ping":
+            response = {
+                "ok": True,
+                "agent": "arcade_launcher_agent",
+                "protocol_version": AGENT_PROTOCOL_VERSION,
+            }
+        else:
+            exe = payload["exe"]
+            args = payload.get("args", [])
+            cwd = payload.get("cwd", None)
+            env_override = payload.get("env_override", {})
 
-        command = [exe] + args
-        env = os.environ.copy()
-        env.update(env_override)
+            command = [exe] + args
+            env = os.environ.copy()
+            env.update(env_override)
 
-        log.info("Launching: %s  cwd=%s", " ".join(command)[:120], cwd)
+            log.info("Launching: %s  cwd=%s", " ".join(command)[:120], cwd)
 
-        create_new_process_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
-        detached_process = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+            create_new_process_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+            detached_process = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
 
-        proc = subprocess.Popen(
-            command,
-            cwd=cwd,
-            env=env,
-            creationflags=create_new_process_group | detached_process,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+            proc = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env=env,
+                creationflags=create_new_process_group | detached_process,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
-        response = {"ok": True, "pid": proc.pid}
-        log.info("Launched PID %d", proc.pid)
+            response = {"ok": True, "pid": proc.pid}
+            log.info("Launched PID %d", proc.pid)
 
     except Exception as e:
         log.error("Launch failed: %s", e)

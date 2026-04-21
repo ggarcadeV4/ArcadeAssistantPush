@@ -1600,6 +1600,103 @@ Open follow-ups for next session:
 
 ---
 
+### Session Catalog - 2026-04-20 (Phase B Engineering Bay Architecture Reality Check)
+
+Scope completed in this session focused on establishing the real before-state of the Engineering Bay personas so Phase B migration planning can be based on code, not assumptions.
+
+Key outcomes:
+
+- **Active repo / tree reality confirmed**:
+  - The live app is the nested tree at `Arcade Assistant Local/`.
+  - The active panel tree is primarily `frontend/src/panels/`, with active exceptions for Gunner and Blinky still living under `frontend/src/components/`.
+  - The previously assumed `frontend/src/components/panels/` structure is not the live source tree for the current product.
+
+- **Engineering Bay transport is shared on the frontend, but not fully shared on the backend**:
+  - `EngineeringBaySidebar.jsx` is the active shared frontend chat transport for six personas: Doc, Chuck, Wiz, Blinky, Gunner, and Vicky.
+  - `backend/routers/engineering_bay.py` is the shared chat router entry point.
+  - However, the backend service layer is already split:
+    - `doc`, `wiz`, `blinky`, `gunner`, and `vicky` route into `backend/services/engineering_bay/ai.py`
+    - `chuck` is special-cased and routes into `backend/services/chuck/ai.py`
+  - This means Chuck is already partially siloed even though the frontend still enters through the shared Engineering Bay sidebar and router.
+
+- **Provider / model coupling findings**:
+  - The active shared Engineering Bay backend still uses direct Gemini REST calls in `backend/services/engineering_bay/ai.py` and reads `GEMINI_API_KEY` / `GOOGLE_API_KEY` from environment.
+  - The shared service does not use `SecureAIClient`.
+  - The active frontend Engineering Bay path does not parse Gemini-native provider envelopes. The backend normalizes the response to `{ reply, persona, isDiagnosisMode }`, and the sidebar consumes plain text.
+  - This reduces frontend break risk if provider selection changes per persona.
+
+- **Tool / function-calling reality**:
+  - The active shared Engineering Bay service does not register persona-specific backend tools.
+  - The only tool attached in the shared service is Gemini-native Google Search grounding, and only on the uncertainty retry path.
+  - The active action system is prompt-driven, not tool-driven: personas emit fenced ```action blocks, `EngineeringBaySidebar.jsx` parses them from assistant text, and `ExecutionCard.jsx` renders the confirmation gate.
+  - Legacy Gemini-native tool schemas still exist in:
+    - `frontend/src/panels/led-blinky/useBlinkyChat.js`
+    - `frontend/src/hooks/useGunnerChat.js`
+  - Those hooks are not the active Blinky / Gunner chat surfaces anymore.
+
+- **Execution path contract clarified**:
+  - The real shared frontend action contract is text -> `parseActionBlock()` -> `pendingAction` -> `ExecutionCard`.
+  - `ExecutionCard.jsx` expects a normalized proposal object, while `EngineeringBaySidebar.jsx` additionally requires `endpoint` and `description` to execute and report the result.
+  - The active system is therefore provider-agnostic at the UI layer but tightly coupled to the fenced action-block convention.
+
+- **Prompt evidence of cross-persona semantic bleed defense**:
+  - Prompt files for Doc, Chuck, Wiz, Blinky, Gunner, and Vicky contain explicit domain walls and redirect language.
+  - Notable examples include:
+    - Doc: "I'm a doctor, not a MAME config expert."
+    - Chuck: "GUN WALL" and explicit refusal of gun calibration topics
+    - Gunner: "CONTROLLER WALL" and explicit refusal of controller / joystick mapping
+  - This is strong evidence that prompt authors have already been compensating for cross-lane contamination risk inside the shared system.
+
+- **Blast-radius findings for full siloing**:
+  - The deepest shared frontend dependencies are:
+    - `frontend/src/panels/_kit/EngineeringBaySidebar.jsx`
+    - `frontend/src/hooks/useDiagnosisMode.js`
+    - `frontend/src/panels/controller/ExecutionCard.jsx`
+    - `frontend/src/panels/controller/DiagnosisToggle.jsx`
+    - `frontend/src/panels/controller/ContextChips.jsx`
+  - These files provide real cross-persona infrastructure, not just cosmetic reuse.
+  - Wiz, Blinky, Gunner, and Vicky also carry parallel or legacy AI paths outside the shared Engineering Bay flow, which increases refactor surface area if full siloing is chosen.
+
+- **Endpoint / prompt drift discovered**:
+  - Several persona prompts define action endpoints such as `/api/doc/repair`, `/api/local/led/repair`, `/api/local/lightguns/repair`, and `/api/voice/repair`.
+  - Matching backend routes for those prompt-declared endpoints were not found in this audit.
+  - This is prompt-contract drift that should be treated as a real architectural fact in Phase B planning.
+
+Files examined in this audit included:
+
+- `frontend/src/panels/_kit/EngineeringBaySidebar.jsx`
+- `frontend/src/hooks/useDiagnosisMode.js`
+- `frontend/src/panels/system-health/SystemHealthPanel.jsx`
+- `frontend/src/panels/system-health/docContextAssembler.js`
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx`
+- `frontend/src/panels/controller/chuckContextAssembler.js`
+- `frontend/src/panels/console-wizard/ConsoleWizardPanel.jsx`
+- `frontend/src/panels/console-wizard/WizSidebar.jsx`
+- `frontend/src/panels/console-wizard/wizContextAssembler.js`
+- `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx`
+- `frontend/src/components/gunner/GunnerPanel.jsx`
+- `frontend/src/panels/voice/VoicePanel.jsx`
+- `backend/routers/engineering_bay.py`
+- `backend/services/engineering_bay/ai.py`
+- `backend/services/chuck/ai.py`
+- `backend/services/wiz/ai.py`
+- `prompts/doc.prompt`
+- `prompts/controller_chuck.prompt`
+- `prompts/controller_wizard.prompt`
+- `prompts/blinky.prompt`
+- `prompts/gunner.prompt`
+- `prompts/vicky.prompt`
+
+Carry-forward facts for the next Phase B session:
+
+1. Do not treat Engineering Bay as a clean single shared backend service. Chuck is already backend-diverged.
+2. Do not assume provider changes will break the active shared frontend chat UI; the active frontend consumes normalized text, not Gemini-native envelopes.
+3. Treat `EngineeringBaySidebar.jsx` + `useDiagnosisMode.js` + `ExecutionCard.jsx` as real reusable infrastructure when estimating siloing cost.
+4. Treat prompt domain walls as evidence, not flavor text. They reflect known semantic-boundary pressure in the current architecture.
+5. If Phase B work touches action execution, verify the prompt-declared repair endpoints against real backend routes first.
+
+---
+
 ## Self-Healing Launch System (Phase 4)
 
 Arcade Assistant includes an AI-powered self-healing system for game launches. When a game crashes (exits in under 10 seconds), the system automatically:

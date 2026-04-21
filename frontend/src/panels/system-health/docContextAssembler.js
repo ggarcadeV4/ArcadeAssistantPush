@@ -1,21 +1,21 @@
 /**
  * docContextAssembler.js
- * ═══════════════════════════════════════════════════════════════════
+ * ===================================================================
  * Builds Doc's context payload so the AI can answer questions about
  * real-time system health (CPU, memory, processes, hardware, alerts).
  *
  * Called by useDiagnosisMode() on entry and every 30 s, AND on every
  * regular chat message when no diag context is already present.
  *
- * PANEL ISOLATION RULE: Doc's world only — system health telemetry.
- * No controller mapping, no LED states, no LaunchBox feed.
+ * PANEL SCOPE: Doc focuses on cabinet system health telemetry.
+ * The assembler provides runtime health context for Doc chat and diagnosis.
  */
 
 import { buildStandardHeaders } from '../../utils/identity';
 
 const HEALTH_API = '/api/local/health';
 
-/** Silent fetch — returns null on any error */
+/** Silent fetch - returns null on any error */
 async function safeFetch(url) {
     try {
         const res = await fetch(url, {
@@ -29,11 +29,11 @@ async function safeFetch(url) {
 }
 
 /**
- * Main assembler — exported and consumed by EngineeringBaySidebar.
+ * Main assembler - exported and consumed by EngineeringBaySidebar.
  * @returns {Promise<{tier1, tier2, tier3}>}
  */
 export async function docContextAssembler() {
-    // ── Tier 1: Always included (core telemetry) ────────────────────────
+    // -- Tier 1: Always included (core telemetry) ------------------------
     const [summary, gateway, performance, processes, hardware, alertsData] = await Promise.all([
         safeFetch(`${HEALTH_API}/summary`),
         safeFetch('/api/health'),
@@ -97,7 +97,7 @@ export async function docContextAssembler() {
         },
     };
 
-    // ── Tier 2: Conditional (processes + hardware, only when data exists) ────
+    // -- Tier 2: Conditional (processes + hardware, only when data exists) ----
     const tier2 = {};
 
     if (processes?.groups) {
@@ -143,7 +143,7 @@ export async function docContextAssembler() {
         tier2.usbBackend = hardware.usb_backend ?? 'unknown';
     }
 
-    // ── Tier 3: Static knowledge (Doc's reference material) ──────────────
+    // -- Tier 3: Static knowledge (Doc's reference material) -------------
     const tier3 = {
         panelRole: 'Doc is the system health diagnostic AI for Arcade Assistant.',
         capabilities: [

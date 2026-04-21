@@ -30,6 +30,7 @@ import { docContextAssembler } from './docContextAssembler'
 const DOC_PERSONA = {
   id: 'doc',
   name: 'Doc',
+  chatEndpoint: '/api/local/doc/chat',
   icon: '🩺',
   avatar: '/doc-avatar.jpeg',
   accentColor: '#ec4899',

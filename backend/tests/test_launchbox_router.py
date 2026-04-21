@@ -536,6 +536,63 @@ async def test_launchbox_panel_downgrades_unverified_direct_launch(mock_request,
 
 
 @pytest.mark.asyncio
+async def test_launchbox_panel_gamecube_stops_after_direct_failure(mock_request, mock_services, monkeypatch):
+    """GameCube/Wii should never fan out past the canonical Dolphin direct path."""
+    from backend.routers import launchbox as launchbox_router
+
+    game = Game(
+        id="gc-1",
+        title="Mario Kart: Double Dash!!",
+        platform="Nintendo GameCube",
+        year=2003,
+        genre="Racing",
+        application_path="Games/GameCube/Mario Kart - Double Dash!!.gcz",
+    )
+    parser_mock = Mock()
+    parser_mock.get_cache_stats = Mock(return_value={"is_mock_data": False})
+    parser_mock.get_game_by_id = Mock(return_value=game)
+
+    launcher_mock = Mock()
+    launcher_mock.launch = Mock(return_value=launchbox_router.LaunchResponse(
+        success=False,
+        game_id=game.id,
+        method_used="none",
+        message="direct: MISSING-EMU: Dolphin not found",
+        game_title=game.title,
+    ))
+
+    plugin_mock = Mock()
+    plugin_mock.is_available = Mock(return_value=True)
+    plugin_mock.launch_game = Mock(return_value={"success": True, "message": "should not run"})
+
+    monkeypatch.setenv("AA_LAUNCH_THROTTLE_SEC", "0")
+    monkeypatch.setattr(launchbox_router, "parser", parser_mock)
+    monkeypatch.setattr(launchbox_router, "launcher", launcher_mock)
+    monkeypatch.setattr(launchbox_router, "get_plugin_client", Mock(return_value=plugin_mock))
+    monkeypatch.setattr(launchbox_router, "_read_routing_policy", Mock(return_value={}))
+    monkeypatch.setattr(launchbox_router, "_log_launch_event", Mock())
+    monkeypatch.setattr(launchbox_router, "log_decision", Mock())
+    monkeypatch.setattr(launchbox_router, "update_runtime_state", Mock())
+    monkeypatch.setattr(
+        launchbox_router,
+        "run_in_threadpool",
+        AsyncMock(side_effect=lambda func, *args, **kwargs: func(*args, **kwargs)),
+    )
+
+    for attr in ("_last_launch", "_inflight", "_last_ahk_launch"):
+        if hasattr(launchbox_router.launch_game, attr):
+            delattr(launchbox_router.launch_game, attr)
+
+    response = await launchbox_router.launch_game(game.id, mock_request, services=mock_services)
+
+    assert response.success is False
+    assert response.method_used == "direct_failed"
+    assert "direct dolphin launch failed" in response.message.lower()
+    launcher_mock.launch.assert_called_once_with(game, "direct", None)
+    plugin_mock.launch_game.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_launchbox_only_platform_is_not_reported_as_launch(mock_request, mock_services, monkeypatch):
     """LaunchBox-only platforms should not return a success signal to the LoRa panel."""
     from backend.routers import launchbox as launchbox_router

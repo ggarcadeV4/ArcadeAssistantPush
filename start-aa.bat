@@ -28,6 +28,7 @@ rem live cabinet hardware. See README "Marquee System" section.
 rem Original: if not defined AA_MARQUEE_ENABLED ( set "AA_MARQUEE_ENABLED=1" )
 set "AA_MARQUEE_ENABLED=0"
 set AA_UPDATES_ENABLED=0
+set "AA_BACKEND_AGENT_AUTOSTART=0"
 
 echo ============================================================
 echo  Arcade Assistant - Starting...
@@ -122,6 +123,20 @@ if exist "%CTRL_SRC%\*.png" (
     echo [WARN] No controller PNGs found in %CTRL_SRC% - Console Wizard will use text-only fallback.
 )
 echo.
+
+echo [INFO] Ensuring Launcher Agent on 127.0.0.1:9123...
+set "AA_AGENT_RUNNING="
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":9123.*LISTENING"') do (
+    for /f "tokens=1" %%b in ('tasklist /fi "PID eq %%a" /nh 2^>nul ^| findstr /i "python.exe pythonw.exe"') do (
+        set "AA_AGENT_RUNNING=1"
+    )
+)
+if defined AA_AGENT_RUNNING (
+    echo [INFO] Launcher Agent already running on port 9123.
+) else (
+    start "AA-LauncherAgent" /min %ComSpec% /c call "%REPOROOT%scripts\start_launcher_agent.bat"
+    timeout /t 2 >nul
+)
 
 echo [INFO] Starting FastAPI backend on 127.0.0.1:8000...
 start "AA-Backend" /min %ComSpec% /c call "%REPOROOT%scripts\run-backend.bat"

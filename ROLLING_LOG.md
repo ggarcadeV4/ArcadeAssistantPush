@@ -6,6 +6,137 @@
 
 ---
 
+## 2026-04-20 (Codex Session - Phase B Engineering Bay Full Architecture Reality Check)
+
+**Net Progress**: Completed a read-only architecture audit of the six Engineering Bay personas to establish the real shared-vs-siloed state before any Phase B migration work begins.
+
+### What Was Confirmed
+
+- **Correct repo / tree**:
+  - Work was performed in `W:\Arcade Assistant Master Build\Arcade Assistant Local`.
+  - The active frontend panel tree is primarily `frontend/src/panels/`.
+  - Two active persona entry points still live under `frontend/src/components/`:
+    - `components/gunner/GunnerPanel.jsx`
+    - `components/led-blinky/LEDBlinkyPanelNew.jsx`
+
+- **Frontend transport is shared**:
+  - `frontend/src/panels/_kit/EngineeringBaySidebar.jsx` is the active shared chat UI for:
+    - Doc
+    - Chuck
+    - Wiz
+    - Blinky
+    - Gunner
+    - Vicky
+  - Shared diagnosis/action infrastructure also includes:
+    - `frontend/src/hooks/useDiagnosisMode.js`
+    - `frontend/src/panels/controller/DiagnosisToggle.jsx`
+    - `frontend/src/panels/controller/ContextChips.jsx`
+    - `frontend/src/panels/controller/ExecutionCard.jsx`
+
+- **Backend transport is only partly shared**:
+  - `backend/routers/engineering_bay.py` is the shared route entry point for all six personas.
+  - But the service layer is not truly unified:
+    - `doc`, `wiz`, `blinky`, `gunner`, `vicky` -> `backend/services/engineering_bay/ai.py`
+    - `chuck` -> `backend/services/chuck/ai.py`
+  - This means Chuck is already partially siloed on the backend.
+
+- **Provider / transport normalization findings**:
+  - The shared Engineering Bay backend still calls Gemini directly through REST in `backend/services/engineering_bay/ai.py`.
+  - It still reads `GEMINI_API_KEY` / `GOOGLE_API_KEY` from environment.
+  - It does not use `SecureAIClient`.
+  - The active frontend shared sidebar does not parse Gemini-native response shapes. It receives normalized `{ reply, persona, isDiagnosisMode }` and works from plain text.
+
+- **Tooling reality**:
+  - No active persona-specific backend function/tool registration was found in `engineering_bay/ai.py`.
+  - The only attached model-side tool in the shared service is Gemini-native `google_search`, used only for uncertainty retry grounding.
+  - The active execution model is prompt-driven fenced action blocks, not registered tool calling.
+  - `EngineeringBaySidebar.jsx` extracts:
+    - assistant text
+    - optional fenced ```action JSON
+  - `ExecutionCard.jsx` then gates the write action behind explicit user confirmation.
+
+- **Legacy / parallel AI paths still exist**:
+  - `frontend/src/panels/led-blinky/useBlinkyChat.js` still contains Gemini-native tool schemas for Blinky.
+  - `frontend/src/hooks/useGunnerChat.js` still contains Gemini-native tool schemas for Gunner.
+  - `frontend/src/panels/console-wizard/WizSidebar.jsx` and `backend/services/wiz/ai.py` remain as a parallel Wiz-specific path.
+  - `frontend/src/panels/voice/VoicePanel.jsx` also contains separate non-Engineering-Bay AI paths for voice transcript chat and lighting-command SSE handling.
+
+### Important Contradictions to Prior Assumptions
+
+- Engineering Bay is **not** a single clean shared backend service. Chuck already diverges.
+- The active shared frontend path is **not** provider-shape-coupled to Gemini. It consumes normalized text.
+- The active shared service does **not** have rich backend function-calling definitions for each persona. Most current "tooling" is prompt-defined action-block behavior instead.
+
+### Prompt / Persona Boundary Evidence
+
+Prompt files contain explicit domain walls that strongly suggest prompt authors have already been compensating for shared-service semantic bleed:
+
+- `prompts/doc.prompt`
+  - "I'm a doctor, not a MAME config expert."
+- `prompts/controller_chuck.prompt`
+  - "GUN WALL"
+  - Chuck does not touch Blinky / Wiz territory
+- `prompts/gunner.prompt`
+  - "CONTROLLER WALL"
+  - explicit refusal of joystick / encoder / button mapping questions
+- `prompts/controller_wizard.prompt`, `prompts/blinky.prompt`, and `prompts/vicky.prompt`
+  - all contain redirect rules that reinforce persona boundaries
+
+This is meaningful architectural evidence, not cosmetic prompt flavor.
+
+### Execution / Action Contract Reality
+
+- The real active execution contract is:
+  - backend returns `reply` text
+  - `EngineeringBaySidebar.jsx` parses optional fenced action JSON from the text
+  - `ExecutionCard.jsx` renders the confirmation gate
+  - the UI posts to `action.endpoint` only after explicit user confirmation
+- This action-block convention is a core part of the current Engineering Bay system and should be treated as such in future refactor estimates.
+
+### Drift Found
+
+- Several prompts declare repair endpoints that were not found as matching backend routes during this audit:
+  - `/api/doc/repair`
+  - `/api/local/led/repair`
+  - `/api/local/lightguns/repair`
+  - `/api/voice/repair`
+- This means there is prompt-contract drift between persona instructions and the backend route surface.
+
+### Files Audited
+
+- `frontend/src/panels/_kit/EngineeringBaySidebar.jsx`
+- `frontend/src/hooks/useDiagnosisMode.js`
+- `frontend/src/panels/system-health/SystemHealthPanel.jsx`
+- `frontend/src/panels/system-health/docContextAssembler.js`
+- `frontend/src/panels/controller/ControllerChuckPanel.jsx`
+- `frontend/src/panels/controller/chuckContextAssembler.js`
+- `frontend/src/panels/console-wizard/ConsoleWizardPanel.jsx`
+- `frontend/src/panels/console-wizard/WizSidebar.jsx`
+- `frontend/src/panels/console-wizard/wizContextAssembler.js`
+- `frontend/src/components/led-blinky/LEDBlinkyPanelNew.jsx`
+- `frontend/src/components/gunner/GunnerPanel.jsx`
+- `frontend/src/panels/voice/VoicePanel.jsx`
+- `backend/routers/engineering_bay.py`
+- `backend/services/engineering_bay/ai.py`
+- `backend/services/chuck/ai.py`
+- `backend/services/wiz/ai.py`
+- `prompts/doc.prompt`
+- `prompts/controller_chuck.prompt`
+- `prompts/controller_wizard.prompt`
+- `prompts/blinky.prompt`
+- `prompts/gunner.prompt`
+- `prompts/vicky.prompt`
+
+### Carry-Forward Rules
+
+1. Treat shared frontend transport and shared backend service as separate questions. They are not the same thing in the current codebase.
+2. Treat Chuck as already partially siloed when planning Phase B.
+3. Preserve the evidence that the active frontend Engineering Bay UI is already provider-agnostic at the response-shape layer.
+4. Preserve `EngineeringBaySidebar.jsx`, `useDiagnosisMode.js`, and `ExecutionCard.jsx` as major blast-radius files if full siloing is considered.
+5. Before any action-path migration work, reconcile prompt-declared repair endpoints against real backend routes.
+
+---
+
 ### Console Wizard — Accepted as Functional ✅
 
 **What was done:**

@@ -56,49 +56,148 @@ logger = logging.getLogger(__name__)
 _AGENT_HOST = "127.0.0.1"
 _AGENT_PORT = int(os.getenv("AA_LAUNCHER_AGENT_PORT", "9123"))
 _AGENT_TIMEOUT = 5.0  # seconds
+_AGENT_PROTOCOL_VERSION = "detached-v2"
+_AGENT_AUTOSTART_ENABLED = os.getenv("AA_BACKEND_AGENT_AUTOSTART", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 
-def _agent_is_reachable(timeout: float = 0.5) -> bool:
+def _query_launcher_agent_status(timeout: float = 0.5) -> Optional[Dict[str, Any]]:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect((_AGENT_HOST, _AGENT_PORT))
+        sock.sendall((json.dumps({"op": "ping"}) + "\n").encode("utf-8"))
+        sock.shutdown(socket.SHUT_WR)
+        resp_data = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            resp_data += chunk
         sock.close()
-        return True
+        if not resp_data.strip():
+            return None
+        return json.loads(resp_data.decode("utf-8").strip())
     except Exception:
+        return None
+
+
+def _agent_has_expected_protocol(status: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(status, dict):
         return False
+    return (
+        bool(status.get("ok"))
+        and status.get("agent") == "arcade_launcher_agent"
+        and status.get("protocol_version") == _AGENT_PROTOCOL_VERSION
+    )
+
+
+def _find_launcher_agent_listener_pids() -> List[int]:
+    pids: List[int] = []
+    try:
+        proc = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=5,
+            check=False,
+        )
+    except Exception as e:
+        logger.warning("[Agent] failed to inspect netstat: %s", e)
+        return pids
+
+    listen_suffix = f":{_AGENT_PORT}"
+    for raw_line in proc.stdout.splitlines():
+        line = raw_line.strip()
+        if not line or "LISTENING" not in line:
+            continue
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        local_addr = parts[1]
+        state = parts[3]
+        pid_str = parts[4]
+        if state != "LISTENING" or not local_addr.endswith(listen_suffix):
+            continue
+        try:
+            pid = int(pid_str)
+            if pid not in pids:
+                pids.append(pid)
+        except Exception:
+            continue
+    return pids
+
+
+def _stop_stale_launcher_agent() -> bool:
+    pids = _find_launcher_agent_listener_pids()
+    if not pids:
+        return False
+
+    stopped_any = False
+    for pid in pids:
+        try:
+            proc = subprocess.run(
+                ["taskkill", "/PID", str(pid), "/F"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=10,
+                check=False,
+            )
+            if proc.returncode != 0:
+                logger.warning(
+                    "[Agent] failed to stop stale listener on port %d (pid=%s): %s",
+                    _AGENT_PORT,
+                    pid,
+                    (proc.stderr or proc.stdout or "").strip(),
+                )
+                continue
+            stopped_any = True
+        except Exception as e:
+            logger.warning("[Agent] exception while stopping stale listener on port %d (pid=%s): %s", _AGENT_PORT, pid, e)
+            return False
+    if not stopped_any:
+        return False
+
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        if not _find_launcher_agent_listener_pids():
+            return True
+        time.sleep(0.1)
+    logger.warning("[Agent] stale listener pids %s still own port %d after taskkill", pids, _AGENT_PORT)
+    return False
+
+
+def _agent_is_reachable(timeout: float = 0.5) -> bool:
+    return _agent_has_expected_protocol(_query_launcher_agent_status(timeout))
 
 
 def _start_launcher_agent() -> bool:
-    if _agent_is_reachable():
+    if not _AGENT_AUTOSTART_ENABLED:
+        logger.warning(
+            "[Agent] backend auto-start disabled; start the launcher agent via start-aa.bat or scripts\\start_launcher_agent.bat"
+        )
+        return False
+
+    status = _query_launcher_agent_status()
+    if _agent_has_expected_protocol(status):
         return True
+    if status is not None:
+        logger.warning("[Agent] reachable listener on port %d has stale/unknown protocol: %s", _AGENT_PORT, status)
+        _stop_stale_launcher_agent()
 
     repo_root = Path(__file__).resolve().parents[2]
-    starter_script = repo_root / "scripts" / "start_launcher_agent.bat"
     agent_script = repo_root / "scripts" / "arcade_launcher_agent.py"
     if not agent_script.exists():
         logger.warning("[Agent] script missing: %s", agent_script)
         return False
-
-    if starter_script.exists():
-        try:
-            subprocess.Popen(
-                f'cmd.exe /c start "" "{starter_script}"',
-                cwd=str(repo_root),
-                shell=True,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception as e:
-            logger.warning("[Agent] batch auto-start failed: %s", e)
-        else:
-            deadline = time.time() + 3.0
-            while time.time() < deadline:
-                if _agent_is_reachable():
-                    logger.info("[Agent] auto-start via batch succeeded")
-                    return True
-                time.sleep(0.2)
 
     python_candidates = []
     try:
@@ -107,8 +206,8 @@ def _start_launcher_agent() -> bool:
         python_candidates.append(exe_path)
     except Exception:
         pass
-    python_candidates.append(Path(str(repo_root / ".venv" / "Scripts" / "pythonw.exe")))
-    python_candidates.append(Path(str(repo_root / ".venv" / "Scripts" / "python.exe")))
+    python_candidates.append(repo_root / ".venv" / "Scripts" / "pythonw.exe")
+    python_candidates.append(repo_root / ".venv" / "Scripts" / "python.exe")
 
     python_cmd = None
     for candidate in python_candidates:
@@ -138,7 +237,8 @@ def _start_launcher_agent() -> bool:
 
     deadline = time.time() + 3.0
     while time.time() < deadline:
-        if _agent_is_reachable():
+        status = _query_launcher_agent_status()
+        if _agent_has_expected_protocol(status):
             logger.info("[Agent] auto-start succeeded")
             return True
         time.sleep(0.2)
@@ -1776,10 +1876,10 @@ class GameLauncher:
                 full_command = [exe, *args]
                 win_command = _convert_wsl_paths_for_windows(full_command)
                 wsl_cwd = str(workdir)
-                if "supermodel" in exe_name:
+                if "supermodel" in exe_name or "redream" in exe_name:
                     agent_result = _launch_via_agent(win_command, cwd=wsl_cwd)
                     if agent_result.get("ok"):
-                        logger.info("[Adapter] Launched Supermodel via auto-started agent, PID=%s", agent_result.get('pid'))
+                        logger.info("[Adapter] Launched %s via launcher agent, PID=%s", exe_name, agent_result.get('pid'))
                     else:
                         raise RuntimeError(
                             f"Launcher Agent failed: {agent_result.get('error', 'unknown')}"

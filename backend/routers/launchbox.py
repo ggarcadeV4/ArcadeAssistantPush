@@ -119,6 +119,13 @@ _LAUNCHBOX_DIRECT_FIRST_PLATFORM_KEYS = {
     "examu exboard",
 }
 
+_LAUNCHBOX_CANONICAL_DIRECT_ONLY_PLATFORM_KEYS = {
+    "nintendo wii",
+    "wii",
+    "nintendo gamecube",
+    "gamecube",
+}
+
 _LAUNCHBOX_ONLY_PLATFORM_KEYS = {
     "daphne",
     "american laser games",
@@ -129,6 +136,12 @@ def _launchbox_prefers_direct(game: Game) -> bool:
     """Prefer direct adapters for arcade-PC platforms that misbehave via plugin launch."""
     platform_key = normalize_key(getattr(game, "platform", "") or "")
     return platform_key in _LAUNCHBOX_DIRECT_FIRST_PLATFORM_KEYS
+
+
+def _launchbox_requires_canonical_direct(game: Game) -> bool:
+    """Platforms that must stay on one explicit direct-emulator path per request."""
+    platform_key = normalize_key(getattr(game, "platform", "") or "")
+    return platform_key in _LAUNCHBOX_CANONICAL_DIRECT_ONLY_PLATFORM_KEYS
 
 
 # =============================================================================
@@ -3033,6 +3046,7 @@ async def launch_game(
         return resp
 
     platform_key = normalize_key(getattr(game, "platform", "") or "")
+    canonical_direct_only = panel == "launchbox" and _launchbox_requires_canonical_direct(game)
     if panel == "launchbox" and platform_key in _LAUNCHBOX_ONLY_PLATFORM_KEYS:
         resp = LaunchResponse(
             success=False,
@@ -3410,6 +3424,42 @@ async def launch_game(
                     logger.error(f"[Phase0F] PID tracking FAILED in direct_only path: {e}", exc_info=True)
                 return direct_result
             else:
+                if canonical_direct_only:
+                    failure_msg = (
+                        getattr(direct_result, "message", None)
+                        or "No Dolphin direct launch route claimed this platform."
+                    )
+                    logger.error(
+                        "[LaunchBox] Canonical direct launch failed for '%s' (%s). "
+                        "Suppressing detected_emulator/plugin/LaunchBox fallback.",
+                        game.title,
+                        failure_msg,
+                    )
+                    resp = LaunchResponse(
+                        success=False,
+                        game_id=game.id,
+                        game_title=game.title,
+                        method_used="direct_failed",
+                        message=(
+                            f"Direct Dolphin launch failed for {game.title}: {failure_msg}"
+                        ),
+                        command=getattr(direct_result, "command", None) if direct_result else None,
+                    )
+                    try:
+                        log_decision({
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "game_id": game.id,
+                            "game_title": game.title,
+                            "platform": game.platform,
+                            "categories": game.categories or [],
+                            "panel": panel,
+                            "requested_by": "lora_direct",
+                            "launch_method": resp.method_used,
+                            "reason": "canonical dolphin direct failure - fallback suppressed",
+                        })
+                    except Exception:
+                        pass
+                    return resp
                 # PEGASUS: Never fall back to LaunchBox - return explicit failure
                 if panel == "pegasus":
                     failure_msg = getattr(direct_result, 'message', 'Unknown error') if direct_result else 'No adapter claimed this platform'
@@ -3456,6 +3506,21 @@ async def launch_game(
                 )
         except Exception as e:
             logger.warning(f"Direct-only failed for '{game.title}': {e}")
+            if canonical_direct_only:
+                logger.error(
+                    "[LaunchBox] Canonical direct launch raised for '%s': %s. "
+                    "Suppressing detected_emulator/plugin/LaunchBox fallback.",
+                    game.title,
+                    e,
+                )
+                resp = LaunchResponse(
+                    success=False,
+                    game_id=game.id,
+                    game_title=game.title,
+                    method_used="direct_exception",
+                    message=f"Direct Dolphin launch exception: {str(e)}",
+                )
+                return resp
             # PEGASUS: Return explicit failure, never fall through to LaunchBox
             if panel == "pegasus":
                 logger.error(f"[PEGASUS] Exception during direct launch for '{game.title}': {e}")

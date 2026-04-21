@@ -17,18 +17,20 @@ import { buildStandardHeaders } from '../../utils/identity';
 const MAX_VISIBLE_DIAG_CHIPS = 3;
 
 async function engineeringBayChat({ persona, panelLabel, message, history, isDiagnosisMode, extraContext }) {
-    const res = await fetch('/api/local/engineering-bay/chat', {
+    const chatEndpoint = persona?.chatEndpoint || '/api/local/engineering-bay/chat';
+    const personaId = persona?.id || 'unknown';
+    const res = await fetch(chatEndpoint, {
         method: 'POST',
         headers: buildStandardHeaders({
-            panel: persona,
+            panel: personaId,
             scope: 'state',
             extraHeaders: { 'Content-Type': 'application/json' },
         }),
-        body: JSON.stringify({ persona, message, history, isDiagnosisMode, extraContext }),
+        body: JSON.stringify({ persona: personaId, message, history, isDiagnosisMode, extraContext }),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail ?? `${persona} AI request failed`);
+        throw new Error(err.detail ?? `${personaId} AI request failed`);
     }
     return res.json();
 }
@@ -211,7 +213,7 @@ export function EngineeringBaySidebar({ persona, contextAssembler, className = '
                 : profileContext;
 
             const { reply } = await engineeringBayChat({
-                persona: persona.id,
+                persona,
                 panelLabel: persona.name || persona.id,
                 message: trimmed,
                 history,
