@@ -117,6 +117,7 @@ const proxyToFastAPI = async (req, res) => {
 }
 
 router.use(ensureCorrelationId)
+router.use('/chat', (_req, _res, next) => next('router'))
 router.use('/', enforceScopeHeader, enforceDeviceHeaders, (req, res) => {
   proxyToFastAPI(req, res)
 })

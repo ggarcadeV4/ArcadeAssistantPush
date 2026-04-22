@@ -160,6 +160,15 @@ class SecureAIClient:
         merged_system = "\n\n".join(system_parts) if system_parts else None
         return filtered_messages, merged_system
 
+    @staticmethod
+    def _proxy_model_name(model: Optional[str]) -> Optional[str]:
+        if not isinstance(model, str):
+            return None
+        candidate = model.strip()
+        if not candidate or any(ch.isspace() for ch in candidate):
+            return None
+        return candidate
+
     def _query_panel_config(
         self, panel: str, cabinet_id: Optional[str]
     ) -> Optional[Dict[str, Any]]:
@@ -236,6 +245,11 @@ class SecureAIClient:
         provider = resolved.get("provider")
         if provider not in _ALLOWED_PROVIDERS:
             raise PanelConfigNotFound(panel, cabinet_id)
+        model = resolved.get("model")
+        fallback_provider = resolved.get("fallback_provider")
+        fallback_model = resolved.get("fallback_model")
+        requested_model = self._proxy_model_name(model)
+        requested_fallback_model = self._proxy_model_name(fallback_model)
 
         payload_messages, system_text = self._split_system_messages(messages, system)
         payload: Dict[str, Any] = {
@@ -243,6 +257,8 @@ class SecureAIClient:
             "cabinet_id": cabinet_id,
             "messages": payload_messages,
         }
+        if requested_model:
+            payload["model"] = requested_model
         if system_text is not None:
             payload["system"] = system_text
         if max_tokens is not None:
@@ -254,15 +270,21 @@ class SecureAIClient:
         if grounding:
             payload["grounding"] = True
 
-        url = f"{self.supabase_url}/functions/v1/{provider}-proxy"
-        start_time = time.time()
-        response = requests.post(
-            url,
-            headers=self._proxy_headers(),
-            json=payload,
-            timeout=60,
-        )
-        latency_ms = int((time.time() - start_time) * 1000)
+        def _post_to_proxy(target_provider: str, target_payload: Dict[str, Any]) -> Tuple[requests.Response, int]:
+            url = f"{self.supabase_url}/functions/v1/{target_provider}-proxy"
+            start_time = time.time()
+            response = requests.post(
+                url,
+                headers=self._proxy_headers(),
+                json=target_payload,
+                timeout=60,
+            )
+            latency_ms = int((time.time() - start_time) * 1000)
+            return response, latency_ms
+
+        active_provider = provider
+        active_model = requested_model
+        response, latency_ms = _post_to_proxy(active_provider, payload)
 
         if response.status_code == 404:
             try:
@@ -277,11 +299,48 @@ class SecureAIClient:
                 )
                 raise PanelConfigNotFound(panel, cabinet_id)
 
+        if (
+            not response.ok
+            and response.status_code in {429, 500, 502, 503, 504}
+            and fallback_provider in _ALLOWED_PROVIDERS
+        ):
+            fallback_payload = dict(payload)
+            if requested_fallback_model:
+                fallback_payload["model"] = requested_fallback_model
+            else:
+                fallback_payload.pop("model", None)
+
+            logger.warning(
+                "AI proxy primary failed for panel=%s provider=%s model=%s status=%s; retrying fallback provider=%s model=%s",
+                panel,
+                provider,
+                model,
+                response.status_code,
+                fallback_provider,
+                requested_fallback_model or "default",
+            )
+            fallback_response, fallback_latency_ms = _post_to_proxy(
+                fallback_provider, fallback_payload
+            )
+            if fallback_response.ok:
+                response = fallback_response
+                latency_ms = fallback_latency_ms
+                active_provider = fallback_provider
+                active_model = requested_fallback_model
+            else:
+                logger.error(
+                    "AI proxy fallback failed for panel=%s provider=%s status=%s body=%s",
+                    panel,
+                    fallback_provider,
+                    fallback_response.status_code,
+                    fallback_response.text,
+                )
+
         if not response.ok:
             logger.error(
                 "AI proxy request failed for panel=%s provider=%s status=%s body=%s",
                 panel,
-                provider,
+                active_provider,
                 response.status_code,
                 response.text,
             )
@@ -292,8 +351,8 @@ class SecureAIClient:
             raise PanelDisabled(panel)
 
         usage = result.get("usage", {}) or {}
-        result_provider = result.get("provider", provider)
-        result_model = result.get("model", resolved.get("model", "unknown"))
+        result_provider = result.get("provider", active_provider)
+        result_model = result.get("model", active_model or resolved.get("model", "unknown"))
         _send_telemetry(
             cabinet_id,
             "INFO",

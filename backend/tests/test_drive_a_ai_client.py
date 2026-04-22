@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import requests
 
 from backend.services.drive_a_ai_client import (
     PanelConfigNotFound,
@@ -152,3 +153,159 @@ def test_call_ai_raises_panel_disabled_when_enabled_false(client):
             messages=[{"role": "user", "content": "hello"}],
             cabinet_id="cab-disabled",
         )
+
+
+def test_call_ai_passes_resolved_model_to_proxy(client, monkeypatch):
+    client._resolve_panel_config = Mock(
+        return_value={
+            "panel": "blinky",
+            "cabinet_id": "cab-1",
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "enabled": True,
+        }
+    )
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        ok = True
+
+        def json(self):
+            return {"provider": "gemini", "model": "gemini-2.5-flash", "text": "ok"}
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        return FakeResponse()
+
+    monkeypatch.setattr("backend.services.drive_a_ai_client.requests.post", fake_post)
+
+    result = client.call_ai(
+        panel="blinky",
+        messages=[{"role": "user", "content": "hello"}],
+        cabinet_id="cab-1",
+    )
+
+    assert captured["url"].endswith("/functions/v1/gemini-proxy")
+    assert captured["json"]["model"] == "gemini-2.5-flash"
+    assert result["model"] == "gemini-2.5-flash"
+
+
+def test_call_ai_retries_fallback_provider_on_rate_limit(client, monkeypatch):
+    client._resolve_panel_config = Mock(
+        return_value={
+            "panel": "blinky",
+            "cabinet_id": "cab-1",
+            "provider": "gemini",
+            "model": "gemini-2.0-flash",
+            "fallback_provider": "anthropic",
+            "fallback_model": "claude-3-5-haiku-20241022",
+            "enabled": True,
+        }
+    )
+
+    calls = []
+
+    class RateLimitedResponse:
+        status_code = 429
+        ok = False
+        text = "rate limited"
+
+        def json(self):
+            return {"error": "rate_limited"}
+
+        def raise_for_status(self):
+            raise requests.HTTPError("429 rate limited")
+
+    class FallbackSuccessResponse:
+        status_code = 200
+        ok = True
+
+        def json(self):
+            return {
+                "provider": "anthropic",
+                "model": "claude-3-5-haiku-20241022",
+                "text": "fallback ok",
+            }
+
+    def fake_post(url, headers, json, timeout):
+        calls.append((url, json))
+        if url.endswith("/functions/v1/gemini-proxy"):
+            return RateLimitedResponse()
+        return FallbackSuccessResponse()
+
+    monkeypatch.setattr("backend.services.drive_a_ai_client.requests.post", fake_post)
+
+    result = client.call_ai(
+        panel="blinky",
+        messages=[{"role": "user", "content": "hello"}],
+        cabinet_id="cab-1",
+    )
+
+    assert len(calls) == 2
+    assert calls[0][0].endswith("/functions/v1/gemini-proxy")
+    assert calls[0][1]["model"] == "gemini-2.0-flash"
+    assert calls[1][0].endswith("/functions/v1/anthropic-proxy")
+    assert calls[1][1]["model"] == "claude-3-5-haiku-20241022"
+    assert result["provider"] == "anthropic"
+    assert result["model"] == "claude-3-5-haiku-20241022"
+
+
+def test_call_ai_omits_noncanonical_fallback_model_label(client, monkeypatch):
+    client._resolve_panel_config = Mock(
+        return_value={
+            "panel": "blinky",
+            "cabinet_id": "cab-1",
+            "provider": "gemini",
+            "model": "gemini-2.0-flash",
+            "fallback_provider": "anthropic",
+            "fallback_model": "Haiku 3.5",
+            "enabled": True,
+        }
+    )
+
+    calls = []
+
+    class RateLimitedResponse:
+        status_code = 429
+        ok = False
+        text = "rate limited"
+
+        def json(self):
+            return {"error": "rate_limited"}
+
+        def raise_for_status(self):
+            raise requests.HTTPError("429 rate limited")
+
+    class FallbackSuccessResponse:
+        status_code = 200
+        ok = True
+
+        def json(self):
+            return {
+                "provider": "anthropic",
+                "model": "claude-3-5-sonnet-20241022",
+                "text": "fallback ok",
+            }
+
+    def fake_post(url, headers, json, timeout):
+        calls.append((url, json))
+        if url.endswith("/functions/v1/gemini-proxy"):
+            return RateLimitedResponse()
+        return FallbackSuccessResponse()
+
+    monkeypatch.setattr("backend.services.drive_a_ai_client.requests.post", fake_post)
+
+    result = client.call_ai(
+        panel="blinky",
+        messages=[{"role": "user", "content": "hello"}],
+        cabinet_id="cab-1",
+    )
+
+    assert len(calls) == 2
+    assert calls[1][0].endswith("/functions/v1/anthropic-proxy")
+    assert "model" not in calls[1][1]
+    assert result["provider"] == "anthropic"
+    assert result["model"] == "claude-3-5-sonnet-20241022"
