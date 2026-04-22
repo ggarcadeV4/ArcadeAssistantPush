@@ -186,6 +186,7 @@ from backend.routers import doc
 from backend.routers import chuck
 from backend.routers import wiz
 from backend.routers import blinky_chat
+from backend.routers import gunner_chat
 print("DEBUG: Importing emulator (pause/save API)...")
 from backend.routers import emulator
 print("DEBUG: Importing hotkey...")
@@ -680,6 +681,7 @@ app.include_router(doc.router, prefix="/api/local/doc", tags=["doc"])
 app.include_router(chuck.router, prefix="/api/local/chuck", tags=["chuck"])
 app.include_router(wiz.router, prefix="/api/local/wiz", tags=["wiz"])
 app.include_router(blinky_chat.router, prefix="/api/local/blinky", tags=["blinky"])
+app.include_router(gunner_chat.router, prefix="/api/local/gunner", tags=["gunner"])
 app.include_router(engineering_bay.router, prefix="/api", tags=["engineering-bay"])  # Unified EB chat: Vicky/Blinky/Gunner/Doc
 app.include_router(tts_router.router, prefix="/api", tags=["tts"])  # ElevenLabs TTS via Supabase proxy
 

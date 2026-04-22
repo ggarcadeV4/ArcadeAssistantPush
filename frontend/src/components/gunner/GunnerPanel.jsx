@@ -26,6 +26,7 @@ const GUNNER_PERSONA = {
     accentGlow: 'rgba(239, 68, 68, 0.35)',
     scannerLabel: 'TARGETING...',
     voiceProfile: 'gunner',
+    chatEndpoint: '/api/local/gunner/chat',
     emptyHint: 'Ask Gunner about light gun setup, calibration, or Sinden/Gun4IR config.',
     chips: [
         { id: 'scan', label: 'Scan devices', prompt: 'Scan for all connected light gun devices.' },

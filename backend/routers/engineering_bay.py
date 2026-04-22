@@ -14,7 +14,7 @@ from backend.services.policies import require_scope
 
 router = APIRouter(prefix="/local/engineering-bay", tags=["engineering-bay"])
 
-VALID_PERSONAS = {"vicky", "gunner"}
+VALID_PERSONAS = {"vicky"}
 
 
 class ChatTurn(BaseModel):
@@ -23,7 +23,7 @@ class ChatTurn(BaseModel):
 
 
 class EBChatRequest(BaseModel):
-    persona: str = Field(..., description="One of: vicky, blinky, gunner, doc, chuck, wiz")
+    persona: str = Field(..., description="One of: vicky")
     message: str = Field(..., min_length=1, max_length=4000)
     history: List[ChatTurn] = Field(default_factory=list)
     isDiagnosisMode: bool = False

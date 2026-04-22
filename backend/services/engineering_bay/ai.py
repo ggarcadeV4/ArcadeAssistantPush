@@ -36,7 +36,7 @@ _UNCERTAINTY_MARKERS = [
     "you should verify", "not covered in my knowledge",
 ]
 
-_VALID_PERSONAS = {"vicky", "blinky", "gunner", "doc", "chuck", "wiz"}
+_VALID_PERSONAS = {"vicky"}
 
 # Doc is always in diagnosis mode — no chat variant needed
 _ALWAYS_DIAGNOSIS = {"doc"}
