@@ -42,6 +42,7 @@ const BLINKY_PERSONA = {
   accentGlow: 'rgba(147, 51, 234, 0.35)',
   scannerLabel: 'SCANNING PORTS...',
   voiceProfile: 'blinky',
+  chatEndpoint: '/api/local/blinky/chat',
   emptyHint: 'Ask Blinky about LED colors, game profiles, calibration, or wiring.',
   chips: [
     { id: 'status', label: 'LED status', prompt: 'Show me the current LED hardware status.' },
